@@ -115,28 +115,43 @@ struct ReifiedLogicalAnd {
 
   __device__ __host__
   void propagate(VStore vstore) {
+    printf("0\n");
     if (vstore[b] == 0) {
+      printf("4\n");
       XplusYleqC c1(-left.x, -left.y, -left.c-1);
       c1.propagate(vstore);
       XplusYleqC c2(-right.x, -right.y, -right.c-1);
       c2.propagate(vstore);
     }
     else if (vstore[b] == 1) {
+      printf("5\n");
       left.propagate(vstore);
       right.propagate(vstore);
     }
     else if (left.is_entailed(vstore) && right.is_entailed(vstore)) {
+      printf("6\n");
       vstore[b] = {1, 1};
     }
     else if (left.is_disentailed(vstore) || right.is_disentailed(vstore)) {
+      printf("1\n");
       vstore[b] = {0, 0};
     }
+    printf("7\n");
   }
 };
 
 void propagate_k(ReifiedLogicalAnd c, VStore vstore) {
   c.propagate(vstore);
 }
+
+
+// struct LogicalOr {
+//   XplusYleqC left;
+//   XplusYleqC right;
+
+//   LogicalOr(XplusYleqC left, XplusYleqC right)
+// }
+
 
 int main() {
 
