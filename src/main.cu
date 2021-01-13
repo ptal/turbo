@@ -25,9 +25,10 @@ struct Interval {
   int ub;
 
   __host__ __device__
-  void join(Interval b) {
+  Interval join(Interval b) {
     lb = max<int>(lb, b.lb);
     ub = min<int>(ub, b.ub);
+    return *this;
   }
 
   __host__ __device__
@@ -70,6 +71,16 @@ struct VStore {
   }
 
   __host__ __device__
+  void update(int i, Interval itv) {
+    if (i<0) {
+      data[-i].lb = -itv.ub;
+      data[-i].ub = -itv.lb;
+    } else { 
+      data[i] = itv;
+    }
+  }
+
+  __host__ __device__
   Interval operator[](int i) {
     return i < 0 ? data[-i].neg() : data[i];
   }
@@ -85,19 +96,21 @@ struct XplusYleqC {
   XplusYleqC(Var x, Var y, int c) : x(x), y(y), c(c) {}
 
   __device__ __host__
-  void propagate(VStore vstore)
+  void propagate(VStore& vstore)
   {
-    vstore[x].join({vstore[x].lb, c - vstore[y].lb});
-    vstore[y].join({vstore[y].lb, c - vstore[x].lb});
+    vstore.update(x, 
+        vstore[x].join({vstore[x].lb, c - vstore[y].lb}));
+    vstore.update(y, 
+        vstore[y].join({vstore[y].lb, c - vstore[x].lb}));
   }
 
   __device__ __host__
-  bool is_entailed(VStore vstore) {
+  bool is_entailed(VStore& vstore) {
     return vstore[x].ub + vstore[y].ub <= c;
   }
 
   __device__ __host__
-  bool is_disentailed(VStore vstore) {
+  bool is_disentailed(VStore& vstore) {
     return vstore[x].lb + vstore[y].lb > c;
   }
 };
@@ -114,7 +127,7 @@ struct ReifiedLogicalAnd {
     b(b), left(left), right(right) {}
 
   __device__ __host__
-  void propagate(VStore vstore) {
+  void propagate(VStore& vstore) {
     if (vstore[b] == 0) {
       XplusYleqC c1(-left.x, -left.y, -left.c-1);
       c1.propagate(vstore);
@@ -126,10 +139,10 @@ struct ReifiedLogicalAnd {
       right.propagate(vstore);
     }
     else if (left.is_entailed(vstore) && right.is_entailed(vstore)) {
-      vstore[b] = {1, 1};
+      vstore.update(b, {1, 1});
     }
     else if (left.is_disentailed(vstore) || right.is_disentailed(vstore)) {
-      vstore[b] = {0, 0};
+      vstore.update(b, {0, 0});
     }
   }
 };
@@ -137,6 +150,15 @@ struct ReifiedLogicalAnd {
 void propagate_k(ReifiedLogicalAnd c, VStore vstore) {
   c.propagate(vstore);
 }
+
+
+// struct LogicalOr {
+//   XplusYleqC left;
+//   XplusYleqC right;
+
+//   LogicalOr(XplusYleqC left, XplusYleqC right)
+// }
+
 
 int main() {
 
