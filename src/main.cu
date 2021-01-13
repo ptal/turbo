@@ -13,6 +13,8 @@
 
 #define CUDIE0() CUDIE(cudaGetLastError())
 
+// A variable with a negative index represents the negation `-x`.
+// The conversion is automatically handled in `VStore::operator[]`.
 typedef size_t Var;
 
 struct Interval {
@@ -22,6 +24,10 @@ struct Interval {
   inline void join(Interval b) {
     lb = max(lb, b.lb);
     ub = min(ub, b.ub);
+  }
+
+  Interval neg() {
+    return {-ub, -lb};
   }
 
   bool operator==(int x) {
@@ -49,8 +55,8 @@ struct VStore {
     data[x] = itv;
   }
 
-  Interval& operator[](const size_t i) {
-    return data[i];
+  Interval& operator[](int i) {
+    return i < 0 ? data[-i].neg() : data[i];
   }
 };
 
@@ -77,40 +83,61 @@ struct XplusYleqC {
   }
 };
 
-// /// b <=> left /\ right
-// struct ReifiedLogicalAnd {
-//   Var b;
-//   XplusYleqC left;
-//   XplusYleqC right;
+/// b <=> left /\ right
+struct ReifiedLogicalAnd {
+  Var b;
+  XplusYleqC left;
+  XplusYleqC right;
 
-//   ReifiedLogicalAnd(Var b, XplusYleqC left, XplusYleqC right) :
-//     b(b), left(left), right(right) {}
+  ReifiedLogicalAnd(Var b, XplusYleqC left, XplusYleqC right) :
+    b(b), left(left), right(right) {}
 
-//   void propagate(VStore vstore) {
-//     if vstore[b] == 0 {
-
-//     }
-//     else if vstore[b] == 1 {
-//       left.propagate(vstore);
-//       right.propagate(vstore);
-//     }
-//     else if left.is_entailed(vstore) && right.is_entailed(vstore) {
-//       vstore[b] = 1;
-//     }
-//     else if left.is_disentailed(vstore) && right.is_disentailed(vstore) {
-//       vstore[b] = 0;
-//     }
-//   }
-// }
+  void propagate(VStore vstore) {
+    if vstore[b] == 0 {
+      XplusYleqC c1(-left.x, -left.y, -left.c-1);
+      c1.propagate()
+      XplusYleqC c2(-right.x, -right.y, -right.c-1);
+      c2.propagate();
+    }
+    else if vstore[b] == 1 {
+      left.propagate(vstore);
+      right.propagate(vstore);
+    }
+    else if left.is_entailed(vstore) && right.is_entailed(vstore) {
+      vstore[b] = 1;
+    }
+    else if left.is_disentailed(vstore) || right.is_disentailed(vstore) {
+      vstore[b] = 0;
+    }
+  }
+}
 
 int main() {
-  VStore vstore = new_vstore(2);
+
+  // I. Declare the variable's domains.
+  int nvar = 4;
   int x = 0;
   int y = 1;
+  int z = 2;
+  int b = 3;
+  VStore vstore = new_vstore(nvar);
+
   dom(vstore, x, {0, 2});
   dom(vstore, y, {1, 3});
+  dom(vstore, z, {2, 4});
+  dom(vstore, b, {0,1});
+
   print_store(vstore);
-  x_plus_y_leq_c(vstore, x, y, 2);
+
+  // II. Declare the constraints
+  XplusYleqC c1(x,y,2);
+  XplusYleqC c2(y,z,2);
+  ReifiedLogicalAnd c3(b, c1, c2);
+
+  // III. Solve the problem.
+  c3.propagate();
+
   print_store(vstore);
+
   return 0;
 }
