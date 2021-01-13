@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <new>
 
+#define CUDA __device__ __host__
+
 #define CUDIE(result) { \
         cudaError_t e = (result); \
         if (e != cudaSuccess) { \
@@ -24,20 +26,17 @@ struct Interval {
   int lb;
   int ub;
 
-  __host__ __device__
-  Interval join(Interval b) {
+  CUDA Interval join(Interval b) {
     lb = max<int>(lb, b.lb);
     ub = min<int>(ub, b.ub);
     return *this;
   }
 
-  __host__ __device__
-  Interval neg() {
+  CUDA Interval neg() {
     return {-ub, -lb};
   }
 
-  __host__ __device__
-  bool operator==(int x) {
+  CUDA bool operator==(int x) {
     return lb == x && ub == x;
   }
 };
@@ -57,31 +56,27 @@ struct VStore {
     data = s.data;
   }*/
 
-  __host__ __device__
-  void print_store() {
+  CUDA void print_store() {
     for(int i=0; i < size; ++i) {
       printf("%d = [%d..%d]\n", i, data[i].lb, data[i].ub);
     }
   }
 
   // lb <= x <= ub
-  __host__ __device__
-  void dom(Var x, Interval itv) {
+  CUDA void dom(Var x, Interval itv) {
     data[x] = itv;
   }
 
-  __host__ __device__
-  void update(int i, Interval itv) {
+  CUDA void update(int i, Interval itv) {
     if (i<0) {
       data[-i].lb = -itv.ub;
       data[-i].ub = -itv.lb;
-    } else { 
+    } else {
       data[i] = itv;
     }
   }
 
-  __host__ __device__
-  Interval operator[](int i) {
+  CUDA Interval operator[](int i) {
     return i < 0 ? data[-i].neg() : data[i];
   }
 };
@@ -92,29 +87,28 @@ struct XplusYleqC {
   Var y;
   int c;
 
-  __device__ __host__
-  XplusYleqC(Var x, Var y, int c) : x(x), y(y), c(c) {}
+  CUDA XplusYleqC(Var x, Var y, int c) : x(x), y(y), c(c) {}
 
-  __device__ __host__
-  void propagate(VStore& vstore)
+  CUDA void propagate(VStore& vstore)
   {
-    vstore.update(x, 
+    vstore.update(x,
         vstore[x].join({vstore[x].lb, c - vstore[y].lb}));
-    vstore.update(y, 
+    vstore.update(y,
         vstore[y].join({vstore[y].lb, c - vstore[x].lb}));
   }
 
-  __device__ __host__
-  bool is_entailed(VStore& vstore) {
+  CUDA bool is_entailed(VStore& vstore) {
     return vstore[x].ub + vstore[y].ub <= c;
   }
 
-  __device__ __host__
-  bool is_disentailed(VStore& vstore) {
+  CUDA bool is_disentailed(VStore& vstore) {
     return vstore[x].lb + vstore[y].lb > c;
   }
-};
 
+  CUDA XplusYleqC neg() {
+    return XplusYleqC(-x, -y, -c - 1);
+  }
+};
 
 /// b <=> left /\ right
 struct ReifiedLogicalAnd {
@@ -122,17 +116,13 @@ struct ReifiedLogicalAnd {
   XplusYleqC left;
   XplusYleqC right;
 
-  __device__ __host__
-  ReifiedLogicalAnd(Var b, XplusYleqC left, XplusYleqC right) :
+  CUDA ReifiedLogicalAnd(Var b, XplusYleqC left, XplusYleqC right) :
     b(b), left(left), right(right) {}
 
-  __device__ __host__
-  void propagate(VStore& vstore) {
+  CUDA void propagate(VStore& vstore) {
     if (vstore[b] == 0) {
-      XplusYleqC c1(-left.x, -left.y, -left.c-1);
-      c1.propagate(vstore);
-      XplusYleqC c2(-right.x, -right.y, -right.c-1);
-      c2.propagate(vstore);
+      left.neg().propagate(vstore);
+      right.neg().propagate(vstore);
     }
     else if (vstore[b] == 1) {
       left.propagate(vstore);
@@ -151,14 +141,78 @@ void propagate_k(ReifiedLogicalAnd c, VStore vstore) {
   c.propagate(vstore);
 }
 
+// C1 \/ C2
+struct LogicalOr {
+  XplusYleqC left;
+  XplusYleqC right;
 
-// struct LogicalOr {
-//   XplusYleqC left;
-//   XplusYleqC right;
+  LogicalOr(XplusYleqC left, XplusYleqC right):
+    left(left), right(right) {}
 
-//   LogicalOr(XplusYleqC left, XplusYleqC right)
-// }
+  CUDA void propagate(VStore& vstore) {
+    if (left.is_disentailed(vstore)) {
+      right.propagate(vstore);
+    }
+    else if (right.is_disentailed(vstore)) {
+      left.propagate(vstore);
+    }
+  }
 
+  CUDA bool is_entailed(VStore& vstore) {
+    return left.is_entailed(vstore) || right.is_entailed(vstore);
+  }
+
+  CUDA bool is_disentailed(VStore& vstore) {
+    return left.is_disentailed(vstore) && right.is_disentailed(vstore);
+  }
+};
+
+// x1c1 + ... + xNcN <= max
+struct LinearIneq {
+  int n;
+  Var* vars;
+  int* constants;
+  int max;
+
+  LinearIneq(int n, Var* vars, int* constants, int max) :
+    n(n), vars(vars), constants(constants), max(max) {}
+
+  CUDA int leftover(VStore& vstore) {
+    int leftover = 0;
+    for(int i=0; i < n; ++i) {
+      if (vstore[vars[i]].lb == 0 && vstore[vars[i]].ub == 1) {
+        leftover += constants[i];
+      }
+    }
+    return leftover;
+  }
+
+  CUDA int slack(VStore& vstore) {
+    int current = 0;
+    for(int i=0; i < n; ++i) {
+      current += vstore[vars[i]].lb * constants[i];
+    }
+    return max - current;
+  }
+
+  CUDA void propagate(VStore& vstore) {
+    int s = slack(vstore);
+    for(int i=0; i < n; ++i) {
+      Interval x = vstore[vars[i]];
+      if (x.lb == 0 && x.ub == 1 && constants[i] > s) {
+        vstore.update(vars[i], {0,0});
+      }
+    }
+  }
+
+  CUDA bool is_entailed(VStore& vstore) {
+    return leftover(vstore) <= slack(vstore);
+  }
+
+  CUDA bool is_disentailed(VStore& vstore) {
+    return slack(vstore) < 0;
+  }
+};
 
 int main() {
 
