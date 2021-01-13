@@ -147,8 +147,9 @@ struct ReifiedLogicalAnd {
   }
 };
 
-void propagate_k(ReifiedLogicalAnd c, VStore vstore) {
-  c.propagate(vstore);
+__global__
+void propagate_k(ReifiedLogicalAnd c, VStore* vstore) {
+  c.propagate(*vstore);
 }
 
 
@@ -186,7 +187,9 @@ int main() {
   ReifiedLogicalAnd c3(b, c1, c2);
 
   // III. Solve the problem.
-  c3.propagate(*vstore);
+  //c3.propagate(*vstore);
+  propagate_k<<<1,1>>>(c3, vstore);
+  CUDIE(cudaDeviceSynchronize());
 
   vstore->print_store();
 
