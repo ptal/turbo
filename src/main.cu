@@ -27,18 +27,17 @@ struct VStore {
   size_t size;
 };
 
-VStore new_vstore(int nvar) {
+VStore new_vstore(size_t nvar) {
   Interval* data;
-  CUDIE(cudaMallocManaged(data, sizeof(Interval) * nvar));
-  {data, nvar}
+  CUDIE(cudaMallocManaged(&data, sizeof(Interval) * nvar));
+  return {data, nvar};
 }
 
-typedef int Var;
-typedef Interval* VStore;
+typedef size_t Var;
 
 void print_store(VStore vstore) {
   for(int i=0; i < vstore.size; ++i) {
-    printf("%d = [%d..%d]\n", i, vstore[i].lb, vstore[i].ub);
+    printf("%d = [%d..%d]\n", i, vstore.data[i].lb, vstore.data[i].ub);
   }
 }
 
@@ -50,8 +49,8 @@ void dom(VStore vstore, Var x, Interval itv) {
 // x + y <= c
 void x_plus_y_leq_c(VStore vstore, Var x, Var y, int c)
 {
-  join(&vstore[x], {vstore.data[x].lb, c - vstore[y].lb});
-  join(&vstore[y], {vstore.data[y].lb, c - vstore[x].lb});
+  join(&vstore.data[x], {vstore.data[x].lb, c - vstore.data[y].lb});
+  join(&vstore.data[y], {vstore.data[y].lb, c - vstore.data[x].lb});
 }
 
 int main() {
