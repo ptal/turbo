@@ -15,8 +15,10 @@
 
 #define CUDIE0() CUDIE(cudaGetLastError())
 
-template<typename T>__device__ __host__ T min(T a, T b) { return a<=b ? a : b; }
-template<typename T>__device__ __host__ T max(T a, T b) { return a>=b ? a : b; }
+__device__ __managed__ uint Act_cnt = 0;
+
+template<typename T>CUDA T min(T a, T b) { return a<=b ? a : b; }
+template<typename T>CUDA T max(T a, T b) { return a>=b ? a : b; }
 
 // A variable with a negative index represents the negation `-x`.
 // The conversion is automatically handled in `VStore::operator[]`.
@@ -50,11 +52,10 @@ struct VStore {
     CUDIE(cudaMallocManaged(&data, sizeof(*data) * nvar));
   }
 
-  /*VStore(const VStore& s) {
-    // use : size{s.size}, ... ?
-    size = s.size;
-    data = s.data;
-  }*/
+  void free() {
+    CUDIE(cudaFree(data));
+    size = 0;
+  }
 
   CUDA void print_store() {
     for(int i=0; i < size; ++i) {
@@ -91,6 +92,7 @@ struct XplusYleqC {
 
   CUDA void propagate(VStore& vstore)
   {
+    Act_cnt++;  // abstract?
     vstore.update(x,
         vstore[x].join({vstore[x].lb, c - vstore[y].lb}));
     vstore.update(y,
@@ -137,8 +139,8 @@ struct ReifiedLogicalAnd {
   }
 };
 
-__global__
-void propagate_k(ReifiedLogicalAnd c, VStore* vstore) {
+template<typename Constraint>
+__global__ void propagate_k(Constraint c, VStore* vstore) {
   c.propagate(*vstore);
 }
 
@@ -215,6 +217,26 @@ struct LinearIneq {
   }
 };
 
+__global__ 
+void is_active_k() {
+  __shared__ uint prev;  // shared: avoids spillage to global (tbc)
+  __shared__ uint curr;
+  __shared__ bool inactive;
+  inactive = false;
+  while (1) {
+    asm("nanosleep.u32 1000000000;");
+    prev = curr;
+    curr = Act_cnt;
+    if (!inactive && curr == prev) {
+      inactive = true;
+      printf("no activity\n");
+      break;  // for now
+    } else {
+      printf("active!\n");
+    }
+  }
+}
+
 int main() {
 
   // I. Declare the variable's domains.
@@ -242,10 +264,23 @@ int main() {
 
   // III. Solve the problem.
   //c3.propagate(*vstore);
-  propagate_k<<<1,1>>>(c3, vstore);
-  CUDIE(cudaDeviceSynchronize());
+  // concurrent execution of monitoring and solving using streams:
+  cudaStream_t monitor, solve;
+  CUDIE(cudaStreamCreate(&monitor));
+  CUDIE(cudaStreamCreate(&solve));
 
+  is_active_k<<<1,1,0,monitor>>>();
+  propagate_k<ReifiedLogicalAnd><<<1,1,0,solve>>>(c3, vstore);
+  CUDIE0();
+
+  CUDIE(cudaDeviceSynchronize());
+  
   vstore->print_store();
+
+  CUDIE(cudaStreamDestroy(monitor));
+  CUDIE(cudaStreamDestroy(solve));
+  vstore->free();
+  CUDIE(cudaFree(v));
 
   return 0;
 }
