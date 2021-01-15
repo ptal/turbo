@@ -1,0 +1,47 @@
+{
+  "bench_exec": "./local.sh",
+  "input_dir" : "../../absolute-project/kobe-rcpsp/data/",
+  "output_dir" : "database/",
+  "problem_sets" : [
+    { "path": "rcpsp/patterson.rcp/",
+      "timeout": 10 }
+  ],
+  "pipelines" : [
+    <MakeModel: {
+      "decompositions": [
+        {"name":"TimeRD", "description":"Time-resource decomposition of cumulative"}]
+    }>,
+    <MakeModel: {
+      "decompositions": [
+        {"name":"TaskRD", "description":"Task-resource decomposition of cumulative"}]
+    }>,
+    <ModelToSkm>,
+    <Solve:
+      [[{"name": "turbo", "options": []}]]
+    >],
+  "csv" : {
+    "fields" : [<ProblemName>, <Nodes>, <Solutions>, <Fails>, <Time : <Sec>>, <Optimum>]
+  },
+  "solvers_config": [
+    { "name": "turbo",
+      "version": "0.1",
+      "exec": "/home/ptalbot/repositories/turbo/build/turbo",
+      "globals": "" },
+    { "name": "gecode",
+      "version": "6.2.0",
+      "exec": "/home/ptalbot/repositories/resources/solvers/gecode/build/bin/fzn-gecode",
+      "globals": "/usr/share/minizinc-ide/share/minizinc/gecode" },
+    { "name": "chuffed",
+      "version": "0.10.4@develop",
+      "exec": "/home/ptalbot/repositories/resources/solvers/chuffed/build/fzn-chuffed",
+      "globals": "/home/ptalbot/repositories/resources/solvers/chuffed/chuffed/flatzinc/mznlib" },
+    { "name": "absolute",
+      "version": "0.4.0",
+      "exec": "",
+      "globals": "" },
+    { "name": "mzn2fzn",
+      "version": "2.3.1",
+      "exec": "minizinc",
+      "globals": "" }
+  ]
+}
