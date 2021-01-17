@@ -2,14 +2,9 @@ SRC_DIR = src
 OBJ_DIR = build
 INC_DIR = include
 
-# CC compiler options:
-CC=nvcc
-CC_FLAGS=-I$(INC_DIR)
-CC_LIBS=
-
 # NVCC compiler options:
 NVCC=nvcc
-NVCC_FLAGS=-I$(INC_DIR)
+NVCC_FLAGS=-I$(INC_DIR) -arch=sm_75 -std=c++17
 NVCC_LIBS=
 
 ## Make variables ##
@@ -19,6 +14,7 @@ EXE = turbo
 
 # Object files:
 OBJS = $(OBJ_DIR)/turbo.o $(OBJ_DIR)/solver.o
+INC_ONLY =
 
 ## Compile ##
 
@@ -28,14 +24,14 @@ $(EXE) : $(OBJS)
 
 # Compile main .cpp file to object files:
 $(OBJ_DIR)/%.o : $(SRC_DIR)/%.cpp
-	$(CC) $(CC_FLAGS) -c $< -o $@
+	$(NVCC) $(NVCC_FLAGS) -c $< -o $@
 
 # Compile C++ source files to object files:
-$(OBJ_DIR)/%.o : $(SRC_DIR)/%.cpp $(INC_DIR)/%.hpp
-	$(CC) $(CC_FLAGS) -c $< -o $@
+$(OBJ_DIR)/%.o : $(SRC_DIR)/%.cpp $(INC_DIR)/%.hpp $(INC_ONLY)
+	$(NVCC) $(NVCC_FLAGS) -c $< -o $@
 
 # Compile CUDA source files to object files:
-$(OBJ_DIR)/%.o : $(SRC_DIR)/%.cu $(INC_DIR)/%.cuh
+$(OBJ_DIR)/%.o : $(SRC_DIR)/%.cu $(INC_DIR)/%.cuh $(INC_ONLY)
 	$(NVCC) $(NVCC_FLAGS) -c $< -o $@ $(NVCC_LIBS)
 
 # Clean objects in object directory.

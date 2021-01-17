@@ -12,9 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "solver.cuh"
+#include <iostream>
 
-int main() {
-  solve();
+#include "solver.cuh"
+#include "skm_parser.hpp"
+
+int main(int argc, char** argv) {
+  if (argc != 2) {
+    std::cout << "usage: " << argv[0] << " <filename>" <<std::endl;
+    exit(EXIT_FAILURE);
+  }
+  parse_skm(argv[1]);
+  // solve();
   return 0;
 }

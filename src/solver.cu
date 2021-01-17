@@ -19,7 +19,7 @@
 
 #include "solver.cuh"
 #include "cuda_helper.hpp"
-// #include "ast.hpp"
+#include "ast.hpp"
 
 __device__ __managed__ uint Act_cnt = 0;
 
