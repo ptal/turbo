@@ -59,7 +59,7 @@ void solve() {
   vstore->dom(z, {2, 4});
   vstore->dom(b, {0,1});
 
-  vstore->print_store();
+  // vstore->print_store();
 
   // II. Declare the constraints
   XplusYleqC c1(x,y,2);
@@ -79,7 +79,7 @@ void solve() {
 
   CUDIE(cudaDeviceSynchronize());
 
-  vstore->print_store();
+  // vstore->print_store();
 
   CUDIE(cudaStreamDestroy(monitor));
   CUDIE(cudaStreamDestroy(solve));

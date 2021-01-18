@@ -15,6 +15,7 @@
 #include <iostream>
 
 #include "solver.cuh"
+#include "constraints.cuh"
 
 #include "XCSP3CoreParser.h"
 
@@ -32,6 +33,17 @@ int main(int argc, char** argv) {
     XCSP3_turbo_callbacks cb(model_builder);
     XCSP3CoreParser parser(&cb);
     parser.parse(argv[1]); // fileName is a string
+    std::vector<std::string>& var2name = model_builder->name_of_vars();
+    Constraints constraints = model_builder->build_constraints();
+    // VStore* vstore = model_builder->build_store();
+    const char** var2name_raw = new const char*[var2name.size()];
+    for(int i = 0; i < var2name.size(); ++i) {
+      var2name_raw[i] = var2name[i].c_str();
+    }
+    // vstore->print(var2name_raw);
+    constraints.print(var2name_raw);
+    delete var2name_raw;
+    // CUDIE(cudaStreamDestroy(vstore));
   }
   catch (exception &e)
   {

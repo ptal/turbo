@@ -16,11 +16,16 @@
 #define VSTORE_HPP
 
 #include <limits>
+#include <cmath>
+#include <cstdio>
+#include <vector>
+#include <string>
 #include "cuda_helper.hpp"
 
 // A variable with a negative index represents the negation `-x`.
 // The conversion is automatically handled in `VStore::operator[]`.
-typedef size_t Var;
+typedef int Var;
+typedef const char** Var2Name;
 
 struct Interval {
   int lb;
@@ -45,6 +50,10 @@ struct Interval {
   CUDA bool operator==(int x) {
     return lb == x && ub == x;
   }
+
+  CUDA void print() {
+    printf("[%d..%d]", lb, ub);
+  }
 };
 
 struct VStore {
@@ -65,9 +74,16 @@ struct VStore {
     free();
   }
 
-  CUDA void print_store() {
+  CUDA static void print_var(Var x, Var2Name var2name) {
+    printf("%s%s", (x < 0 ? "-" : ""), var2name[abs(x)]);
+  }
+
+  CUDA void print(Var2Name var2name) {
     for(int i=0; i < size; ++i) {
-      printf("%d = [%d..%d]\n", i, data[i].lb, data[i].ub);
+      print_var(i, var2name);
+      printf(" = ");
+      data[i].print();
+      printf("\n");
     }
   }
 

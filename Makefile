@@ -13,7 +13,7 @@ EXE = turbo
 
 # Object files:
 OBJS = $(OBJ_DIR)/turbo.o $(OBJ_DIR)/solver.o
-INC_ONLY = $(INC_DIR)/XCSP3_turbo_callbacks.hpp $(INC_DIR)/vstore.cuh $(INC_DIR)/cuda_helper.hpp $(INC_DIR)/constraints.cuh
+INC_ONLY = $(INC_DIR)/XCSP3_turbo_callbacks.hpp $(INC_DIR)/vstore.cuh $(INC_DIR)/cuda_helper.hpp $(INC_DIR)/constraints.cuh $(INC_DIR)/model_builder.hpp
 
 ## Compile ##
 

@@ -81,8 +81,8 @@ class ModelBuilder {
       var2idx[name] = std::make_tuple(idx, Interval(min,max));
     }
 
-    std::string name_of_var(Var idx) {
-      return idx2var[idx];
+    std::vector<std::string>& name_of_vars() {
+      return idx2var;
     }
 
     void add_constraint(Tree *tree) {

@@ -17,8 +17,6 @@
 
 #include <iostream>
 
-using namespace std;
-
 #include "XCSP3Tree.h"
 #include "XCSP3CoreCallbacks.h"
 #include "XCSP3Variable.h"
@@ -36,6 +34,7 @@ using namespace std;
  */
 
 namespace XCSP3Core {
+    using namespace std;
 
     class XCSP3_turbo_callbacks : public XCSP3CoreCallbacks {
     public:

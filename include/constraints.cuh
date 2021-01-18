@@ -17,6 +17,7 @@
 
 #include <cassert>
 #include "cuda_helper.hpp"
+#include "vstore.cuh"
 
 CUDA_VAR uint Act_cnt = 0;
 
@@ -48,6 +49,13 @@ struct XplusYleqC {
   CUDA XplusYleqC neg() {
     return XplusYleqC(-x, -y, -c - 1);
   }
+
+  CUDA void print(Var2Name var2name) {
+    VStore::print_var(x, var2name);
+    printf(" + ");
+    VStore::print_var(y, var2name);
+    printf(" <= %d", c);
+  }
 };
 
 /// b <=> left /\ right
@@ -74,6 +82,15 @@ struct ReifiedLogicalAnd {
     else if (left.is_disentailed(vstore) || right.is_disentailed(vstore)) {
       vstore.update(b, {0, 0});
     }
+  }
+
+  CUDA void print(Var2Name var2name) {
+    VStore::print_var(b, var2name);
+    printf(" <=> (");
+    left.print(var2name);
+    printf(" /\\ ");
+    right.print(var2name);
+    printf(" )");
   }
 };
 
@@ -105,6 +122,12 @@ struct LogicalOr {
 
   CUDA bool is_disentailed(VStore& vstore) {
     return left.is_disentailed(vstore) && right.is_disentailed(vstore);
+  }
+
+  CUDA void print(Var2Name var2name) {
+    left.print(var2name);
+    printf(" \\/ ");
+    right.print(var2name);
   }
 };
 
@@ -167,6 +190,15 @@ struct LinearIneq {
   CUDA bool is_disentailed(VStore& vstore) {
     return slack(vstore) < 0;
   }
+
+  CUDA void print(Var2Name var2name) {
+    for(int i = 0; i < n; ++i) {
+      printf("\n%d * \n", constants[i]);
+      fflush(stdout);
+      VStore::print_var(vars[i], var2name);
+    }
+    printf(" <= %d", max);
+  }
 };
 
 struct Constraints {
@@ -174,6 +206,26 @@ struct Constraints {
   std::vector<ReifiedLogicalAnd> reifiedLogicalAnd;
   std::vector<LogicalOr> logicalOr;
   std::vector<LinearIneq> linearIneq;
+
+  void print(Var2Name var2name)
+  {
+    for(auto c : xPlusYleqC) {
+      c.print(var2name);
+      printf("\n");
+    }
+    for(auto c : reifiedLogicalAnd) {
+      c.print(var2name);
+      printf("\n");
+    }
+    for(auto c : logicalOr) {
+      c.print(var2name);
+      printf("\n");
+    }
+    // for(auto c : linearIneq) {
+    //   c.print(var2name);
+    //   printf("\n");
+    // }
+  }
 };
 
 #endif
