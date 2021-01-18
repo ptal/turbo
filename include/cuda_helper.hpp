@@ -15,7 +15,11 @@
 #ifndef CUDA_HELPER_HPP
 #define CUDA_HELPER_HPP
 
+#ifdef __CUDACC__
 #define CUDA __device__ __host__
+
+#define CUDA_VAR __device__ __managed__
+#define CUDA_GLOBAL __global__
 
 #define CUDIE(result) { \
         cudaError_t e = (result); \
@@ -26,6 +30,13 @@
         }}
 
 #define CUDIE0() CUDIE(cudaGetLastError())
+#else
+#define CUDA
+#define CUDA_VAR
+#define CUDA_GLOBAL
+#define CUDIE(result)
+#define CUDIE0()
+#endif
 
 template<typename T>CUDA T min(T a, T b) { return a<=b ? a : b; }
 template<typename T>CUDA T max(T a, T b) { return a>=b ? a : b; }

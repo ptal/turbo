@@ -78,7 +78,7 @@ class ModelBuilder {
     void add_var(std::string name, int min, int max) {
       Var idx = idx2var.size();
       idx2var.push_back(name);
-      var2idx.insert(name, std::make_tuple(idx, Interval(min,max)));
+      var2idx[name] = std::make_tuple(idx, Interval(min,max));
     }
 
     std::string name_of_var(Var idx) {
@@ -251,6 +251,6 @@ class ModelBuilder {
         throw std::runtime_error("Expected reified constraint of the form  b <=> (c1 /\\ c2)");
       }
     }
-}
+};
 
 #endif

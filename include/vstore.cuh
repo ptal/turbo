@@ -15,6 +15,7 @@
 #ifndef VSTORE_HPP
 #define VSTORE_HPP
 
+#include <limits>
 #include "cuda_helper.hpp"
 
 // A variable with a negative index represents the negation `-x`.
@@ -25,11 +26,15 @@ struct Interval {
   int lb;
   int ub;
 
-  CUDA Interval(int lb, int ub) : lb(lb), ub(ub) {}
+  Interval():
+    lb(std::numeric_limits<int>::min()),
+    ub(std::numeric_limits<int>::max()) {}
+
+  CUDA Interval(int lb, int ub): lb(lb), ub(ub) {}
 
   CUDA Interval join(Interval b) {
-    lb = max<int>(lb, b.lb);
-    ub = min<int>(ub, b.ub);
+    lb = ::max<int>(lb, b.lb);
+    ub = ::min<int>(ub, b.ub);
     return *this;
   }
 

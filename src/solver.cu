@@ -22,8 +22,6 @@
 #include "constraints.cuh"
 #include "cuda_helper.hpp"
 
-__device__ __managed__ uint Act_cnt = 0;
-
 __global__
 void is_active_k() {
   __shared__ uint prev;  // shared: avoids spillage to global (tbc)

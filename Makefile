@@ -6,15 +6,9 @@ LIBXML2 = -lxml2 -I/usr/include/libxml2
 LIBXCSP3 = -Llib/XCSP3-CPP-Parser/lib  -lxcsp3parser -Ilib/XCSP3-CPP-Parser/include
 LIBS= $(LIBXML2) $(LIBXCSP3)
 
-CC=nvcc
 NVCC=nvcc
-CPP_FLAGS=-I$(INC_DIR) -std=c++17
-NVCC_FLAGS=-arch=sm_75 $(CPP_FLAGS)
+NVCC_FLAGS=-arch=sm_75 $(CPP_FLAGS) -I/usr/local/cuda/include -I$(INC_DIR) -std=c++17
 
-
-## Make variables ##
-
-# Target executable name:
 EXE = turbo
 
 # Object files:
@@ -33,11 +27,11 @@ $(OBJ_DIR)/%.o : $(SRC_DIR)/%.cpp
 
 # Compile C++ source files to object files:
 $(OBJ_DIR)/%.o : $(SRC_DIR)/%.cpp $(INC_DIR)/%.hpp $(INC_ONLY)
-	$(NVCC) $(NVCC_FLAGS) -c $< -o $@ $(LIBS)
+	$(NVCC) $(NVCC_FLAGS) $(LIBS) -c $< -o $@
 
 # Compile CUDA source files to object files:
 $(OBJ_DIR)/%.o : $(SRC_DIR)/%.cu $(INC_DIR)/%.cuh $(INC_ONLY)
-	$(NVCC) $(NVCC_FLAGS) -c $< -o $@ $(LIBS)
+	$(NVCC) $(NVCC_FLAGS) $(LIBS) -c $< -o $@
 
 # Clean objects in object directory.
 clean:

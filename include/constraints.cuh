@@ -15,7 +15,10 @@
 #ifndef CONSTRAINTS_HPP
 #define CONSTRAINTS_HPP
 
+#include <cassert>
 #include "cuda_helper.hpp"
+
+CUDA_VAR uint Act_cnt = 0;
 
 /// x + y <= c
 struct XplusYleqC {
@@ -75,7 +78,7 @@ struct ReifiedLogicalAnd {
 };
 
 template<typename Constraint>
-__global__ void propagate_k(Constraint c, VStore* vstore) {
+CUDA_GLOBAL void propagate_k(Constraint c, VStore* vstore) {
   c.propagate(*vstore);
 }
 
@@ -112,10 +115,15 @@ struct LinearIneq {
   int* constants;
   int max;
 
-  LinearIneq(std::vector<Var> vars, std::vector<int> constants, int max) {
-    n = vars.size();
-    CUDIE(cudaMallocManaged(&vars, sizeof(*vars) * nvar));
-    CUDIE(cudaMallocManaged(&constants, sizeof(*constants) * nvar));
+  LinearIneq(std::vector<Var> vvars, std::vector<int> vconstants, int max) {
+    assert(vvars.size() == vconstants.size());
+    n = vvars.size();
+    CUDIE(cudaMallocManaged(&vars, sizeof(*vars) * n));
+    CUDIE(cudaMallocManaged(&constants, sizeof(*constants) * n));
+    for(int i=0; i < n; ++i) {
+      vars[i] = vvars[i];
+      constants[i] = vconstants[i];
+    }
     max = max;
   }
 
