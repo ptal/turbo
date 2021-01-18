@@ -15,7 +15,7 @@
       "decompositions": [
         {"name":"TaskRD", "description":"Task-resource decomposition of cumulative"}]
     }>,
-    <ModelToSkm>,
+    <ModelToXCSP3>,
     <Solve:
       [[{"name": "turbo", "options": []}]]
     >],

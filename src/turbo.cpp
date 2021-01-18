@@ -15,14 +15,31 @@
 #include <iostream>
 
 #include "solver.cuh"
-#include "skm_parser.hpp"
+
+#include "XCSP3CoreParser.h"
+
+#include "XCSP3_turbo_callbacks.hpp"
 
 int main(int argc, char** argv) {
   if (argc != 2) {
-    std::cout << "usage: " << argv[0] << " <filename>" <<std::endl;
+    std::cout << "usage: " << argv[0] << " xcsp3instance.xml" <<std::endl;
     exit(EXIT_FAILURE);
   }
-  parse_skm(argv[1]);
+
+  try
+  {
+    ModelBuilder* model_builder = new ModelBuilder();
+    XCSP3_turbo_callbacks cb(model_builder);
+    XCSP3CoreParser parser(&cb);
+    parser.parse(argv[1]); // fileName is a string
+  }
+  catch (exception &e)
+  {
+    cout.flush();
+    cerr << "\n\tUnexpected exception:\n";
+    cerr << "\t" << e.what() << endl;
+    exit(EXIT_FAILURE);
+  }
   // solve();
   return 0;
 }
