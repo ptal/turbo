@@ -29,13 +29,13 @@ struct XplusYleqC {
 
   CUDA XplusYleqC(Var x, Var y, int c) : x(x), y(y), c(c) {}
 
-  CUDA void propagate(VStore& vstore)
+  CUDA bool propagate(VStore& vstore)
   {
-    Act_cnt++;  // abstract?
-    vstore.update(x,
-        vstore[x].join({vstore[x].lb, c - vstore[y].lb}));
-    vstore.update(y,
-        vstore[y].join({vstore[y].lb, c - vstore[x].lb}));
+    return
+      vstore.update(x,
+          vstore[x].join({vstore[x].lb, c - vstore[y].lb})) ||
+      vstore.update(y,
+          vstore[y].join({vstore[y].lb, c - vstore[x].lb}));
   }
 
   CUDA bool is_entailed(VStore& vstore) {
@@ -66,13 +66,14 @@ struct LogicalOr {
   CUDA LogicalOr(XplusYleqC left, XplusYleqC right):
     left(left), right(right) {}
 
-  CUDA void propagate(VStore& vstore) {
+  CUDA bool propagate(VStore& vstore) {
     if (left.is_disentailed(vstore)) {
-      right.propagate(vstore);
+      return right.propagate(vstore);
     }
     else if (right.is_disentailed(vstore)) {
-      left.propagate(vstore);
+      return left.propagate(vstore);
     }
+    return false;
   }
 
   CUDA bool is_entailed(VStore& vstore) {
@@ -99,20 +100,22 @@ struct ReifiedLogicalAnd {
   CUDA ReifiedLogicalAnd(Var b, XplusYleqC left, XplusYleqC right) :
     b(b), left(left), right(right) {}
 
-  CUDA void propagate(VStore& vstore) {
+  CUDA bool propagate(VStore& vstore) {
     if (vstore[b] == 0) {
-      LogicalOr(left.neg(), right.neg()).propagate(vstore);
+      return LogicalOr(left.neg(), right.neg()).propagate(vstore);
     }
     else if (vstore[b] == 1) {
-      left.propagate(vstore);
-      right.propagate(vstore);
+      return
+        left.propagate(vstore) ||
+        right.propagate(vstore);
     }
     else if (left.is_entailed(vstore) && right.is_entailed(vstore)) {
-      vstore.update(b, {1, 1});
+      return vstore.update(b, {1, 1});
     }
     else if (left.is_disentailed(vstore) || right.is_disentailed(vstore)) {
-      vstore.update(b, {0, 0});
+      return vstore.update(b, {0, 0});
     }
+    return false;
   }
 
   CUDA void print(Var2Name var2name) {
@@ -180,14 +183,16 @@ struct LinearIneq {
     return max - current;
   }
 
-  CUDA void propagate(VStore& vstore) {
+  CUDA bool propagate(VStore& vstore) {
     int s = slack(vstore);
+    bool has_changed = false;
     for(int i=0; i < n; ++i) {
       Interval x = vstore[vars[i]];
       if (x.lb == 0 && x.ub == 1 && constants[i] > s) {
-        vstore.update(vars[i], {0,0});
+        has_changed |= vstore.update(vars[i], {0,0});
       }
     }
+    return has_changed;
   }
 
   CUDA bool is_entailed(VStore& vstore) {

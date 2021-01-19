@@ -51,6 +51,10 @@ struct Interval {
     return lb == x && ub == x;
   }
 
+  CUDA bool operator!=(const Interval& other) {
+    return lb != other.lb || ub != other.ub;
+  }
+
   CUDA void print() {
     printf("[%d..%d]", lb, ub);
   }
@@ -92,13 +96,17 @@ struct VStore {
     data[x] = itv;
   }
 
-  CUDA void update(int i, Interval itv) {
+  CUDA bool update(int i, Interval itv) {
+    bool has_changed;
     if (i<0) {
+      has_changed = data[-i].lb != -itv.ub || data[-i].ub != -itv.lb;
       data[-i].lb = -itv.ub;
       data[-i].ub = -itv.lb;
     } else {
+      has_changed = data[i] != itv;
       data[i] = itv;
     }
+    return has_changed;
   }
 
   CUDA Interval operator[](int i) {
