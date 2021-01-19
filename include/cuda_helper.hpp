@@ -15,7 +15,7 @@
 #ifndef CUDA_HELPER_HPP
 #define CUDA_HELPER_HPP
 
-#ifdef __CUDACC__
+#ifdef __NVCC__
 #define CUDA __device__ __host__
 
 #define CUDA_VAR __device__ __managed__

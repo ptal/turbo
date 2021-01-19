@@ -102,8 +102,8 @@ class ModelBuilder {
       void* v;
       CUDIE(cudaMallocManaged(&v, sizeof(VStore)));
       VStore* vstore = new(v) VStore(idx2var.size());
-      for (const auto& [key, value] : var2idx) {
-        vstore->dom(std::get<0>(value), std::get<1>(value));
+      for (const auto& x : var2idx) {
+        vstore->dom(std::get<0>(x.second), std::get<1>(x.second));
       }
       return vstore;
     }
