@@ -24,65 +24,70 @@
 
 __global__
 void is_active_k() {
-  __shared__ uint prev;  // shared: avoids spillage to global (tbc)
   __shared__ uint curr;
-  __shared__ bool inactive;
-  inactive = false;
   while (1) {
-    asm("nanosleep.u32 1000000000;");
-    prev = curr;
+    asm("nanosleep.u32 10000000;");
     curr = Act_cnt;
-    if (!inactive && curr == prev) {
-      inactive = true;
+    if (curr <= 0) {
       printf("no activity\n");
-      break;  // for now
+      break;
     } else {
-      printf("active!\n");
+      printf("active! (%u)\n", curr);
     }
   }
 }
 
-void solve() {
-  // I. Declare the variable's domains.
-  int nvar = 4;
-  int x = 0;
-  int y = 1;
-  int z = 2;
-  int b = 3;
+template<typename Constraint>
+CUDA_GLOBAL void propagate_k(Constraint *c, VStore* vstore) {
+  int ic = threadIdx.x + blockIdx.x*blockDim.x;
+  bool worked, preworked = 0;
+  while (Exploring) {
+    worked = c[ic].propagate(*vstore);
+    if (!preworked && worked) { ++Act_cnt; }
+    else if (preworked && !worked) { --Act_cnt; }
+    preworked = worked;
+  }
+}
 
-  void* v;
-  CUDIE(cudaMallocManaged(&v, sizeof(VStore)));
-  VStore* vstore = new(v) VStore(nvar);
+template<typename ConstraintT>
+ConstraintT* launch(std::vector<ConstraintT> &c, cudaStream_t s, VStore *vstore) {
+  printf("launching %d threads on stream %d\n", c.size(), s);
+  ConstraintT *constraints;
+  CUDIE(cudaMallocManaged(&constraints, c.size()*sizeof(ConstraintT)));
+  for (int i=0; i<c.size(); ++i) {
+    constraints[i] = c[i];
+  }
+  propagate_k<ConstraintT><<<1, c.size(), 0, s>>>(constraints, vstore);
+  return constraints;
+}
 
-  vstore->dom(x, {0, 2});
-  vstore->dom(y, {1, 3});
-  vstore->dom(z, {2, 4});
-  vstore->dom(b, {0,1});
+void solve(VStore* vstore, Constraints constraints, const char** var2name_raw) {
+  vstore->print(var2name_raw);
 
-  // vstore->print_store();
-
-  // II. Declare the constraints
-  XplusYleqC c1(x,y,2);
-  XplusYleqC c2(y,z,2);
-  ReifiedLogicalAnd c3(b, c1, c2);
-
-  // III. Solve the problem.
-  //c3.propagate(*vstore);
-  // concurrent execution of monitoring and solving using streams:
-  cudaStream_t monitor, solve;
+  cudaStream_t monitor;
   CUDIE(cudaStreamCreate(&monitor));
-  CUDIE(cudaStreamCreate(&solve));
-
+  const int NCT = 3;
+  cudaStream_t sConstraint[NCT];
+  for (int i=0; i<NCT; ++i) {
+    CUDIE(cudaStreamCreate(&sConstraint[i]));
+  }
+  auto c0 = launch<XplusYleqC>(constraints.xPlusYleqC, sConstraint[0], vstore);
+  auto c1 = launch<ReifiedLogicalAnd>(constraints.reifiedLogicalAnd, sConstraint[1], vstore);
+  auto c2 = launch<LinearIneq>(constraints.linearIneq, sConstraint[2], vstore);
+  
   is_active_k<<<1,1,0,monitor>>>();
-  propagate_k<ReifiedLogicalAnd><<<1,1,0,solve>>>(c3, vstore);
   CUDIE0();
 
   CUDIE(cudaDeviceSynchronize());
 
-  // vstore->print_store();
+  printf("\n\nAfter propagation:\n");
+  vstore->print(var2name_raw);
 
+  CUDIE(cudaFree(c0));
+  CUDIE(cudaFree(c1));
+  CUDIE(cudaFree(c2));
   CUDIE(cudaStreamDestroy(monitor));
-  CUDIE(cudaStreamDestroy(solve));
-  vstore->free();
-  CUDIE(cudaFree(v));
+  for (int i=0; i<NCT; ++i) {
+    CUDIE(cudaStreamDestroy(sConstraint[i]));
+  }
 }
