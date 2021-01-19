@@ -58,6 +58,38 @@ struct XplusYleqC {
   }
 };
 
+// C1 \/ C2
+struct LogicalOr {
+  XplusYleqC left;
+  XplusYleqC right;
+
+  CUDA LogicalOr(XplusYleqC left, XplusYleqC right):
+    left(left), right(right) {}
+
+  CUDA void propagate(VStore& vstore) {
+    if (left.is_disentailed(vstore)) {
+      right.propagate(vstore);
+    }
+    else if (right.is_disentailed(vstore)) {
+      left.propagate(vstore);
+    }
+  }
+
+  CUDA bool is_entailed(VStore& vstore) {
+    return left.is_entailed(vstore) || right.is_entailed(vstore);
+  }
+
+  CUDA bool is_disentailed(VStore& vstore) {
+    return left.is_disentailed(vstore) && right.is_disentailed(vstore);
+  }
+
+  CUDA void print(Var2Name var2name) {
+    left.print(var2name);
+    printf(" \\/ ");
+    right.print(var2name);
+  }
+};
+
 /// b <=> left /\ right
 struct ReifiedLogicalAnd {
   Var b;
@@ -98,38 +130,6 @@ CUDA_GLOBAL void propagate_k(Constraint c, VStore* vstore) {
   c.propagate(*vstore);
 }
 
-// C1 \/ C2
-struct LogicalOr {
-  XplusYleqC left;
-  XplusYleqC right;
-
-  LogicalOr(XplusYleqC left, XplusYleqC right):
-    left(left), right(right) {}
-
-  CUDA void propagate(VStore& vstore) {
-    if (left.is_disentailed(vstore)) {
-      right.propagate(vstore);
-    }
-    else if (right.is_disentailed(vstore)) {
-      left.propagate(vstore);
-    }
-  }
-
-  CUDA bool is_entailed(VStore& vstore) {
-    return left.is_entailed(vstore) || right.is_entailed(vstore);
-  }
-
-  CUDA bool is_disentailed(VStore& vstore) {
-    return left.is_disentailed(vstore) && right.is_disentailed(vstore);
-  }
-
-  CUDA void print(Var2Name var2name) {
-    left.print(var2name);
-    printf(" \\/ ");
-    right.print(var2name);
-  }
-};
-
 // x1c1 + ... + xNcN <= max
 struct LinearIneq {
   int n;
@@ -160,7 +160,7 @@ struct LinearIneq {
       constants[i] = other.constants[i];
     }
   }
-    
+
 
   ~LinearIneq() {
     CUDIE(cudaFree(vars));
