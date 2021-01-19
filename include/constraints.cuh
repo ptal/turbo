@@ -144,11 +144,24 @@ struct LinearIneq {
     CUDIE(cudaMallocManaged(&vars, sizeof(*vars) * n));
     CUDIE(cudaMallocManaged(&constants, sizeof(*constants) * n));
     for(int i=0; i < n; ++i) {
+      printf("i=%d/%d\n", i,n);
       vars[i] = vvars[i];
       constants[i] = vconstants[i];
     }
-    max = max;
+    this->max = max;
   }
+
+  LinearIneq(const LinearIneq& other) {
+    n = other.n;
+    max = other.max;
+    CUDIE(cudaMallocManaged(&vars, sizeof(*vars) * n));
+    CUDIE(cudaMallocManaged(&constants, sizeof(*constants) * n));
+    for(int i=0; i < n; ++i) {
+      vars[i] = other.vars[i];
+      constants[i] = other.constants[i];
+    }
+  }
+    
 
   ~LinearIneq() {
     CUDIE(cudaFree(vars));
@@ -193,9 +206,9 @@ struct LinearIneq {
 
   CUDA void print(Var2Name var2name) {
     for(int i = 0; i < n; ++i) {
-      printf("\n%d * \n", constants[i]);
-      fflush(stdout);
+      printf("%d * ", constants[i]);
       VStore::print_var(vars[i], var2name);
+      if (i != n-1) printf(" + ");
     }
     printf(" <= %d", max);
   }
@@ -221,10 +234,10 @@ struct Constraints {
       c.print(var2name);
       printf("\n");
     }
-    // for(auto c : linearIneq) {
-    //   c.print(var2name);
-    //   printf("\n");
-    // }
+    for(auto c : linearIneq) {
+       c.print(var2name);
+       printf("\n");
+    }
   }
 };
 

@@ -7,31 +7,19 @@ LIBXCSP3 = -Llib/XCSP3-CPP-Parser/lib  -lxcsp3parser -Ilib/XCSP3-CPP-Parser/incl
 LIBS= $(LIBXML2) $(LIBXCSP3)
 
 NVCC=nvcc
-NVCC_FLAGS=-arch=sm_75 $(CPP_FLAGS) -I/usr/local/cuda/include -I$(INC_DIR) -std=c++17
+NVCC_FLAGS=-std=c++14 -g -arch=sm_70 -I/usr/local/cuda/include -I$(INC_DIR) 
 
 EXE = turbo
 
 # Object files:
-OBJS = $(OBJ_DIR)/turbo.o $(OBJ_DIR)/solver.o
+SOURCES = $(SRC_DIR)/turbo.cu $(SRC_DIR)/solver.cu
 INC_ONLY = $(INC_DIR)/XCSP3_turbo_callbacks.hpp $(INC_DIR)/vstore.cuh $(INC_DIR)/cuda_helper.hpp $(INC_DIR)/constraints.cuh $(INC_DIR)/model_builder.hpp
 
 ## Compile ##
 
 # Link c++ and CUDA compiled object files to target executable:
-$(EXE) : $(OBJS)
-	$(NVCC) $(NVCC_FLAGS) $(OBJS) -o $@ $(LIBS)
-
-# Compile main .cpp file to object files:
-$(OBJ_DIR)/%.o : $(SRC_DIR)/%.cpp
-	$(NVCC) $(NVCC_FLAGS) -c $< -o $@ $(LIBS)
-
-# Compile C++ source files to object files:
-$(OBJ_DIR)/%.o : $(SRC_DIR)/%.cpp $(INC_DIR)/%.hpp $(INC_ONLY)
-	$(NVCC) $(NVCC_FLAGS) $(LIBS) -c $< -o $@
-
-# Compile CUDA source files to object files:
-$(OBJ_DIR)/%.o : $(SRC_DIR)/%.cu $(INC_DIR)/%.cuh $(INC_ONLY)
-	$(NVCC) $(NVCC_FLAGS) $(LIBS) -c $< -o $@
+$(EXE) : $(INC_ONLY) $(SOURCES)
+	$(NVCC) $(NVCC_FLAGS) $(SOURCES) -o $@ $(LIBS)
 
 # Clean objects in object directory.
 clean:
