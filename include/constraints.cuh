@@ -69,8 +69,7 @@ struct ReifiedLogicalAnd {
 
   CUDA void propagate(VStore& vstore) {
     if (vstore[b] == 0) {
-      left.neg().propagate(vstore);
-      right.neg().propagate(vstore);
+      LogicalOr(left.neg(), right.neg()).propagate(vstore);
     }
     else if (vstore[b] == 1) {
       left.propagate(vstore);
