@@ -125,11 +125,6 @@ struct ReifiedLogicalAnd {
   }
 };
 
-template<typename Constraint>
-CUDA_GLOBAL void propagate_k(Constraint c, VStore* vstore) {
-  c.propagate(*vstore);
-}
-
 // x1c1 + ... + xNcN <= max
 struct LinearIneq {
   int n;

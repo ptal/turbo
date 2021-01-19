@@ -42,6 +42,7 @@ int main(int argc, char** argv) {
     }
     vstore->print(var2name_raw);
     constraints.print(var2name_raw);
+    solve(vstore, constraints, var2name_raw);
     delete[] var2name_raw;
     CUDIE(cudaFree(vstore));
   }
@@ -52,6 +53,5 @@ int main(int argc, char** argv) {
     cerr << "\t" << e.what() << endl;
     exit(EXIT_FAILURE);
   }
-  // solve();
   return 0;
 }

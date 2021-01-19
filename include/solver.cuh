@@ -15,6 +15,9 @@
 #ifndef TURBO_SOLVER_HPP
 #define TURBO_SOLVER_HPP
 
-void solve();
+#include "vstore.cuh"
+#include "constraints.cuh"
+
+void solve(VStore* vstore, Constraints constraints, const char** var2name_raw);
 
 #endif

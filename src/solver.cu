@@ -42,47 +42,39 @@ void is_active_k() {
   }
 }
 
-void solve() {
-  // I. Declare the variable's domains.
-  int nvar = 4;
-  int x = 0;
-  int y = 1;
-  int z = 2;
-  int b = 3;
+template<typename Constraint>
+CUDA_GLOBAL void propagate_k(Constraint c, VStore* vstore) {
+  c.propagate(*vstore);
+}
 
-  void* v;
-  CUDIE(cudaMallocManaged(&v, sizeof(VStore)));
-  VStore* vstore = new(v) VStore(nvar);
-
-  vstore->dom(x, {0, 2});
-  vstore->dom(y, {1, 3});
-  vstore->dom(z, {2, 4});
-  vstore->dom(b, {0,1});
-
-  // vstore->print_store();
-
-  // II. Declare the constraints
-  XplusYleqC c1(x,y,2);
-  XplusYleqC c2(y,z,2);
-  ReifiedLogicalAnd c3(b, c1, c2);
-
-  // III. Solve the problem.
-  //c3.propagate(*vstore);
+void solve(VStore* vstore, Constraints constraints, const char** var2name_raw) {
   // concurrent execution of monitoring and solving using streams:
   cudaStream_t monitor, solve;
   CUDIE(cudaStreamCreate(&monitor));
   CUDIE(cudaStreamCreate(&solve));
 
+  vstore->print(var2name_raw);
+
+  for(auto c : constraints.xPlusYleqC) {
+    propagate_k<XplusYleqC><<<1,1,0,solve>>>(c, vstore);
+  }
+  for(auto c : constraints.reifiedLogicalAnd) {
+    propagate_k<ReifiedLogicalAnd><<<1,1,0,solve>>>(c, vstore);
+  }
+  for(auto c : constraints.logicalOr) {
+    propagate_k<LogicalOr><<<1,1,0,solve>>>(c, vstore);
+  }
+  for(auto c : constraints.linearIneq) {
+    propagate_k<LinearIneq><<<1,1,0,solve>>>(c, vstore);
+  }
   is_active_k<<<1,1,0,monitor>>>();
-  propagate_k<ReifiedLogicalAnd><<<1,1,0,solve>>>(c3, vstore);
   CUDIE0();
 
   CUDIE(cudaDeviceSynchronize());
 
-  // vstore->print_store();
+  printf("\n\nAfter propagation:\n");
+  vstore->print(var2name_raw);
 
   CUDIE(cudaStreamDestroy(monitor));
   CUDIE(cudaStreamDestroy(solve));
-  vstore->free();
-  CUDIE(cudaFree(v));
 }
