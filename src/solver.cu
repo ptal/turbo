@@ -22,17 +22,20 @@
 #include "constraints.cuh"
 #include "cuda_helper.hpp"
 
+CUDA_VAR volatile int Act_cnt = 0;
+CUDA_VAR volatile bool Exploring = 1;
+
 __global__
 void is_active_k() {
-  __shared__ uint curr;
+  printf("starting\n");
   while (1) {
-    asm("nanosleep.u32 10000000;");
-    curr = Act_cnt;
-    if (curr <= 0) {
+    asm("nanosleep.u32 1000000000;");
+    if (Act_cnt <= 0) {
       printf("no activity\n");
+      Exploring = 0;  // temporairement
       break;
     } else {
-      printf("active! (%u)\n", curr);
+      printf("active! (%d)\n", Act_cnt);
     }
   }
 }
@@ -41,11 +44,15 @@ template<typename Constraint>
 CUDA_GLOBAL void propagate_k(Constraint *c, VStore* vstore) {
   int ic = threadIdx.x + blockIdx.x*blockDim.x;
   bool worked, preworked = 0;
+  bool first = 1;
   while (Exploring) {
     worked = c[ic].propagate(*vstore);
-    if (!preworked && worked) { ++Act_cnt; }
-    else if (preworked && !worked) { --Act_cnt; }
+    if (first && !worked) { Act_cnt = Act_cnt -1; first = 0; }
+    else if (first && worked) { first = 0; }
+    else if (!preworked && worked) { Act_cnt = Act_cnt +1; }
+    else if (preworked && !worked) { Act_cnt = Act_cnt -1; }
     preworked = worked;
+    printf("t=%d, worked=%d, act=%d\n", ic, worked, Act_cnt);
   }
 }
 
@@ -58,6 +65,7 @@ ConstraintT* launch(std::vector<ConstraintT> &c, cudaStream_t s, VStore *vstore)
     constraints[i] = c[i];
   }
   propagate_k<ConstraintT><<<1, c.size(), 0, s>>>(constraints, vstore);
+  CUDIE0();
   return constraints;
 }
 
@@ -71,12 +79,16 @@ void solve(VStore* vstore, Constraints constraints, const char** var2name_raw) {
   for (int i=0; i<NCT; ++i) {
     CUDIE(cudaStreamCreate(&sConstraint[i]));
   }
+
+  Act_cnt = constraints.xPlusYleqC.size() + constraints.reifiedLogicalAnd.size() + constraints.linearIneq.size();
+  is_active_k<<<1,1,0,monitor>>>();
+  CUDIE0();
+
   auto c0 = launch<XplusYleqC>(constraints.xPlusYleqC, sConstraint[0], vstore);
   auto c1 = launch<ReifiedLogicalAnd>(constraints.reifiedLogicalAnd, sConstraint[1], vstore);
   auto c2 = launch<LinearIneq>(constraints.linearIneq, sConstraint[2], vstore);
   
-  is_active_k<<<1,1,0,monitor>>>();
-  CUDIE0();
+  printf("here\n");
 
   CUDIE(cudaDeviceSynchronize());
 

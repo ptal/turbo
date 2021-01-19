@@ -19,8 +19,6 @@
 #include "cuda_helper.hpp"
 #include "vstore.cuh"
 
-CUDA_VAR uint Act_cnt = 0;
-
 /// x + y <= c
 struct XplusYleqC {
   Var x;
