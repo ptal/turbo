@@ -38,6 +38,12 @@ namespace XCSP3Core {
 
     class XCSP3_turbo_callbacks : public XCSP3CoreCallbacks {
     public:
+        using XCSP3CoreCallbacks::buildConstraintMinimum;
+        using XCSP3CoreCallbacks::buildConstraintMaximum;
+        using XCSP3CoreCallbacks::buildConstraintElement;
+        using XCSP3CoreCallbacks::buildObjectiveMinimize;
+        using XCSP3CoreCallbacks::buildObjectiveMaximize;
+
         XCSP3_turbo_callbacks(ModelBuilder* model_builder);
 
         virtual void beginInstance(InstanceType type) override;

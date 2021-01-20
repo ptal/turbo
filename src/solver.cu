@@ -103,16 +103,13 @@ struct Engine {
   }
 };
 
-CUDA_GLOBAL void is_active_k() {
+CUDA_GLOBAL void is_active_k(PropagatorsStatus* status) {
   printf("starting\n");
-  while (1) {
-    asm("nanosleep.u32 1000000000;");
-    if (true) {
+  while (true) {
+    Exploring = status->all_idle();
+    if (!Exploring) {
       printf("no activity\n");
-      Exploring = 0;  // temporairement
       break;
-    } else {
-      printf("active!\n");
     }
   }
 }
@@ -182,7 +179,7 @@ void solve(VStore* vstore, Constraints constraints, const char** var2name_raw)
     }
   }
 
-  is_active_k<<<1,1,0,monitor>>>();
+  is_active_k<<<1,1,0,monitor>>>(status);
   CUDIE0();
 
   auto engines_0 = launch<TemporalProp>(status, vstore, constraints.temporal, streams[0]);
