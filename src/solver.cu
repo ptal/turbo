@@ -58,7 +58,7 @@ CUDA_GLOBAL void propagate_k(Constraint *c, VStore* vstore) {
 
 template<typename ConstraintT>
 ConstraintT* launch(std::vector<ConstraintT> &c, cudaStream_t s, VStore *vstore) {
-  printf("launching %d threads on stream %d\n", c.size(), s);
+  printf("launching %lu threads\n", c.size());
   ConstraintT *constraints;
   CUDIE(cudaMallocManaged(&constraints, c.size()*sizeof(ConstraintT)));
   for (int i=0; i<c.size(); ++i) {
