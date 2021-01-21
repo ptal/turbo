@@ -40,6 +40,10 @@ struct Interval {
     return *this;
   }
 
+  CUDA bool is_assigned() {
+    return lb == ub;
+  }
+
   CUDA Interval neg() {
     return {-ub, -lb};
   }
@@ -109,6 +113,15 @@ public:
     n = 0;
   }
 
+  CUDA bool all_assigned() {
+    for(int i = 0; i < n; ++i) {
+      if(!data[i].is_assigned()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   CUDA static void print_var(Var x, Var2Name var2name) {
     printf("%s%s", (x < 0 ? "-" : ""), var2name[abs(x)]);
   }
@@ -127,17 +140,24 @@ public:
     data[x] = itv;
   }
 
-  CUDA bool update(int i, Interval itv) {
-    bool has_changed;
-    if (i<0) {
-      has_changed = data[-i].lb != -itv.ub || data[-i].ub != -itv.lb;
-      data[-i].lb = -itv.ub;
-      data[-i].ub = -itv.lb;
-    } else {
-      has_changed = data[i] != itv;
-      data[i] = itv;
+  // Precondition: i >= 0
+  CUDA bool update_raw(int i, Interval itv) {
+    bool has_changed = data[i] != itv;
+    if (has_changed) {
+      Interval it = data[i];
+      data[i] = itv.join(data[i]);
+      printf("Update %d with %d..%d (old = %d..%d, new = %d..%d)\n",
+        i, itv.lb, itv.ub, it.lb, it.ub, data[i].lb, data[i].ub);
     }
     return has_changed;
+  }
+
+  CUDA bool update(int i, Interval itv) {
+    if (i<0) {
+      return update_raw(-i, itv.neg());
+    } else {
+      return update_raw(i, itv);
+    }
   }
 
   CUDA Interval operator[](int i) {

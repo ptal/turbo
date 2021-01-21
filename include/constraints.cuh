@@ -42,6 +42,10 @@ struct TemporalProp {
   }
 
   CUDA bool is_disentailed(VStore& vstore) {
+    // if(vstore[x].lb + vstore[y].lb > c) {
+    //   printf("Temporal constraint %d disentailed (x=%d, y=%d): %d + %d > %d\n",
+    //     uid, x, y, vstore[x].lb, vstore[y].lb, c);
+    // }
     return vstore[x].lb + vstore[y].lb > c;
   }
 
@@ -126,8 +130,8 @@ struct ReifiedLogicalAnd {
 
   CUDA bool is_disentailed(VStore& vstore) {
     return
-        (vstore[b].ub == 0 && left.is_entailed(vstore) && right.is_entailed(vstore))
-     || (vstore[b].lb == 1 && left.is_disentailed(vstore) || right.is_disentailed(vstore));
+        (vstore[b].ub == 0 && (left.is_entailed(vstore) && right.is_entailed(vstore)))
+     || (vstore[b].lb == 1 && (left.is_disentailed(vstore) || right.is_disentailed(vstore)));
   }
 
   CUDA void print(Var2Name var2name) {
@@ -232,6 +236,31 @@ struct Constraints {
 
   size_t size() {
     return temporal.size() + reifiedLogicalAnd.size() + linearIneq.size();
+  }
+
+  // Retrieve the temporal variables (those in temporal constraints).
+  // It is useful for branching.
+  // The array is terminated by -1.
+  Var* temporal_vars(int max) {
+    bool is_temporal[max];
+    for(int i=0; i < temporal.size(); ++i) {
+      is_temporal[temporal[i].x] = true;
+      is_temporal[temporal[i].y] = true;
+    }
+    int n=0;
+    for(int i=0; i < max; ++i) {
+      n += is_temporal[i];
+    }
+    Var* vars;
+    CUDIE(cudaMallocManaged(&vars, (n+1)*sizeof(Var)));
+    for(int i=0, j=0; i < max; ++i) {
+      if (is_temporal[i]) {
+        vars[j] = i;
+        j++;
+      }
+    }
+    vars[n] = -1;
+    return vars;
   }
 
   void init_uids() {
