@@ -38,7 +38,7 @@ class ModelBuilder {
     Var minimize_obj;
 
   private:
-    std::vector<XplusYleqC> make_temporal_constraint(std::string x, int k, OrderType op, std::string y) {
+    std::vector<TemporalProp> make_temporal_constraint(std::string x, int k, OrderType op, std::string y) {
       Var xi = std::get<0>(var2idx[x]);
       Var yi = std::get<0>(var2idx[y]);
 
@@ -69,8 +69,8 @@ class ModelBuilder {
       else if (op == IN || op == NE) {
         throw std::runtime_error("Operators IN and NE are not supported in unary constraints.");
       }
-      std::vector<XplusYleqC> res;
-      res.push_back(XplusYleqC(xi, yi, k));
+      std::vector<TemporalProp> res;
+      res.push_back(TemporalProp(xi, yi, k));
       return res;
     }
 
@@ -109,6 +109,7 @@ class ModelBuilder {
     }
 
     Constraints build_constraints() {
+      constraints.init_uids();
       return constraints;
     }
 
@@ -124,7 +125,7 @@ class ModelBuilder {
     // x + k <op> y
     void add_temporal_constraint(XVariable *x, int k, OrderType op, XVariable *y) {
       for(auto x : make_temporal_constraint(x->id, k, op, y->id)) {
-        constraints.xPlusYleqC.push_back(x);
+        constraints.temporal.push_back(x);
       }
     }
 
@@ -179,7 +180,7 @@ class ModelBuilder {
     }
 
     // The node must have a very precise shape, X <= Y or X <= Y + k, otherwise a runtime_error is thrown.
-    std::vector<XplusYleqC> make_temporal_constraint_from_node(Node* node) {
+    std::vector<TemporalProp> make_temporal_constraint_from_node(Node* node) {
       if (node->type == OLE) {
         if (node->parameters.size() != 2) {
           throw std::runtime_error("Expected binary constraints.");
@@ -206,7 +207,7 @@ class ModelBuilder {
         }
       }
       else {
-        throw std::runtime_error("Expect node in canonized form. Temporal constraint of the form x <= y + k");
+        throw std::runtime_error("Expect node in canonized form. TemporalProp constraint of the form x <= y + k");
       }
     }
 
@@ -235,8 +236,8 @@ class ModelBuilder {
           node->parameters[1]->type == OAND) {
         std::string b = node->parameters[0]->toString();
         NodeAnd* and_node = dynamic_cast<NodeAnd*>(node->parameters[1]);
-        std::vector<XplusYleqC> c1 = make_temporal_constraint_from_node(and_node->parameters[0]);
-        std::vector<XplusYleqC> c2 = make_temporal_constraint_from_node(and_node->parameters[1]);
+        std::vector<TemporalProp> c1 = make_temporal_constraint_from_node(and_node->parameters[0]);
+        std::vector<TemporalProp> c2 = make_temporal_constraint_from_node(and_node->parameters[1]);
         if (c1.size() != 1 || c2.size() != 1) {
           throw std::runtime_error("Reified constraint expects temporal constraints without equalities.");
         }

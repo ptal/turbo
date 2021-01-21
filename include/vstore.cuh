@@ -66,7 +66,15 @@ struct VStore {
 
   VStore(int nvar) {
     size = nvar;
-    CUDIE(cudaMallocManaged(&data, sizeof(*data) * nvar));
+    CUDIE(cudaMallocManaged(&data, sizeof(*data) * size));
+  }
+
+  VStore(VStore& other) {
+    size = other.size;
+    CUDIE(cudaMallocManaged(&data, sizeof(*data) * size));
+    for(int i = 0; i < size; ++i) {
+      data[i] = other.data[i];
+    }
   }
 
   void free() {

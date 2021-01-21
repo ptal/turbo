@@ -20,12 +20,13 @@
 #include "vstore.cuh"
 
 /// x + y <= c
-struct XplusYleqC {
+struct TemporalProp {
+  int uid;
   Var x;
   Var y;
   int c;
 
-  CUDA XplusYleqC(Var x, Var y, int c) : x(x), y(y), c(c) {}
+  CUDA TemporalProp(Var x, Var y, int c) : x(x), y(y), c(c) {}
 
   CUDA bool propagate(VStore& vstore)
   {
@@ -44,8 +45,8 @@ struct XplusYleqC {
     return vstore[x].lb + vstore[y].lb > c;
   }
 
-  CUDA XplusYleqC neg() {
-    return XplusYleqC(-x, -y, -c - 1);
+  CUDA TemporalProp neg() {
+    return TemporalProp(-x, -y, -c - 1);
   }
 
   CUDA void print(Var2Name var2name) {
@@ -58,10 +59,10 @@ struct XplusYleqC {
 
 // C1 \/ C2
 struct LogicalOr {
-  XplusYleqC left;
-  XplusYleqC right;
+  TemporalProp left;
+  TemporalProp right;
 
-  CUDA LogicalOr(XplusYleqC left, XplusYleqC right):
+  CUDA LogicalOr(TemporalProp left, TemporalProp right):
     left(left), right(right) {}
 
   CUDA bool propagate(VStore& vstore) {
@@ -91,11 +92,12 @@ struct LogicalOr {
 
 /// b <=> left /\ right
 struct ReifiedLogicalAnd {
+  int uid;
   Var b;
-  XplusYleqC left;
-  XplusYleqC right;
+  TemporalProp left;
+  TemporalProp right;
 
-  CUDA ReifiedLogicalAnd(Var b, XplusYleqC left, XplusYleqC right) :
+  CUDA ReifiedLogicalAnd(Var b, TemporalProp left, TemporalProp right) :
     b(b), left(left), right(right) {}
 
   CUDA bool propagate(VStore& vstore) {
@@ -116,6 +118,18 @@ struct ReifiedLogicalAnd {
     return false;
   }
 
+  CUDA bool is_entailed(VStore& vstore) {
+    return
+        (vstore[b].ub == 0 && left.is_disentailed(vstore) && right.is_disentailed(vstore))
+     || (vstore[b].lb == 1 && left.is_entailed(vstore) && right.is_entailed(vstore));
+  }
+
+  CUDA bool is_disentailed(VStore& vstore) {
+    return
+        (vstore[b].ub == 0 && left.is_entailed(vstore) && right.is_entailed(vstore))
+     || (vstore[b].lb == 1 && left.is_disentailed(vstore) || right.is_disentailed(vstore));
+  }
+
   CUDA void print(Var2Name var2name) {
     VStore::print_var(b, var2name);
     printf(" <=> (");
@@ -128,6 +142,7 @@ struct ReifiedLogicalAnd {
 
 // x1c1 + ... + xNcN <= max
 struct LinearIneq {
+  int uid;
   int n;
   Var* vars;
   int* constants;
@@ -147,6 +162,7 @@ struct LinearIneq {
   }
 
   LinearIneq(const LinearIneq& other) {
+    uid = other.uid;
     n = other.n;
     max = other.max;
     CUDIE(cudaMallocManaged(&vars, sizeof(*vars) * n));
@@ -156,7 +172,6 @@ struct LinearIneq {
       constants[i] = other.constants[i];
     }
   }
-
 
   ~LinearIneq() {
     CUDIE(cudaFree(vars));
@@ -212,22 +227,37 @@ struct LinearIneq {
 };
 
 struct Constraints {
-  std::vector<XplusYleqC> xPlusYleqC;
+  std::vector<TemporalProp> temporal;
   std::vector<ReifiedLogicalAnd> reifiedLogicalAnd;
-  std::vector<LogicalOr> logicalOr;
   std::vector<LinearIneq> linearIneq;
+
+  size_t size() {
+    return temporal.size() + reifiedLogicalAnd.size() + linearIneq.size();
+  }
+
+  void init_uids() {
+    int i = 0;
+    int limit = temporal.size();
+    for(; i < limit; ++i) {
+      temporal[i].uid = i;
+    }
+    limit += reifiedLogicalAnd.size();
+    for(; i < limit; ++i) {
+      reifiedLogicalAnd[i].uid = i;
+    }
+    limit += linearIneq.size();
+    for(; i < limit; ++i) {
+      linearIneq[i].uid = i;
+    }
+  }
 
   void print(Var2Name var2name)
   {
-    for(auto c : xPlusYleqC) {
+    for(auto c : temporal) {
       c.print(var2name);
       printf("\n");
     }
     for(auto c : reifiedLogicalAnd) {
-      c.print(var2name);
-      printf("\n");
-    }
-    for(auto c : logicalOr) {
       c.print(var2name);
       printf("\n");
     }
