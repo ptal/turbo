@@ -45,7 +45,7 @@ struct PropagatorsStatus {
     }
   }
 
-  __device__ PropagatorsStatus(PropagatorsStatus& other) {
+  __device__ PropagatorsStatus(const PropagatorsStatus& other) {
     n = other.n;
     entailed = new bool[n];
     disentailed = new bool[n];
@@ -55,6 +55,12 @@ struct PropagatorsStatus {
       disentailed[i] = other.disentailed[i];
       // NOTE: no need to copy "idle", must actually be initialized at false for the next node.
     }
+  }
+
+  void free() {
+    CUDIE(cudaFree(entailed));
+    CUDIE(cudaFree(disentailed));
+    CUDIE(cudaFree(idle));
   }
 
   CUDA bool all(bool* array) {
@@ -86,6 +92,12 @@ struct PropagatorsStatus {
 
   CUDA bool all_idle() {
     return all(idle);
+  }
+
+  CUDA void wake_up_all() {
+    for(int i = 0; i < n; ++i) {
+      idle[i] = false;
+    }
   }
 };
 
@@ -142,10 +154,11 @@ struct BacktrackingFrame {
   Interval itv;
 };
 
-CUDA_GLOBAL void brancher(PropagatorsStatus* status, VStore* current) {
-  printf("starting brancher\n");
+CUDA_GLOBAL void search(PropagatorsStatus* status, VStore* current, VStore* best_sol, Var minimize_x) {
+  printf("starting search\n");
   BacktrackingFrame* stack = new BacktrackingFrame[MAX_DEPTH_TREE];
   size_t stack_size = 0;
+  Interval best_bound = {limit_min(), limit_max()};
   while (Exploring) {
     if (status->all_idle()) {
       BacktrackingFrame frame;
@@ -157,26 +170,40 @@ CUDA_GLOBAL void brancher(PropagatorsStatus* status, VStore* current) {
       assert(stack_size < MAX_DEPTH_TREE);
       assign_lb(*current, frame.var);
     }
-    else if(status->any_disentailed()) {
-      printf("backtracking on failed node...\n");
-      if(stack_size == 0) {
-        Exploring = false;
-      }
-      else {
-        Exploring = false;
-      }
-    }
-    else if(status->all_entailed()) {
-      printf("backtracking on solution...\n");
-      if(stack_size == 0) {
-        Exploring = false;
-      }
-      else {
-        Exploring = false;
+    else {
+      bool all_entailed = status->all_entailed();
+      bool any_disentailed = status->any_disentailed();
+      if(all_entailed || any_disentailed) {
+        if(any_disentailed) {
+          printf("backtracking on failed node...\n");
+        }
+        else if(all_entailed) {
+          printf("backtracking on solution...\n");
+          best_bound = (*current)[minimize_x];
+          best_bound.lb = limit_min();
+          *best_sol = *current;
+        }
+        // If nothing is left in the stack, we stop the search, it means we explored the full search tree.
+        if(stack_size == 0) {
+          Exploring = false;
+        }
+        else {
+          BacktrackingFrame& frame = stack[stack_size - 1];
+          --stack_size;
+          // Commit to the branch.
+          frame.vstore.update(frame.var, frame.itv);
+          // Adjust the objective.
+          frame.vstore.update(minimize_x, frame.vstore[minimize_x].join(best_bound));
+          // Swap the current branch with the backtracked one.
+          *current = frame.vstore;
+          // Change the IDLE status of propagators.
+          status->wake_up_all();
+        }
       }
     }
   }
-  printf("stop brancher\n");
+  delete[] stack;
+  printf("stop search\n");
 }
 
 template<typename T>
@@ -227,14 +254,14 @@ Engine<T>* launch(PropagatorsStatus* status, VStore* vstore, std::vector<T> &c, 
   return engine;
 }
 
-void solve(VStore* vstore, Constraints constraints, const char** var2name_raw)
+void solve(VStore* vstore, Constraints constraints, Var minimize_x, const char** var2name_raw)
 {
   std::cout << "Before propagation: " << std::endl;
   vstore->print(var2name_raw);
 
-  PropagatorsStatus* status;
-  CUDIE(cudaMallocManaged(&status, sizeof(PropagatorsStatus)));
-  *status = PropagatorsStatus(constraints.size());
+  void* status_raw;
+  CUDIE(cudaMallocManaged(&status_raw, sizeof(PropagatorsStatus)));
+  PropagatorsStatus* status = new(status_raw) PropagatorsStatus(constraints.size());
 
   cudaStream_t monitor;
   CUDIE(cudaStreamCreate(&monitor));
@@ -245,7 +272,11 @@ void solve(VStore* vstore, Constraints constraints, const char** var2name_raw)
     }
   }
 
-  brancher<<<1,1,0,monitor>>>(status, vstore);
+  void* best_sol_raw;
+  CUDIE(cudaMallocManaged(&best_sol_raw, sizeof(VStore)));
+  VStore* best_sol = new(best_sol_raw) VStore(vstore->size());
+
+  search<<<1,1,0,monitor>>>(status, vstore, best_sol, minimize_x);
   CUDIE0();
 
   auto engines_0 = launch<TemporalProp>(status, vstore, constraints.temporal, streams[0]);
@@ -257,7 +288,12 @@ void solve(VStore* vstore, Constraints constraints, const char** var2name_raw)
   CUDIE(cudaDeviceSynchronize());
 
   printf("\n\nAfter propagation:\n");
-  vstore->print(var2name_raw);
+  best_sol->print(var2name_raw);
+  best_sol->free();
+  CUDIE(cudaFree(best_sol_raw));
+
+  status->free();
+  CUDIE(cudaFree(status_raw));
 
   CUDIE(cudaFree(engines_0->props));
   CUDIE(cudaFree(engines_0));

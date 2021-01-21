@@ -80,8 +80,11 @@ public:
 
   __device__ VStore& operator=(const VStore& other) {
     if (this != &other) {
-      n = other.n;
-      data = new Interval[n];
+      // Memory optimisation to reuse memory if already allocated.
+      if (this->n != n) {
+        n = other.n;
+        data = new Interval[n];
+      }
       for(int i = 0; i < n; ++i) {
         data[i] = other.data[i];
       }
