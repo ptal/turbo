@@ -44,6 +44,7 @@ int main(int argc, char** argv) {
     constraints.print(var2name_raw);
     solve(vstore, constraints, var2name_raw);
     delete[] var2name_raw;
+    vstore->free();
     CUDIE(cudaFree(vstore));
   }
   catch (exception &e)

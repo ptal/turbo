@@ -22,10 +22,11 @@
 #include "constraints.cuh"
 #include "cuda_helper.hpp"
 
-CUDA_VAR volatile bool Exploring = 1;
+CUDA_VAR bool Exploring = true;
 
 const int PROPS_TYPE = 3;
 const int PROP_OPS = 3;
+const int MAX_DEPTH_TREE = 100;
 
 struct PropagatorsStatus {
   bool* entailed;
@@ -65,12 +66,22 @@ struct PropagatorsStatus {
     return true;
   }
 
+
+  CUDA bool any(bool* array) {
+    for(int i = 0; i < n; ++i) {
+      if(array[i]) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   CUDA bool all_entailed() {
     return all(entailed);
   }
 
-  CUDA bool all_disentailed() {
-    return all(disentailed);
+  CUDA bool any_disentailed() {
+    return any(disentailed);
   }
 
   CUDA bool all_idle() {
@@ -103,15 +114,68 @@ struct Engine {
   }
 };
 
-CUDA_GLOBAL void is_active_k(PropagatorsStatus* status) {
-  printf("starting\n");
-  while (true) {
-    Exploring = status->all_idle();
-    if (!Exploring) {
-      printf("no activity\n");
-      break;
+// Select the variable with the smallest domain in the store.
+CUDA Var first_fail(VStore& vstore) {
+  Var x = 0;
+  int lowest_lb = vstore[x].lb;
+  for(int i = 1; i < vstore.size(); ++i) {
+    if (vstore[i].lb < lowest_lb) {
+      x = i;
+      lowest_lb = vstore[i].lb;
     }
   }
+  return x;
+}
+
+CUDA void assign_lb(VStore& vstore, Var x) {
+  vstore.update(x, {vstore[x].lb, vstore[x].lb});
+}
+
+CUDA Interval not_assign_lb(VStore& vstore, Var x) {
+  return {vstore[x].lb + 1, vstore[x].ub};
+}
+
+struct BacktrackingFrame {
+  VStore vstore;
+  Var var;
+  Interval itv;
+};
+
+CUDA_GLOBAL void brancher(PropagatorsStatus* status, VStore* current) {
+  printf("starting brancher\n");
+  BacktrackingFrame* stack = new BacktrackingFrame[MAX_DEPTH_TREE];
+  size_t stack_size = 0;
+  while (Exploring) {
+    if (status->all_idle()) {
+      BacktrackingFrame frame;
+      frame.var = first_fail(*current);
+      frame.itv = not_assign_lb(*current, frame.var);
+      frame.vstore = *current;
+      stack[stack_size] = std::move(frame);
+      ++stack_size;
+      assert(stack_size < MAX_DEPTH_TREE);
+      assign_lb(*current, frame.var);
+    }
+    else if(status->any_disentailed()) {
+      printf("backtracking on failed node...\n");
+      if(stack_size == 0) {
+        Exploring = false;
+      }
+      else {
+        Exploring = false;
+      }
+    }
+    else if(status->all_entailed()) {
+      printf("backtracking on solution...\n");
+      if(stack_size == 0) {
+        Exploring = false;
+      }
+      else {
+        Exploring = false;
+      }
+    }
+  }
+  printf("stop brancher\n");
 }
 
 template<typename T>
@@ -179,7 +243,7 @@ void solve(VStore* vstore, Constraints constraints, const char** var2name_raw)
     }
   }
 
-  is_active_k<<<1,1,0,monitor>>>(status);
+  brancher<<<1,1,0,monitor>>>(status, vstore);
   CUDIE0();
 
   auto engines_0 = launch<TemporalProp>(status, vstore, constraints.temporal, streams[0]);
