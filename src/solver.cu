@@ -44,11 +44,12 @@ struct PropagatorsStatus {
     }
   }
 
-  __device__ PropagatorsStatus(PropagatorsStatus& other) {
+  __host__ PropagatorsStatus(PropagatorsStatus& other) {
     n = other.n;
-    entailed = new bool[n];
-    disentailed = new bool[n];
-    idle = new bool[n];
+    CUDIE(cudaMallocManaged(&entailed, n*sizeof(bool)));
+    CUDIE(cudaMallocManaged(&disentailed, n*sizeof(bool)));
+    CUDIE(cudaMallocManaged(&idle, n*sizeof(bool)));
+    // switch to memcpy on device
     for(int i = 0; i < n; ++i) {
       entailed[i] = other.entailed[i];
       disentailed[i] = other.disentailed[i];
@@ -130,30 +131,20 @@ CUDA_GLOBAL void disentail_k(Engine<T>* engine) {
   }
 }
 
-<<<<<<< HEAD
-template<typename ConstraintT>
-ConstraintT* launch(std::vector<ConstraintT> &c, cudaStream_t s, VStore *vstore) {
-  printf("launching %lu threads\n", c.size());
-  ConstraintT *constraints;
-  CUDIE(cudaMallocManaged(&constraints, c.size()*sizeof(ConstraintT)));
-  for (int i=0; i<c.size(); ++i) {
-    constraints[i] = c[i];
-=======
 template<typename T>
 CUDA_GLOBAL void propagate_k(Engine<T>* engine) {
   size_t id = threadIdx.x + blockIdx.x*blockDim.x;
   while (Exploring) {
     engine->propagate(id);
->>>>>>> 5de0e4adc09dee2bf814afb8be4b3ed911fc973a
   }
 }
 
 // The status and vstore are shared among all propagators of all types.
 // The UID inside a propagator, e.g., `TemporalProp::uid`, refers to the index of the propagator in the various arrays of `status`.
 template<typename T>
-Engine<T>* launch(PropagatorsStatus* status, VStore* vstore, std::vector<T> &c, cudaStream_t s[3])
+Engine<T>* launch(PropagatorsStatus* status, VStore* vstore, std::vector<T> &c, cudaStream_t s[PROP_OPS])
 {
-  printf("launching %d threads on stream %d\n", c.size(), s[0]);
+  printf("launching %lu threads\n", c.size());
 
   T* props;
   CUDIE(cudaMallocManaged(&props, c.size() * sizeof(T)));
@@ -161,7 +152,7 @@ Engine<T>* launch(PropagatorsStatus* status, VStore* vstore, std::vector<T> &c, 
     props[i] = c[i];
   }
 
-  Engine<T>* engine;
+  Engine<T> *engine;
   CUDIE(cudaMallocManaged(&engine, sizeof(Engine<T>)));
   *engine = Engine<T>(status, vstore, props);
 
@@ -193,10 +184,11 @@ void solve(VStore* vstore, Constraints constraints, const char** var2name_raw)
   CUDIE0();
 
   auto engines_0 = launch<TemporalProp>(status, vstore, constraints.temporal, streams[0]);
+  CUDIE0();
   auto engines_1 = launch<ReifiedLogicalAnd>(status, vstore, constraints.reifiedLogicalAnd, streams[1]);
+  CUDIE0();
   auto engines_2 = launch<LinearIneq>(status, vstore, constraints.linearIneq, streams[2]);
-
-  printf("here\n");
+  CUDIE0();
 
   CUDIE(cudaDeviceSynchronize());
 

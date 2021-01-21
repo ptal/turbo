@@ -238,16 +238,16 @@ struct Constraints {
   void init_uids() {
     int i = 0;
     int limit = temporal.size();
-    for(; i < limit; ++i) {
-      temporal[i].uid = i;
+    for(int j=0; j < limit; ++j, ++i) {
+      temporal[j].uid = i;
     }
-    limit += reifiedLogicalAnd.size();
-    for(; i < limit; ++i) {
-      reifiedLogicalAnd[i].uid = i;
+    limit = reifiedLogicalAnd.size();
+    for(int j=0; j < limit; ++j, ++i) {
+      reifiedLogicalAnd[j].uid = i;
     }
-    limit += linearIneq.size();
-    for(; i < limit; ++i) {
-      linearIneq[i].uid = i;
+    limit = linearIneq.size();
+    for(int j=0; j < limit; ++j, ++i) {
+      linearIneq[j].uid = i;
     }
   }
 

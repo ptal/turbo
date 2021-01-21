@@ -7,7 +7,7 @@ LIBXCSP3 = -Llib/XCSP3-CPP-Parser/lib  -lxcsp3parser -Ilib/XCSP3-CPP-Parser/incl
 LIBS= $(LIBXML2) $(LIBXCSP3)
 
 NVCC=nvcc
-NVCC_FLAGS=-std=c++14 -g -arch=sm_70 -I/usr/local/cuda/include -I$(INC_DIR) 
+NVCC_FLAGS=-std=c++14 -g -G -arch=sm_75 -I/usr/local/cuda/include -I$(INC_DIR) 
 
 EXE = turbo
 
@@ -23,4 +23,4 @@ $(EXE) : $(INC_ONLY) $(SOURCES)
 
 # Clean objects in object directory.
 clean:
-	$(RM) $(OBJ_DIR)/* *.o $(OBJ_DIR)/$(EXE)
+	$(RM) $(EXE)

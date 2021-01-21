@@ -99,7 +99,7 @@ class ModelBuilder {
     }
 
     VStore* build_store() {
-      void* v;
+      alignas(VStore) unsigned char *v;
       CUDIE(cudaMallocManaged(&v, sizeof(VStore)));
       VStore* vstore = new(v) VStore(idx2var.size());
       for (const auto& x : var2idx) {
