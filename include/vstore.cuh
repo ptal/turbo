@@ -15,7 +15,6 @@
 #ifndef VSTORE_HPP
 #define VSTORE_HPP
 
-#include <limits>
 #include <cmath>
 #include <cstdio>
 #include <vector>
@@ -31,9 +30,7 @@ struct Interval {
   int lb;
   int ub;
 
-  Interval():
-    lb(std::numeric_limits<int>::min()),
-    ub(std::numeric_limits<int>::max()) {}
+  CUDA Interval(): lb(limit_min()), ub(limit_max()) {}
 
   CUDA Interval(int lb, int ub): lb(lb), ub(ub) {}
 
@@ -60,30 +57,56 @@ struct Interval {
   }
 };
 
-struct VStore {
+class VStore {
   Interval* data;
-  size_t size;
+  size_t n;
+
+public:
+
+  CUDA VStore() : data(nullptr), n(0) {}
 
   VStore(int nvar) {
-    size = nvar;
-    CUDIE(cudaMallocManaged(&data, sizeof(*data) * size));
+    n = nvar;
+    CUDIE(cudaMallocManaged(&data, sizeof(*data) * n));
   }
 
-  VStore(VStore& other) {
-    size = other.size;
-    CUDIE(cudaMallocManaged(&data, sizeof(*data) * size));
-    for(int i = 0; i < size; ++i) {
+  VStore(const VStore& other) {
+    n = other.n;
+    CUDIE(cudaMallocManaged(&data, sizeof(*data) * n));
+    for(int i = 0; i < n; ++i) {
       data[i] = other.data[i];
     }
   }
 
-  void free() {
-    CUDIE(cudaFree(data));
-    size = 0;
+  __device__ VStore& operator=(const VStore& other) {
+    if (this != &other) {
+      // Memory optimisation to reuse memory if already allocated.
+      if (this->n != n) {
+        n = other.n;
+        data = new Interval[n];
+      }
+      for(int i = 0; i < n; ++i) {
+        data[i] = other.data[i];
+      }
+    }
+    return *this;
   }
 
-  ~VStore() {
-    free();
+  VStore(VStore&& other) :
+    data(other.data), n(n) {
+      other.data = nullptr;
+      other.n = 0;
+  }
+
+  // Free the data array on host.
+  __host__ void free() {
+    CUDIE(cudaFree(data));
+    n = 0;
+  }
+
+  __device__ ~VStore() {
+    delete[] data;
+    n = 0;
   }
 
   CUDA static void print_var(Var x, Var2Name var2name) {
@@ -91,7 +114,7 @@ struct VStore {
   }
 
   CUDA void print(Var2Name var2name) {
-    for(int i=0; i < size; ++i) {
+    for(int i=0; i < n; ++i) {
       print_var(i, var2name);
       printf(" = ");
       data[i].print();
@@ -120,6 +143,8 @@ struct VStore {
   CUDA Interval operator[](int i) {
     return i < 0 ? data[-i].neg() : data[i];
   }
+
+  CUDA size_t size() { return n; }
 };
 
 #endif

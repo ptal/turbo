@@ -154,7 +154,6 @@ struct LinearIneq {
     CUDIE(cudaMallocManaged(&vars, sizeof(*vars) * n));
     CUDIE(cudaMallocManaged(&constants, sizeof(*constants) * n));
     for(int i=0; i < n; ++i) {
-      printf("i=%d/%d\n", i,n);
       vars[i] = vvars[i];
       constants[i] = vconstants[i];
     }
