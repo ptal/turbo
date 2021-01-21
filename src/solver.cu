@@ -111,6 +111,7 @@ struct Engine {
   CUDA inline void propagate(size_t id) {
     T& p = props[id];
     status->idle[p.uid] = !p.propagate(*vstore);
+    printf("Propagate %lu\n", id);
   }
 };
 
@@ -207,7 +208,7 @@ CUDA_GLOBAL void propagate_k(Engine<T>* engine) {
 template<typename T>
 Engine<T>* launch(PropagatorsStatus* status, VStore* vstore, std::vector<T> &c, cudaStream_t s[3])
 {
-  printf("launching %d threads on stream %d\n", c.size(), s[0]);
+  printf("launching %lu threads on stream %p\n", c.size(), s[0]);
 
   T* props;
   CUDIE(cudaMallocManaged(&props, c.size() * sizeof(T)));
@@ -228,6 +229,7 @@ Engine<T>* launch(PropagatorsStatus* status, VStore* vstore, std::vector<T> &c, 
 
 void solve(VStore* vstore, Constraints constraints, const char** var2name_raw)
 {
+  std::cout << "Before propagation: " << std::endl;
   vstore->print(var2name_raw);
 
   PropagatorsStatus* status;

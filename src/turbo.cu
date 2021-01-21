@@ -40,8 +40,8 @@ int main(int argc, char** argv) {
     for(int i = 0; i < var2name.size(); ++i) {
       var2name_raw[i] = var2name[i].c_str();
     }
-    vstore->print(var2name_raw);
-    constraints.print(var2name_raw);
+    // vstore->print(var2name_raw);
+    // constraints.print(var2name_raw);
     solve(vstore, constraints, var2name_raw);
     delete[] var2name_raw;
     vstore->free();
