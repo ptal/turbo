@@ -26,7 +26,7 @@ CUDA_VAR bool Exploring = true;
 
 const int PROPS_TYPE = 3;
 const int PROP_OPS = 3;
-const int MAX_DEPTH_TREE = 100;
+const int MAX_DEPTH_TREE = 5;
 
 struct PropagatorsStatus {
   bool* entailed;
@@ -159,7 +159,18 @@ struct BacktrackingFrame {
 
 CUDA_GLOBAL void search(PropagatorsStatus* status, VStore* current, VStore* best_sol, Var minimize_x, Var* temporal_vars) {
   printf("starting search\n");
-  BacktrackingFrame* stack = new BacktrackingFrame[MAX_DEPTH_TREE];
+  //BacktrackingFrame* stack = new BacktrackingFrame[MAX_DEPTH_TREE];
+  BacktrackingFrame* stack;
+  cudaError_t rc = cudaMalloc(&stack, sizeof(BacktrackingFrame)*MAX_DEPTH_TREE);
+  if (rc != cudaSuccess) {
+	  printf("[%d] %d %d\n", cudaSuccess, cudaErrorInvalidValue, cudaErrorMemoryAllocation);
+	  Exploring = false;
+  }
+  else {
+  	for (int i=0; i<MAX_DEPTH_TREE; ++i) {
+		  stack[i] = BacktrackingFrame();
+	}
+  }
   size_t stack_size = 0;
   Interval best_bound = {limit_min(), limit_max()};
   while (Exploring) {
