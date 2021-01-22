@@ -26,7 +26,7 @@ CUDA_VAR bool Exploring = true;
 
 const int PROPS_TYPE = 3;
 const int PROP_OPS = 3;
-const int MAX_DEPTH_TREE = 100;
+const int MAX_DEPTH_TREE = 8;
 
 struct PropagatorsStatus {
   bool* entailed;
@@ -159,7 +159,7 @@ struct BacktrackingFrame {
 
 CUDA_GLOBAL void search(PropagatorsStatus* status, VStore* current, VStore* best_sol, Var minimize_x, Var* temporal_vars) {
   printf("starting search\n");
-  BacktrackingFrame* stack = new BacktrackingFrame[MAX_DEPTH_TREE];
+  BacktrackingFrame* stack = BacktrackingFrame[MAX_DEPTH_TREE];
   size_t stack_size = 0;
   Interval best_bound = {limit_min(), limit_max()};
   while (Exploring) {
@@ -237,13 +237,6 @@ CUDA_GLOBAL void search(PropagatorsStatus* status, VStore* current, VStore* best
   delete[] stack;
   printf("stop search\n");
 }
-
-
-        // printf("Left branching on %s = %d..%d ",
-          // frame.vstore.name_of(frame.var), (*current)[frame.var].lb, (*current)[frame.var].ub);
-
-        // printf(" -> %d..%d \\/ %d..%d\n", (*current)[frame.var].lb, (*current)[frame.var].ub,
-          // frame.itv.lb, frame.itv.ub);
 
 template<typename T>
 CUDA_GLOBAL void entail_k(Engine<T>* engine) {
@@ -336,7 +329,6 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
   }
   else {
     printf("Best bound found is %d.\n", (*best_sol)[minimize_x].lb);
-    // best_sol->print(var2name_raw);
     best_sol->free();
   }
   CUDIE(cudaFree(best_sol_raw));
