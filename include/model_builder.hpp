@@ -75,14 +75,17 @@ class ModelBuilder {
     }
 
   public:
+    ModelBuilder() {
+      // Negative variable's indices are used for negative view of variable, e.g., `-x`.
+      // However the index `0` can't be negated, so we occupy this position with a dumb value.
+      add_var("fake", 0, 0);
+    }
+
+
     void add_var(std::string name, int min, int max) {
       Var idx = idx2var.size();
       idx2var.push_back(name);
       var2idx[name] = std::make_tuple(idx, Interval(min,max));
-    }
-
-    std::vector<std::string>& name_of_vars() {
-      return idx2var;
     }
 
     void add_constraint(Tree *tree) {
@@ -105,6 +108,7 @@ class ModelBuilder {
       for (const auto& x : var2idx) {
         vstore->dom(std::get<0>(x.second), std::get<1>(x.second));
       }
+      vstore->init_names(idx2var);
       return vstore;
     }
 

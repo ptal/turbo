@@ -73,7 +73,6 @@ struct PropagatorsStatus {
     return true;
   }
 
-
   CUDA bool any(bool* array) {
     for(int i = 0; i < n; ++i) {
       if(array[i]) {
@@ -130,7 +129,7 @@ struct Engine {
 };
 
 // Select the variable with the smallest domain in the store.
-CUDA Var first_fail(VStore& vstore, Var* vars) {
+CUDA Var first_fail(const VStore& vstore, Var* vars) {
   Var x = -1;
   int lowest_lb = limit_max();
   for(int k = 0; vars[k] != -1; ++k) {
@@ -164,59 +163,87 @@ CUDA_GLOBAL void search(PropagatorsStatus* status, VStore* current, VStore* best
   size_t stack_size = 0;
   Interval best_bound = {limit_min(), limit_max()};
   while (Exploring) {
-    bool all_entailed = status->all_entailed();
-    bool any_disentailed = status->any_disentailed();
-    if ((any_disentailed || all_entailed) != current->all_assigned()) {
-      printf("invariant inconsistent.\n");
-    }
-    if (status->all_idle() && !(all_entailed || any_disentailed)) {
-      printf("All IDLE, depth = %d\n", stack_size);
-      BacktrackingFrame frame;
-      frame.var = first_fail(*current, temporal_vars);
-      frame.itv = not_assign_lb(*current, frame.var);
-      frame.vstore = *current;
-      stack[stack_size] = std::move(frame);
-      ++stack_size;
-      assert(stack_size < MAX_DEPTH_TREE);
-      printf("Branching: %d = %d..%d ",
-        frame.var, (*current)[frame.var].lb, (*current)[frame.var].ub);
-      assign_lb(*current, frame.var);
-      printf(" -> %d..%d \\/ %d..%d\n", (*current)[frame.var].lb, (*current)[frame.var].ub,
-        frame.itv.lb, frame.itv.ub);
-      status->wake_up_all();
-    }
-    else if(all_entailed || any_disentailed) {
-      if(any_disentailed) {
-        printf("backtracking on failed node...\n");
+    if (status->all_idle()) {
+      bool all_entailed = status->all_entailed();
+      bool any_disentailed = status->any_disentailed();
+      if (current->all_assigned() && !all_entailed) {
+        printf("entailment invariant inconsistent.\n");
+        for(int i = 0; i < status->n; ++i) {
+          if (!status->entailed[i]) {
+            printf("not entailed %d\n", i);
+          }
+        }
       }
-      else if(all_entailed) {
-        best_bound = (*current)[minimize_x];
-        best_bound.ub = best_bound.lb;
-        printf("backtracking on solution...(bound = %d)\n", best_bound.ub);
-        best_bound.lb = limit_min();
-        *best_sol = *current;
+      if (!any_disentailed && current->is_top()) {
+        printf("disentailment invariant inconsistent.\n");
       }
-      // If nothing is left in the stack, we stop the search, it means we explored the full search tree.
-      if(stack_size == 0) {
-        Exploring = false;
+      if(all_entailed || any_disentailed) {
+        if(any_disentailed) {
+          printf("backtracking on failed node...\n");
+        }
+        else if(all_entailed) {
+          best_bound = (*current)[minimize_x];
+          best_bound.ub = best_bound.lb;
+          printf("backtracking on solution...(bound = %d)\n", best_bound.ub);
+          best_bound.lb = limit_min();
+          *best_sol = *current;
+        }
+        // If nothing is left in the stack, we stop the search, it means we explored the full search tree.
+        if(stack_size == 0) {
+          Exploring = false;
+        }
+        else {
+          printf("pop frame %d\n", stack_size - 1);
+          BacktrackingFrame& frame = stack[stack_size - 1];
+          --stack_size;
+          printf("frame popped.\n");
+          // Commit to the branch.
+          printf("Right branching on %s = %d..%d\n", frame.vstore.name_of(frame.var), frame.itv.lb, frame.itv.ub);
+          frame.vstore.update(frame.var, frame.itv);
+          // Adjust the objective.
+          frame.vstore.update(minimize_x, frame.vstore[minimize_x].join(best_bound));
+          // Swap the current branch with the backtracked one.
+          *current = frame.vstore;
+        }
       }
+      // At this stage, the current node is neither failed nor a solution yet.
+      // We must branch.
+      // The left branch is executed right away, and the right branch is pushed on the stack.
       else {
-        BacktrackingFrame& frame = stack[stack_size - 1];
-        --stack_size;
-        // Commit to the branch.
-        frame.vstore.update(frame.var, frame.itv);
-        // Adjust the objective.
-        frame.vstore.update(minimize_x, frame.vstore[minimize_x].join(best_bound));
-        // Swap the current branch with the backtracked one.
-        *current = frame.vstore;
-        // Change the IDLE status of propagators.
-        status->wake_up_all();
+        printf("All IDLE, depth = %d\n", stack_size);
+        current->print();
+        // Copy the current store.
+        printf("stack[..] = *current, %d\n", current->size());
+        stack[stack_size].vstore = *current;
+        printf("current->size(): %d, %d\n",current->size(), stack[stack_size].vstore.size());
+        // Select the variable and its value on which we want to branch.
+        Var x = first_fail(*current, temporal_vars);
+        printf("Selected %s.\n", current->name_of(x));
+        assign_lb(*current, x);
+        printf("Correctly created left branch on %s.\n", current->name_of(x));
+        // Create the right branch.
+        stack[stack_size].var = x;
+        stack[stack_size].itv = not_assign_lb(stack[stack_size].vstore, x);
+        printf("Left branching on %s: %d..%d \\/ %d..%d\n",
+          current->name_of(x), (*current)[x].lb, (*current)[x].ub,
+          stack[stack_size].itv.lb, stack[stack_size].itv.ub);
+        assert(stack_size < MAX_DEPTH_TREE);
+        ++stack_size;
       }
+      // Change the IDLE status of propagators.
+      status->wake_up_all();
     }
   }
   delete[] stack;
   printf("stop search\n");
 }
+
+
+        // printf("Left branching on %s = %d..%d ",
+          // frame.vstore.name_of(frame.var), (*current)[frame.var].lb, (*current)[frame.var].ub);
+
+        // printf(" -> %d..%d \\/ %d..%d\n", (*current)[frame.var].lb, (*current)[frame.var].ub,
+          // frame.itv.lb, frame.itv.ub);
 
 template<typename T>
 CUDA_GLOBAL void entail_k(Engine<T>* engine) {
@@ -266,7 +293,7 @@ Engine<T>* launch(PropagatorsStatus* status, VStore* vstore, std::vector<T> &c, 
   return engine;
 }
 
-void solve(VStore* vstore, Constraints constraints, Var minimize_x, const char** var2name_raw)
+void solve(VStore* vstore, Constraints constraints, Var minimize_x)
 {
   // std::cout << "Before propagation: " << std::endl;
   // vstore->print(var2name_raw);
@@ -277,7 +304,9 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, const char**
 
   void* best_sol_raw;
   CUDIE(cudaMallocManaged(&best_sol_raw, sizeof(VStore)));
-  VStore* best_sol = new(best_sol_raw) VStore();
+  VStore* best_sol = new(best_sol_raw) VStore(*vstore);
+
+  constraints.print(*vstore);
 
   Var* temporal_vars = constraints.temporal_vars(vstore->size());
 

@@ -31,14 +31,15 @@ struct TemporalProp {
   CUDA bool propagate(VStore& vstore)
   {
     return
-      vstore.update(x,
-          vstore[x].join({vstore[x].lb, c - vstore[y].lb})) ||
-      vstore.update(y,
-          vstore[y].join({vstore[y].lb, c - vstore[x].lb}));
+         vstore.update(x, {vstore[x].lb, c - vstore[y].lb})
+      || vstore.update(y, {vstore[y].lb, c - vstore[x].lb});
   }
 
   CUDA bool is_entailed(VStore& vstore) {
-    return vstore[x].ub + vstore[y].ub <= c;
+    return
+      !vstore[x].is_top() &&
+      !vstore[y].is_top() &&
+      vstore[x].ub + vstore[y].ub <= c;
   }
 
   CUDA bool is_disentailed(VStore& vstore) {
@@ -46,17 +47,20 @@ struct TemporalProp {
     //   printf("Temporal constraint %d disentailed (x=%d, y=%d): %d + %d > %d\n",
     //     uid, x, y, vstore[x].lb, vstore[y].lb, c);
     // }
-    return vstore[x].lb + vstore[y].lb > c;
+    return vstore[x].is_top() ||
+           vstore[y].is_top() ||
+           vstore[x].lb + vstore[y].lb > c;
   }
 
   CUDA TemporalProp neg() {
     return TemporalProp(-x, -y, -c - 1);
   }
 
-  CUDA void print(Var2Name var2name) {
-    VStore::print_var(x, var2name);
+  CUDA void print(VStore& vstore) {
+    printf("%d: ", uid);
+    vstore.print_var(x);
     printf(" + ");
-    VStore::print_var(y, var2name);
+    vstore.print_var(y);
     printf(" <= %d", c);
   }
 };
@@ -87,10 +91,10 @@ struct LogicalOr {
     return left.is_disentailed(vstore) && right.is_disentailed(vstore);
   }
 
-  CUDA void print(Var2Name var2name) {
-    left.print(var2name);
+  CUDA void print(VStore& vstore) {
+    left.print(vstore);
     printf(" \\/ ");
-    right.print(var2name);
+    right.print(vstore);
   }
 };
 
@@ -106,40 +110,59 @@ struct ReifiedLogicalAnd {
 
   CUDA bool propagate(VStore& vstore) {
     if (vstore[b] == 0) {
+      // if (uid == 14) {printf("b=0\n");}
       return LogicalOr(left.neg(), right.neg()).propagate(vstore);
     }
     else if (vstore[b] == 1) {
+      // if (uid == 14) {printf("b=1\n");}
       return
         left.propagate(vstore) ||
         right.propagate(vstore);
     }
     else if (left.is_entailed(vstore) && right.is_entailed(vstore)) {
+      // if (uid == 14) {printf("l/r entailed\n");}
       return vstore.update(b, {1, 1});
     }
     else if (left.is_disentailed(vstore) || right.is_disentailed(vstore)) {
+      // if (uid == 14) {printf("l || r disentailed\n");}
       return vstore.update(b, {0, 0});
     }
+    // if (uid == 14) {
+    //   vstore.print_var(b);
+    //   printf("\n");
+    //   vstore.print_var(left.x);
+    //   printf("\n");
+    //   vstore.print_var(left.y);
+    //   printf("\n");
+    //   vstore.print_var(right.x);
+    //   printf("\n");
+    //   vstore.print_var(right.y);
+    //   printf("\n");
+    // }
     return false;
   }
 
   CUDA bool is_entailed(VStore& vstore) {
     return
-        (vstore[b].ub == 0 && left.is_disentailed(vstore) && right.is_disentailed(vstore))
-     || (vstore[b].lb == 1 && left.is_entailed(vstore) && right.is_entailed(vstore));
+         !vstore[b].is_top()
+     && ((vstore[b].ub == 0 && (left.is_disentailed(vstore) || right.is_disentailed(vstore)))
+      || (vstore[b].lb == 1 && left.is_entailed(vstore) && right.is_entailed(vstore)));
   }
 
   CUDA bool is_disentailed(VStore& vstore) {
     return
-        (vstore[b].ub == 0 && (left.is_entailed(vstore) && right.is_entailed(vstore)))
+         vstore[b].is_top()
+     || (vstore[b].ub == 0 && (left.is_entailed(vstore) && right.is_entailed(vstore)))
      || (vstore[b].lb == 1 && (left.is_disentailed(vstore) || right.is_disentailed(vstore)));
   }
 
-  CUDA void print(Var2Name var2name) {
-    VStore::print_var(b, var2name);
+  CUDA void print(VStore& vstore) {
+    printf("%d: ", uid);
+    vstore.print_var(b);
     printf(" <=> (");
-    left.print(var2name);
+    left.print(vstore);
     printf(" /\\ ");
-    right.print(var2name);
+    right.print(vstore);
     printf(" )");
   }
 };
@@ -211,18 +234,32 @@ struct LinearIneq {
     return has_changed;
   }
 
+  CUDA bool one_top(VStore& vstore) {
+    for(int i = 0; i < n; ++i) {
+      if(vstore[vars[i]].is_top()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   CUDA bool is_entailed(VStore& vstore) {
-    return leftover(vstore) <= slack(vstore);
+    return
+         !one_top(vstore)
+      && leftover(vstore) <= slack(vstore);
   }
 
   CUDA bool is_disentailed(VStore& vstore) {
-    return slack(vstore) < 0;
+    return
+         one_top(vstore)
+      || slack(vstore) < 0;
   }
 
-  CUDA void print(Var2Name var2name) {
+  CUDA void print(VStore& vstore) {
+    printf("%d: ", uid);
     for(int i = 0; i < n; ++i) {
       printf("%d * ", constants[i]);
-      VStore::print_var(vars[i], var2name);
+      vstore.print_var(vars[i]);
       if (i != n-1) printf(" + ");
     }
     printf(" <= %d", max);
@@ -242,10 +279,10 @@ struct Constraints {
   // It is useful for branching.
   // The array is terminated by -1.
   Var* temporal_vars(int max) {
-    bool is_temporal[max];
+    bool is_temporal[max] = {false};
     for(int i=0; i < temporal.size(); ++i) {
-      is_temporal[temporal[i].x] = true;
-      is_temporal[temporal[i].y] = true;
+      is_temporal[abs(temporal[i].x)] = true;
+      is_temporal[abs(temporal[i].y)] = true;
     }
     int n=0;
     for(int i=0; i < max; ++i) {
@@ -253,7 +290,8 @@ struct Constraints {
     }
     Var* vars;
     CUDIE(cudaMallocManaged(&vars, (n+1)*sizeof(Var)));
-    for(int i=0, j=0; i < max; ++i) {
+    int j = 0;
+    for(int i=0; i < max; ++i) {
       if (is_temporal[i]) {
         vars[j] = i;
         j++;
@@ -279,18 +317,18 @@ struct Constraints {
     }
   }
 
-  void print(Var2Name var2name)
+  void print(VStore& vstore)
   {
     for(auto c : temporal) {
-      c.print(var2name);
+      c.print(vstore);
       printf("\n");
     }
     for(auto c : reifiedLogicalAnd) {
-      c.print(var2name);
+      c.print(vstore);
       printf("\n");
     }
     for(auto c : linearIneq) {
-       c.print(var2name);
+       c.print(vstore);
        printf("\n");
     }
   }

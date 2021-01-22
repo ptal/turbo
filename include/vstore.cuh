@@ -24,7 +24,6 @@
 // A variable with a negative index represents the negation `-x`.
 // The conversion is automatically handled in `VStore::operator[]`.
 typedef int Var;
-typedef const char** Var2Name;
 
 struct Interval {
   int lb;
@@ -42,6 +41,10 @@ struct Interval {
 
   CUDA bool is_assigned() {
     return lb == ub;
+  }
+
+  CUDA bool is_top() {
+    return lb > ub;
   }
 
   CUDA Interval neg() {
@@ -65,9 +68,34 @@ class VStore {
   Interval* data;
   size_t n;
 
+  // The names don't change during solving. We want to avoid useless copies.
+  // Unfortunately, static member are not supported in CUDA, so we use an instance variable which is never copied.
+  char** names;
+  size_t names_len;
+
 public:
 
-  CUDA VStore() : data(nullptr), n(0) {}
+  void init_names(std::vector<std::string>& vnames) {
+    names_len = vnames.size();
+    CUDIE(cudaMallocManaged(&names, sizeof(*names) * names_len));
+    for(int i=0; i < names_len; ++i) {
+      int len = vnames[i].size();
+      CUDIE(cudaMallocManaged(&names[i], sizeof(char) * (len + 1)));
+      for(int j=0; j < len; ++j) {
+        names[i][j] = vnames[i][j];
+      }
+      names[i][len] = '\0';
+    }
+  }
+
+  void free_names() {
+    for(int i = 0; i < names_len; ++i) {
+      CUDIE(cudaFree(names[i]));
+    }
+    CUDIE(cudaFree(names));
+  }
+
+  CUDA VStore() : data(nullptr), n(0), names(nullptr), names_len(0) {}
 
   VStore(int nvar) {
     n = nvar;
@@ -75,7 +103,10 @@ public:
   }
 
   VStore(const VStore& other) {
+    printf("VStore::copy constructor");
     n = other.n;
+    names = other.names;
+    names_len = other.names_len;
     CUDIE(cudaMallocManaged(&data, sizeof(*data) * n));
     for(int i = 0; i < n; ++i) {
       data[i] = other.data[i];
@@ -83,21 +114,33 @@ public:
   }
 
   __device__ VStore& operator=(const VStore& other) {
+    printf("VStore::operator=\n");
+    printf("%d vs %d\n", n, other.n);
     if (this != &other) {
+      printf("this != &other\n");
+      printf("%d vs %d\n", n, other.n);
+      names = other.names;
+      names_len = other.names_len;
       // Memory optimisation to reuse memory if already allocated.
-      if (this->n != n) {
+      if (n != other.n) {
+        printf("%d vs %d\n", n, other.n);
+        printf("n != other.n\n");
         n = other.n;
+        printf("%d vs %d\n", n, other.n);
         data = new Interval[n];
+        printf("%d vs %d\n", n, other.n);
       }
+      printf("%d vs %d\n", n, other.n);
       for(int i = 0; i < n; ++i) {
         data[i] = other.data[i];
       }
     }
+    else { printf("pointer are equal.\n"); }
     return *this;
   }
 
   VStore(VStore&& other) :
-    data(other.data), n(n) {
+    data(other.data), n(n), names(other.names), names_len(other.names_len) {
       other.data = nullptr;
       other.n = 0;
   }
@@ -122,13 +165,36 @@ public:
     return true;
   }
 
-  CUDA static void print_var(Var x, Var2Name var2name) {
-    printf("%s%s", (x < 0 ? "-" : ""), var2name[abs(x)]);
+  CUDA bool is_top() {
+    for(int i = 0; i < n; ++i) {
+      if(data[i].is_top()) {
+        return true;
+      }
+    }
+    return false;
   }
 
-  CUDA void print(Var2Name var2name) {
-    for(int i=0; i < n; ++i) {
-      print_var(i, var2name);
+  CUDA const char* name_of(Var x) {
+    return names[abs(x)];
+  }
+
+  CUDA void print_var(Var x) {
+    printf("%s%s", (x < 0 ? "-" : ""), names[abs(x)]);
+  }
+
+  CUDA void print_view(Var* vars) {
+    for(int i=0; vars[i] != -1; ++i) {
+      print_var(vars[i]);
+      printf(" = ");
+      data[vars[i]].print();
+      printf("\n");
+    }
+  }
+
+  CUDA void print() {
+    // The first variable is the fake one, c.f. `ModelBuilder` constructor.
+    for(int i=1; i < n; ++i) {
+      print_var(i);
       printf(" = ");
       data[i].print();
       printf("\n");
@@ -142,12 +208,13 @@ public:
 
   // Precondition: i >= 0
   CUDA bool update_raw(int i, Interval itv) {
+    itv = itv.join(data[i]);
     bool has_changed = data[i] != itv;
     if (has_changed) {
       Interval it = data[i];
-      data[i] = itv.join(data[i]);
-      printf("Update %d with %d..%d (old = %d..%d, new = %d..%d)\n",
-        i, itv.lb, itv.ub, it.lb, it.ub, data[i].lb, data[i].ub);
+      data[i] = itv;
+      printf("Update %s with %d..%d (old = %d..%d, new = %d..%d)\n",
+        names[i], itv.lb, itv.ub, it.lb, it.ub, data[i].lb, data[i].ub);
     }
     return has_changed;
   }
@@ -160,7 +227,7 @@ public:
     }
   }
 
-  CUDA Interval operator[](int i) {
+  CUDA Interval operator[](int i) const {
     return i < 0 ? data[-i].neg() : data[i];
   }
 

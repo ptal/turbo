@@ -18,6 +18,6 @@
 #include "vstore.cuh"
 #include "constraints.cuh"
 
-void solve(VStore* vstore, Constraints constraints, Var minimize_x, const char** var2name_raw);
+void solve(VStore* vstore, Constraints constraints, Var minimize_x);
 
 #endif
