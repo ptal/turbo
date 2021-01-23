@@ -21,111 +21,21 @@
 #include "vstore.cuh"
 #include "constraints.cuh"
 #include "cuda_helper.hpp"
+#include "status.cuh"
 
 CUDA_VAR bool Exploring = true;
 
 const int PROPS_TYPE = 3;
-const int PROP_OPS = 3;
-const int MAX_DEPTH_TREE = 8;
-
-struct PropagatorsStatus {
-  bool* entailed;
-  bool* disentailed;
-  bool* idle;
-  int n;
-  PropagatorsStatus(int n) {
-    this->n = n;
-    CUDIE(cudaMallocManaged(&entailed, n*sizeof(bool)));
-    CUDIE(cudaMallocManaged(&disentailed, n*sizeof(bool)));
-    CUDIE(cudaMallocManaged(&idle, n*sizeof(bool)));
-    for(int i = 0; i < n; ++i) {
-      entailed[i] = false;
-      disentailed[i] = false;
-      idle[i] = false;
-    }
-  }
-
-  __host__ PropagatorsStatus(const PropagatorsStatus& other) {
-    n = other.n;
-    CUDIE(cudaMallocManaged(&entailed, n*sizeof(bool)));
-    CUDIE(cudaMallocManaged(&disentailed, n*sizeof(bool)));
-    CUDIE(cudaMallocManaged(&idle, n*sizeof(bool)));
-    // switch to memcpy on device
-    for(int i = 0; i < n; ++i) {
-      entailed[i] = other.entailed[i];
-      disentailed[i] = other.disentailed[i];
-      // NOTE: no need to copy "idle", must actually be initialized at false for the next node.
-    }
-  }
-
-  void free() {
-    CUDIE(cudaFree(entailed));
-    CUDIE(cudaFree(disentailed));
-    CUDIE(cudaFree(idle));
-  }
-
-  CUDA bool all(bool* array) {
-    for(int i = 0; i < n; ++i) {
-      if(!array[i]) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  CUDA bool any(bool* array) {
-    for(int i = 0; i < n; ++i) {
-      if(array[i]) {
-        printf("Propagator %d disentailed.\n", i);
-        return true;
-      }
-    }
-    return false;
-  }
-
-  CUDA bool all_entailed() {
-    return all(entailed);
-  }
-
-  CUDA bool any_disentailed() {
-    return any(disentailed);
-  }
-
-  CUDA bool all_idle() {
-    return all(idle);
-  }
-
-  CUDA void wake_up_all() {
-    for(int i = 0; i < n; ++i) {
-      idle[i] = false;
-    }
-  }
-};
+const int MAX_DEPTH_TREE = 10;
 
 template <typename T>
-struct Engine {
-  PropagatorsStatus* status;
+struct SharedData {
+  PropagatorsStatus* pstatus;
   VStore* vstore;
   T* props;
 
-  CUDA Engine(PropagatorsStatus* status, VStore* vstore, T* props)
-    : status(status), vstore(vstore), props(props) {}
-
-  CUDA inline void updateIsEntailed(size_t id) {
-    T& p = props[id];
-    status->entailed[p.uid] = p.is_entailed(*vstore);
-  }
-
-  CUDA inline void updateIsDisentailed(size_t id) {
-    T& p = props[id];
-    status->disentailed[p.uid] = p.is_disentailed(*vstore);
-  }
-
-  CUDA inline void propagate(size_t id) {
-    T& p = props[id];
-    status->idle[p.uid] = !p.propagate(*vstore);
-    //printf("Propagate %lu\n", id);
-  }
+  CUDA SharedData(PropagatorsStatus* pstatus, VStore* vstore, T* props)
+    : pstatus(pstatus), vstore(vstore), props(props) {}
 };
 
 // Select the variable with the smallest domain in the store.
@@ -157,31 +67,41 @@ struct BacktrackingFrame {
   Interval itv;
 };
 
-CUDA_GLOBAL void search(PropagatorsStatus* status, VStore* current, VStore* best_sol, Var minimize_x, Var* temporal_vars) {
+CUDA_GLOBAL void search(PropagatorsStatus* pstatus, VStore* current, VStore* best_sol, Var minimize_x, Var* temporal_vars) {
   printf("starting search\n");
-  BacktrackingFrame* stack = BacktrackingFrame[MAX_DEPTH_TREE];
+  //BacktrackingFrame* stack = new BacktrackingFrame[MAX_DEPTH_TREE];
+  BacktrackingFrame* stack;
+  cudaError_t rc = cudaMalloc(&stack, sizeof(BacktrackingFrame)*MAX_DEPTH_TREE);
+  if (rc != cudaSuccess) {
+	  printf("[%d] %d %d\n", cudaSuccess, cudaErrorInvalidValue, cudaErrorMemoryAllocation);
+	  Exploring = false;
+  }
+  else {
+  	for (int i=0; i<MAX_DEPTH_TREE; ++i) {
+		  stack[i] = BacktrackingFrame();
+	}
+  }
   size_t stack_size = 0;
   Interval best_bound = {limit_min(), limit_max()};
   while (Exploring) {
-    if (status->all_idle()) {
-      bool all_entailed = status->all_entailed();
-      bool any_disentailed = status->any_disentailed();
-      if (current->all_assigned() && !all_entailed) {
+    Status res = pstatus->join();
+    if (res != UNKNOWN) {
+      if (current->all_assigned() && res != ENTAILED) {
         printf("entailment invariant inconsistent.\n");
-        for(int i = 0; i < status->n; ++i) {
-          if (!status->entailed[i]) {
+        for(int i = 0; i < pstatus->size(); ++i) {
+          if (pstatus->of(i) != ENTAILED) {
             printf("not entailed %d\n", i);
           }
         }
       }
-      if (!any_disentailed && current->is_top()) {
+      if (res != DISENTAILED && current->is_top()) {
         printf("disentailment invariant inconsistent.\n");
       }
-      if(all_entailed || any_disentailed) {
-        if(any_disentailed) {
+      if(res != IDLE) {
+        if(res == DISENTAILED) {
           printf("backtracking on failed node...\n");
         }
-        else if(all_entailed) {
+        else if(res == ENTAILED) {
           best_bound = (*current)[minimize_x];
           best_bound.ub = best_bound.lb;
           printf("backtracking on solution...(bound = %d)\n", best_bound.ub);
@@ -202,6 +122,8 @@ CUDA_GLOBAL void search(PropagatorsStatus* status, VStore* current, VStore* best
           frame.vstore.update(frame.var, frame.itv);
           // Adjust the objective.
           frame.vstore.update(minimize_x, frame.vstore[minimize_x].join(best_bound));
+          // Propagators that are now entailed or disentailed might not be anymore, therefore we reinitialize everybody to UNKNOWN.
+          pstatus->backtrack();
           // Swap the current branch with the backtracked one.
           *current = frame.vstore;
         }
@@ -211,6 +133,7 @@ CUDA_GLOBAL void search(PropagatorsStatus* status, VStore* current, VStore* best
       // The left branch is executed right away, and the right branch is pushed on the stack.
       else {
         printf("All IDLE, depth = %d\n", stack_size);
+        printf("res = %s\n", string_of_status(res));
         current->print();
         // Copy the current store.
         printf("stack[..] = *current, %d\n", current->size());
@@ -229,9 +152,9 @@ CUDA_GLOBAL void search(PropagatorsStatus* status, VStore* current, VStore* best
           stack[stack_size].itv.lb, stack[stack_size].itv.ub);
         assert(stack_size < MAX_DEPTH_TREE);
         ++stack_size;
+        // Change the IDLE status of propagators.
+        pstatus->wake_up_all();
       }
-      // Change the IDLE status of propagators.
-      status->wake_up_all();
     }
   }
   delete[] stack;
@@ -239,33 +162,27 @@ CUDA_GLOBAL void search(PropagatorsStatus* status, VStore* current, VStore* best
 }
 
 template<typename T>
-CUDA_GLOBAL void entail_k(Engine<T>* engine) {
+CUDA_GLOBAL void propagate_k(SharedData<T>* shared_data) {
   size_t id = threadIdx.x + blockIdx.x*blockDim.x;
+  PropagatorsStatus& pstatus = *(shared_data->pstatus);
   while (Exploring) {
-    engine->updateIsEntailed(id);
+    T& p = shared_data->props[id];
+    p.propagate(*(shared_data->vstore))
+      ? pstatus.inplace_join(p.uid, UNKNOWN)
+      : pstatus.inplace_join(p.uid, IDLE);
+    if(p.is_entailed(*(shared_data->vstore))) {
+      pstatus.inplace_join(p.uid, ENTAILED);
+    }
+    if(p.is_disentailed(*(shared_data->vstore))) {
+      pstatus.inplace_join(p.uid, DISENTAILED);
+    }
   }
 }
 
+// The variables pstatus and vstore are shared among all propagators of all types.
+// The UID inside a propagator, e.g., `TemporalProp::uid`, refers to the index of the propagator in the status array of `pstatus`.
 template<typename T>
-CUDA_GLOBAL void disentail_k(Engine<T>* engine) {
-  size_t id = threadIdx.x + blockIdx.x*blockDim.x;
-  while (Exploring) {
-    engine->updateIsDisentailed(id);
-  }
-}
-
-template<typename T>
-CUDA_GLOBAL void propagate_k(Engine<T>* engine) {
-  size_t id = threadIdx.x + blockIdx.x*blockDim.x;
-  while (Exploring) {
-    engine->propagate(id);
-  }
-}
-
-// The status and vstore are shared among all propagators of all types.
-// The UID inside a propagator, e.g., `TemporalProp::uid`, refers to the index of the propagator in the various arrays of `status`.
-template<typename T>
-Engine<T>* launch(PropagatorsStatus* status, VStore* vstore, std::vector<T> &c, cudaStream_t s[PROP_OPS])
+SharedData<T>* launch(PropagatorsStatus* pstatus, VStore* vstore, std::vector<T> &c, cudaStream_t s)
 {
   // printf("launching %lu threads on stream %p\n", c.size(), s[0]);
 
@@ -275,15 +192,13 @@ Engine<T>* launch(PropagatorsStatus* status, VStore* vstore, std::vector<T> &c, 
     props[i] = c[i];
   }
 
-  Engine<T> *engine;
-  CUDIE(cudaMallocManaged(&engine, sizeof(Engine<T>)));
-  *engine = Engine<T>(status, vstore, props);
+  SharedData<T> *shared_data;
+  CUDIE(cudaMallocManaged(&shared_data, sizeof(SharedData<T>)));
+  *shared_data = SharedData<T>(pstatus, vstore, props);
 
-  propagate_k<T><<<1, c.size(), 0, s[0]>>>(engine);
-  entail_k<T><<<1, c.size(), 0, s[1]>>>(engine);
-  disentail_k<T><<<1, c.size(), 0, s[2]>>>(engine);
+  propagate_k<T><<<1, c.size(), 0, s>>>(shared_data);
   CUDIE0();
-  return engine;
+  return shared_data;
 }
 
 void solve(VStore* vstore, Constraints constraints, Var minimize_x)
@@ -291,9 +206,9 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
   // std::cout << "Before propagation: " << std::endl;
   // vstore->print(var2name_raw);
 
-  void* status_raw;
-  CUDIE(cudaMallocManaged(&status_raw, sizeof(PropagatorsStatus)));
-  PropagatorsStatus* status = new(status_raw) PropagatorsStatus(constraints.size());
+  void* pstatus_raw;
+  CUDIE(cudaMallocManaged(&pstatus_raw, sizeof(PropagatorsStatus)));
+  PropagatorsStatus* pstatus = new(pstatus_raw) PropagatorsStatus(constraints.size());
 
   void* best_sol_raw;
   CUDIE(cudaMallocManaged(&best_sol_raw, sizeof(VStore)));
@@ -305,21 +220,19 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
 
   cudaStream_t monitor;
   CUDIE(cudaStreamCreate(&monitor));
-  cudaStream_t streams[PROPS_TYPE][PROP_OPS];
+  cudaStream_t streams[PROPS_TYPE];
   for (int i=0; i < PROPS_TYPE; ++i) {
-    for (int j=0; j < PROP_OPS; ++j) {
-      CUDIE(cudaStreamCreate(&streams[i][j]));
-    }
+    CUDIE(cudaStreamCreate(&streams[i]));
   }
 
-  search<<<1,1,0,monitor>>>(status, vstore, best_sol, minimize_x, temporal_vars);
+  search<<<1,1,0,monitor>>>(pstatus, vstore, best_sol, minimize_x, temporal_vars);
   CUDIE0();
 
-  auto engines_0 = launch<TemporalProp>(status, vstore, constraints.temporal, streams[0]);
+  auto shared_data_0 = launch<TemporalProp>(pstatus, vstore, constraints.temporal, streams[0]);
   CUDIE0();
-  auto engines_1 = launch<ReifiedLogicalAnd>(status, vstore, constraints.reifiedLogicalAnd, streams[1]);
+  auto shared_data_1 = launch<ReifiedLogicalAnd>(pstatus, vstore, constraints.reifiedLogicalAnd, streams[1]);
   CUDIE0();
-  auto engines_2 = launch<LinearIneq>(status, vstore, constraints.linearIneq, streams[2]);
+  auto shared_data_2 = launch<LinearIneq>(pstatus, vstore, constraints.linearIneq, streams[2]);
   CUDIE0();
 
   CUDIE(cudaDeviceSynchronize());
@@ -334,20 +247,18 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
   CUDIE(cudaFree(best_sol_raw));
   CUDIE(cudaFree(temporal_vars));
 
-  status->free();
-  CUDIE(cudaFree(status_raw));
+  pstatus->free();
+  CUDIE(cudaFree(pstatus_raw));
 
-  CUDIE(cudaFree(engines_0->props));
-  CUDIE(cudaFree(engines_0));
-  CUDIE(cudaFree(engines_1->props));
-  CUDIE(cudaFree(engines_1));
-  CUDIE(cudaFree(engines_2->props));
-  CUDIE(cudaFree(engines_2));
+  CUDIE(cudaFree(shared_data_0->props));
+  CUDIE(cudaFree(shared_data_0));
+  CUDIE(cudaFree(shared_data_1->props));
+  CUDIE(cudaFree(shared_data_1));
+  CUDIE(cudaFree(shared_data_2->props));
+  CUDIE(cudaFree(shared_data_2));
 
   CUDIE(cudaStreamDestroy(monitor));
   for (int i=0; i < PROPS_TYPE; ++i) {
-    for (int j=0; j < PROP_OPS; ++j) {
-      CUDIE(cudaStreamDestroy(streams[i][j]));
-    }
+    CUDIE(cudaStreamDestroy(streams[i]));
   }
 }
