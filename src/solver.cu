@@ -26,7 +26,7 @@
 CUDA_VAR bool Exploring = true;
 
 const int PROPS_TYPE = 3;
-const int MAX_DEPTH_TREE = 10;
+const int MAX_DEPTH_TREE = 100;
 
 template <typename T>
 struct SharedData {
@@ -73,21 +73,20 @@ CUDA_GLOBAL void search(PropagatorsStatus* pstatus, VStore* current, VStore* bes
   BacktrackingFrame* stack;
   cudaError_t rc = cudaMalloc(&stack, sizeof(BacktrackingFrame)*MAX_DEPTH_TREE);
   if (rc != cudaSuccess) {
-	  printf("[%d] %d %d\n", cudaSuccess, cudaErrorInvalidValue, cudaErrorMemoryAllocation);
-	  Exploring = false;
+	  printf("Could not allocate the stack (error = %d)\n", rc);
+	  return;
   }
-  else {
-  	for (int i=0; i<MAX_DEPTH_TREE; ++i) {
-		  stack[i] = BacktrackingFrame();
+  for (int i=0; i<MAX_DEPTH_TREE; ++i) {
+		stack[i] = BacktrackingFrame();
 	}
-  }
   size_t stack_size = 0;
   Interval best_bound = {limit_min(), limit_max()};
   while (Exploring) {
     Status res = pstatus->join();
     if (res != UNKNOWN) {
       if (current->all_assigned() && res != ENTAILED) {
-        printf("entailment invariant inconsistent.\n");
+        printf("entailment invariant inconsistent (status = %s).\n",
+          string_of_status(res));
         for(int i = 0; i < pstatus->size(); ++i) {
           if (pstatus->of(i) != ENTAILED) {
             printf("not entailed %d\n", i);
@@ -113,12 +112,11 @@ CUDA_GLOBAL void search(PropagatorsStatus* pstatus, VStore* current, VStore* bes
           Exploring = false;
         }
         else {
-          printf("pop frame %d\n", stack_size - 1);
+          LOG(printf("pop frame %d\n", stack_size - 1);)
           BacktrackingFrame& frame = stack[stack_size - 1];
           --stack_size;
-          printf("frame popped.\n");
           // Commit to the branch.
-          printf("Right branching on %s = %d..%d\n", frame.vstore.name_of(frame.var), frame.itv.lb, frame.itv.ub);
+          LOG(printf("Right branching on %s = %d..%d\n", frame.vstore.name_of(frame.var), frame.itv.lb, frame.itv.ub);)
           frame.vstore.update(frame.var, frame.itv);
           // Adjust the objective.
           frame.vstore.update(minimize_x, frame.vstore[minimize_x].join(best_bound));
@@ -132,32 +130,30 @@ CUDA_GLOBAL void search(PropagatorsStatus* pstatus, VStore* current, VStore* bes
       // We must branch.
       // The left branch is executed right away, and the right branch is pushed on the stack.
       else {
-        printf("All IDLE, depth = %d\n", stack_size);
-        printf("res = %s\n", string_of_status(res));
-        current->print();
+        LOG(printf("All IDLE, depth = %d\n", stack_size);)
+        LOG(printf("res = %s\n", string_of_status(res));)
+        LOG(current->print();)
         // Copy the current store.
-        printf("stack[..] = *current, %d\n", current->size());
         stack[stack_size].vstore = *current;
-        printf("current->size(): %d, %d\n",current->size(), stack[stack_size].vstore.size());
         // Select the variable and its value on which we want to branch.
         Var x = first_fail(*current, temporal_vars);
-        printf("Selected %s.\n", current->name_of(x));
+        LOG(printf("Selected %s.\n", current->name_of(x));)
         assign_lb(*current, x);
-        printf("Correctly created left branch on %s.\n", current->name_of(x));
+        LOG(printf("Correctly created left branch on %s.\n", current->name_of(x));)
         // Create the right branch.
         stack[stack_size].var = x;
         stack[stack_size].itv = not_assign_lb(stack[stack_size].vstore, x);
-        printf("Left branching on %s: %d..%d \\/ %d..%d\n",
+        LOG(printf("Left branching on %s: %d..%d \\/ %d..%d\n",
           current->name_of(x), (*current)[x].lb, (*current)[x].ub,
-          stack[stack_size].itv.lb, stack[stack_size].itv.ub);
-        assert(stack_size < MAX_DEPTH_TREE);
+          stack[stack_size].itv.lb, stack[stack_size].itv.ub);)
         ++stack_size;
+        assert(stack_size < MAX_DEPTH_TREE);
         // Change the IDLE status of propagators.
         pstatus->wake_up_all();
       }
     }
   }
-  delete[] stack;
+  cudaFree(stack);
   printf("stop search\n");
 }
 
@@ -165,17 +161,16 @@ template<typename T>
 CUDA_GLOBAL void propagate_k(SharedData<T>* shared_data) {
   size_t id = threadIdx.x + blockIdx.x*blockDim.x;
   PropagatorsStatus& pstatus = *(shared_data->pstatus);
+  T& p = shared_data->props[id];
   while (Exploring) {
-    T& p = shared_data->props[id];
-    p.propagate(*(shared_data->vstore))
-      ? pstatus.inplace_join(p.uid, UNKNOWN)
-      : pstatus.inplace_join(p.uid, IDLE);
+    Status s = p.propagate(*(shared_data->vstore)) ? UNKNOWN : IDLE;
     if(p.is_entailed(*(shared_data->vstore))) {
-      pstatus.inplace_join(p.uid, ENTAILED);
+      s = ENTAILED;
     }
     if(p.is_disentailed(*(shared_data->vstore))) {
-      pstatus.inplace_join(p.uid, DISENTAILED);
+      s = DISENTAILED;
     }
+    pstatus.inplace_join(p.uid, s);
   }
 }
 
@@ -241,7 +236,8 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
     printf("Could not find a solution.\n");
   }
   else {
-    printf("Best bound found is %d.\n", (*best_sol)[minimize_x].lb);
+    printf("Best bound found is %d..%d.\n",
+      (*best_sol)[minimize_x].lb, (*best_sol)[minimize_x].ub);
     best_sol->free();
   }
   CUDIE(cudaFree(best_sol_raw));

@@ -103,7 +103,6 @@ public:
   }
 
   VStore(const VStore& other) {
-    printf("VStore::copy constructor");
     n = other.n;
     names = other.names;
     names_len = other.names_len;
@@ -114,28 +113,18 @@ public:
   }
 
   __device__ VStore& operator=(const VStore& other) {
-    printf("VStore::operator=\n");
-    printf("%d vs %d\n", n, other.n);
     if (this != &other) {
-      printf("this != &other\n");
-      printf("%d vs %d\n", n, other.n);
       names = other.names;
       names_len = other.names_len;
       // Memory optimisation to reuse memory if already allocated.
       if (n != other.n) {
-        printf("%d vs %d\n", n, other.n);
-        printf("n != other.n\n");
         n = other.n;
-        printf("%d vs %d\n", n, other.n);
         data = new Interval[n];
-        printf("%d vs %d\n", n, other.n);
       }
-      printf("%d vs %d\n", n, other.n);
       for(int i = 0; i < n; ++i) {
         data[i] = other.data[i];
       }
     }
-    else { printf("pointer are equal.\n"); }
     return *this;
   }
 
@@ -211,10 +200,10 @@ public:
     itv = itv.join(data[i]);
     bool has_changed = data[i] != itv;
     if (has_changed) {
-      Interval it = data[i];
+      LOG(Interval it = data[i];)
       data[i] = itv;
-      printf("Update %s with %d..%d (old = %d..%d, new = %d..%d)\n",
-        names[i], itv.lb, itv.ub, it.lb, it.ub, data[i].lb, data[i].ub);
+      LOG(printf("Update %s with %d..%d (old = %d..%d, new = %d..%d)\n",
+        names[i], itv.lb, itv.ub, it.lb, it.ub, data[i].lb, data[i].ub);)
     }
     return has_changed;
   }
