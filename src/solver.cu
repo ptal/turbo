@@ -21,6 +21,7 @@
 #include "vstore.cuh"
 #include "constraints.cuh"
 #include "cuda_helper.hpp"
+#include "statistics.cuh"
 #include "status.cuh"
 #include "search.cuh"
 
@@ -67,7 +68,12 @@ T* launch(SharedData* shared_data, std::vector<T> &c, cudaStream_t s)
 
 void solve(VStore* vstore, Constraints constraints, Var minimize_x)
 {
-  constraints.print(*vstore);
+  INFO(constraints.print(*vstore));
+
+  void* stats_raw;
+  CUDIE(cudaMallocManaged(&stats_raw, sizeof(Statistics)));
+  Statistics* stats = new(stats_raw) Statistics();
+
 
   void* best_sol_raw;
   CUDIE(cudaMallocManaged(&best_sol_raw, sizeof(VStore)));
@@ -86,7 +92,7 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
   CUDIE(cudaMallocManaged(&raw_shared_data, sizeof(SharedData)));
   SharedData* shared_data = new(raw_shared_data) SharedData(vstore, constraints.size());
 
-  search<<<1,1,0,monitor>>>(shared_data, best_sol, minimize_x, temporal_vars);
+  search<<<1,1,0,monitor>>>(shared_data, stats, best_sol, minimize_x, temporal_vars);
   CUDIE0();
 
   auto props1 = launch<TemporalProp>(shared_data, constraints.temporal, streams[0]);
@@ -98,12 +104,14 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
 
   CUDIE(cudaDeviceSynchronize());
 
+  stats->print();
+
   if(best_sol->size() == 0) {
-    printf("Could not find a solution.\n");
+    INFO(printf("Could not find a solution.\n"));
   }
   else {
-    printf("Best bound found is %d..%d.\n",
-      (*best_sol)[minimize_x].lb, (*best_sol)[minimize_x].ub);
+    INFO(printf("Best bound found is %d..%d.\n",
+      (*best_sol)[minimize_x].lb, (*best_sol)[minimize_x].ub));
   }
 
   best_sol->~VStore();

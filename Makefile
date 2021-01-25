@@ -20,8 +20,11 @@ INC_ONLY = $(INC_DIR)/*
 debug: NVCC_FLAGS += -g -G -DDEBUG
 debug: $(EXE)
 
-release: NVCC_FLAGS += -O3
+release: NVCC_FLAGS += -O3 -DTRACE
 release: $(EXE)
+
+compete: NVCC_FLAGS += -O3
+compete: $(EXE)
 
 # Link c++ and CUDA compiled object files to target executable:
 $(EXE): $(INC_ONLY) $(SOURCES)

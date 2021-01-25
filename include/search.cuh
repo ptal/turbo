@@ -17,6 +17,7 @@
 
 #include "vstore.cuh"
 #include "status.cuh"
+#include "statistics.cuh"
 #include "cuda_helper.hpp"
 
 const int MAX_DEPTH_TREE = 100;
@@ -197,28 +198,33 @@ __device__ void update_best_bound(const VStore& current, Var minimize_x, Interva
   check_decreasing_bound(best_bound, current[minimize_x]);
   best_bound = current[minimize_x];
   best_bound.ub = best_bound.lb;
-  printf("backtracking on solution...(bound %d..%d)\n", best_bound.lb, best_bound.ub);
+  INFO(printf("backtracking on solution...(bound %d..%d)\n", best_bound.lb, best_bound.ub));
   best_bound.lb = limit_min();
   best_sol->reset(current);
 }
 
-CUDA_GLOBAL void search(SharedData* shared_data, VStore* best_sol, Var minimize_x, Var* temporal_vars) {
-  printf("starting search\n");
+CUDA_GLOBAL void search(SharedData* shared_data, Statistics* stats, VStore* best_sol, Var minimize_x, Var* temporal_vars) {
+  INFO(printf("starting search\n"));
   shared_data->into_device_mem();
   Stack stack(*(shared_data->vstore));
   Interval best_bound = {limit_min(), limit_max()};
   while (shared_data->exploring) {
     Status res = shared_data->pstatus->join();
     if (res != UNKNOWN) {
+      stats->nodes += 1;
+      stats->peak_depth = max<int>(stats->peak_depth, stack.size());
       res = (shared_data->vstore->is_top() ? DISENTAILED : res);
       check_consistency(shared_data, res);
       LOG(printf("Current bound: %d..%d, best bound: %d..%d\n", (*shared_data->vstore)[minimize_x].lb, (*shared_data->vstore)[minimize_x].ub, best_bound.lb, best_bound.ub));
       if(res != IDLE) {
         if(res == DISENTAILED) {
-          printf("backtracking on failed node...\n");
+          stats->fails += 1;
+          INFO(printf("backtracking on failed node...\n"));
         }
         else if(res == ENTAILED) {
           update_best_bound(*(shared_data->vstore), minimize_x, best_bound, best_sol);
+          stats->sols += 1;
+          stats->best_bound = best_bound.ub;
         }
         // If nothing is left in the stack, we stop the search, it means we explored the full search tree.
         if(stack.is_empty()) {
@@ -247,7 +253,7 @@ CUDA_GLOBAL void search(SharedData* shared_data, VStore* best_sol, Var minimize_
       }
     }
   }
-  printf("stop search\n");
+  INFO(printf("stop search\n"));
 }
 
 #endif

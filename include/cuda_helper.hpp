@@ -52,9 +52,16 @@ CUDA static constexpr int limit_min() noexcept { return -__INT_MAX__ - 1; }
 CUDA static constexpr int limit_max() noexcept { return __INT_MAX__; }
 
 #ifdef DEBUG
+#define TRACE
 #define LOG(X) X
 #else
 #define LOG(X)
+#endif
+
+#ifdef TRACE
+#define INFO(X) X
+#else
+#define INFO(X)
 #endif
 
 #define MALLOC_CHECK(M) { \
