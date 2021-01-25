@@ -125,8 +125,8 @@ CUDA void check_consistency(const PropagatorsStatus& pstatus, const VStore& curr
 }
 
 CUDA void check_decreasing_bound(const Interval& current_bound, const Interval& new_bound) {
-  if (current_bound.ub >= new_bound.lb) {
-    printf("Found a new bound that is worst than the current one...");
+  if (current_bound.ub < new_bound.lb) {
+    printf("Found a new bound that is worst than the current one...\n");
     assert(0);
   }
 }
