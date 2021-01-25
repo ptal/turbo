@@ -33,33 +33,32 @@ struct Interval {
 
   CUDA Interval(int lb, int ub): lb(lb), ub(ub) {}
 
-  CUDA Interval join(Interval b) {
+  CUDA void inplace_join(const Interval &b) {
     lb = ::max<int>(lb, b.lb);
     ub = ::min<int>(ub, b.ub);
-    return *this;
   }
 
-  CUDA bool is_assigned() {
+  CUDA bool is_assigned() const {
     return lb == ub;
   }
 
-  CUDA bool is_top() {
+  CUDA bool is_top() const {
     return lb > ub;
   }
 
-  CUDA Interval neg() {
+  CUDA Interval neg() const {
     return {-ub, -lb};
   }
 
-  CUDA bool operator==(int x) {
+  CUDA bool operator==(int x) const {
     return lb == x && ub == x;
   }
 
-  CUDA bool operator!=(const Interval& other) {
+  CUDA bool operator!=(const Interval& other) const {
     return lb != other.lb || ub != other.ub;
   }
 
-  CUDA void print() {
+  CUDA void print() const {
     printf("[%d..%d]", lb, ub);
   }
 };
@@ -112,7 +111,7 @@ public:
     }
   }
 
-  __device__ VStore& operator=(const VStore& other) {
+  CUDA VStore& operator=(const VStore& other) {
     if (this != &other) {
       names = other.names;
       names_len = other.names_len;
@@ -145,7 +144,7 @@ public:
     n = 0;
   }
 
-  CUDA bool all_assigned() {
+  CUDA bool all_assigned() const {
     for(int i = 0; i < n; ++i) {
       if(!data[i].is_assigned()) {
         return false;
@@ -154,7 +153,7 @@ public:
     return true;
   }
 
-  CUDA bool is_top() {
+  CUDA bool is_top() const {
     for(int i = 0; i < n; ++i) {
       if(data[i].is_top()) {
         return true;
@@ -163,15 +162,15 @@ public:
     return false;
   }
 
-  CUDA const char* name_of(Var x) {
+  CUDA const char* name_of(Var x) const {
     return names[abs(x)];
   }
 
-  CUDA void print_var(Var x) {
+  CUDA void print_var(Var x) const {
     printf("%s%s", (x < 0 ? "-" : ""), names[abs(x)]);
   }
 
-  CUDA void print_view(Var* vars) {
+  CUDA void print_view(Var* vars) const {
     for(int i=0; vars[i] != -1; ++i) {
       print_var(vars[i]);
       printf(" = ");
@@ -180,7 +179,7 @@ public:
     }
   }
 
-  CUDA void print() {
+  CUDA void print() const {
     // The first variable is the fake one, c.f. `ModelBuilder` constructor.
     for(int i=1; i < n; ++i) {
       print_var(i);
@@ -197,7 +196,7 @@ public:
 
   // Precondition: i >= 0
   CUDA bool update_raw(int i, Interval itv) {
-    itv = itv.join(data[i]);
+    itv.inplace_join(data[i]);
     bool has_changed = data[i] != itv;
     if (has_changed) {
       LOG(Interval it = data[i];)
@@ -216,11 +215,15 @@ public:
     }
   }
 
+  CUDA void assign(int i, int v) {
+    update(i, {v, v});
+  }
+
   CUDA Interval operator[](int i) const {
     return i < 0 ? data[-i].neg() : data[i];
   }
 
-  CUDA size_t size() { return n; }
+  CUDA size_t size() const { return n; }
 };
 
 #endif

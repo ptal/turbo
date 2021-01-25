@@ -43,11 +43,13 @@ CUDA inline const char* string_of_status(Status status) {
 
 class PropagatorsStatus {
   Status* status;
+  bool exploring;
   size_t n;
 
 public:
   PropagatorsStatus(size_t n) {
     this->n = n;
+    exploring = true;
     CUDIE(cudaMallocManaged(&status, n*sizeof(Status)));
     for(size_t i = 0; i < n; ++i) {
       status[i] = UNKNOWN;
@@ -66,17 +68,25 @@ public:
     CUDIE(cudaFree(status));
   }
 
-  CUDA inline size_t size() { return n; }
+  CUDA inline size_t size() const { return n; }
 
-  CUDA inline Status of(int i) {
+  CUDA inline Status of(int i) const {
     return status[i];
+  }
+
+  CUDA inline bool is_exploring() const {
+    return exploring;
+  }
+
+  CUDA inline void terminate_exploration() {
+    exploring = false;
   }
 
   CUDA inline void inplace_join(int i, Status s) {
     status[i] = join_status(status[i], s);
   }
 
-  CUDA Status join() {
+  CUDA Status join() const {
     int unk = 0;
     int idle = 0;
     for(int i = 0; i < n; ++i) {

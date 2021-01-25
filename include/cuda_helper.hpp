@@ -22,12 +22,12 @@
 #define CUDA_GLOBAL __global__
 
 #define CUDIE(result) { \
-        cudaError_t e = (result); \
-        if (e != cudaSuccess) { \
-                std::cerr << __FILE__ << ":" << __LINE__; \
-                std::cerr << " CUDA runtime error: " << cudaGetErrorString(e) << '\n'; \
-                exit((int)e); \
-        }}
+  cudaError_t e = (result); \
+  if (e != cudaSuccess) { \
+    std::cerr << __FILE__ << ":" << __LINE__; \
+    std::cerr << " CUDA runtime error: " << cudaGetErrorString(e) << '\n'; \
+    exit((int)e); \
+  }}
 
 #define CUDIE0() CUDIE(cudaGetLastError())
 #else
@@ -49,5 +49,12 @@ CUDA static constexpr int limit_max() noexcept { return __INT_MAX__; }
 #else
 #define LOG(X)
 #endif
+
+#define MALLOC_CHECK(M) { \
+  cudaError_t rc = M; \
+  if (rc != cudaSuccess) { \
+    printf("Could not allocate the stack (error = %d)\n", rc); \
+    return; \
+  }}
 
 #endif
