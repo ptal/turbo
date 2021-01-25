@@ -43,43 +43,33 @@ CUDA inline const char* string_of_status(Status status) {
 
 class PropagatorsStatus {
   Status* status;
-  bool exploring;
   size_t n;
 
 public:
   PropagatorsStatus(size_t n) {
     this->n = n;
-    exploring = true;
-    CUDIE(cudaMallocManaged(&status, n*sizeof(Status)));
-    for(size_t i = 0; i < n; ++i) {
+    MALLOC_CHECK(cudaMallocManaged(&status, n*sizeof(Status)));
+    for(int i = 0; i < n; ++i) {
       status[i] = UNKNOWN;
     }
   }
 
-  __host__ PropagatorsStatus(const PropagatorsStatus& other) {
-    n = other.n;
-    CUDIE(cudaMallocManaged(&status, n*sizeof(Status)));
-    for(int i = 0; i < n; ++i) {
-      status[i] = other.status[i];
-    }
-  }
+  // __host__ PropagatorsStatus(const PropagatorsStatus& other) {
+  //   n = other.n;
+  //   CUDIE(cudaMallocManaged(&status, n*sizeof(Status)));
+  //   for(int i = 0; i < n; ++i) {
+  //     status[i] = other.status[i];
+  //   }
+  // }
 
-  void free() {
-    CUDIE(cudaFree(status));
+  ~PropagatorsStatus() {
+    cudaFree(status);
   }
 
   CUDA inline size_t size() const { return n; }
 
   CUDA inline Status of(int i) const {
     return status[i];
-  }
-
-  CUDA inline bool is_exploring() const {
-    return exploring;
-  }
-
-  CUDA inline void terminate_exploration() {
-    exploring = false;
   }
 
   CUDA inline void inplace_join(int i, Status s) {
@@ -114,7 +104,7 @@ public:
     }
   }
 
-  CUDA void backtrack() {
+  CUDA void reset() {
     for(int i = 0; i < n; ++i) {
       status[i] = UNKNOWN;
     }

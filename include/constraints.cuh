@@ -26,7 +26,7 @@ struct TemporalProp {
   Var y;
   int c;
 
-  CUDA TemporalProp(Var x, Var y, int c) : x(x), y(y), c(c) {}
+  CUDA TemporalProp(Var x, Var y, int c) : uid(-1), x(x), y(y), c(c) {}
 
   CUDA bool propagate(VStore& vstore)
   {

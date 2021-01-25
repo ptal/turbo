@@ -40,7 +40,7 @@ int main(int argc, char** argv) {
     // constraints.print();
     solve(vstore, constraints, minimize_x);
     vstore->free_names();
-    vstore->free();
+    vstore->~VStore();
     CUDIE(cudaFree(vstore));
   }
   catch (exception &e)

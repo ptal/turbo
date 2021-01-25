@@ -17,6 +17,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cassert>
 #include <vector>
 #include <string>
 #include "cuda_helper.hpp"
@@ -94,54 +95,30 @@ public:
     CUDIE(cudaFree(names));
   }
 
-  CUDA VStore() : data(nullptr), n(0), names(nullptr), names_len(0) {}
-
   VStore(int nvar) {
     n = nvar;
     CUDIE(cudaMallocManaged(&data, sizeof(*data) * n));
   }
 
-  VStore(const VStore& other) {
+  CUDA VStore(const VStore& other) {
     n = other.n;
     names = other.names;
     names_len = other.names_len;
-    CUDIE(cudaMallocManaged(&data, sizeof(*data) * n));
+    MALLOC_CHECK(cudaMalloc(&data, sizeof(*data) * n));
     for(int i = 0; i < n; ++i) {
       data[i] = other.data[i];
     }
   }
 
-  CUDA VStore& operator=(const VStore& other) {
-    if (this != &other) {
-      names = other.names;
-      names_len = other.names_len;
-      // Memory optimisation to reuse memory if already allocated.
-      if (n != other.n) {
-        n = other.n;
-        data = new Interval[n];
-      }
-      for(int i = 0; i < n; ++i) {
-        data[i] = other.data[i];
-      }
+  CUDA void reset(const VStore& other) {
+    assert(n == other.n);
+    for(int i = 0; i < n; ++i) {
+      data[i] = other.data[i];
     }
-    return *this;
   }
 
-  VStore(VStore&& other) :
-    data(other.data), n(n), names(other.names), names_len(other.names_len) {
-      other.data = nullptr;
-      other.n = 0;
-  }
-
-  // Free the data array on host.
-  __host__ void free() {
-    CUDIE(cudaFree(data));
-    n = 0;
-  }
-
-  __device__ ~VStore() {
-    delete[] data;
-    n = 0;
+  CUDA ~VStore() {
+    cudaFree(data);
   }
 
   CUDA bool all_assigned() const {
