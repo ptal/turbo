@@ -32,7 +32,7 @@ struct BacktrackingFrame {
   }
 
   CUDA void join_objective(Var minimize_x, const Interval& best_bound) {
-    vstore[minimize_x].inplace_join(best_bound);
+    vstore.update(minimize_x, best_bound);
   }
 };
 
@@ -106,6 +106,7 @@ CUDA void branch(Stack& stack, VStore& current, Var* temporal_vars) {
 }
 
 CUDA void check_consistency(const PropagatorsStatus& pstatus, const VStore& current, Status res) {
+  LOG(printf("Node status: %s\n", string_of_status(res)));
   if (current.all_assigned() && res != ENTAILED) {
     printf("entailment invariant inconsistent (status = %s).\n",
       string_of_status(res));
@@ -119,6 +120,10 @@ CUDA void check_consistency(const PropagatorsStatus& pstatus, const VStore& curr
   }
   if (res != DISENTAILED && current.is_top()) {
     printf("disentailment invariant inconsistent.\n");
+    printf("Status join again: %s\n", string_of_status(pstatus.join()));
+    for(int i = 0; i < pstatus.size(); ++i) {
+      printf("%d: %s\n", i, string_of_status(pstatus.of(i)));
+    }
     current.print();
     assert(0);
   }
@@ -126,6 +131,8 @@ CUDA void check_consistency(const PropagatorsStatus& pstatus, const VStore& curr
 
 CUDA void check_decreasing_bound(const Interval& current_bound, const Interval& new_bound) {
   if (current_bound.ub < new_bound.lb) {
+    printf("Current bound: %d..%d.\n", current_bound.lb, current_bound.ub);
+    printf("New bound: %d..%d.\n", new_bound.lb, new_bound.ub);
     printf("Found a new bound that is worst than the current one...\n");
     assert(0);
   }
@@ -135,7 +142,7 @@ CUDA void update_best_bound(const VStore& current, Var minimize_x, Interval& bes
   check_decreasing_bound(best_bound, current[minimize_x]);
   best_bound = current[minimize_x];
   best_bound.ub = best_bound.lb;
-  printf("backtracking on solution...(bound = %d)\n", best_bound.ub);
+  printf("backtracking on solution...(bound %d..%d)\n", best_bound.lb, best_bound.ub);
   best_bound.lb = limit_min();
   *best_sol = current;
 }
@@ -148,6 +155,7 @@ CUDA_GLOBAL void search(PropagatorsStatus* pstatus, VStore* current, VStore* bes
     Status res = pstatus->join();
     if (res != UNKNOWN) {
       check_consistency(*pstatus, *current, res);
+      LOG(printf("Current bound: %d..%d, best bound: %d..%d\n", (*current)[minimize_x].lb, (*current)[minimize_x].ub, best_bound.lb, best_bound.ub));
       if(res != IDLE) {
         if(res == DISENTAILED) {
           printf("backtracking on failed node...\n");
