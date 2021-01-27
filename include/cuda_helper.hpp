@@ -43,9 +43,9 @@ template<typename T>CUDA T max(T a, T b) { return a>=b ? a : b; }
 
 
 template<typename T>CUDA void swap(T* a, T* b) {
-  T* c = a;
-  a = b;
-  b = c;
+  T c = *a;
+  *a = *b;
+  *b = c;
 }
 
 CUDA static constexpr int limit_min() noexcept { return -__INT_MAX__ - 1; }

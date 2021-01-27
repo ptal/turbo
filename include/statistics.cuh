@@ -31,7 +31,12 @@ struct Statistics {
     printf("nodes=%d\n", nodes);
     printf("fails=%d\n", fails);
     printf("solutions=%d\n", sols);
-    printf("objective=%d\n", best_bound);
+    if(best_bound != -1) {
+      printf("objective=%d\n", best_bound);
+    }
+    else {
+      printf("objective=unsat\n");
+    }
     printf("peakDepth=%d\n", peak_depth);
   }
 };

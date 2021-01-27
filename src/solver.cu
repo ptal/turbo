@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <stdio.h>
 #include <new>
+#include <chrono>
 
 #include "solver.cuh"
 #include "vstore.cuh"
@@ -92,6 +93,8 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
   CUDIE(cudaMallocManaged(&raw_shared_data, sizeof(SharedData)));
   SharedData* shared_data = new(raw_shared_data) SharedData(vstore, constraints.size());
 
+  auto t1 = std::chrono::high_resolution_clock::now();
+
   search<<<1,1,0,monitor>>>(shared_data, stats, best_sol, minimize_x, temporal_vars);
   CUDIE0();
 
@@ -104,15 +107,12 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
 
   CUDIE(cudaDeviceSynchronize());
 
-  stats->print();
+  auto t2 = std::chrono::high_resolution_clock::now();
 
-  if(best_sol->size() == 0) {
-    INFO(printf("Could not find a solution.\n"));
-  }
-  else {
-    INFO(printf("Best bound found is %d..%d.\n",
-      (*best_sol)[minimize_x].lb, (*best_sol)[minimize_x].ub));
-  }
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
+
+  stats->print();
+  std::cout << "solveTime=" << duration << std::endl;
 
   best_sol->~VStore();
   CUDIE(cudaFree(best_sol_raw));

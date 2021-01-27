@@ -16,6 +16,7 @@
 #define CONSTRAINTS_HPP
 
 #include <cassert>
+#include <cmath>
 #include "cuda_helper.hpp"
 #include "vstore.cuh"
 
@@ -30,39 +31,49 @@ struct TemporalProp {
 
   CUDA bool propagate(VStore& vstore)
   {
-    return
-         vstore.update(x, {vstore[x].lb, c - vstore[y].lb})
-      || vstore.update(y, {vstore[y].lb, c - vstore[x].lb});
+    bool has_changed = vstore.update_ub(x, c - vstore.lb(y));
+    has_changed |= vstore.update_ub(y, c - vstore.lb(x));
+    return has_changed;
   }
 
-  CUDA bool is_entailed(VStore& vstore) {
+  CUDA bool is_entailed(const VStore& vstore) const {
     return
-      !vstore[x].is_top() &&
-      !vstore[y].is_top() &&
-      vstore[x].ub + vstore[y].ub <= c;
+      !vstore.is_top(x) &&
+      !vstore.is_top(y) &&
+      vstore.ub(x) + vstore.ub(y) <= c;
   }
 
-  CUDA bool is_disentailed(VStore& vstore) {
+  CUDA bool is_disentailed(const VStore& vstore) const {
     // if(vstore[x].lb + vstore[y].lb > c) {
     //   printf("Temporal constraint %d disentailed (x=%d, y=%d): %d + %d > %d\n",
     //     uid, x, y, vstore[x].lb, vstore[y].lb, c);
     // }
-    return vstore[x].is_top() ||
-           vstore[y].is_top() ||
-           vstore[x].lb + vstore[y].lb > c;
+    return vstore.is_top(x) ||
+           vstore.is_top(y) ||
+           vstore.lb(x) + vstore.lb(y) > c;
   }
 
   CUDA TemporalProp neg() {
     return TemporalProp(-x, -y, -c - 1);
   }
 
-  CUDA void print(VStore& vstore) {
+  CUDA void print(const VStore& vstore) const {
     printf("%d: ", uid);
     vstore.print_var(x);
     printf(" + ");
     vstore.print_var(y);
     printf(" <= %d", c);
   }
+
+  // CUDA void test_propagation(const VStore& root) {
+  //   VStore vstore(root);
+  //   Interval i0_1(0, 1);
+  //   Interval i0_2(0, 2);
+  //   Interval i1_2(1, 2);
+  //   Interval i2_3(2, 3);
+  //   TemporalProp p(abs(x), abs(y), 0);
+  //   vstore
+  // }
 };
 
 // C1 \/ C2
@@ -83,15 +94,15 @@ struct LogicalOr {
     return false;
   }
 
-  CUDA bool is_entailed(VStore& vstore) {
+  CUDA bool is_entailed(const VStore& vstore) const {
     return left.is_entailed(vstore) || right.is_entailed(vstore);
   }
 
-  CUDA bool is_disentailed(VStore& vstore) {
+  CUDA bool is_disentailed(const VStore& vstore) const {
     return left.is_disentailed(vstore) && right.is_disentailed(vstore);
   }
 
-  CUDA void print(VStore& vstore) {
+  CUDA void print(const VStore& vstore) const {
     left.print(vstore);
     printf(" \\/ ");
     right.print(vstore);
@@ -109,54 +120,38 @@ struct ReifiedLogicalAnd {
     b(b), left(left), right(right) {}
 
   CUDA bool propagate(VStore& vstore) {
-    if (vstore[b] == 0) {
-      // if (uid == 14) {printf("b=0\n");}
+    if (vstore.view_of(b) == 0) {
       return LogicalOr(left.neg(), right.neg()).propagate(vstore);
     }
-    else if (vstore[b] == 1) {
-      // if (uid == 14) {printf("b=1\n");}
-      return
-        left.propagate(vstore) ||
-        right.propagate(vstore);
+    else if (vstore.view_of(b) == 1) {
+      bool has_changed = left.propagate(vstore);
+      has_changed |= right.propagate(vstore);
+      return has_changed;
     }
     else if (left.is_entailed(vstore) && right.is_entailed(vstore)) {
-      // if (uid == 14) {printf("l/r entailed\n");}
-      return vstore.update(b, {1, 1});
+      return vstore.assign(b, 1);
     }
     else if (left.is_disentailed(vstore) || right.is_disentailed(vstore)) {
-      // if (uid == 14) {printf("l || r disentailed\n");}
-      return vstore.update(b, {0, 0});
+      return vstore.assign(b, 0);
     }
-    // if (uid == 14) {
-    //   vstore.print_var(b);
-    //   printf("\n");
-    //   vstore.print_var(left.x);
-    //   printf("\n");
-    //   vstore.print_var(left.y);
-    //   printf("\n");
-    //   vstore.print_var(right.x);
-    //   printf("\n");
-    //   vstore.print_var(right.y);
-    //   printf("\n");
-    // }
     return false;
   }
 
-  CUDA bool is_entailed(VStore& vstore) {
+  CUDA bool is_entailed(const VStore& vstore) const {
     return
-         !vstore[b].is_top()
-     && ((vstore[b].ub == 0 && (left.is_disentailed(vstore) || right.is_disentailed(vstore)))
-      || (vstore[b].lb == 1 && left.is_entailed(vstore) && right.is_entailed(vstore)));
+         !vstore.is_top(b)
+     && ((vstore.ub(b) == 0 && (left.is_disentailed(vstore) || right.is_disentailed(vstore)))
+      || (vstore.lb(b) == 1 && left.is_entailed(vstore) && right.is_entailed(vstore)));
   }
 
-  CUDA bool is_disentailed(VStore& vstore) {
+  CUDA bool is_disentailed(const VStore& vstore) const {
     return
-         vstore[b].is_top()
-     || (vstore[b].ub == 0 && (left.is_entailed(vstore) && right.is_entailed(vstore)))
-     || (vstore[b].lb == 1 && (left.is_disentailed(vstore) || right.is_disentailed(vstore)));
+         vstore.is_top(b)
+     || (vstore.ub(b) == 0 && (left.is_entailed(vstore) && right.is_entailed(vstore)))
+     || (vstore.lb(b) == 1 && (left.is_disentailed(vstore) || right.is_disentailed(vstore)));
   }
 
-  CUDA void print(VStore& vstore) {
+  CUDA void print(const VStore& vstore) const {
     printf("%d: ", uid);
     vstore.print_var(b);
     printf(" <=> (");
@@ -204,58 +199,80 @@ struct LinearIneq {
     CUDIE(cudaFree(constants));
   }
 
-  CUDA int leftover(VStore& vstore) {
-    int leftover = 0;
+  // Returns the maximum amount of additional resources this constraint can use if we fix all remaining boolean variables to 1.
+  // LATTICE: monotone function w.r.t. `vstore`.
+  // The potential can only decrease for any evolution of non-top `vstore`.
+  CUDA int potential(const VStore& vstore) const {
+    int potential = 0;
     for(int i=0; i < n; ++i) {
-      if (vstore[vars[i]].lb == 0 && vstore[vars[i]].ub == 1) {
-        leftover += constants[i];
+      if (vstore.lb(vars[i]) == 0 && vstore.ub(vars[i]) == 1) {
+        potential += constants[i];
       }
     }
-    return leftover;
+    return potential;
   }
 
-  CUDA int slack(VStore& vstore) {
+  // Returns the amount of resources that this constraint can consume while still being satisfiable.
+  // LATTICE: monotone function w.r.t. `vstore`.
+  // The slack can only decrease for any evolution of non-top `vstore`.
+  CUDA int slack(const VStore& vstore) const {
     int current = 0;
     for(int i=0; i < n; ++i) {
-      current += vstore[vars[i]].lb * constants[i];
+      current += vstore.lb(vars[i]) * constants[i];
     }
     return max - current;
   }
 
+  // Consider this diagram of resources used.
+  // The full window represent the number of resources used if we set all Boolean variables to 1.
+  //
+  //     |-------------------|_____|____|------|
+  //               ^               ^        ^
+  //            lb = 1            max    ub = 0
+  //                         |_________________|
+  //                              potential
+  //                         |_____|
+  //                          slack
+  //
+  //  Propagating assign upper bound to 0, when c_i > slack.
   CUDA bool propagate(VStore& vstore) {
     int s = slack(vstore);
     bool has_changed = false;
+    // CORRECTNESS: Even if the slack changes after its computation (or even when we are computing it), it does not hinder the correctness of the propagation.
+    // The reason is that whenever `constants[i] > s` it will stay true for any slack s' since s > s' by def. of the function slack.
     for(int i=0; i < n; ++i) {
-      Interval x = vstore[vars[i]];
+      Interval x = vstore.view_of(vars[i]);
       if (x.lb == 0 && x.ub == 1 && constants[i] > s) {
-        has_changed |= vstore.update(vars[i], {0,0});
+        has_changed |= vstore.assign(vars[i], 0);
       }
     }
     return has_changed;
   }
 
-  CUDA bool one_top(VStore& vstore) {
+  CUDA bool one_top(const VStore& vstore) const {
     for(int i = 0; i < n; ++i) {
-      if(vstore[vars[i]].is_top()) {
+      if(vstore.is_top(vars[i])) {
         return true;
       }
     }
     return false;
   }
 
-  CUDA bool is_entailed(VStore& vstore) {
+  // From the diagram above, it is clear that once `potential <= slack` holds, it holds forever in a non-top `vstore`.
+  // So even if `vstore` is modified during or between the computation of the potential or slack.
+  CUDA bool is_entailed(const VStore& vstore) const {
     return
          !one_top(vstore)
-      && leftover(vstore) <= slack(vstore);
+      && potential(vstore) <= slack(vstore);
   }
 
-  CUDA bool is_disentailed(VStore& vstore) {
+  CUDA bool is_disentailed(const VStore& vstore) const {
     return
          one_top(vstore)
       || slack(vstore) < 0;
   }
 
-  CUDA void print(VStore& vstore) {
+  CUDA void print(const VStore& vstore) const {
     printf("%d: ", uid);
     for(int i = 0; i < n; ++i) {
       printf("%d * ", constants[i]);
@@ -317,7 +334,7 @@ struct Constraints {
     }
   }
 
-  void print(VStore& vstore)
+  void print(const VStore& vstore)
   {
     for(auto c : temporal) {
       c.print(vstore);

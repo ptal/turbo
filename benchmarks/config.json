@@ -4,7 +4,7 @@
   "output_dir" : "database/",
   "problem_sets" : [
     { "path": "rcpsp/patterson.rcp/",
-      "timeout": 10 }
+      "timeout": 30 }
   ],
   "pipelines" : [
     <MakeModel: {

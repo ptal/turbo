@@ -23,7 +23,7 @@
 #include "cuda_helper.hpp"
 
 // A variable with a negative index represents the negation `-x`.
-// The conversion is automatically handled in `VStore::operator[]`.
+// The conversion is automatically handled in `VStore::view_of`.
 typedef int Var;
 
 struct Interval {
@@ -139,6 +139,10 @@ public:
     return false;
   }
 
+  CUDA bool is_top(Var x) const {
+    return view_of(x).is_top();
+  }
+
   CUDA const char* name_of(Var x) const {
     return names[abs(x)];
   }
@@ -171,33 +175,64 @@ public:
     data[x] = itv;
   }
 
-  // Precondition: i >= 0
-  CUDA bool update_raw(int i, Interval itv) {
-    itv.inplace_join(data[i]);
-    bool has_changed = data[i] != itv;
-    if (has_changed) {
-      LOG(Interval it = data[i];)
-      data[i] = itv;
-      LOG(printf("Update %s with %d..%d (old = %d..%d, new = %d..%d)\n",
-        names[i], itv.lb, itv.ub, it.lb, it.ub, data[i].lb, data[i].ub);)
+  CUDA bool update_lb(Var i, int lb) {
+    if(i >= 0) {
+      if (data[i].lb < lb) {
+        data[i].lb = lb;
+        return true;
+      }
     }
+    else {
+      if (data[-i].ub > -lb) {
+        data[-i].ub = -lb;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  CUDA bool update_ub(Var i, int ub) {
+    if(i >= 0) {
+      if (data[i].ub > ub) {
+        data[i].ub = ub;
+        return true;
+      }
+    }
+    else {
+      if (data[-i].lb < -ub) {
+        data[-i].lb = -ub;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  CUDA bool update(Var i, Interval itv) {
+    LOG(Interval old = (i < 0 ? data[i].neg() : data[i]));
+    bool has_changed = update_lb(i, itv.lb);
+    has_changed |= update_ub(i, itv.ub);
+    LOG(printf("Update %s with %d..%d (old = %d..%d, new = %d..%d)\n",
+        names[abs(i)],
+        (i < 0 ? -itv.ub: itv.lb), (i < 0 ? -itv.lb: itv.ub),
+        (i < 0 ? -old.ub: old.lb), (i < 0 ? -old.lb: old.ub),
+        (i < 0 ? -data[-i].ub: data[i].lb), (i < 0 ? -data[-i].lb: data[i].ub)));
     return has_changed;
   }
 
-  CUDA bool update(int i, Interval itv) {
-    if (i<0) {
-      return update_raw(-i, itv.neg());
-    } else {
-      return update_raw(i, itv);
-    }
+  CUDA bool assign(Var i, int v) {
+    return update(i, {v, v});
   }
 
-  CUDA void assign(int i, int v) {
-    update(i, {v, v});
-  }
-
-  CUDA Interval operator[](int i) const {
+  CUDA Interval view_of(Var i) const {
     return i < 0 ? data[-i].neg() : data[i];
+  }
+
+  CUDA int lb(Var i) const {
+    return view_of(i).lb;
+  }
+
+  CUDA int ub(Var i) const {
+    return view_of(i).ub;
   }
 
   CUDA size_t size() const { return n; }
