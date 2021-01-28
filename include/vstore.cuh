@@ -178,12 +178,14 @@ public:
   CUDA bool update_lb(Var i, int lb) {
     if(i >= 0) {
       if (data[i].lb < lb) {
+        LOG(printf("Update LB(%s) with %d (old = %d) in %p\n", names[i], lb, data[i].lb, this));
         data[i].lb = lb;
         return true;
       }
     }
     else {
       if (data[-i].ub > -lb) {
+        LOG(printf("Update UB(%s) with %d (old = %d) in %p\n", names[-i], -lb, data[-i].ub, this));
         data[-i].ub = -lb;
         return true;
       }
@@ -194,12 +196,14 @@ public:
   CUDA bool update_ub(Var i, int ub) {
     if(i >= 0) {
       if (data[i].ub > ub) {
+        LOG(printf("Update UB(%s) with %d (old = %d) in %p\n", names[i], ub, data[i].ub, this));
         data[i].ub = ub;
         return true;
       }
     }
     else {
       if (data[-i].lb < -ub) {
+        LOG(printf("Update LB(%s) with %d (old = %d) in %p\n", names[-i], -ub, data[-i].lb, this));
         data[-i].lb = -ub;
         return true;
       }
@@ -208,14 +212,8 @@ public:
   }
 
   CUDA bool update(Var i, Interval itv) {
-    LOG(Interval old = (i < 0 ? data[i].neg() : data[i]));
     bool has_changed = update_lb(i, itv.lb);
     has_changed |= update_ub(i, itv.ub);
-    LOG(printf("Update %s with %d..%d (old = %d..%d, new = %d..%d)\n",
-        names[abs(i)],
-        (i < 0 ? -itv.ub: itv.lb), (i < 0 ? -itv.lb: itv.ub),
-        (i < 0 ? -old.ub: old.lb), (i < 0 ? -old.lb: old.ub),
-        (i < 0 ? -data[-i].ub: data[i].lb), (i < 0 ? -data[-i].lb: data[i].ub)));
     return has_changed;
   }
 

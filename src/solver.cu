@@ -43,6 +43,7 @@ CUDA_GLOBAL void propagate_k(SharedData* shared_data, T* props) {
       s = ENTAILED;
     }
     if(p.is_disentailed(vstore)) {
+      INFO(printf("%lu disentailed in (%p,%p).\n", p.uid, &vstore, &pstatus));
       s = DISENTAILED;
     }
     pstatus.inplace_join(p.uid, s);

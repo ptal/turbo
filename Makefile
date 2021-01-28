@@ -20,8 +20,8 @@ INC_ONLY = $(INC_DIR)/*
 debug: NVCC_FLAGS += -g -G -DDEBUG
 debug: $(EXE)
 
-release: NVCC_FLAGS += -O3 -DTRACE
-release: $(EXE)
+trace: NVCC_FLAGS += -DTRACE
+trace: $(EXE)
 
 compete: NVCC_FLAGS += -O3
 compete: $(EXE)
