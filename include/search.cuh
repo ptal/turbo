@@ -239,6 +239,7 @@ CUDA_GLOBAL void search(SharedData* shared_data, Statistics* stats, VStore* best
           INFO(printf("Backtrack from (%p, %p) to (%p, %p).\n", shared_data->vstore, shared_data->pstatus, frame.vstore, shared_data->pstatus2));
           INFO(frame.vstore->print_view(temporal_vars));
           swap(&shared_data->vstore, &frame.vstore);
+	  __threadfence();
           // Propagators that are now entailed or disentailed might not be anymore, therefore we reinitialize everybody to UNKNOWN.
           shared_data->pstatus2->reset();
           swap(&shared_data->pstatus, &shared_data->pstatus2);
