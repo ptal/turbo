@@ -32,22 +32,20 @@ template<typename T>
 CUDA_GLOBAL void propagate_k(SharedData* shared_data, T* props) {
   size_t id = threadIdx.x + blockIdx.x*blockDim.x;
   T& p = props[id];
-  while (shared_data->exploring) {
-    // The order of reading pstatus and vstore is important w.r.t. backtracking in the search thread.
-    // It is ok to write in the old pstatus array accordingly to a new store, but not to write in a new pstatus array according to the old store.
-    // NOTE: Actually might not be good enough, if the write operations executed sequentially in the search thread can be observed in a different order here.
-    PropagatorsStatus& pstatus = *(shared_data->pstatus);
-    VStore& vstore = *(shared_data->vstore);
-    Status s = p.propagate(vstore) ? UNKNOWN : IDLE;
-    if(p.is_entailed(vstore)) {
-      s = ENTAILED;
-    }
-    if(p.is_disentailed(vstore)) {
-      INFO(printf("%lu disentailed in (%p,%p).\n", p.uid, &vstore, &pstatus));
-      s = DISENTAILED;
-    }
-    pstatus.inplace_join(p.uid, s);
+  // The order of reading pstatus and vstore is important w.r.t. backtracking in the search thread.
+  // It is ok to write in the old pstatus array accordingly to a new store, but not to write in a new pstatus array according to the old store.
+  // NOTE: Actually might not be good enough, if the write operations executed sequentially in the search thread can be observed in a different order here.
+  PropagatorsStatus *pstatus = shared_data->pstatus;
+  VStore *vstore = shared_data->vstore;
+  Status s = p.propagate(*vstore) ? UNKNOWN : IDLE;
+  if(p.is_entailed(*vstore)) {
+    s = ENTAILED;
   }
+  if(p.is_disentailed(*vstore)) {
+    INFO(printf("%lu disentailed in (%p,%p).\n", p.uid, &vstore, &pstatus));
+    s = DISENTAILED;
+  }
+  pstatus->inplace_join(p.uid, s);
 }
 
 // The variables pstatus and vstore are shared among all propagators of all types.
@@ -62,7 +60,6 @@ T* launch(SharedData* shared_data, std::vector<T> &c, cudaStream_t s)
   for (int i=0; i < c.size(); ++i) {
     props[i] = c[i];
   }
-
   propagate_k<T><<<1, c.size(), 0, s>>>(shared_data, props);
   CUDIE0();
   return props;
@@ -96,17 +93,20 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
 
   auto t1 = std::chrono::high_resolution_clock::now();
 
-  search<<<1,1,0,monitor>>>(shared_data, stats, best_sol, minimize_x, temporal_vars);
-  CUDIE0();
+  while (shared_data->exploring) {
+	  auto props1 = launch<TemporalProp>(shared_data, constraints.temporal, streams[0]);
+	  CUDIE0();
+	  auto props2 = launch<ReifiedLogicalAnd>(shared_data, constraints.reifiedLogicalAnd, streams[1]);
+	  CUDIE0();
+	  auto props3 = launch<LinearIneq>(shared_data, constraints.linearIneq, streams[2]);
+	  CUDIE(cudaDeviceSynchronize());
+	  search<<<1,1>>>(shared_data, stats, best_sol, minimize_x, temporal_vars);
+	  CUDIE(cudaDeviceSynchronize());
+    CUDIE(cudaFree(props1));
+    CUDIE(cudaFree(props2));
+    CUDIE(cudaFree(props3));
 
-  auto props1 = launch<TemporalProp>(shared_data, constraints.temporal, streams[0]);
-  CUDIE0();
-  auto props2 = launch<ReifiedLogicalAnd>(shared_data, constraints.reifiedLogicalAnd, streams[1]);
-  CUDIE0();
-  auto props3 = launch<LinearIneq>(shared_data, constraints.linearIneq, streams[2]);
-  CUDIE0();
-
-  CUDIE(cudaDeviceSynchronize());
+  }
 
   auto t2 = std::chrono::high_resolution_clock::now();
 
@@ -122,10 +122,6 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
 
   shared_data->~SharedData();
   CUDIE(cudaFree(raw_shared_data));
-
-  CUDIE(cudaFree(props1));
-  CUDIE(cudaFree(props2));
-  CUDIE(cudaFree(props3));
 
   CUDIE(cudaStreamDestroy(monitor));
   for (int i=0; i < PROPS_TYPE; ++i) {

@@ -203,20 +203,23 @@ __device__ void update_best_bound(const VStore& current, Var minimize_x, Interva
   best_sol->reset(current);
 }
 
-CUDA_GLOBAL void search(SharedData* shared_data, Statistics* stats, VStore* best_sol, Var minimize_x, Var* temporal_vars) {
+CUDA_GLOBAL init_search(SharedData* shared_data,
   shared_data->into_device_mem();
   Stack stack(*(shared_data->vstore));
   Interval best_bound = {limit_min(), limit_max()};
+
+}
+
+CUDA_GLOBAL void search(SharedData* shared_data, Statistics* stats, VStore* best_sol, Var minimize_x, Var* temporal_vars) {
   INFO(printf("starting search with %p\n", shared_data->vstore));
-  while (shared_data->exploring) {
     Status res = shared_data->pstatus->join();
     res = (shared_data->vstore->is_top() ? DISENTAILED : res);
-    if (res != UNKNOWN) {
       stats->nodes += 1;
       stats->peak_depth = max<int>(stats->peak_depth, stack.size());
       check_consistency(shared_data, res);
       LOG(printf("Current bound: %d..%d, best bound: %d..%d\n", shared_data->vstore->lb(minimize_x), shared_data->vstore->ub(minimize_x), best_bound.lb, best_bound.ub));
-      if(res != IDLE) {
+      LOG(printf("stack size = %d\n", stack.size()));
+      if(res != IDLE && res != UNKNOWN) {
         if(res == DISENTAILED) {
           stats->fails += 1;
           INFO(printf("backtracking on failed node %p...\n", shared_data->vstore));
@@ -239,7 +242,6 @@ CUDA_GLOBAL void search(SharedData* shared_data, Statistics* stats, VStore* best
           INFO(printf("Backtrack from (%p, %p) to (%p, %p).\n", shared_data->vstore, shared_data->pstatus, frame.vstore, shared_data->pstatus2));
           INFO(frame.vstore->print_view(temporal_vars));
           swap(&shared_data->vstore, &frame.vstore);
-	  __threadfence();
           // Propagators that are now entailed or disentailed might not be anymore, therefore we reinitialize everybody to UNKNOWN.
           shared_data->pstatus2->reset();
           swap(&shared_data->pstatus, &shared_data->pstatus2);
@@ -255,8 +257,6 @@ CUDA_GLOBAL void search(SharedData* shared_data, Statistics* stats, VStore* best
         branch(stack, *(shared_data->vstore), temporal_vars);
         shared_data->pstatus->wake_up_all();
       }
-    }
-  }
   INFO(printf("stop search\n"));
 }
 
