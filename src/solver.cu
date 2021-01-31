@@ -26,6 +26,61 @@
 #include "status.cuh"
 #include "search.cuh"
 
+#ifdef SEQUENTIAL
+
+template <typename T>
+void propagate(std::vector<T>& constraints, VStore& vstore, PropagatorsStatus& pstatus) {
+  for(auto p : constraints) {
+    Status s = p.propagate(vstore) ? UNKNOWN : IDLE;
+    if(p.is_entailed(vstore)) {
+      s = ENTAILED;
+    }
+    if(p.is_disentailed(vstore)) {
+      s = DISENTAILED;
+    }
+    pstatus.inplace_join(p.uid, s);
+  }
+}
+
+void solve(VStore* vstore, Constraints constraints, Var minimize_x)
+{
+  INFO(constraints.print(*vstore));
+  Statistics stats;
+  VStore best_sol = VStore(vstore->size());
+  Var* temporal_vars = constraints.temporal_vars(vstore->size());
+  SharedData shared_data = SharedData(vstore, constraints.size());
+
+  auto t1 = std::chrono::high_resolution_clock::now();
+
+  shared_data.into_device_mem();
+  Stack stack(*(shared_data.vstore));
+  Interval best_bound = {limit_min(), limit_max()};
+  INFO(printf("starting search with %p\n", shared_data.vstore));
+
+  while(shared_data.exploring) {
+    // I. Propagation
+    VStore vstore = *(shared_data.vstore);
+    PropagatorsStatus pstatus = *(shared_data.pstatus);
+    while(shared_data.pstatus->join() == UNKNOWN) {
+      propagate(constraints.temporal, vstore, pstatus);
+      propagate(constraints.reifiedLogicalAnd, vstore, pstatus);
+      propagate(constraints.linearIneq, vstore, pstatus);
+    }
+    // II. Branching
+    one_step(stack, best_bound, shared_data.pstatus->join(),
+      &shared_data, &stats, &best_sol, minimize_x, temporal_vars);
+  }
+
+  auto t2 = std::chrono::high_resolution_clock::now();
+
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
+
+  stats.print();
+  std::cout << "solveTime=" << duration << std::endl;
+}
+
+#else
+
 const int PROPS_TYPE = 3;
 
 template<typename T>
@@ -43,7 +98,7 @@ CUDA_GLOBAL void propagate_k(SharedData* shared_data, T* props) {
       s = ENTAILED;
     }
     if(p.is_disentailed(vstore)) {
-      INFO(printf("%lu disentailed in (%p,%p).\n", p.uid, &vstore, &pstatus));
+      // INFO(printf("%lu disentailed in (%p,%p).\n", p.uid, &vstore, &pstatus));
       s = DISENTAILED;
     }
     pstatus.inplace_join(p.uid, s);
@@ -132,3 +187,5 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
     CUDIE(cudaStreamDestroy(streams[i]));
   }
 }
+
+#endif

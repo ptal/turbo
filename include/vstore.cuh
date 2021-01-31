@@ -77,10 +77,10 @@ public:
 
   void init_names(std::vector<std::string>& vnames) {
     names_len = vnames.size();
-    CUDIE(cudaMallocManaged(&names, sizeof(*names) * names_len));
+    malloc2_managed(names, names_len);
     for(int i=0; i < names_len; ++i) {
       int len = vnames[i].size();
-      CUDIE(cudaMallocManaged(&names[i], sizeof(char) * (len + 1)));
+      malloc2_managed(names[i], len + 1);
       for(int j=0; j < len; ++j) {
         names[i][j] = vnames[i][j];
       }
@@ -90,21 +90,21 @@ public:
 
   void free_names() {
     for(int i = 0; i < names_len; ++i) {
-      CUDIE(cudaFree(names[i]));
+      free2(names[i]);
     }
-    CUDIE(cudaFree(names));
+    free2(names);
   }
 
   VStore(int nvar) {
     n = nvar;
-    CUDIE(cudaMallocManaged(&data, sizeof(*data) * n));
+    malloc2_managed(data, n);
   }
 
   CUDA VStore(const VStore& other) {
     n = other.n;
     names = other.names;
     names_len = other.names_len;
-    MALLOC_CHECK(cudaMalloc(&data, sizeof(*data) * n));
+    malloc2(data, n);
     for(int i = 0; i < n; ++i) {
       data[i] = other.data[i];
     }

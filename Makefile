@@ -23,6 +23,9 @@ debug: $(EXE)
 trace: NVCC_FLAGS += -DTRACE
 trace: $(EXE)
 
+seq: NVCC_FLAGS += -DTRACE -DSEQUENTIAL
+seq: $(EXE)
+
 compete: NVCC_FLAGS += -O3
 compete: $(EXE)
 

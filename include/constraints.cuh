@@ -64,16 +64,6 @@ struct TemporalProp {
     vstore.print_var(y);
     printf(" <= %d", c);
   }
-
-  // CUDA void test_propagation(const VStore& root) {
-  //   VStore vstore(root);
-  //   Interval i0_1(0, 1);
-  //   Interval i0_2(0, 2);
-  //   Interval i1_2(1, 2);
-  //   Interval i2_3(2, 3);
-  //   TemporalProp p(abs(x), abs(y), 0);
-  //   vstore
-  // }
 };
 
 // C1 \/ C2
@@ -173,8 +163,8 @@ struct LinearIneq {
   LinearIneq(std::vector<Var> vvars, std::vector<int> vconstants, int max) {
     assert(vvars.size() == vconstants.size());
     n = vvars.size();
-    CUDIE(cudaMallocManaged(&vars, sizeof(*vars) * n));
-    CUDIE(cudaMallocManaged(&constants, sizeof(*constants) * n));
+    malloc2_managed(vars, n);
+    malloc2_managed(constants, n);
     for(int i=0; i < n; ++i) {
       vars[i] = vvars[i];
       constants[i] = vconstants[i];
@@ -186,8 +176,8 @@ struct LinearIneq {
     uid = other.uid;
     n = other.n;
     max = other.max;
-    CUDIE(cudaMallocManaged(&vars, sizeof(*vars) * n));
-    CUDIE(cudaMallocManaged(&constants, sizeof(*constants) * n));
+    malloc2_managed(vars, n);
+    malloc2_managed(constants, n);
     for(int i=0; i < n; ++i) {
       vars[i] = other.vars[i];
       constants[i] = other.constants[i];
@@ -195,8 +185,8 @@ struct LinearIneq {
   }
 
   ~LinearIneq() {
-    CUDIE(cudaFree(vars));
-    CUDIE(cudaFree(constants));
+    free2(vars);
+    free2(constants);
   }
 
   // Returns the maximum amount of additional resources this constraint can use if we fix all remaining boolean variables to 1.
@@ -306,7 +296,7 @@ struct Constraints {
       n += is_temporal[i];
     }
     Var* vars;
-    CUDIE(cudaMallocManaged(&vars, (n+1)*sizeof(Var)));
+    malloc2_managed(vars, (n+1));
     int j = 0;
     for(int i=0; i < max; ++i) {
       if (is_temporal[i]) {

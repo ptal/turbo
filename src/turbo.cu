@@ -41,7 +41,7 @@ int main(int argc, char** argv) {
     solve(vstore, constraints, minimize_x);
     vstore->free_names();
     vstore->~VStore();
-    CUDIE(cudaFree(vstore));
+    free2(vstore);
   }
   catch (exception &e)
   {

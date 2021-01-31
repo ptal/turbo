@@ -102,8 +102,8 @@ class ModelBuilder {
     }
 
     VStore* build_store() {
-      alignas(VStore) unsigned char *v;
-      CUDIE(cudaMallocManaged(&v, sizeof(VStore)));
+      VStore* v;
+      malloc2_managed<VStore>(v, 1);
       VStore* vstore = new(v) VStore(idx2var.size());
       for (const auto& x : var2idx) {
         vstore->dom(std::get<0>(x.second), std::get<1>(x.second));
