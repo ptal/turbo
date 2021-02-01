@@ -70,7 +70,7 @@ struct BacktrackingFrame {
     malloc2(vstore, 1);
   }
 
-  CUDA_DEVICE void init(const VStore& root) {
+  CUDA void init(const VStore& root) {
     *vstore = VStore(root);
   }
 
@@ -94,7 +94,7 @@ class Stack {
   BacktrackingFrame stack[MAX_DEPTH_TREE];
   size_t stack_size;
 public:
-  CUDA_DEVICE Stack(const VStore& root) {
+  CUDA Stack(const VStore& root) {
     for (int i=0; i<MAX_DEPTH_TREE; ++i) {
       stack[i].init(root);
     }
@@ -256,17 +256,13 @@ CUDA_DEVICE void one_step(
   }
 }
 
-CUDA_GLOBAL void search(SharedData* shared_data, Statistics* stats, VStore* best_sol, Var minimize_x, Var* temporal_vars) {
-  shared_data->into_device_mem();
-  Stack stack(*(shared_data->vstore));
-  Interval best_bound = {limit_min(), limit_max()};
+CUDA_GLOBAL void search(Stack* stack, SharedData* shared_data, Statistics* stats, VStore* best_sol, Var minimize_x, Var* temporal_vars) {
   INFO(printf("starting search with %p\n", shared_data->vstore));
-  while (shared_data->exploring) {
-    Status res = shared_data->pstatus->join();
-    res = (shared_data->vstore->is_top() ? DISENTAILED : res);
-    if (res != UNKNOWN) {
-      one_step(stack, best_bound, res, shared_data, stats, best_sol, minimize_x, temporal_vars);
-    }
+  Interval best_bound = {limit_min(), limit_max()};
+  Status res = shared_data->pstatus->join();
+  res = (shared_data->vstore->is_top() ? DISENTAILED : res);
+  if (res != UNKNOWN) {
+    one_step(*stack, best_bound, res, shared_data, stats, best_sol, minimize_x, temporal_vars);
   }
   INFO(printf("stop search\n"));
 }
