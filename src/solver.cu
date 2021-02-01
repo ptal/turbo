@@ -96,14 +96,12 @@ const int PROPS_TYPE = 3;
 
 template<typename T>
 CUDA_GLOBAL void propagate_k(SharedData* shared_data, T* props) {
-  bool has_changed = false;
   size_t cid = threadIdx.x + blockIdx.x*blockDim.x;
   T& p = props[cid];
   PropagatorsStatus& pstatus = *(shared_data->pstatus);
   VStore& vstore = *(shared_data->vstore);
-  bool has_changed2 = p.propagate(vstore);
-  has_changed |= has_changed2;
-  Status s = has_changed2 ? UNKNOWN : IDLE;
+  Status s = p.propagate(vstore) ? UNKNOWN : IDLE;
+  // while pstatus join != unknown
   if(p.is_entailed(vstore)) {
     s = ENTAILED;
   }
@@ -119,6 +117,7 @@ template<typename T>
 T* launch(SharedData* shared_data, std::vector<T> &c, cudaStream_t s)
 {
   T* props;
+  // sortir de fonction
   CUDIE(cudaMallocManaged(&props, c.size() * sizeof(T)));
   for (int i=0; i < c.size(); ++i) {
     props[i] = c[i];
@@ -126,11 +125,6 @@ T* launch(SharedData* shared_data, std::vector<T> &c, cudaStream_t s)
   propagate_k<T><<<1, c.size(), 0, s>>>(shared_data, props);
   CUDIE0();
   return props;
-}
-
-CUDA_GLOBAL
-void shared_init(SharedData* shared) {
-  shared->into_device_mem();
 }
 
 void solve(VStore* vstore, Constraints constraints, Var minimize_x)
@@ -164,9 +158,6 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
   CUDIE(cudaMallocManaged(&raw_stack, sizeof(Stack)));
   Stack *stack = new(raw_stack) Stack(*(shared_data->vstore));
 
-  shared_init<<<1,1>>>(shared_data);
-  CUDIE(cudaDeviceSynchronize());
-
   while (shared_data->exploring) {
 	  auto props1 = launch<TemporalProp>(shared_data, constraints.temporal, streams[0]);
 	  CUDIE0();
@@ -179,7 +170,6 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
     CUDIE(cudaFree(props1));
     CUDIE(cudaFree(props2));
     CUDIE(cudaFree(props3));
-
   }
 
   auto t2 = std::chrono::high_resolution_clock::now();

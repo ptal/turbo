@@ -100,11 +100,11 @@ public:
     malloc2_managed(data, n);
   }
 
-  CUDA VStore(const VStore& other) {
+  VStore(const VStore& other) {
     n = other.n;
     names = other.names;
     names_len = other.names_len;
-    malloc2(data, n);
+    malloc2_managed(data, n);
     for(int i = 0; i < n; ++i) {
       data[i] = other.data[i];
     }
@@ -117,7 +117,7 @@ public:
     }
   }
 
-  CUDA ~VStore() {
+  ~VStore() {
     cudaFree(data);
   }
 

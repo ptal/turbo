@@ -66,15 +66,15 @@ struct BacktrackingFrame {
   Var var;
   Interval itv;
 
-  CUDA_DEVICE BacktrackingFrame() {
-    malloc2(vstore, 1);
+  BacktrackingFrame() {
+    malloc2_managed(vstore, 1);
   }
 
-  CUDA void init(const VStore& root) {
+  void init(const VStore& root) {
     *vstore = VStore(root);
   }
 
-  CUDA_DEVICE ~BacktrackingFrame() {
+  ~BacktrackingFrame() {
     // vstore->~VStore();
     // free2(vstore);
   }
@@ -94,7 +94,7 @@ class Stack {
   BacktrackingFrame stack[MAX_DEPTH_TREE];
   size_t stack_size;
 public:
-  CUDA Stack(const VStore& root) {
+  Stack(const VStore& root) {
     for (int i=0; i<MAX_DEPTH_TREE; ++i) {
       stack[i].init(root);
     }
@@ -188,7 +188,7 @@ CUDA_DEVICE void check_decreasing_bound(const Interval& current_bound, const Int
     printf("Current bound: %d..%d.\n", current_bound.lb, current_bound.ub);
     printf("New bound: %d..%d.\n", new_bound.lb, new_bound.ub);
     printf("Found a new bound that is worst than the current one...\n");
-    assert(0);
+    //assert(0);
   }
 }
 
@@ -216,7 +216,7 @@ CUDA_DEVICE void one_step(
   stats->peak_depth = max<int>(stats->peak_depth, stack.size());
   check_consistency(shared_data, res);
   LOG(printf("Current bound: %d..%d, best bound: %d..%d\n", shared_data->vstore->lb(minimize_x), shared_data->vstore->ub(minimize_x), best_bound.lb, best_bound.ub));
-  if(res != IDLE) {
+  if(res > IDLE) {
     if(res == DISENTAILED) {
       stats->fails += 1;
       INFO(printf("backtracking on failed node %p...\n", shared_data->vstore));
@@ -258,12 +258,10 @@ CUDA_DEVICE void one_step(
 
 CUDA_GLOBAL void search(Stack* stack, SharedData* shared_data, Statistics* stats, VStore* best_sol, Var minimize_x, Var* temporal_vars) {
   INFO(printf("starting search with %p\n", shared_data->vstore));
-  Interval best_bound = {limit_min(), limit_max()};
+  Interval best_bound = {limit_min(), stats->best_bound == -1 ? limit_max() : stats->best_bound};
   Status res = shared_data->pstatus->join();
   res = (shared_data->vstore->is_top() ? DISENTAILED : res);
-  if (res != UNKNOWN) {
-    one_step(*stack, best_bound, res, shared_data, stats, best_sol, minimize_x, temporal_vars);
-  }
+  one_step(*stack, best_bound, res, shared_data, stats, best_sol, minimize_x, temporal_vars);
   INFO(printf("stop search\n"));
 }
 
