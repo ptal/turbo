@@ -141,6 +141,7 @@ CUDA_DEVICE Var first_fail(const VStore& vstore, Var* vars) {
       lowest_lb = vstore.lb(i);
     }
   }
+  if (x == -1) { vstore.print(); }
   assert(x != -1);
   return x;
 }
@@ -156,26 +157,28 @@ CUDA_DEVICE void branch(Stack& stack, VStore& current, Var* temporal_vars) {
 
 CUDA_DEVICE void check_consistency(SharedData* shared_data, Status res) {
   LOG(printf("Node status: %s\n", string_of_status(res)));
+
+  // Can be disentailed with all variable assigned...
   if (shared_data->vstore->all_assigned() && res != ENTAILED) {
-    printf("entailment invariant inconsistent (status = %s).\n",
-      string_of_status(res));
-    printf("Status join again: %s\n", string_of_status(shared_data->pstatus->join()));
-    shared_data->vstore->print();
+    INFO(printf("entailment invariant inconsistent (status = %s).\n",
+      string_of_status(res)));
+    INFO(printf("Status join again: %s\n", string_of_status(shared_data->pstatus->join())));
+    INFO(shared_data->vstore->print());
     for(int i = 0; i < shared_data->pstatus->size(); ++i) {
       if (shared_data->pstatus->of(i) != ENTAILED) {
-        printf("not entailed %d\n", i);
+        INFO(printf("not entailed %d\n", i));
       }
     }
-    assert(0);
+    // assert(0);
   }
   if (res != DISENTAILED && shared_data->vstore->is_top()) {
-    printf("disentailment invariant inconsistent.\n");
-    printf("Status join again: %s\n", string_of_status(shared_data->pstatus->join()));
+    INFO(printf("disentailment invariant inconsistent.\n"));
+    INFO(printf("Status join again: %s\n", string_of_status(shared_data->pstatus->join())));
     for(int i = 0; i < shared_data->pstatus->size(); ++i) {
-      printf("%d: %s\n", i, string_of_status(shared_data->pstatus->of(i)));
+      INFO(printf("%d: %s\n", i, string_of_status(shared_data->pstatus->of(i))));
     }
     shared_data->vstore->print();
-    assert(0);
+    // assert(0);
   }
 }
 
@@ -217,6 +220,7 @@ CUDA_DEVICE void one_step(
       INFO(printf("backtracking on failed node %p...\n", shared_data->vstore));
     }
     else if(res == ENTAILED) {
+      INFO(shared_data->vstore->print_view(temporal_vars));
       update_best_bound(*(shared_data->vstore), minimize_x, best_bound, best_sol);
       stats->sols += 1;
       stats->best_bound = best_bound.ub;
@@ -232,7 +236,6 @@ CUDA_DEVICE void one_step(
       frame.join_objective(minimize_x, best_bound);
       // Swap the current branch with the backtracked one.
       INFO(printf("Backtrack from (%p, %p) to (%p, %p).\n", shared_data->vstore, shared_data->pstatus, frame.vstore, shared_data->pstatus2));
-      INFO(frame.vstore->print_view(temporal_vars));
       swap(&shared_data->vstore, &frame.vstore);
       // Propagators that are now entailed or disentailed might not be anymore, therefore we reinitialize everybody to UNKNOWN.
       shared_data->pstatus2->reset();

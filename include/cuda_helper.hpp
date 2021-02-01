@@ -91,8 +91,6 @@ CUDA static constexpr int limit_max() noexcept { return __INT_MAX__; }
   void free2(T* data) {
     free(data);
   }
-
-  #define SEQ_PAR(X, Y) X
 #else
   template<typename T>__device__ void swap(T* a, T* b) {
     unsigned long long old = atomicExch((unsigned long long*)a, (unsigned long long)*b);
@@ -113,8 +111,6 @@ CUDA static constexpr int limit_max() noexcept { return __INT_MAX__; }
   CUDA void free2(T* data) {
     cudaFree(data);
   }
-
-  #define SEQ_PAR(X, Y) Y
 #endif
 
 #endif // CUDA_HELPER_HPP

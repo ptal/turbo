@@ -29,9 +29,12 @@
 #ifdef SEQUENTIAL
 
 template <typename T>
-void propagate(std::vector<T>& constraints, VStore& vstore, PropagatorsStatus& pstatus) {
+bool propagate(std::vector<T>& constraints, VStore& vstore, PropagatorsStatus& pstatus) {
+  bool has_changed = false;
   for(auto p : constraints) {
-    Status s = p.propagate(vstore) ? UNKNOWN : IDLE;
+    bool has_changed2 = p.propagate(vstore);
+    has_changed |= has_changed2;
+    Status s = has_changed2 ? UNKNOWN : IDLE;
     if(p.is_entailed(vstore)) {
       s = ENTAILED;
     }
@@ -40,6 +43,7 @@ void propagate(std::vector<T>& constraints, VStore& vstore, PropagatorsStatus& p
     }
     pstatus.inplace_join(p.uid, s);
   }
+  return has_changed;
 }
 
 void solve(VStore* vstore, Constraints constraints, Var minimize_x)
@@ -59,12 +63,13 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
 
   while(shared_data.exploring) {
     // I. Propagation
-    VStore vstore = *(shared_data.vstore);
-    PropagatorsStatus pstatus = *(shared_data.pstatus);
-    while(shared_data.pstatus->join() == UNKNOWN) {
-      propagate(constraints.temporal, vstore, pstatus);
-      propagate(constraints.reifiedLogicalAnd, vstore, pstatus);
-      propagate(constraints.linearIneq, vstore, pstatus);
+    VStore& vstore = *(shared_data.vstore);
+    PropagatorsStatus& pstatus = *(shared_data.pstatus);
+    bool has_changed = true;
+    while(has_changed && pstatus.join() < ENTAILED) {
+      has_changed = propagate(constraints.temporal, vstore, pstatus);
+      has_changed |= propagate(constraints.reifiedLogicalAnd, vstore, pstatus);
+      has_changed |= propagate(constraints.linearIneq, vstore, pstatus);
     }
     // II. Branching
     one_step(stack, best_bound, shared_data.pstatus->join(),

@@ -44,10 +44,10 @@ struct TemporalProp {
   }
 
   CUDA bool is_disentailed(const VStore& vstore) const {
-    // if(vstore[x].lb + vstore[y].lb > c) {
-    //   printf("Temporal constraint %d disentailed (x=%d, y=%d): %d + %d > %d\n",
-    //     uid, x, y, vstore[x].lb, vstore[y].lb, c);
-    // }
+    LOG(if(vstore.lb(x) + vstore.lb(y) > c) {
+      printf("Temporal constraint %d disentailed (x=%s, y=%s): %d + %d > %d\n",
+        uid, vstore.name_of(x), vstore.name_of(y), vstore.lb(x), vstore.lb(y), c);
+    })
     return vstore.is_top(x) ||
            vstore.is_top(y) ||
            vstore.lb(x) + vstore.lb(y) > c;
@@ -135,10 +135,15 @@ struct ReifiedLogicalAnd {
   }
 
   CUDA bool is_disentailed(const VStore& vstore) const {
-    return
-         vstore.is_top(b)
+    bool disentailed =  vstore.is_top(b)
      || (vstore.ub(b) == 0 && (left.is_entailed(vstore) && right.is_entailed(vstore)))
      || (vstore.lb(b) == 1 && (left.is_disentailed(vstore) || right.is_disentailed(vstore)));
+
+    LOG(if(disentailed) {
+      printf("ReifiedLogicalAnd %d disentailed: %d..%d <=> %d /\\ %d\n", uid, vstore.lb(b), vstore.ub(b), left.is_disentailed(vstore), right.is_disentailed(vstore));
+    })
+
+    return disentailed;
   }
 
   CUDA void print(const VStore& vstore) const {
@@ -257,9 +262,11 @@ struct LinearIneq {
   }
 
   CUDA bool is_disentailed(const VStore& vstore) const {
-    return
-         one_top(vstore)
-      || slack(vstore) < 0;
+    bool disentailed = one_top(vstore) || slack(vstore) < 0;
+    LOG(if(disentailed) {
+      printf("LinearIneq disentailed %d: %d < 0\n", uid, slack(vstore));
+    })
+    return disentailed;
   }
 
   CUDA void print(const VStore& vstore) const {
