@@ -260,11 +260,8 @@ CUDA_GLOBAL void search(SharedData* shared_data, Statistics* stats, VStore* best
   shared_data->into_device_mem();
   Stack stack(*(shared_data->vstore));
   Interval best_bound = {limit_min(), limit_max()};
-
-}
-
-CUDA_GLOBAL void search(SharedData* shared_data, Statistics* stats, VStore* best_sol, Var minimize_x, Var* temporal_vars) {
   INFO(printf("starting search with %p\n", shared_data->vstore));
+  while (shared_data->exploring) {
     Status res = shared_data->pstatus->join();
     res = (shared_data->vstore->is_top() ? DISENTAILED : res);
     if (res != UNKNOWN) {
