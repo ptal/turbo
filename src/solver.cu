@@ -98,20 +98,6 @@ template<typename T>
 CUDA_GLOBAL void propagate_k(SharedData* shared_data, T* props) {
   size_t id = threadIdx.x + blockIdx.x*blockDim.x;
   T& p = props[id];
-<<<<<<< HEAD
-  // The order of reading pstatus and vstore is important w.r.t. backtracking in the search thread.
-  // It is ok to write in the old pstatus array accordingly to a new store, but not to write in a new pstatus array according to the old store.
-  // NOTE: Actually might not be good enough, if the write operations executed sequentially in the search thread can be observed in a different order here.
-  PropagatorsStatus *pstatus = shared_data->pstatus;
-  VStore *vstore = shared_data->vstore;
-  Status s = p.propagate(*vstore) ? UNKNOWN : IDLE;
-  if(p.is_entailed(*vstore)) {
-    s = ENTAILED;
-  }
-  if(p.is_disentailed(*vstore)) {
-    INFO(printf("%lu disentailed in (%p,%p).\n", p.uid, &vstore, &pstatus));
-    s = DISENTAILED;
-=======
   while (shared_data->exploring) {
     // The order of reading pstatus and vstore is important w.r.t. backtracking in the search thread.
     // It is ok to write in the old pstatus array accordingly to a new store, but not to write in a new pstatus array according to the old store.
@@ -127,7 +113,6 @@ CUDA_GLOBAL void propagate_k(SharedData* shared_data, T* props) {
       s = DISENTAILED;
     }
     pstatus.inplace_join(p.uid, s);
->>>>>>> sequential
   }
   pstatus->inplace_join(p.uid, s);
 }
