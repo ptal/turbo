@@ -26,12 +26,79 @@
 #include "status.cuh"
 #include "search.cuh"
 
+#ifdef SEQUENTIAL
+
+template <typename T>
+bool propagate(std::vector<T>& constraints, VStore& vstore, PropagatorsStatus& pstatus) {
+  bool has_changed = false;
+  for(auto p : constraints) {
+    bool has_changed2 = p.propagate(vstore);
+    has_changed |= has_changed2;
+    Status s = has_changed2 ? UNKNOWN : IDLE;
+    if(p.is_entailed(vstore)) {
+      s = ENTAILED;
+    }
+    if(p.is_disentailed(vstore)) {
+      s = DISENTAILED;
+    }
+    pstatus.inplace_join(p.uid, s);
+  }
+  return has_changed;
+}
+
+void solve(VStore* vstore, Constraints constraints, Var minimize_x)
+{
+  INFO(constraints.print(*vstore));
+  Statistics stats;
+  VStore best_sol = VStore(vstore->size());
+  Var* temporal_vars = constraints.temporal_vars(vstore->size());
+  SharedData shared_data = SharedData(vstore, constraints.size());
+
+  auto t1 = std::chrono::high_resolution_clock::now();
+
+  shared_data.into_device_mem();
+  Stack stack(*(shared_data.vstore));
+  Interval best_bound = {limit_min(), limit_max()};
+  INFO(printf("starting search with %p\n", shared_data.vstore));
+
+  while(shared_data.exploring) {
+    // I. Propagation
+    VStore& vstore = *(shared_data.vstore);
+    PropagatorsStatus& pstatus = *(shared_data.pstatus);
+    bool has_changed = true;
+    while(has_changed && pstatus.join() < ENTAILED) {
+      has_changed = propagate(constraints.temporal, vstore, pstatus);
+      has_changed |= propagate(constraints.reifiedLogicalAnd, vstore, pstatus);
+      has_changed |= propagate(constraints.linearIneq, vstore, pstatus);
+    }
+    // We propagate once more to verify that all propagators are really entailed.
+    if(pstatus.join() == ENTAILED) {
+      propagate(constraints.temporal, vstore, pstatus);
+      propagate(constraints.reifiedLogicalAnd, vstore, pstatus);
+      propagate(constraints.linearIneq, vstore, pstatus);
+    }
+    // II. Branching
+    one_step(stack, best_bound, shared_data.pstatus->join(),
+      &shared_data, &stats, &best_sol, minimize_x, temporal_vars);
+  }
+
+  auto t2 = std::chrono::high_resolution_clock::now();
+
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
+
+  stats.print();
+  std::cout << "solveTime=" << duration << std::endl;
+}
+
+#else
+
 const int PROPS_TYPE = 3;
 
 template<typename T>
 CUDA_GLOBAL void propagate_k(SharedData* shared_data, T* props) {
   size_t id = threadIdx.x + blockIdx.x*blockDim.x;
   T& p = props[id];
+<<<<<<< HEAD
   // The order of reading pstatus and vstore is important w.r.t. backtracking in the search thread.
   // It is ok to write in the old pstatus array accordingly to a new store, but not to write in a new pstatus array according to the old store.
   // NOTE: Actually might not be good enough, if the write operations executed sequentially in the search thread can be observed in a different order here.
@@ -44,6 +111,23 @@ CUDA_GLOBAL void propagate_k(SharedData* shared_data, T* props) {
   if(p.is_disentailed(*vstore)) {
     INFO(printf("%lu disentailed in (%p,%p).\n", p.uid, &vstore, &pstatus));
     s = DISENTAILED;
+=======
+  while (shared_data->exploring) {
+    // The order of reading pstatus and vstore is important w.r.t. backtracking in the search thread.
+    // It is ok to write in the old pstatus array accordingly to a new store, but not to write in a new pstatus array according to the old store.
+    // NOTE: Actually might not be good enough, if the write operations executed sequentially in the search thread can be observed in a different order here.
+    PropagatorsStatus& pstatus = *(shared_data->pstatus);
+    VStore& vstore = *(shared_data->vstore);
+    Status s = p.propagate(vstore) ? UNKNOWN : IDLE;
+    if(p.is_entailed(vstore)) {
+      s = ENTAILED;
+    }
+    if(p.is_disentailed(vstore)) {
+      // INFO(printf("%lu disentailed in (%p,%p).\n", p.uid, &vstore, &pstatus));
+      s = DISENTAILED;
+    }
+    pstatus.inplace_join(p.uid, s);
+>>>>>>> sequential
   }
   pstatus->inplace_join(p.uid, s);
 }
@@ -128,3 +212,5 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
     CUDIE(cudaStreamDestroy(streams[i]));
   }
 }
+
+#endif

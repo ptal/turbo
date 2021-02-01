@@ -48,22 +48,14 @@ class PropagatorsStatus {
 public:
   PropagatorsStatus(size_t n) {
     this->n = n;
-    MALLOC_CHECK(cudaMallocManaged(&status, n*sizeof(Status)));
+    malloc2_managed(status, n);
     for(int i = 0; i < n; ++i) {
       status[i] = UNKNOWN;
     }
   }
 
-  // __host__ PropagatorsStatus(const PropagatorsStatus& other) {
-  //   n = other.n;
-  //   CUDIE(cudaMallocManaged(&status, n*sizeof(Status)));
-  //   for(int i = 0; i < n; ++i) {
-  //     status[i] = other.status[i];
-  //   }
-  // }
-
   ~PropagatorsStatus() {
-    cudaFree(status);
+    // free2(status);
   }
 
   CUDA inline size_t size() const { return n; }

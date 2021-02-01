@@ -16,51 +16,53 @@
 #define CUDA_HELPER_HPP
 
 #ifdef __NVCC__
-#define CUDA __device__ __host__
-
-#define CUDA_VAR __device__ __managed__
-#define CUDA_GLOBAL __global__
-
-#define CUDIE(result) { \
-  cudaError_t e = (result); \
-  if (e != cudaSuccess) { \
-    std::cerr << __FILE__ << ":" << __LINE__; \
-    std::cerr << " CUDA runtime error: " << cudaGetErrorString(e) << '\n'; \
-    exit((int)e); \
-  }}
-
-#define CUDIE0() CUDIE(cudaGetLastError())
+#ifdef SEQUENTIAL
+  #define CUDA
+  #define CUDA_DEVICE
+  #define CUDA_VAR
+  #define CUDA_GLOBAL
 #else
-#define CUDA
-#define CUDA_VAR
-#define CUDA_GLOBAL
-#define CUDIE(result)
-#define CUDIE0()
+  #define CUDA __device__ __host__
+  #define CUDA_DEVICE __device__
+  #define CUDA_VAR __device__ __managed__
+  #define CUDA_GLOBAL __global__
+
+  #define CUDIE(result) { \
+    cudaError_t e = (result); \
+    if (e != cudaSuccess) { \
+      std::cerr << __FILE__ << ":" << __LINE__; \
+      std::cerr << " CUDA runtime error: " << cudaGetErrorString(e) << '\n'; \
+      exit((int)e); \
+    }}
+
+  #define CUDIE0() CUDIE(cudaGetLastError())
+#endif
+
+#else
+  #define CUDA
+  #define CUDA_VAR
+  #define CUDA_GLOBAL
+  #define CUDIE(result)
+  #define CUDIE0()
 #endif
 
 template<typename T>CUDA T min(T a, T b) { return a<=b ? a : b; }
 template<typename T>CUDA T max(T a, T b) { return a>=b ? a : b; }
-
-
-template<typename T>__device__ void swap(T* a, T* b) {
-  unsigned long long old = atomicExch((unsigned long long*)a, (unsigned long long)*b);
-  atomicExch((unsigned long long*)a, old);
-}
 
 CUDA static constexpr int limit_min() noexcept { return -__INT_MAX__ - 1; }
 CUDA static constexpr int limit_max() noexcept { return __INT_MAX__; }
 
 #ifdef DEBUG
 #define TRACE
-#define LOG(X) X
+  #define LOG(X) X
 #else
-#define LOG(X)
+  #define LOG(X)
 #endif
 
 #ifdef TRACE
-#define INFO(X) X
+  #define INFO(X) X
 #else
-#define INFO(X)
+  #define INFO(X)
 #endif
 
 #define MALLOC_CHECK(M) { \
@@ -70,4 +72,45 @@ CUDA static constexpr int limit_max() noexcept { return __INT_MAX__; }
     assert(0); \
   }}
 
+#ifdef SEQUENTIAL
+  template<typename T> void swap(T* a, T* b) {
+    std::swap(*a, *b);
+  }
+
+  template<typename T>
+  void malloc2(T* &data, int n) {
+    data = (T*) malloc(sizeof(T) * n);
+  }
+
+  template<typename T>
+  void malloc2_managed(T* &data, int n) {
+    malloc2(data, n);
+  }
+
+  template<typename T>
+  void free2(T* data) {
+    free(data);
+  }
+#else
+  template<typename T>__device__ void swap(T* a, T* b) {
+    unsigned long long old = atomicExch((unsigned long long*)a, (unsigned long long)*b);
+    atomicExch((unsigned long long*)a, old);
+  }
+
+  template<typename T>
+  CUDA void malloc2(T* &data, int n) {
+    MALLOC_CHECK(cudaMalloc(&data, sizeof(T) * n));
+  }
+
+  template<typename T>
+  void malloc2_managed(T* &data, int n) {
+    CUDIE(cudaMallocManaged(&data, sizeof(T) * n));
+  }
+
+  template<typename T>
+  CUDA void free2(T* data) {
+    cudaFree(data);
+  }
 #endif
+
+#endif // CUDA_HELPER_HPP

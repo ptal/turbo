@@ -44,10 +44,10 @@ struct TemporalProp {
   }
 
   CUDA bool is_disentailed(const VStore& vstore) const {
-    // if(vstore[x].lb + vstore[y].lb > c) {
-    //   printf("Temporal constraint %d disentailed (x=%d, y=%d): %d + %d > %d\n",
-    //     uid, x, y, vstore[x].lb, vstore[y].lb, c);
-    // }
+    LOG(if(vstore.lb(x) + vstore.lb(y) > c) {
+      printf("Temporal constraint %d disentailed (x=%s, y=%s): %d + %d > %d\n",
+        uid, vstore.name_of(x), vstore.name_of(y), vstore.lb(x), vstore.lb(y), c);
+    })
     return vstore.is_top(x) ||
            vstore.is_top(y) ||
            vstore.lb(x) + vstore.lb(y) > c;
@@ -64,16 +64,6 @@ struct TemporalProp {
     vstore.print_var(y);
     printf(" <= %d", c);
   }
-
-  // CUDA void test_propagation(const VStore& root) {
-  //   VStore vstore(root);
-  //   Interval i0_1(0, 1);
-  //   Interval i0_2(0, 2);
-  //   Interval i1_2(1, 2);
-  //   Interval i2_3(2, 3);
-  //   TemporalProp p(abs(x), abs(y), 0);
-  //   vstore
-  // }
 };
 
 // C1 \/ C2
@@ -145,10 +135,15 @@ struct ReifiedLogicalAnd {
   }
 
   CUDA bool is_disentailed(const VStore& vstore) const {
-    return
-         vstore.is_top(b)
+    bool disentailed =  vstore.is_top(b)
      || (vstore.ub(b) == 0 && (left.is_entailed(vstore) && right.is_entailed(vstore)))
      || (vstore.lb(b) == 1 && (left.is_disentailed(vstore) || right.is_disentailed(vstore)));
+
+    LOG(if(disentailed) {
+      printf("ReifiedLogicalAnd %d disentailed: %d..%d <=> %d /\\ %d\n", uid, vstore.lb(b), vstore.ub(b), left.is_disentailed(vstore), right.is_disentailed(vstore));
+    })
+
+    return disentailed;
   }
 
   CUDA void print(const VStore& vstore) const {
@@ -173,8 +168,8 @@ struct LinearIneq {
   LinearIneq(std::vector<Var> vvars, std::vector<int> vconstants, int max) {
     assert(vvars.size() == vconstants.size());
     n = vvars.size();
-    CUDIE(cudaMallocManaged(&vars, sizeof(*vars) * n));
-    CUDIE(cudaMallocManaged(&constants, sizeof(*constants) * n));
+    malloc2_managed(vars, n);
+    malloc2_managed(constants, n);
     for(int i=0; i < n; ++i) {
       vars[i] = vvars[i];
       constants[i] = vconstants[i];
@@ -186,8 +181,8 @@ struct LinearIneq {
     uid = other.uid;
     n = other.n;
     max = other.max;
-    CUDIE(cudaMallocManaged(&vars, sizeof(*vars) * n));
-    CUDIE(cudaMallocManaged(&constants, sizeof(*constants) * n));
+    malloc2_managed(vars, n);
+    malloc2_managed(constants, n);
     for(int i=0; i < n; ++i) {
       vars[i] = other.vars[i];
       constants[i] = other.constants[i];
@@ -195,8 +190,8 @@ struct LinearIneq {
   }
 
   ~LinearIneq() {
-    CUDIE(cudaFree(vars));
-    CUDIE(cudaFree(constants));
+    free2(vars);
+    free2(constants);
   }
 
   // Returns the maximum amount of additional resources this constraint can use if we fix all remaining boolean variables to 1.
@@ -267,9 +262,11 @@ struct LinearIneq {
   }
 
   CUDA bool is_disentailed(const VStore& vstore) const {
-    return
-         one_top(vstore)
-      || slack(vstore) < 0;
+    bool disentailed = one_top(vstore) || slack(vstore) < 0;
+    LOG(if(disentailed) {
+      printf("LinearIneq disentailed %d: %d < 0\n", uid, slack(vstore));
+    })
+    return disentailed;
   }
 
   CUDA void print(const VStore& vstore) const {
@@ -306,7 +303,7 @@ struct Constraints {
       n += is_temporal[i];
     }
     Var* vars;
-    CUDIE(cudaMallocManaged(&vars, (n+1)*sizeof(Var)));
+    malloc2_managed(vars, (n+1));
     int j = 0;
     for(int i=0; i < max; ++i) {
       if (is_temporal[i]) {
