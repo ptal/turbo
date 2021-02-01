@@ -71,6 +71,12 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
       has_changed |= propagate(constraints.reifiedLogicalAnd, vstore, pstatus);
       has_changed |= propagate(constraints.linearIneq, vstore, pstatus);
     }
+    // We propagate once more to verify that all propagators are really entailed.
+    if(pstatus.join() == ENTAILED) {
+      propagate(constraints.temporal, vstore, pstatus);
+      propagate(constraints.reifiedLogicalAnd, vstore, pstatus);
+      propagate(constraints.linearIneq, vstore, pstatus);
+    }
     // II. Branching
     one_step(stack, best_bound, shared_data.pstatus->join(),
       &shared_data, &stats, &best_sol, minimize_x, temporal_vars);

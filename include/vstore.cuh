@@ -140,7 +140,7 @@ public:
   }
 
   CUDA bool is_top(Var x) const {
-    return view_of(x).is_top();
+    return data[abs(x)].is_top();
   }
 
   CUDA const char* name_of(Var x) const {

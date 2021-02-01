@@ -85,7 +85,8 @@ struct BacktrackingFrame {
   }
 
   CUDA_DEVICE void join_objective(Var minimize_x, const Interval& best_bound) {
-    vstore->update(minimize_x, best_bound);
+    Interval b = {best_bound.lb, best_bound.ub - 1};
+    vstore->update(minimize_x, b);
   }
 };
 
@@ -156,7 +157,7 @@ CUDA_DEVICE void branch(Stack& stack, VStore& current, Var* temporal_vars) {
 }
 
 CUDA_DEVICE void check_consistency(SharedData* shared_data, Status res) {
-  LOG(printf("Node status: %s\n", string_of_status(res)));
+  INFO(printf("Node status: %s\n", string_of_status(res)));
 
   // Can be disentailed with all variable assigned...
   if (shared_data->vstore->all_assigned() && res != ENTAILED) {
@@ -183,7 +184,7 @@ CUDA_DEVICE void check_consistency(SharedData* shared_data, Status res) {
 }
 
 CUDA_DEVICE void check_decreasing_bound(const Interval& current_bound, const Interval& new_bound) {
-  if (current_bound.ub < new_bound.lb) {
+  if (current_bound.ub <= new_bound.lb) {
     printf("Current bound: %d..%d.\n", current_bound.lb, current_bound.ub);
     printf("New bound: %d..%d.\n", new_bound.lb, new_bound.ub);
     printf("Found a new bound that is worst than the current one...\n");
@@ -193,6 +194,7 @@ CUDA_DEVICE void check_decreasing_bound(const Interval& current_bound, const Int
 
 CUDA_DEVICE void update_best_bound(const VStore& current, Var minimize_x, Interval& best_bound, VStore* best_sol) {
   check_decreasing_bound(best_bound, current.view_of(minimize_x));
+  INFO(printf("previous best...(bound %d..%d)\n", best_bound.lb, best_bound.ub));
   best_bound = current.view_of(minimize_x);
   best_bound.ub = best_bound.lb;
   INFO(printf("backtracking on solution...(bound %d..%d)\n", best_bound.lb, best_bound.ub));
@@ -220,7 +222,7 @@ CUDA_DEVICE void one_step(
       INFO(printf("backtracking on failed node %p...\n", shared_data->vstore));
     }
     else if(res == ENTAILED) {
-      INFO(shared_data->vstore->print_view(temporal_vars));
+      // INFO(shared_data->vstore->print_view(temporal_vars));
       update_best_bound(*(shared_data->vstore), minimize_x, best_bound, best_sol);
       stats->sols += 1;
       stats->best_bound = best_bound.ub;
@@ -231,9 +233,9 @@ CUDA_DEVICE void one_step(
     }
     else {
       BacktrackingFrame& frame = stack.pop();
-      INFO(frame.vstore->print_view(temporal_vars));
       frame.commit();
       frame.join_objective(minimize_x, best_bound);
+      INFO(frame.vstore->print_view(temporal_vars));
       // Swap the current branch with the backtracked one.
       INFO(printf("Backtrack from (%p, %p) to (%p, %p).\n", shared_data->vstore, shared_data->pstatus, frame.vstore, shared_data->pstatus2));
       swap(&shared_data->vstore, &frame.vstore);
