@@ -111,19 +111,14 @@ CUDA_GLOBAL void propagate_k(SharedData* shared_data, T* props) {
   pstatus.inplace_join(p.uid, s);
 }
 
-// The variables pstatus and vstore are shared among all propagators of all types.
-// The UID inside a propagator, e.g., `TemporalProp::uid`, refers to the index of the propagator in the status array of `pstatus`.
 template<typename T>
-T* launch(SharedData* shared_data, std::vector<T> &c, cudaStream_t s)
+T* cons_alloc(std::vector<T> &c)
 {
   T* props;
-  // sortir de fonction
   CUDIE(cudaMallocManaged(&props, c.size() * sizeof(T)));
   for (int i=0; i < c.size(); ++i) {
     props[i] = c[i];
   }
-  propagate_k<T><<<1, c.size(), 0, s>>>(shared_data, props);
-  CUDIE0();
   return props;
 }
 
@@ -148,6 +143,10 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
     CUDIE(cudaStreamCreate(&streams[i]));
   }
 
+  void *raw_interval;
+  CUDIE(cudaMallocManaged(&raw_interval, sizeof(Interval)));
+  Interval *best_bound = new(raw_interval) Interval();
+
   auto t1 = std::chrono::high_resolution_clock::now();
 
   void *raw_shared_data;
@@ -158,21 +157,26 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
   CUDIE(cudaMallocManaged(&raw_stack, sizeof(Stack)));
   Stack *stack = new(raw_stack) Stack(*(shared_data->vstore));
 
+  auto tem_p = cons_alloc<TemporalProp>(constraints.temporal);
+  auto rei_p = cons_alloc<ReifiedLogicalAnd>(constraints.reifiedLogicalAnd);
+  auto lin_p = cons_alloc<LinearIneq>(constraints.linearIneq);
+
   while (shared_data->exploring) {
-	  auto props1 = launch<TemporalProp>(shared_data, constraints.temporal, streams[0]);
-	  CUDIE0();
-	  auto props2 = launch<ReifiedLogicalAnd>(shared_data, constraints.reifiedLogicalAnd, streams[1]);
-	  CUDIE0();
-	  auto props3 = launch<LinearIneq>(shared_data, constraints.linearIneq, streams[2]);
+          propagate_k<TemporalProp><<<constraints.temporal.size(), 1, 0, streams[0]>>>(shared_data, tem_p);
+          CUDIE0();
+          propagate_k<ReifiedLogicalAnd><<<constraints.reifiedLogicalAnd.size(), 1, 0, streams[1]>>>(shared_data, rei_p);
+          CUDIE0();
+          propagate_k<LinearIneq><<<constraints.linearIneq.size(), 1, 0, streams[2]>>>(shared_data, lin_p);
 	  CUDIE(cudaDeviceSynchronize());
-	  search<<<1,1>>>(stack, shared_data, stats, best_sol, minimize_x, temporal_vars);
+	  search<<<1, 1>>>(stack, shared_data, stats, best_sol, minimize_x, temporal_vars, best_bound);
 	  CUDIE(cudaDeviceSynchronize());
-    CUDIE(cudaFree(props1));
-    CUDIE(cudaFree(props2));
-    CUDIE(cudaFree(props3));
   }
 
   auto t2 = std::chrono::high_resolution_clock::now();
+
+  CUDIE(cudaFree(tem_p));
+  CUDIE(cudaFree(rei_p));
+  CUDIE(cudaFree(lin_p));
 
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
 
@@ -191,6 +195,8 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
   for (int i=0; i < PROPS_TYPE; ++i) {
     CUDIE(cudaStreamDestroy(streams[i]));
   }
+  CUDIE(cudaFree(raw_stack));
+  CUDIE(cudaFree(raw_interval));
 }
 
 #endif

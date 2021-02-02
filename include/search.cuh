@@ -256,12 +256,17 @@ CUDA_DEVICE void one_step(
   }
 }
 
-CUDA_GLOBAL void search(Stack* stack, SharedData* shared_data, Statistics* stats, VStore* best_sol, Var minimize_x, Var* temporal_vars) {
+CUDA_GLOBAL void search(Stack* stack, 
+        SharedData* shared_data, 
+        Statistics* stats, 
+        VStore* best_sol, 
+        Var minimize_x, 
+        Var* temporal_vars,
+        Interval* best_bound) {
   INFO(printf("starting search with %p\n", shared_data->vstore));
-  Interval best_bound = {limit_min(), stats->best_bound == -1 ? limit_max() : stats->best_bound};
   Status res = shared_data->pstatus->join();
   res = (shared_data->vstore->is_top() ? DISENTAILED : res);
-  one_step(*stack, best_bound, res, shared_data, stats, best_sol, minimize_x, temporal_vars);
+  one_step(*stack, *best_bound, res, shared_data, stats, best_sol, minimize_x, temporal_vars);
   INFO(printf("stop search\n"));
 }
 
