@@ -23,13 +23,23 @@
 /// x + y <= c
 struct TemporalProp {
   int uid;
-  Var x;
-  Var y;
-  int c;
 
-  CUDA TemporalProp(Var x, Var y, int c) : uid(-1), x(x), y(y), c(c) {}
+  const Var x;
+  const Var y;
+  const int c;
 
-  CUDA bool propagate(VStore& vstore)
+  CUDA TemporalProp() = delete;
+
+  CUDA TemporalProp(Var x, Var y, int c) : uid(-1), x(x), y(y), c(c) {
+    assert(x != 0 && y != 0);
+  }
+
+  CUDA TemporalProp(const TemporalProp& tp):
+    uid(tp.uid), x(tp.x), y(tp.y), c(tp.c) {
+      assert(x != 0 && y != 0);
+  }
+
+  CUDA bool propagate(VStore& vstore) const
   {
     bool has_changed = vstore.update_ub(x, c - vstore.lb(y));
     has_changed |= vstore.update_ub(y, c - vstore.lb(x));
@@ -53,7 +63,7 @@ struct TemporalProp {
            vstore.lb(x) + vstore.lb(y) > c;
   }
 
-  CUDA TemporalProp neg() {
+  CUDA TemporalProp neg() const {
     return TemporalProp(-x, -y, -c - 1);
   }
 
@@ -68,13 +78,18 @@ struct TemporalProp {
 
 // C1 \/ C2
 struct LogicalOr {
-  TemporalProp left;
-  TemporalProp right;
+  const TemporalProp left;
+  const TemporalProp right;
+
+  CUDA LogicalOr() = delete;
 
   CUDA LogicalOr(TemporalProp left, TemporalProp right):
     left(left), right(right) {}
 
-  CUDA bool propagate(VStore& vstore) {
+  CUDA LogicalOr(const LogicalOr& lo) :
+    left(lo.left), right(lo.right) {}
+
+  CUDA bool propagate(VStore& vstore) const {
     if (left.is_disentailed(vstore)) {
       return right.propagate(vstore);
     }
@@ -102,15 +117,26 @@ struct LogicalOr {
 /// b <=> left /\ right
 struct ReifiedLogicalAnd {
   int uid;
-  Var b;
-  TemporalProp left;
-  TemporalProp right;
+  const Var b;
+  const TemporalProp left;
+  const TemporalProp right;
+
+  CUDA ReifiedLogicalAnd() = delete;
 
   CUDA ReifiedLogicalAnd(Var b, TemporalProp left, TemporalProp right) :
-    b(b), left(left), right(right) {}
+    b(b), left(left), right(right) {
+      // assert(left.y != 0 && left.x != 0);
+    }
 
-  CUDA bool propagate(VStore& vstore) {
+  ReifiedLogicalAnd(const ReifiedLogicalAnd& r) :
+    uid(r.uid), b(r.b), left(r.left), right(r.right) {
+      // assert(left.y != 0 && left.x != 0);
+    }
+
+  CUDA bool propagate(VStore& vstore) const {
     if (vstore.view_of(b) == 0) {
+      // printf("pos: %d %d\n", left.x, left.y);
+      // printf("neg: %d %d\n", left.neg().x, left.neg().y);
       return LogicalOr(left.neg(), right.neg()).propagate(vstore);
     }
     else if (vstore.view_of(b) == 1) {
@@ -160,38 +186,50 @@ struct ReifiedLogicalAnd {
 // x1c1 + ... + xNcN <= max
 struct LinearIneq {
   int uid;
-  int n;
-  Var* vars;
-  int* constants;
-  int max;
+  const int n;
+  const Var* vars;
+  const int* constants;
+  const int max;
 
-  LinearIneq(std::vector<Var> vvars, std::vector<int> vconstants, int max) {
-    assert(vvars.size() == vconstants.size());
-    n = vvars.size();
-    malloc2_managed(vars, n);
-    malloc2_managed(constants, n);
-    for(int i=0; i < n; ++i) {
-      vars[i] = vvars[i];
-      constants[i] = vconstants[i];
+  CUDA LinearIneq() = delete;
+
+  template <typename T>
+  static T* from_vec(std::vector<T> a) {
+    T* b;
+    malloc2_managed(b, a.size());
+    for(int i = 0; i < a.size(); ++i) {
+      b[i] = a[i];
     }
-    this->max = max;
+    return b;
   }
 
-  LinearIneq(const LinearIneq& other) {
-    uid = other.uid;
-    n = other.n;
-    max = other.max;
-    malloc2_managed(vars, n);
-    malloc2_managed(constants, n);
-    for(int i=0; i < n; ++i) {
-      vars[i] = other.vars[i];
-      constants[i] = other.constants[i];
+  template <typename T>
+  static T* from_ptr(const T* a, int n) {
+    T* b;
+    malloc2_managed(b, n);
+    for(int i = 0; i < n; ++i) {
+      b[i] = a[i];
     }
+    return b;
+  }
+
+  LinearIneq(std::vector<Var> vvars, std::vector<int> vconstants, int max):
+    uid(-1), n(vvars.size()), max(max), vars(from_vec(vvars)),
+    constants(from_vec(vconstants))
+  {
+    assert(vvars.size() == vconstants.size());
+  }
+
+  LinearIneq(const LinearIneq& other):
+    uid(other.uid), n(other.n), max(other.max),
+    vars(from_ptr(other.vars, other.n)),
+    constants(from_ptr(other.constants, other.n))
+  {
   }
 
   ~LinearIneq() {
-    free2(vars);
-    free2(constants);
+    free2((void*)vars);
+    free2((void*)constants);
   }
 
   // Returns the maximum amount of additional resources this constraint can use if we fix all remaining boolean variables to 1.
@@ -230,7 +268,7 @@ struct LinearIneq {
   //                          slack
   //
   //  Propagating assign upper bound to 0, when c_i > slack.
-  CUDA bool propagate(VStore& vstore) {
+  CUDA bool propagate(VStore& vstore) const {
     int s = slack(vstore);
     bool has_changed = false;
     // CORRECTNESS: Even if the slack changes after its computation (or even when we are computing it), it does not hinder the correctness of the propagation.

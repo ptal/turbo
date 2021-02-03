@@ -117,7 +117,7 @@ T* cons_alloc(std::vector<T> &c)
   T* props;
   CUDIE(cudaMallocManaged(&props, c.size() * sizeof(T)));
   for (int i=0; i < c.size(); ++i) {
-    props[i] = c[i];
+    new(props + i) T(c[i]);
   }
   return props;
 }
@@ -159,6 +159,10 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
 
   auto tem_p = cons_alloc<TemporalProp>(constraints.temporal);
   auto rei_p = cons_alloc<ReifiedLogicalAnd>(constraints.reifiedLogicalAnd);
+  for(int i = 0; i < constraints.reifiedLogicalAnd.size(); ++i) {
+    std::cout << rei_p[i].uid << " " << rei_p[i].left.x << " " << rei_p[i].left.y << std::endl;
+    std::cout << rei_p[i].uid << " " << rei_p[i].right.x << " " << rei_p[i].right.y << std::endl;
+  }
   auto lin_p = cons_alloc<LinearIneq>(constraints.linearIneq);
 
   while (shared_data->exploring) {

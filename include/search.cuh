@@ -256,11 +256,11 @@ CUDA_DEVICE void one_step(
   }
 }
 
-CUDA_GLOBAL void search(Stack* stack, 
-        SharedData* shared_data, 
-        Statistics* stats, 
-        VStore* best_sol, 
-        Var minimize_x, 
+CUDA_GLOBAL void search(Stack* stack,
+        SharedData* shared_data,
+        Statistics* stats,
+        VStore* best_sol,
+        Var minimize_x,
         Var* temporal_vars,
         Interval* best_bound) {
   INFO(printf("starting search with %p\n", shared_data->vstore));

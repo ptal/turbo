@@ -39,8 +39,10 @@ class ModelBuilder {
 
   private:
     std::vector<TemporalProp> make_temporal_constraint(std::string x, int k, OrderType op, std::string y) {
+
       Var xi = std::get<0>(var2idx[x]);
       Var yi = std::get<0>(var2idx[y]);
+      assert(xi != 0 && yi != 0);
 
       // Turn > and < into <= and >=
       if (op == LT) {
@@ -78,9 +80,8 @@ class ModelBuilder {
     ModelBuilder() {
       // Negative variable's indices are used for negative view of variable, e.g., `-x`.
       // However the index `0` can't be negated, so we occupy this position with a dumb value.
-      add_var("fake", 0, 0);
+      add_var("zero_var(fake)", 0, 0);
     }
-
 
     void add_var(std::string name, int min, int max) {
       Var idx = idx2var.size();
@@ -99,11 +100,14 @@ class ModelBuilder {
       else if(tree->root->type == OLE) {
         add_linear_constraint(tree->root);
       }
+      else {
+        throw std::runtime_error("Unsupported constraint.");
+      }
     }
 
     VStore* build_store() {
-      VStore* v;
-      malloc2_managed<VStore>(v, 1);
+      alignas(VStore) unsigned char *v;
+      CUDIE(cudaMallocManaged(&v, sizeof(VStore)));
       VStore* vstore = new(v) VStore(idx2var.size());
       for (const auto& x : var2idx) {
         vstore->dom(std::get<0>(x.second), std::get<1>(x.second));
@@ -157,12 +161,27 @@ class ModelBuilder {
       }
     }
 
+    // Transform X * 1 into X.
+    void evaluate_constant(Node** node_ptr) {
+      Node* node = *node_ptr;
+      if(node->type == OMUL) {
+        if(node->parameters[0]->type == OVAR && node->parameters[1]->type == ODECIMAL) {
+          if(((NodeConstant*)node->parameters[1])->val == 1) {
+            *node_ptr = node->parameters[0];
+          }
+        }
+      }
+    }
+
     void strengthen_domain_from_node(Node* node) {
       if (node->parameters.size() != 2) {
         throw std::runtime_error("Expected binary constraints.");
       }
       if (node->parameters[0]->type != OVAR) {
-        throw std::runtime_error("Expected variable on the lhs.");
+        evaluate_constant(&node->parameters[0]);
+        if (node->parameters[0]->type != OVAR) {
+          throw std::runtime_error("Expected variable on the lhs.");
+        }
       }
       if (node->parameters[1]->type != ODECIMAL) {
         throw std::runtime_error("Expected value on the rhs.");
