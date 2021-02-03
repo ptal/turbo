@@ -47,10 +47,14 @@ struct TemporalProp {
   }
 
   CUDA bool is_entailed(const VStore& vstore) const {
-    return
-      !vstore.is_top(x) &&
+    bool ret = !vstore.is_top(x) && !vstore.is_top(y) && vstore.ub(x) + vstore.ub(y) <= c;
+    if (uid == 2) {
+      printf("is_entailed: uid=2 %s\n", ret ? "entailed" : "not entailed");
+    }
+    return ret;
+    /*  !vstore.is_top(x) &&
       !vstore.is_top(y) &&
-      vstore.ub(x) + vstore.ub(y) <= c;
+      vstore.ub(x) + vstore.ub(y) <= c; */
   }
 
   CUDA bool is_disentailed(const VStore& vstore) const {
