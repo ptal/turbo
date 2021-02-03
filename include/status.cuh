@@ -78,6 +78,7 @@ public:
         case ENTAILED: break;
         case DISENTAILED: return DISENTAILED;
       }
+      //printf("join: %d %s\n", i, string_of_status(status[i]));
     }
     if (unk == 0) {
       if (idle == 0) {
