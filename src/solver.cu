@@ -94,21 +94,29 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
 
 const int PROPS_TYPE = 3;
 
+CUDA_GLOBAL void status_k(SharedData* shared_data, bool* fixpoint /* out */) {
+  *fixpoint = shared_data->pstatus->join() != UNKNOWN;
+  // INFO(printf("status_k: status->join=%d\n", *fixpoint));
+  LOG(shared_data->vstore->print());
+}
+
 template<typename T>
 CUDA_GLOBAL void propagate_k(SharedData* shared_data, T* props) {
-  size_t cid = threadIdx.x + blockIdx.x*blockDim.x;
+  int cid = threadIdx.x + blockDim.x * blockIdx.x;
   T& p = props[cid];
   PropagatorsStatus& pstatus = *(shared_data->pstatus);
   VStore& vstore = *(shared_data->vstore);
-  Status s = p.propagate(vstore) ? UNKNOWN : IDLE;
-  // while pstatus join != unknown
-  if(p.is_entailed(vstore)) {
-    s = ENTAILED;
+  Status s;
+  for (int i=0; i<PITER; ++i) {
+    s = p.propagate(vstore) ? UNKNOWN : IDLE;
+    if(p.is_entailed(vstore)) {
+      s = ENTAILED;
+    }
+    if(p.is_disentailed(vstore)) {
+      s = DISENTAILED;
+    }
+    pstatus.inplace_join(p.uid, s);
   }
-  if(p.is_disentailed(vstore)) {
-    s = DISENTAILED;
-  }
-  pstatus.inplace_join(p.uid, s);
 }
 
 template<typename T>
@@ -159,24 +167,29 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
 
   auto tem_p = cons_alloc<TemporalProp>(constraints.temporal);
   auto rei_p = cons_alloc<ReifiedLogicalAnd>(constraints.reifiedLogicalAnd);
-  for(int i = 0; i < constraints.reifiedLogicalAnd.size(); ++i) {
-    std::cout << rei_p[i].uid << " " << rei_p[i].left.x << " " << rei_p[i].left.y << std::endl;
-    std::cout << rei_p[i].uid << " " << rei_p[i].right.x << " " << rei_p[i].right.y << std::endl;
-  }
   auto lin_p = cons_alloc<LinearIneq>(constraints.linearIneq);
 
+  // to replace with events
+  // to include in shared_data?
+  bool *fixpoint;
+  CUDIE(cudaMallocManaged(&fixpoint, sizeof(*fixpoint)));
+
   while (shared_data->exploring) {
-          propagate_k<TemporalProp><<<constraints.temporal.size(), 1, 0, streams[0]>>>(shared_data, tem_p);
-          CUDIE0();
-          propagate_k<ReifiedLogicalAnd><<<constraints.reifiedLogicalAnd.size(), 1, 0, streams[1]>>>(shared_data, rei_p);
-          CUDIE0();
-          propagate_k<LinearIneq><<<constraints.linearIneq.size(), 1, 0, streams[2]>>>(shared_data, lin_p);
-	  CUDIE(cudaDeviceSynchronize());
-	  search<<<1, 1>>>(stack, shared_data, stats, best_sol, minimize_x, temporal_vars, best_bound);
-	  CUDIE(cudaDeviceSynchronize());
+    do {
+      propagate_k<TemporalProp><<<constraints.temporal.size(), 1, 0, streams[0]>>>(shared_data, tem_p);
+      propagate_k<ReifiedLogicalAnd><<<constraints.reifiedLogicalAnd.size(), 1, 0, streams[1]>>>(shared_data, rei_p);
+      propagate_k<LinearIneq><<<constraints.linearIneq.size(), 1, 0, streams[2]>>>(shared_data, lin_p);
+      CUDIE(cudaDeviceSynchronize());
+      status_k<<<1,1>>>(shared_data, fixpoint);
+      CUDIE(cudaDeviceSynchronize());
+    } while (!(*fixpoint));
+    search<<<1, 1>>>(stack, shared_data, stats, best_sol, minimize_x, temporal_vars, best_bound);
+    CUDIE(cudaDeviceSynchronize());
   }
 
   auto t2 = std::chrono::high_resolution_clock::now();
+
+  CUDIE(cudaFree(fixpoint));
 
   CUDIE(cudaFree(tem_p));
   CUDIE(cudaFree(rei_p));

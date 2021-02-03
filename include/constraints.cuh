@@ -54,10 +54,10 @@ struct TemporalProp {
   }
 
   CUDA bool is_disentailed(const VStore& vstore) const {
-    LOG(if(vstore.lb(x) + vstore.lb(y) > c) {
+    /*LOG(if(vstore.lb(x) + vstore.lb(y) > c) {
       printf("Temporal constraint %d disentailed (x=%s, y=%s): %d + %d > %d\n",
         uid, vstore.name_of(x), vstore.name_of(y), vstore.lb(x), vstore.lb(y), c);
-    })
+    })*/
     return vstore.is_top(x) ||
            vstore.is_top(y) ||
            vstore.lb(x) + vstore.lb(y) > c;
@@ -124,19 +124,13 @@ struct ReifiedLogicalAnd {
   CUDA ReifiedLogicalAnd() = delete;
 
   CUDA ReifiedLogicalAnd(Var b, TemporalProp left, TemporalProp right) :
-    b(b), left(left), right(right) {
-      // assert(left.y != 0 && left.x != 0);
-    }
+    b(b), left(left), right(right) {}
 
   ReifiedLogicalAnd(const ReifiedLogicalAnd& r) :
-    uid(r.uid), b(r.b), left(r.left), right(r.right) {
-      // assert(left.y != 0 && left.x != 0);
-    }
+    uid(r.uid), b(r.b), left(r.left), right(r.right) {}
 
   CUDA bool propagate(VStore& vstore) const {
     if (vstore.view_of(b) == 0) {
-      // printf("pos: %d %d\n", left.x, left.y);
-      // printf("neg: %d %d\n", left.neg().x, left.neg().y);
       return LogicalOr(left.neg(), right.neg()).propagate(vstore);
     }
     else if (vstore.view_of(b) == 1) {

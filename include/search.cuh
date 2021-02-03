@@ -71,7 +71,8 @@ struct BacktrackingFrame {
   }
 
   void init(const VStore& root) {
-    *vstore = VStore(root);
+    //*vstore = VStore(root);
+    new(vstore) VStore(root);
   }
 
   ~BacktrackingFrame() {
