@@ -43,11 +43,11 @@ CUDA inline const char* string_of_status(Status status) {
 
 class PropagatorsStatus {
   Status* status;
+  bool changed;
   size_t n;
 
 public:
-  PropagatorsStatus(size_t n) {
-    this->n = n;
+  PropagatorsStatus(size_t n): changed(false), n(n) {
     malloc2_managed(status, n);
     for(int i = 0; i < n; ++i) {
       status[i] = UNKNOWN;
@@ -65,6 +65,9 @@ public:
   }
 
   CUDA inline void inplace_join(int i, Status s) {
+    if (status[i] < s) {
+      changed = true;
+    }
     status[i] = join_status(status[i], s);
   }
 
@@ -87,6 +90,14 @@ public:
       return IDLE;
     }
     return UNKNOWN;
+  }
+
+  CUDA void reset_changed() {
+    changed = false;
+  }
+
+  CUDA bool has_changed() {
+    return changed;
   }
 
   CUDA void wake_up_all() {

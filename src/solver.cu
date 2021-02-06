@@ -46,7 +46,7 @@ bool propagate(std::vector<T>& constraints, VStore& vstore, PropagatorsStatus& p
   return has_changed;
 }
 
-void solve(VStore* vstore, Constraints constraints, Var minimize_x)
+void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
 {
   INFO(constraints.print(*vstore));
   Statistics stats;
@@ -62,6 +62,10 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
   INFO(printf("starting search with %p\n", shared_data.vstore));
 
   while(shared_data.exploring) {
+    auto current = std::chrono::high_resolution_clock::now();
+    if (std::chrono::duration_cast<std::chrono::seconds>(current - t1).count() > timeout) {
+      break;
+    }
     // I. Propagation
     VStore& vstore = *(shared_data.vstore);
     PropagatorsStatus& pstatus = *(shared_data.pstatus);
@@ -87,21 +91,24 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
 
   stats.print();
-  std::cout << "solveTime=" << duration << std::endl;
+  if(duration > timeout * 1000) {
+    std::cout << "solveTime=timeout" << std::endl;
+  }
+  else {
+    std::cout << "solveTime=" << duration << std::endl;
+  }
+
 }
 
 #else
 
 const int PROPS_TYPE = 3;
 
-CUDA_GLOBAL void status_k(SharedData* shared_data, int* fixpoint /* out */) {
-  if(shared_data->pstatus->join() != UNKNOWN) {
-    *fixpoint += 1;
-  }
-  else {
-    *fixpoint = 0;
-  }
-  // INFO(printf("status_k: status->join=%d\n", *fixpoint));
+CUDA_GLOBAL void status_k(SharedData* shared_data, bool* fixpoint /* out */) {
+  Status res = shared_data->pstatus->join();
+  *fixpoint = res != UNKNOWN && !shared_data->pstatus->has_changed();
+
+  LOG(printf("status_k: status->join=%d\n", *fixpoint));
   LOG(shared_data->vstore->print());
 }
 
@@ -112,16 +119,18 @@ CUDA_GLOBAL void propagate_k(SharedData* shared_data, T* props) {
   PropagatorsStatus& pstatus = *(shared_data->pstatus);
   VStore& vstore = *(shared_data->vstore);
   Status s;
+  bool has_changed = false;
   for (int i=0; i<PITER; ++i) {
-    s = p.propagate(vstore) ? UNKNOWN : IDLE;
-    if(p.is_entailed(vstore)) {
-      s = ENTAILED;
-    }
-    if(p.is_disentailed(vstore)) {
-      s = DISENTAILED;
-    }
-    pstatus.inplace_join(p.uid, s);
+    has_changed |= p.propagate(vstore);
   }
+  s = has_changed ? UNKNOWN : IDLE;
+  if(p.is_entailed(vstore)) {
+    s = ENTAILED;
+  }
+  if(p.is_disentailed(vstore)) {
+    s = DISENTAILED;
+  }
+  pstatus.inplace_join(p.uid, s);
 }
 
 template<typename T>
@@ -135,7 +144,7 @@ T* cons_alloc(std::vector<T> &c)
   return props;
 }
 
-void solve(VStore* vstore, Constraints constraints, Var minimize_x)
+void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
 {
   INFO(constraints.print(*vstore));
 
@@ -174,20 +183,24 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
   auto rei_p = cons_alloc<ReifiedLogicalAnd>(constraints.reifiedLogicalAnd);
   auto lin_p = cons_alloc<LinearIneq>(constraints.linearIneq);
 
-  int *fixpoint;
+  bool *fixpoint;
   CUDIE(cudaMallocManaged(&fixpoint, sizeof(*fixpoint)));
-  *fixpoint = 0;
 
   while (shared_data->exploring) {
+    auto current = std::chrono::high_resolution_clock::now();
+    if (std::chrono::duration_cast<std::chrono::seconds>(current - t1).count() > timeout) {
+      break;
+    }
+    *fixpoint = false;
     do {
+      shared_data->pstatus->reset_changed();
       propagate_k<TemporalProp><<<constraints.temporal.size(), 1, 0, streams[0]>>>(shared_data, tem_p);
       propagate_k<ReifiedLogicalAnd><<<constraints.reifiedLogicalAnd.size(), 1, 0, streams[1]>>>(shared_data, rei_p);
       propagate_k<LinearIneq><<<constraints.linearIneq.size(), 1, 0, streams[2]>>>(shared_data, lin_p);
       CUDIE(cudaDeviceSynchronize());
       status_k<<<1,1>>>(shared_data, fixpoint);
       CUDIE(cudaDeviceSynchronize());
-    } while (*fixpoint < constraints.size());
-    *fixpoint = 0;
+    } while (!(*fixpoint));
     search<<<1, 1>>>(stack, shared_data, stats, best_sol, minimize_x, temporal_vars, best_bound);
     CUDIE(cudaDeviceSynchronize());
   }
@@ -203,7 +216,12 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
 
   stats->print();
-  std::cout << "solveTime=" << duration << std::endl;
+  if(duration > timeout * 1000) {
+    std::cout << "solveTime=timeout" << std::endl;
+  }
+  else {
+    std::cout << "solveTime=" << duration << std::endl;
+  }
 
   best_sol->~VStore();
   CUDIE(cudaFree(best_sol_raw));

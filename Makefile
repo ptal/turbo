@@ -10,6 +10,7 @@ NVCC=nvcc
 NVCC_FLAGS=-std=c++14 -rdc=true -arch=sm_75 -I/usr/local/cuda/include -I$(INC_DIR)
 
 EXE = turbo
+EXE_SEQ = turbo_seq
 
 # Object files:
 SOURCES = $(SRC_DIR)/turbo.cu $(SRC_DIR)/solver.cu
@@ -23,19 +24,21 @@ debug: $(EXE)
 trace: NVCC_FLAGS += -DTRACE
 trace: $(EXE)
 
-seq: NVCC_FLAGS += -DTRACE -DSEQUENTIAL
-seq: $(EXE)
+seq: NVCC_FLAGS += -DTRACE
+seq: $(EXE_SEQ)
 
-seq_compete: NVCC_FLAGS += -O3 -DSEQUENTIAL
-seq_compete: $(EXE)
+seq_compete: NVCC_FLAGS += -O3
+seq_compete: $(EXE_SEQ)
 
 compete: NVCC_FLAGS += -O3
 compete: $(EXE)
 
-# Link c++ and CUDA compiled object files to target executable:
 $(EXE): $(INC_ONLY) $(SOURCES)
 	$(NVCC) $(NVCC_FLAGS) $(SOURCES) -o $@ $(LIBS)
 
+$(EXE_SEQ): $(INC_ONLY) $(SOURCES)
+	$(NVCC) -DSEQUENTIAL $(NVCC_FLAGS) $(SOURCES) -o $@ $(LIBS)
+
 # Clean objects in object directory.
 clean:
-	$(RM) $(EXE)
+	$(RM) $(EXE) $(EXE_SEQ)

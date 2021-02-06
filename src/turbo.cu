@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <iostream>
+#include <cstdlib>
 
 #include "solver.cuh"
 #include "constraints.cuh"
@@ -21,10 +22,22 @@
 
 #include "XCSP3_turbo_callbacks.hpp"
 
-int main(int argc, char** argv) {
-  if (argc != 2) {
-    std::cout << "usage: " << argv[0] << " xcsp3instance.xml" <<std::endl;
+void usage_and_exit(char** argv) {
+    std::cout << "usage: " << argv[0] << " [timeout (seconds)] xcsp3instance.xml" << std::endl;
     exit(EXIT_FAILURE);
+}
+
+int main(int argc, char** argv) {
+  int timeout = INT_MAX;
+  if(argc == 3) {
+    timeout = std::atoi(argv[1]);
+    printf("timeout = %d\n", timeout);
+    if(timeout <= 0) {
+      usage_and_exit(argv);
+    }
+  }
+  else if (argc != 2) {
+    usage_and_exit(argv);
   }
 
   try
@@ -32,13 +45,13 @@ int main(int argc, char** argv) {
     ModelBuilder* model_builder = new ModelBuilder();
     XCSP3_turbo_callbacks cb(model_builder);
     XCSP3CoreParser parser(&cb);
-    parser.parse(argv[1]); // fileName is a string
+    parser.parse(argv[2]); // fileName is a string
     Constraints constraints = model_builder->build_constraints();
     VStore* vstore = model_builder->build_store();
     Var minimize_x = model_builder->build_minimize_obj();
     // vstore->print();
     // constraints.print();
-    solve(vstore, constraints, minimize_x);
+    solve(vstore, constraints, minimize_x, timeout);
     vstore->free_names();
     vstore->~VStore();
     free2(vstore);

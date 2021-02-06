@@ -20,6 +20,6 @@
 
 #define PITER 10
 
-void solve(VStore* vstore, Constraints constraints, Var minimize_x);
+void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout);
 
 #endif

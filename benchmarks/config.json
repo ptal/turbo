@@ -24,6 +24,7 @@
     }>,
     <Solve:
       [[{"name": "turbo", "options": []},
+        {"name": "turbo_seq", "options": []},
         {"name": "gecode", "options": []}]]
     >],
   "csv" : {
@@ -31,8 +32,12 @@
   },
   "solvers_config": [
     { "name": "turbo",
-      "version": "0.1",
+      "version": "0.3",
       "exec": "/home/ptalbot/repositories/turbo/turbo",
+      "globals": "" },
+    { "name": "turbo_seq",
+      "version": "0.3",
+      "exec": "/home/ptalbot/repositories/turbo/turbo_seq",
       "globals": "" },
     { "name": "gecode",
       "version": "6.2.0",
