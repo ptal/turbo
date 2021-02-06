@@ -94,8 +94,13 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
 
 const int PROPS_TYPE = 3;
 
-CUDA_GLOBAL void status_k(SharedData* shared_data, bool* fixpoint /* out */) {
-  *fixpoint = shared_data->pstatus->join() != UNKNOWN;
+CUDA_GLOBAL void status_k(SharedData* shared_data, int* fixpoint /* out */) {
+  if(shared_data->pstatus->join() != UNKNOWN) {
+    *fixpoint += 1;
+  }
+  else {
+    *fixpoint = 0;
+  }
   // INFO(printf("status_k: status->join=%d\n", *fixpoint));
   LOG(shared_data->vstore->print());
 }
@@ -169,10 +174,9 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
   auto rei_p = cons_alloc<ReifiedLogicalAnd>(constraints.reifiedLogicalAnd);
   auto lin_p = cons_alloc<LinearIneq>(constraints.linearIneq);
 
-  // to replace with events
-  // to include in shared_data?
-  bool *fixpoint;
+  int *fixpoint;
   CUDIE(cudaMallocManaged(&fixpoint, sizeof(*fixpoint)));
+  *fixpoint = 0;
 
   while (shared_data->exploring) {
     do {
@@ -182,7 +186,8 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x)
       CUDIE(cudaDeviceSynchronize());
       status_k<<<1,1>>>(shared_data, fixpoint);
       CUDIE(cudaDeviceSynchronize());
-    } while (!(*fixpoint));
+    } while (*fixpoint < constraints.size());
+    *fixpoint = 0;
     search<<<1, 1>>>(stack, shared_data, stats, best_sol, minimize_x, temporal_vars, best_bound);
     CUDIE(cudaDeviceSynchronize());
   }
