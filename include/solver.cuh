@@ -18,8 +18,6 @@
 #include "vstore.cuh"
 #include "constraints.cuh"
 
-#define PITER 10
-
 void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout);
 
 #endif

@@ -105,8 +105,7 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
 const int PROPS_TYPE = 3;
 
 CUDA_GLOBAL void status_k(SharedData* shared_data, bool* fixpoint /* out */) {
-  Status res = shared_data->pstatus->join();
-  *fixpoint = res != UNKNOWN && !shared_data->pstatus->has_changed();
+  *fixpoint = !shared_data->pstatus->has_changed();
 
   LOG(printf("status_k: status->join=%d\n", *fixpoint));
   LOG(shared_data->vstore->print());
@@ -119,11 +118,7 @@ CUDA_GLOBAL void propagate_k(SharedData* shared_data, T* props) {
   PropagatorsStatus& pstatus = *(shared_data->pstatus);
   VStore& vstore = *(shared_data->vstore);
   Status s;
-  bool has_changed = false;
-  for (int i=0; i<PITER; ++i) {
-    has_changed |= p.propagate(vstore);
-  }
-  s = has_changed ? UNKNOWN : IDLE;
+  s = p.propagate(vstore) ? UNKNOWN : IDLE;
   if(p.is_entailed(vstore)) {
     s = ENTAILED;
   }
@@ -183,31 +178,23 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
   auto rei_p = cons_alloc<ReifiedLogicalAnd>(constraints.reifiedLogicalAnd);
   auto lin_p = cons_alloc<LinearIneq>(constraints.linearIneq);
 
-  bool *fixpoint;
-  CUDIE(cudaMallocManaged(&fixpoint, sizeof(*fixpoint)));
-
   while (shared_data->exploring) {
     auto current = std::chrono::high_resolution_clock::now();
     if (std::chrono::duration_cast<std::chrono::seconds>(current - t1).count() > timeout) {
       break;
     }
-    *fixpoint = false;
     do {
       shared_data->pstatus->reset_changed();
       propagate_k<TemporalProp><<<constraints.temporal.size(), 1, 0, streams[0]>>>(shared_data, tem_p);
-      propagate_k<ReifiedLogicalAnd><<<constraints.reifiedLogicalAnd.size(), 1, 0, streams[1]>>>(shared_data, rei_p);
       propagate_k<LinearIneq><<<constraints.linearIneq.size(), 1, 0, streams[2]>>>(shared_data, lin_p);
+      propagate_k<ReifiedLogicalAnd><<<constraints.reifiedLogicalAnd.size(), 1, 0, streams[1]>>>(shared_data, rei_p);
       CUDIE(cudaDeviceSynchronize());
-      status_k<<<1,1>>>(shared_data, fixpoint);
-      CUDIE(cudaDeviceSynchronize());
-    } while (!(*fixpoint));
+    } while (shared_data->pstatus->has_changed());
     search<<<1, 1>>>(stack, shared_data, stats, best_sol, minimize_x, temporal_vars, best_bound);
     CUDIE(cudaDeviceSynchronize());
   }
 
   auto t2 = std::chrono::high_resolution_clock::now();
-
-  CUDIE(cudaFree(fixpoint));
 
   CUDIE(cudaFree(tem_p));
   CUDIE(cudaFree(rei_p));
