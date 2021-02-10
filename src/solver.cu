@@ -143,51 +143,18 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
 {
   INFO(constraints.print(*vstore));
 
-  void* stats_raw;
-  CUDIE(cudaMallocManaged(&stats_raw, sizeof(Statistics)));
-  Statistics* stats = new(stats_raw) Statistics();
-
-  void* best_sol_raw;
-  CUDIE(cudaMallocManaged(&best_sol_raw, sizeof(VStore)));
-  VStore* best_sol = new(best_sol_raw) VStore(vstore->size());
-
   Var* temporal_vars = constraints.temporal_vars(vstore->size());
-
-  cudaStream_t monitor;
-  CUDIE(cudaStreamCreate(&monitor));
-  cudaStream_t streams[PROPS_TYPE];
-  for (int i=0; i < PROPS_TYPE; ++i) {
-    CUDIE(cudaStreamCreate(&streams[i]));
-  }
-
-  void *raw_interval;
-  CUDIE(cudaMallocManaged(&raw_interval, sizeof(Interval)));
-  Interval *best_bound = new(raw_interval) Interval();
-
-  auto t1 = std::chrono::high_resolution_clock::now();
-
-  void *raw_shared_data;
-  CUDIE(cudaMallocManaged(&raw_shared_data, sizeof(SharedData)));
-  SharedData* shared_data = new(raw_shared_data) SharedData(vstore, constraints.size());
-
-  // Invariant: Nodes are unknown and ready to be propagated.
-  // searchStack represents the tree to be explored.
-  void *raw_stack;
-  CUDIE(cudaMallocManaged(&raw_stack, sizeof(Stack)));
-  Stack *searchStack = new(raw_stack) Stack(*(shared_data->vstore));
-
-  // This is the working space for propagators.
-  // One cell per node currently being propagated.
-  void *raw_array;
-  CUDIE(cudaMallocManaged(&raw_array, sizeof(NodeArray)));
-  NodeArray *workingProp = new(raw_array) NodeArray(*(shared_data->vstore));
-  workingProp->reset();
+  TreeData *tree_data;
+  CUDIE(cudaMallocManaged(&tree_data, sizeof(*tree_data)));
+  new(tree_data) TreeData(temporal_vars, minimize_x, vstore);
 
   auto tem_p = cons_alloc<TemporalProp>(constraints.temporal);
   auto rei_p = cons_alloc<ReifiedLogicalAnd>(constraints.reifiedLogicalAnd);
   auto lin_p = cons_alloc<LinearIneq>(constraints.linearIneq);
 
-  while (!searchStack->is_empty()) {
+  auto t1 = std::chrono::high_resolution_clock::now();
+
+  while (!tree_data->stack->is_empty()) {
     auto current = std::chrono::high_resolution_clock::now();
     if (std::chrono::duration_cast<std::chrono::seconds>(current - t1).count() > timeout) {
       break;
