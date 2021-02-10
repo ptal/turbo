@@ -29,12 +29,14 @@ void usage_and_exit(char** argv) {
 
 int main(int argc, char** argv) {
   int timeout = INT_MAX;
+  int file_arg = 1;
   if(argc == 3) {
     timeout = std::atoi(argv[1]);
     printf("timeout = %d\n", timeout);
     if(timeout <= 0) {
       usage_and_exit(argv);
     }
+    file_arg = 2;
   }
   else if (argc != 2) {
     usage_and_exit(argv);
@@ -45,7 +47,7 @@ int main(int argc, char** argv) {
     ModelBuilder* model_builder = new ModelBuilder();
     XCSP3_turbo_callbacks cb(model_builder);
     XCSP3CoreParser parser(&cb);
-    parser.parse(argv[2]); // fileName is a string
+    parser.parse(argv[file_arg]); // fileName is a string
     Constraints constraints = model_builder->build_constraints();
     VStore* vstore = model_builder->build_store();
     Var minimize_x = model_builder->build_minimize_obj();
