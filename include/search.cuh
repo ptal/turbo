@@ -21,7 +21,7 @@
 #include "cuda_helper.hpp"
 
 const int MAX_STACK_SIZE = 1000;
-const int MAX_NODE_ARRAY = 10;
+const int MAX_NODE_ARRAY = 100;
 
 class Stack;
 struct TreeData;
@@ -36,10 +36,10 @@ struct NodeData {
   NodeData() = default;
 
   NodeData(const VStore& root, int n): n(n) {
-    malloc2_managed(vstore, 1);
-    new(vstore) VStore(root);
     malloc2_managed<PropagatorsStatus>(pstatus, 1);
     new(pstatus) PropagatorsStatus(n);
+    malloc2_managed(vstore, 1);
+    new(vstore) VStore(root);
   }
 
   ~NodeData() {
@@ -149,7 +149,7 @@ class NodeArray {
 public:
   NodeArray(const VStore& root, int np) {
     for (int i=0; i < MAX_NODE_ARRAY; ++i) {
-      data[i] = NodeData(root, np);
+      new(&data[i]) NodeData(root, np);
     }
     data_size = 0;
   }
