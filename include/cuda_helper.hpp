@@ -92,7 +92,7 @@ CUDA static constexpr int limit_max() noexcept { return __INT_MAX__; }
     free(data);
   }
 #else
-  template<typename T>__device__ void swap(T* a, T* b) {
+  template<typename T> CUDA void swap(T* a, T* b) {
     T c = *a;
     *a = *b;
     *b = c;

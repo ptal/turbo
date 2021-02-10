@@ -170,19 +170,29 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
   CUDIE(cudaMallocManaged(&raw_shared_data, sizeof(SharedData)));
   SharedData* shared_data = new(raw_shared_data) SharedData(vstore, constraints.size());
 
+  // Invariant: Nodes are unknown and ready to be propagated.
+  // searchStack represents the tree to be explored.
   void *raw_stack;
   CUDIE(cudaMallocManaged(&raw_stack, sizeof(Stack)));
-  Stack *stack = new(raw_stack) Stack(*(shared_data->vstore));
+  Stack *searchStack = new(raw_stack) Stack(*(shared_data->vstore));
+
+  // This is the working space for propagators.
+  // One cell per node currently being propagated.
+  void *raw_array;
+  CUDIE(cudaMallocManaged(&raw_array, sizeof(NodeArray)));
+  NodeArray *workingProp = new(raw_array) NodeArray(*(shared_data->vstore));
+  workingProp->reset();
 
   auto tem_p = cons_alloc<TemporalProp>(constraints.temporal);
   auto rei_p = cons_alloc<ReifiedLogicalAnd>(constraints.reifiedLogicalAnd);
   auto lin_p = cons_alloc<LinearIneq>(constraints.linearIneq);
 
-  while (shared_data->exploring) {
+  while (!searchStack->is_empty()) {
     auto current = std::chrono::high_resolution_clock::now();
     if (std::chrono::duration_cast<std::chrono::seconds>(current - t1).count() > timeout) {
       break;
     }
+    searchStack->transferToPropagate(workingProp);
     do {
       shared_data->pstatus->reset_changed();
       propagate_k<TemporalProp><<<constraints.temporal.size(), 1, 0, streams[0]>>>(shared_data, tem_p);
@@ -190,6 +200,9 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
       propagate_k<ReifiedLogicalAnd><<<constraints.reifiedLogicalAnd.size(), 1, 0, streams[1]>>>(shared_data, rei_p);
       CUDIE(cudaDeviceSynchronize());
     } while (shared_data->pstatus->has_changed());
+
+    workingProp->transferToSearch(searchStack);
+
     search<<<1, 1>>>(stack, shared_data, stats, best_sol, minimize_x, temporal_vars, best_bound);
     CUDIE(cudaDeviceSynchronize());
   }
