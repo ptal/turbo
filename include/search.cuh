@@ -20,8 +20,8 @@
 #include "statistics.cuh"
 #include "cuda_helper.hpp"
 
-const int MAX_STACK_SIZE = 1000;
-const int MAX_NODE_ARRAY = 100;
+const int MAX_STACK_SIZE = 100000;
+const int MAX_NODE_ARRAY = 2000;
 
 class Stack;
 struct TreeData;
@@ -50,17 +50,6 @@ struct NodeData {
     }
   }
 };
-/*
-  NodeData data[MAX_NODE_ARRAY];
-  size_t data_size;
-public:
-  NodeArray(const VStore& root);
-  CUDA bool is_empty() const;
-  CUDA size_t size() const;
-  CUDA void transferToSearch(Stack* searchStack, TreeData& td);
-  CUDA size_t capacity();
-  CUDA void transferFromSearch(Stack* searchStack, TreeData& td);
-};*/
 
 class Stack {
   VStore* stack[MAX_STACK_SIZE];
@@ -229,14 +218,15 @@ struct TreeData {
     swap(&left, &parent.vstore);
     right->reset(*left);
     Var x = first_fail(*left, temporal_vars);
-    left->assign(x, left->lb(x));
     right->update(x, {left->lb(x) + 1, left->ub(x)});
+    left->assign(x, left->lb(x));
     LOG(printf("Branching on %s: %d..%d \\/ %d..%d\n",
       left->name_of(x), left->lb(x), left->ub(x),
       right->lb(x), right->ub(x)));
   }
 
   CUDA void on_node(VStore& node) {
+    stats.nodes = stats.nodes + 1;
     Interval b = {best_bound.lb, best_bound.ub - 1};
     node.update(minimize_x, b);
   }

@@ -16,12 +16,6 @@
 #define CUDA_HELPER_HPP
 
 #ifdef __NVCC__
-#ifdef SEQUENTIAL
-  #define CUDA
-  #define CUDA_DEVICE
-  #define CUDA_VAR
-  #define CUDA_GLOBAL
-#else
   #define CUDA __device__ __host__
   #define CUDA_DEVICE __device__
   #define CUDA_VAR __device__ __managed__
@@ -38,14 +32,6 @@
   #define CUDIE0() CUDIE(cudaGetLastError())
 #endif
 
-#else
-  #define CUDA
-  #define CUDA_VAR
-  #define CUDA_GLOBAL
-  #define CUDIE(result)
-  #define CUDIE0()
-#endif
-
 template<typename T>CUDA T min(T a, T b) { return a<=b ? a : b; }
 template<typename T>CUDA T max(T a, T b) { return a>=b ? a : b; }
 
@@ -53,7 +39,7 @@ CUDA static constexpr int limit_min() noexcept { return -__INT_MAX__ - 1; }
 CUDA static constexpr int limit_max() noexcept { return __INT_MAX__; }
 
 #ifdef DEBUG
-#define TRACE
+  #define TRACE
   #define LOG(X) X
 #else
   #define LOG(X)
@@ -72,46 +58,25 @@ CUDA static constexpr int limit_max() noexcept { return __INT_MAX__; }
     assert(0); \
   }}
 
-#ifdef SEQUENTIAL
-  template<typename T> void swap(T* a, T* b) {
-    std::swap(*a, *b);
-  }
+template<typename T> CUDA void swap(T* a, T* b) {
+  T c = *a;
+  *a = *b;
+  *b = c;
+}
 
-  template<typename T>
-  void malloc2(T* &data, int n) {
-    data = (T*) malloc(sizeof(T) * n);
-  }
+template<typename T>
+CUDA void malloc2(T* &data, int n) {
+  MALLOC_CHECK(cudaMalloc(&data, sizeof(T) * n));
+}
 
-  template<typename T>
-  void malloc2_managed(T* &data, int n) {
-    malloc2(data, n);
-  }
+template<typename T>
+void malloc2_managed(T* &data, int n) {
+  CUDIE(cudaMallocManaged(&data, sizeof(T) * n));
+}
 
-  template<typename T>
-  void free2(T* data) {
-    free(data);
-  }
-#else
-  template<typename T> CUDA void swap(T* a, T* b) {
-    T c = *a;
-    *a = *b;
-    *b = c;
-  }
-
-  template<typename T>
-  CUDA void malloc2(T* &data, int n) {
-    MALLOC_CHECK(cudaMalloc(&data, sizeof(T) * n));
-  }
-
-  template<typename T>
-  void malloc2_managed(T* &data, int n) {
-    CUDIE(cudaMallocManaged(&data, sizeof(T) * n));
-  }
-
-  template<typename T>
-  CUDA void free2(T* data) {
-    cudaFree(data);
-  }
-#endif
+template<typename T>
+CUDA void free2(T* data) {
+  cudaFree(data);
+}
 
 #endif // CUDA_HELPER_HPP

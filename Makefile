@@ -24,20 +24,11 @@ debug: $(EXE)
 trace: NVCC_FLAGS += -DTRACE
 trace: $(EXE)
 
-seq: NVCC_FLAGS += -DTRACE
-seq: $(EXE_SEQ)
-
-seq_compete: NVCC_FLAGS += -O3
-seq_compete: $(EXE_SEQ)
-
 compete: NVCC_FLAGS += -O3
 compete: $(EXE)
 
 $(EXE): $(INC_ONLY) $(SOURCES)
 	$(NVCC) $(NVCC_FLAGS) $(SOURCES) -o $@ $(LIBS)
-
-$(EXE_SEQ): $(INC_ONLY) $(SOURCES)
-	$(NVCC) -DSEQUENTIAL $(NVCC_FLAGS) $(SOURCES) -o $@ $(LIBS)
 
 # Clean objects in object directory.
 clean:
