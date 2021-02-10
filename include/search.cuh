@@ -130,6 +130,13 @@ struct TreeData {
   VStore best_sol;
   Var minimize_x;
   Var* temporal_vars;
+  Stack stack;
+  NodeArray node_array;
+
+  TreeData(Var* temporal_vars, Var minimize_x, const VStore& root):
+    temporal_vars(temporal_vars), minimize_x(minimize_x),
+    best_sol(VStore(root->size())), stack(root), node_array(root)
+  {}
 
   CUDA_DEVICE void check_decreasing_bound(const VStore& current) {
     const Interval& new_bound = current.view_of(minimize_x);
