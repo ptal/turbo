@@ -20,8 +20,8 @@
 #include "statistics.cuh"
 #include "cuda_helper.hpp"
 
-const int MAX_STACK_SIZE = 100000;
-const int MAX_NODE_ARRAY = 2000;
+const int MAX_STACK_SIZE =  200000; // 100000;
+const int MAX_NODE_ARRAY =  8000;
 
 class Stack;
 struct TreeData;
@@ -187,12 +187,12 @@ struct TreeData {
 
   CUDA void check_decreasing_bound(const VStore& current) {
     const Interval& new_bound = current.view_of(minimize_x);
-    if (best_bound.ub <= new_bound.lb) {
+    /*if (best_bound.ub <= new_bound.lb) {
       printf("Current bound: %d..%d.\n", best_bound.lb, best_bound.ub);
       printf("New bound: %d..%d.\n", new_bound.lb, new_bound.ub);
       printf("Found a new bound that is worst than the current one...\n");
       //assert(0);
-    }
+    }*/
   }
 
   CUDA void on_solution(const VStore& leaf) {
@@ -245,6 +245,22 @@ struct TreeData {
         assert(res == IDLE);
         on_unknown(node_array[i]);
       }
+    }
+  }
+
+  CUDA void transferToSearch_i(int i) {
+    // does not work, because all i access the common stack
+    Status res = node_array[i].pstatus->join();
+    res = (node_array[i].vstore->is_top() ? DISENTAILED : res);
+    if (res == DISENTAILED) {
+      on_fail(*(node_array[i].vstore));
+    }
+    else if (res == ENTAILED) {
+      on_solution(*(node_array[i].vstore));
+    }
+    else {
+      assert(res == IDLE);
+      on_unknown(node_array[i]);
     }
   }
 

@@ -63,6 +63,8 @@ CUDA_GLOBAL void propagate_nodes_k(
     ReifiedLogicalAnd* rei_p, int nr,
     LinearIneq* lin_p, int nl) {
   int nid = threadIdx.x + blockIdx.x * blockDim.x;
+  if (nid >= td->node_array.size()) { return; }
+
   bool has_changed = true;
   PropagatorsStatus& pstatus = *(td->node_array[nid].pstatus);
   VStore& vstore = *(td->node_array[nid].vstore);
@@ -85,13 +87,20 @@ CUDA_GLOBAL void propagate_nodes_k(
   */
 }
 
-CUDA_GLOBAL void transfer_search(TreeData* td) {
-    td->transferFromSearch();
+CUDA_GLOBAL void transfer_from_search(TreeData* td) {
+  td->transferFromSearch();
+}
+CUDA_GLOBAL void transfer_to_search(TreeData* td) {
+  //int i = threadIdx.x + blockIdx.x*blockDim.x;
+  //td->transferToSearch_i(i);  // doesn't work, because write access to stack/node_array
+  td->transferToSearch();
 }
 
 void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
 {
   INFO(constraints.print(*vstore));
+
+  auto t1 = std::chrono::high_resolution_clock::now();
 
   Var* temporal_vars = constraints.temporal_vars(vstore->size());
 
@@ -102,22 +111,52 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
   auto tem_p = cons_alloc<TemporalProp>(constraints.temporal);
   auto rei_p = cons_alloc<ReifiedLogicalAnd>(constraints.reifiedLogicalAnd);
   auto lin_p = cons_alloc<LinearIneq>(constraints.linearIneq);
-  auto t1 = std::chrono::high_resolution_clock::now();
+
+  int64_t durf (0);
+  int64_t durk (0);
+  int64_t durt (0);
+
+  int loops (0);
+  int device;
+  CUDIE(cudaGetDevice(&device));
+  cudaDeviceProp props;
+  CUDIE(cudaGetDeviceProperties(&props, device));
+  int nproc = props.multiProcessorCount;
+  std::cout<<"processors "<<nproc<<'\n';
+  int threads, blocks;
 
   while (!tree_data->stack.is_empty()) {
+    loops++;
     auto current = std::chrono::high_resolution_clock::now();
     if (std::chrono::duration_cast<std::chrono::seconds>(current - t1).count() > timeout) {
       break;
     }
+    auto ts = std::chrono::high_resolution_clock::now();
     tree_data->transferFromSearch();
+    //transfer_from_search<<<1,1>>>(tree_data);
+    //CUDIE(cudaDeviceSynchronize());
+    auto tf = std::chrono::high_resolution_clock::now();
+    durf += std::chrono::duration_cast<std::chrono::milliseconds>( tf - ts ).count();
 
-    propagate_nodes_k<<<tree_data->node_array.size(), 1>>>(
+    //propagate_nodes_k<<<tree_data->node_array.size(), 1>>>(
+    threads = 4;
+    blocks = (1 + tree_data->node_array.size()/threads);
+    ts = std::chrono::high_resolution_clock::now();
+    propagate_nodes_k<<<blocks, threads>>>(
         tree_data,
         tem_p, constraints.temporal.size(),
         rei_p, constraints.reifiedLogicalAnd.size(),
         lin_p ,constraints.linearIneq.size());
     CUDIE(cudaDeviceSynchronize());
+    tf = std::chrono::high_resolution_clock::now();
+    durk += std::chrono::duration_cast<std::chrono::milliseconds>( tf - ts ).count();
+    
+    ts = std::chrono::high_resolution_clock::now();
     tree_data->transferToSearch();
+    //transfer_to_search<<<1, 1>>>(tree_data);
+    //CUDIE(cudaDeviceSynchronize());
+    tf = std::chrono::high_resolution_clock::now();
+    durt += std::chrono::duration_cast<std::chrono::milliseconds>( tf - ts ).count();
   }
 
   auto t2 = std::chrono::high_resolution_clock::now();
@@ -125,6 +164,8 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
   CUDIE(cudaFree(rei_p));
   CUDIE(cudaFree(lin_p));
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
+
+  std::cout <<"[x"<<loops<<"] TPB="<<threads<<", fromsearch="<<durf<<", kernels="<<durk<<", tosearch="<<durt<<" (ms)\n";
 
   tree_data->stats.print();
   if(duration > timeout * 1000) {
