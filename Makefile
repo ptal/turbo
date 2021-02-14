@@ -10,7 +10,6 @@ NVCC=nvcc
 NVCC_FLAGS=-std=c++14 -rdc=true -arch=sm_75 -I/usr/local/cuda/include -I$(INC_DIR)
 
 EXE = turbo
-EXE_SEQ = turbo_seq
 
 # Object files:
 SOURCES = $(SRC_DIR)/turbo.cu $(SRC_DIR)/solver.cu

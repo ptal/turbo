@@ -20,7 +20,7 @@
 #include "statistics.cuh"
 #include "cuda_helper.hpp"
 
-const int MAX_STACK_SIZE =  200000; // 100000;
+const int INITIAL_STACK_SIZE = 200000; // 100000;
 const int MAX_NODE_ARRAY =  8000;
 
 class Stack;
@@ -39,7 +39,8 @@ struct NodeData {
     malloc2_managed<PropagatorsStatus>(pstatus, 1);
     new(pstatus) PropagatorsStatus(n);
     malloc2_managed(vstore, 1);
-    new(vstore) VStore(root);
+    new(vstore) VStore(root, no_copy_tag());
+    vstore->reset(root);
   }
 
   ~NodeData() {
@@ -51,43 +52,132 @@ struct NodeData {
   }
 };
 
+
 class Stack {
-  VStore* stack[MAX_STACK_SIZE];
+  VStore*** stacks;
+  size_t stacks_capacity;
+  size_t stack_no;
   size_t stack_size;
 public:
-  Stack(const VStore& root) {
-    for (int i=0; i < MAX_STACK_SIZE; ++i) {
+
+  /* static */ VStore** init_stack(const VStore& root) {
+    VStore** stack;
+    malloc2_managed(stack, INITIAL_STACK_SIZE);
+    for (int i=0; i < INITIAL_STACK_SIZE; ++i) {
       malloc2_managed(stack[i], 1);
-      new(stack[i]) VStore(root);
+      new(stack[i]) VStore(root, no_copy_tag());
+      stack[i]->reset(root);
     }
-    stack_size = 1;
+    return stack;
+  }
+
+  CUDA /* static */ VStore** init_stack2(const VStore& root) {
+    VStore** stack;
+    malloc2(stack, INITIAL_STACK_SIZE);
+    for (int i=0; i < INITIAL_STACK_SIZE; ++i) {
+      malloc2(stack[i], 1);
+      new(stack[i]) VStore(root, no_copy_tag(), device_tag());
+    }
+    return stack;
+  }
+
+  Stack(const VStore& root): stacks_capacity(1),
+    stack_no(0), stack_size(1)
+  {
+    malloc2_managed(stacks, stacks_capacity);
+    stacks[0] = init_stack(root);
+    stacks[0][0]->reset(root);
+  }
+
+  CUDA void realloc_stacks() {
+    VStore*** old_stacks = stacks;
+    ++stacks_capacity;
+    malloc2(stacks, stacks_capacity);
+    for(int i = 0; i < stacks_capacity - 1; ++i) {
+      stacks[i] = old_stacks[i];
+    }
+    stacks[stacks_capacity - 1] = init_stack2(*(stacks[0][0]));
+    free2(old_stacks);
   }
 
   CUDA VStore*& pop() {
-    LOG(printf("pop frame %lu\n", stack_size - 1));
-    assert(stack_size > 0);
-    --stack_size;
-    return stack[stack_size];
+    LOG(printf("pop frame %lu\n", size() - 1));
+    assert(stack_no > 0 || stack_size > 0);
+    if(stack_size == 0) {
+      --stack_no;
+      stack_size = INITIAL_STACK_SIZE - 1;
+    }
+    else {
+      --stack_size;
+    }
+    return stacks[stack_no][stack_size];
   }
 
   CUDA VStore*& next_frame() {
-    assert((stack_size + 1) < MAX_STACK_SIZE);
-    ++stack_size;
-    return stack[stack_size - 1];
+    if((stack_size + 1) >= INITIAL_STACK_SIZE) {
+      if (stack_no + 1 >= stacks_capacity) {
+        realloc_stacks();
+      }
+      ++stack_no;
+      stack_size = 1;
+    }
+    else {
+      ++stack_size;
+    }
+    return stacks[stack_no][stack_size - 1];
   }
 
   CUDA bool is_empty() const {
-    return stack_size == 0;
+    return stack_no == 0 && stack_size == 0;
   }
 
   CUDA size_t size() const {
-    return stack_size;
+    return stack_no * INITIAL_STACK_SIZE + stack_size;
   }
 
   CUDA size_t capacity() {
-    return MAX_STACK_SIZE;
+    return INITIAL_STACK_SIZE * stacks_capacity;
   }
 };
+
+// class Stack {
+//   VStore* stack[INITIAL_STACK_SIZE];
+//   size_t stack_size;
+// public:
+//   Stack(const VStore& root) {
+//     for (int i=0; i < INITIAL_STACK_SIZE; ++i) {
+//       malloc2_managed(stack[i], 1);
+//       new(stack[i]) VStore(root, no_copy_tag());
+//     }
+//     stack[0]->reset(root);
+//     stack_size = 1;
+//   }
+
+//   CUDA VStore*& pop() {
+//     LOG(printf("pop frame %lu\n", stack_size - 1));
+//     assert(stack_size > 0);
+//     --stack_size;
+//     return stack[stack_size];
+//   }
+
+//   CUDA VStore*& next_frame() {
+//     assert((stack_size + 1) < INITIAL_STACK_SIZE);
+//     ++stack_size;
+//     return stack[stack_size - 1];
+//   }
+
+//   CUDA bool is_empty() const {
+//     return stack_size == 0;
+//   }
+
+//   CUDA size_t size() const {
+//     return stack_size;
+//   }
+
+//   CUDA size_t capacity() {
+//     return INITIAL_STACK_SIZE;
+//   }
+// };
 
 // Select the variable with the smallest domain in the store.
 CUDA Var first_fail(const VStore& vstore, Var* vars) {
@@ -100,7 +190,7 @@ CUDA Var first_fail(const VStore& vstore, Var* vars) {
       lowest_lb = vstore.lb(i);
     }
   }
-  if (x == -1) { vstore.print(); }
+  INFO(if (x == -1) { vstore.print(); })
   assert(x != -1);
   return x;
 }
@@ -182,7 +272,7 @@ struct TreeData {
 
   TreeData(Var* temporal_vars, Var minimize_x, const VStore& root, int np):
     temporal_vars(temporal_vars), minimize_x(minimize_x),
-    best_sol(VStore(root.size())), stack(root), node_array(root, np)
+    best_sol(root.size(), no_copy_tag()), stack(root), node_array(root, np)
   {}
 
   CUDA void check_decreasing_bound(const VStore& current) {

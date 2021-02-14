@@ -64,6 +64,9 @@ struct Interval {
   }
 };
 
+struct no_copy_tag {};
+struct device_tag {};
+
 class VStore {
   Interval* data;
   size_t n;
@@ -99,15 +102,20 @@ public:
     n = nvar;
     malloc2_managed(data, n);
   }
+  VStore(const VStore& other) = delete;
 
-  VStore(const VStore& other) {
+  VStore(const VStore& other, no_copy_tag) {
     n = other.n;
     names = other.names;
     names_len = other.names_len;
     malloc2_managed(data, n);
-    for(int i = 0; i < n; ++i) {
-      data[i] = other.data[i];
-    }
+  }
+
+  CUDA VStore(const VStore& other, no_copy_tag, device_tag) {
+    n = other.n;
+    names = other.names;
+    names_len = other.names_len;
+    malloc2(data, n);
   }
 
   CUDA void reset(const VStore& other) {

@@ -173,14 +173,32 @@ class ModelBuilder {
       }
     }
 
+    // Transform X * n <= m into X <= n/m if n is positive.
+    void simplify_constraint(Node* node) {
+      if (node->type == OLE) {
+        if (node->parameters[0]->type == OMUL &&
+            node->parameters[1]->type == ODECIMAL &&
+            node->parameters[0]->parameters[0]->type == OVAR &&
+            node->parameters[0]->parameters[1]->type == ODECIMAL &&
+            ((NodeConstant*)node->parameters[1])->val >= 0 &&
+            ((NodeConstant*)node->parameters[0]->parameters[1])->val > 0)
+        {
+          ((NodeConstant*)node->parameters[1])->val /= ((NodeConstant*)node->parameters[0]->parameters[1])->val;
+          node->parameters[0] = node->parameters[0]->parameters[0];
+        }
+      }
+    }
+
     void strengthen_domain_from_node(Node* node) {
       if (node->parameters.size() != 2) {
         throw std::runtime_error("Expected binary constraints.");
       }
+      simplify_constraint(node);
       if (node->parameters[0]->type != OVAR) {
         evaluate_constant(&node->parameters[0]);
         if (node->parameters[0]->type != OVAR) {
-          throw std::runtime_error("Expected variable on the lhs.");
+          std::cout << node->toString() << std::endl;
+          throw std::runtime_error("Expected variable on the lhs (in domain constraint).");
         }
       }
       if (node->parameters[1]->type != ODECIMAL) {
@@ -209,7 +227,7 @@ class ModelBuilder {
           throw std::runtime_error("Expected binary constraints.");
         }
         if (node->parameters[0]->type != OVAR) {
-          throw std::runtime_error("Expected variable on the lhs.");
+          throw std::runtime_error("Expected variable on the lhs (in temporal constraint).");
         }
         std::string x = node->parameters[0]->toString();
         if (node->parameters[1]->type == OVAR) {
@@ -234,24 +252,41 @@ class ModelBuilder {
       }
     }
 
+    bool tautology(Node* node) {
+      if(node->parameters[0]->type == ODECIMAL &&
+         node->parameters[1]->type == ODECIMAL) {
+        if(((NodeConstant*)node->parameters[0])->val <= ((NodeConstant*)node->parameters[1])->val) {
+          return true;
+        }
+        else {
+          add_var("fake var (contradiction detected at root node)", 1, 0);
+          return true;
+        }
+      }
+      return false;
+    }
+
     void add_linear_constraint(Node* node) {
       if (node->parameters.size() != 2) {
         throw std::runtime_error("Expected comparison operator with two arguments.");
       }
-      if (node->parameters[0]->type != OADD || node->parameters[1]->type != ODECIMAL) {
-        throw std::runtime_error("Expected linear constraint of the form x1c1 + ... + xNcN <= c");
-      }
-      int c = dynamic_cast<NodeConstant*>(node->parameters[1])->val;
-      std::vector<Var> vars;
-      std::vector<int> constants;
-      for (Node* n : node->parameters[0]->parameters) {
-        if (n->type != OMUL || n->parameters[0]->type != OVAR || n->parameters[1]->type != ODECIMAL) {
-          throw std::runtime_error("Expected sum of factors x1c1 + ... xNcN");
+      if(!tautology(node)) {
+        if (node->parameters[0]->type != OADD || node->parameters[1]->type != ODECIMAL) {
+          std::cout << node->toString() << std::endl;
+          throw std::runtime_error("Expected linear constraint of the form x1c1 + ... + xNcN <= c");
         }
-        vars.push_back(std::get<0>(var2idx[n->parameters[0]->toString()]));
-        constants.push_back(dynamic_cast<NodeConstant*>(n->parameters[1])->val);
+        int c = dynamic_cast<NodeConstant*>(node->parameters[1])->val;
+        std::vector<Var> vars;
+        std::vector<int> constants;
+        for (Node* n : node->parameters[0]->parameters) {
+          if (n->type != OMUL || n->parameters[0]->type != OVAR || n->parameters[1]->type != ODECIMAL) {
+            throw std::runtime_error("Expected sum of factors x1c1 + ... xNcN");
+          }
+          vars.push_back(std::get<0>(var2idx[n->parameters[0]->toString()]));
+          constants.push_back(dynamic_cast<NodeConstant*>(n->parameters[1])->val);
+        }
+        constraints.linearIneq.push_back(LinearIneq(vars, constants, c));
       }
-      constraints.linearIneq.push_back(LinearIneq(vars, constants, c));
     }
 
     void add_reified_constraint(Node* node) {
