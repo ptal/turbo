@@ -173,51 +173,82 @@ class ModelBuilder {
       }
     }
 
-    // Transform X * n <= m into X <= n/m if n is positive.
-    void simplify_constraint(Node* node) {
-      if (node->type == OLE) {
-        if (node->parameters[0]->type == OMUL &&
-            node->parameters[1]->type == ODECIMAL &&
-            node->parameters[0]->parameters[0]->type == OVAR &&
-            node->parameters[0]->parameters[1]->type == ODECIMAL &&
-            ((NodeConstant*)node->parameters[1])->val >= 0 &&
-            ((NodeConstant*)node->parameters[0]->parameters[1])->val > 0)
-        {
-          ((NodeConstant*)node->parameters[1])->val /= ((NodeConstant*)node->parameters[0]->parameters[1])->val;
-          node->parameters[0] = node->parameters[0]->parameters[0];
+    // Treat constraint of the form X * a <= b.
+    bool le_mul_domain(Node* node) {
+      if (node->type == OLE &&
+          node->parameters[0]->type == OMUL &&
+          node->parameters[1]->type == ODECIMAL &&
+          node->parameters[0]->parameters[0]->type == OVAR &&
+          node->parameters[0]->parameters[1]->type == ODECIMAL)
+      {
+        std::string x = node->parameters[0]->parameters[0]->toString();
+        int a = ((NodeConstant*)node->parameters[0]->parameters[1])->val;
+        int b = ((NodeConstant*)node->parameters[1])->val;
+        if(a == 0) {
+          if(b < 0) {
+            add_var("fake var (contradiction detected at root node)", 1, 0);
+          }
         }
+        else if (b == 0) {
+          if(a > 0) {
+            strengthen_domain2(x, LE, 0);
+          }
+          else if (a < 0) {
+            strengthen_domain2(x, GE, 0);
+          }
+        }
+        else {
+          // At this point, a and b are different from 0.
+          int res = b / a;
+          if(a > 0 && b > 0) {
+            strengthen_domain2(x, LE, res);
+          }
+          else if(a > 0 && b < 0) {
+            strengthen_domain2(x, LE, res - (-b % a));
+          }
+          else if(a < 0 && b > 0) {
+            strengthen_domain2(x, GE, res);
+          }
+          else {
+            strengthen_domain2(x, GE, res + (-b % -a));
+          }
+        }
+        return true;
       }
+      return false;
     }
 
     void strengthen_domain_from_node(Node* node) {
       if (node->parameters.size() != 2) {
         throw std::runtime_error("Expected binary constraints.");
       }
-      simplify_constraint(node);
-      if (node->parameters[0]->type != OVAR) {
-        evaluate_constant(&node->parameters[0]);
+      bool treated = le_mul_domain(node);
+      if(!treated) {
         if (node->parameters[0]->type != OVAR) {
-          std::cout << node->toString() << std::endl;
-          throw std::runtime_error("Expected variable on the lhs (in domain constraint).");
+          evaluate_constant(&node->parameters[0]);
+          if (node->parameters[0]->type != OVAR) {
+            std::cout << node->toString() << std::endl;
+            throw std::runtime_error("Expected variable on the lhs (in domain constraint).");
+          }
         }
+        if (node->parameters[1]->type != ODECIMAL) {
+          throw std::runtime_error("Expected value on the rhs.");
+        }
+        std::string x = node->parameters[0]->toString();
+        int v = dynamic_cast<NodeConstant*>(node->parameters[1])->val;
+        OrderType op;
+        if (node->type == OLE) { op = LE; }
+        else if (node->type == OLT) { op = LT; }
+        else if (node->type == OGE) { op = GE; }
+        else if (node->type == OGT) { op = GT; }
+        else if (node->type == OEQ) { op = EQ; }
+        else if (node->type == ONE) { op = NE; }
+        else if (node->type == OIN) { op = IN; }
+        else {
+          throw std::runtime_error("Unsupported unary domain operator.");
+        }
+        strengthen_domain2(x, op, v);
       }
-      if (node->parameters[1]->type != ODECIMAL) {
-        throw std::runtime_error("Expected value on the rhs.");
-      }
-      std::string x = node->parameters[0]->toString();
-      int v = dynamic_cast<NodeConstant*>(node->parameters[1])->val;
-      OrderType op;
-      if (node->type == OLE) { op = LE; }
-      else if (node->type == OLT) { op = LT; }
-      else if (node->type == OGE) { op = GE; }
-      else if (node->type == OGT) { op = GT; }
-      else if (node->type == OEQ) { op = EQ; }
-      else if (node->type == ONE) { op = NE; }
-      else if (node->type == OIN) { op = IN; }
-      else {
-        throw std::runtime_error("Unsupported unary domain operator.");
-      }
-      strengthen_domain2(x, op, v);
     }
 
     // The node must have a very precise shape, X <= Y or X <= Y + k, otherwise a runtime_error is thrown.
