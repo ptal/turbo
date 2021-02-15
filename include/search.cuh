@@ -20,7 +20,7 @@
 #include "statistics.cuh"
 #include "cuda_helper.hpp"
 
-const int INITIAL_STACK_SIZE = 200000; // 100000;
+const int INITIAL_STACK_SIZE = 20000; // 100000;
 const int MAX_NODE_ARRAY =  8000;
 
 class Stack;
@@ -73,10 +73,10 @@ public:
 
   CUDA /* static */ VStore** init_stack2(const VStore& root) {
     VStore** stack;
-    malloc2(stack, INITIAL_STACK_SIZE);
+    malloc2_managed(stack, INITIAL_STACK_SIZE);
     for (int i=0; i < INITIAL_STACK_SIZE; ++i) {
-      malloc2(stack[i], 1);
-      new(stack[i]) VStore(root, no_copy_tag(), device_tag());
+      malloc2_managed(stack[i], 1);
+      new(stack[i]) VStore(root, no_copy_tag());
     }
     return stack;
   }
@@ -92,7 +92,7 @@ public:
   CUDA void realloc_stacks() {
     VStore*** old_stacks = stacks;
     ++stacks_capacity;
-    malloc2(stacks, stacks_capacity);
+    malloc2_managed(stacks, stacks_capacity);
     for(int i = 0; i < stacks_capacity - 1; ++i) {
       stacks[i] = old_stacks[i];
     }
