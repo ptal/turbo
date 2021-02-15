@@ -209,7 +209,7 @@ CUDA void check_consistency(NodeData* node_data, Status res) {
         INFO(printf("not entailed %d\n", i));
       }
     }
-    // assert(0);
+    assert(0);
   }
   if (res != DISENTAILED && node_data->vstore->is_top()) {
     INFO(printf("disentailment invariant inconsistent.\n"));
@@ -218,7 +218,7 @@ CUDA void check_consistency(NodeData* node_data, Status res) {
       INFO(printf("%d: %s\n", i, string_of_status(node_data->pstatus->of(i))));
     }
     node_data->vstore->print();
-    // assert(0);
+    assert(0);
   }
 }
 
@@ -275,23 +275,12 @@ struct TreeData {
     best_sol(root.size(), no_copy_tag()), stack(root), node_array(root, np)
   {}
 
-  CUDA void check_decreasing_bound(const VStore& current) {
-    const Interval& new_bound = current.view_of(minimize_x);
-    /*if (best_bound.ub <= new_bound.lb) {
-      printf("Current bound: %d..%d.\n", best_bound.lb, best_bound.ub);
-      printf("New bound: %d..%d.\n", new_bound.lb, new_bound.ub);
-      printf("Found a new bound that is worst than the current one...\n");
-      //assert(0);
-    }*/
-  }
-
   CUDA void on_solution(const VStore& leaf) {
-    check_decreasing_bound(leaf);
     INFO(printf("previous best...(bound %d..%d)\n", best_bound.lb, best_bound.ub));
-    best_bound = leaf.view_of(minimize_x);
-    best_bound.ub = best_bound.lb;
+    Interval new_bound = leaf.view_of(minimize_x);
+    // Due to parallelism, it is possible that several bounds are found in one iteration, thus we need to perform a (lattice) join on the best bound.
+    best_bound.ub = min(best_bound.ub, new_bound.lb);
     INFO(printf("backtracking on solution...(bound %d..%d)\n", best_bound.lb, best_bound.ub));
-    best_bound.lb = limit_min();
     best_sol.reset(leaf);
     stats.sols += 1;
     stats.best_bound = best_bound.ub;
