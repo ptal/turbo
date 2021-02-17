@@ -16,7 +16,7 @@
 #include <cstdlib>
 
 #include "solver.cuh"
-#include "constraints.cuh"
+#include "propagators.cuh"
 
 #include "XCSP3CoreParser.h"
 
