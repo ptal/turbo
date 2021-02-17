@@ -1,0 +1,3 @@
+problem, nodes, solutions, fails, time, optimum
+pat1.rcp, 223273, 1523, 110119, 2.21s, 19
+pat2.rcp, 87, 21, 23, 0.28s, 7
