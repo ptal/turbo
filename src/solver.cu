@@ -29,7 +29,7 @@
 CUDA_DEVICE
 bool propagate(Propagator** props, int nc, VStore& vstore, PropagatorsStatus& pstatus) {
   bool has_changed = false;
-  for(int i=0; i<nc; ++i) {
+  for(int i=nc-1; i>= 0; --i) {
     Propagator* p = props[i];
     bool has_changed2 = p->propagate(vstore);
     has_changed |= has_changed2;

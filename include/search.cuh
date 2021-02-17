@@ -271,6 +271,8 @@ struct TreeData {
     node.update(minimize_x, b);
   }
 
+  // NOTE: possible optimization:
+  //   delete all nodes from the stack that cannot improve the best bound.
   CUDA void transferToSearch() {
     for(int i = 0; i < node_array.size(); ++i) {
       Status res = node_array[i].pstatus->join();
