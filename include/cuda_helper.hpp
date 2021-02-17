@@ -15,6 +15,9 @@
 #ifndef CUDA_HELPER_HPP
 #define CUDA_HELPER_HPP
 
+#include <cstdio>
+#include <iostream>
+
 #ifdef __NVCC__
   #define CUDA __device__ __host__
   #define CUDA_DEVICE __device__

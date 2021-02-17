@@ -31,7 +31,7 @@
   },
   "solvers_config": [
     { "name": "turbo",
-      "version": "0.4",
+      "version": "0.5",
       "exec": "/home/fpinel/git/turbo/turbo",
       "globals": "" },
     { "name": "gecode",

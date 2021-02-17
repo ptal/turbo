@@ -26,7 +26,7 @@
 #include "XCSP3Constants.h"
 
 #include "vstore.cuh"
-#include "constraints.cuh"
+#include "propagators.cuh"
 
 using namespace XCSP3Core;
 
@@ -38,7 +38,7 @@ class ModelBuilder {
     Var minimize_obj;
 
   private:
-    std::vector<TemporalProp> make_temporal_constraint(std::string x, int k, OrderType op, std::string y) {
+    Propagator* make_temporal_constraint(std::string x, int k, OrderType op, std::string y) {
 
       Var xi = std::get<0>(var2idx[x]);
       Var yi = std::get<0>(var2idx[y]);
@@ -62,18 +62,14 @@ class ModelBuilder {
         xi = -xi;
       }
       else if (op == EQ) {
-        auto res = make_temporal_constraint(x, k, LE, y);
-        for (auto x : make_temporal_constraint(x, k, GE, y)) {
-          res.push_back(x);
-        }
-        return res;
+        Propagator* p1 = make_temporal_constraint(x, k, LE, y);
+        Propagator* p2 = make_temporal_constraint(x, k, GE, y);
+        return new LogicalAnd(p1, p2);
       }
       else if (op == IN || op == NE) {
         throw std::runtime_error("Operators IN and NE are not supported in unary constraints.");
       }
-      std::vector<TemporalProp> res;
-      res.push_back(TemporalProp(xi, yi, k));
-      return res;
+      return new TemporalProp(xi, yi, k);
     }
 
   public:
@@ -132,9 +128,7 @@ class ModelBuilder {
 
     // x + k <op> y
     void add_temporal_constraint(XVariable *x, int k, OrderType op, XVariable *y) {
-      for(auto x : make_temporal_constraint(x->id, k, op, y->id)) {
-        constraints.temporal.push_back(x);
-      }
+      constraints.propagators.push_back(make_temporal_constraint(x->id, k, op, y->id));
     }
 
     void add_objective_minimize(XVariable *x) {
@@ -252,7 +246,7 @@ class ModelBuilder {
     }
 
     // The node must have a very precise shape, X <= Y or X <= Y + k, otherwise a runtime_error is thrown.
-    std::vector<TemporalProp> make_temporal_constraint_from_node(Node* node) {
+    Propagator* make_temporal_constraint_from_node(Node* node) {
       if (node->type == OLE) {
         if (node->parameters.size() != 2) {
           throw std::runtime_error("Expected binary constraints.");
@@ -275,6 +269,7 @@ class ModelBuilder {
           return make_temporal_constraint(x, -k, LE, y);
         }
         else {
+          std::cout << node->toString() << std::endl;
           throw std::runtime_error("Expected rhs of type OADD or OVAR.");
         }
       }
@@ -316,7 +311,7 @@ class ModelBuilder {
           vars.push_back(std::get<0>(var2idx[n->parameters[0]->toString()]));
           constants.push_back(dynamic_cast<NodeConstant*>(n->parameters[1])->val);
         }
-        constraints.linearIneq.push_back(LinearIneq(vars, constants, c));
+        constraints.propagators.push_back(new LinearIneq(vars, constants, c));
       }
     }
 
@@ -325,12 +320,10 @@ class ModelBuilder {
           node->parameters[1]->type == OAND) {
         std::string b = node->parameters[0]->toString();
         NodeAnd* and_node = dynamic_cast<NodeAnd*>(node->parameters[1]);
-        std::vector<TemporalProp> c1 = make_temporal_constraint_from_node(and_node->parameters[0]);
-        std::vector<TemporalProp> c2 = make_temporal_constraint_from_node(and_node->parameters[1]);
-        if (c1.size() != 1 || c2.size() != 1) {
-          throw std::runtime_error("Reified constraint expects temporal constraints without equalities.");
-        }
-        constraints.reifiedLogicalAnd.push_back(ReifiedLogicalAnd(std::get<0>(var2idx[b]), c1[0], c2[0]));
+        Propagator* p1 = make_temporal_constraint_from_node(and_node->parameters[0]);
+        Propagator* p2 = make_temporal_constraint_from_node(and_node->parameters[1]);
+        Propagator* rhs = new LogicalAnd(p1, p2);
+        constraints.propagators.push_back(new ReifiedProp(std::get<0>(var2idx[b]), rhs));
       }
       else if (node->parameters[0]->type == OAND &&
         node->parameters[1]->type == OVAR) {

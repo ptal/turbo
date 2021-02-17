@@ -12,7 +12,7 @@ NVCC_FLAGS=-std=c++14 -rdc=true -arch=sm_75 -I/usr/local/cuda/include -I$(INC_DI
 EXE = turbo
 
 # Object files:
-SOURCES = $(SRC_DIR)/turbo.cu $(SRC_DIR)/solver.cu
+SOURCES = $(SRC_DIR)/propagators.cu $(SRC_DIR)/turbo.cu $(SRC_DIR)/solver.cu
 INC_ONLY = $(INC_DIR)/*
 
 ## Compile ##

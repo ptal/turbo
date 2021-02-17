@@ -16,7 +16,7 @@
 #define TURBO_SOLVER_HPP
 
 #include "vstore.cuh"
-#include "constraints.cuh"
+#include "propagators.cuh"
 
 void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout);
 

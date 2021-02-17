@@ -140,45 +140,6 @@ public:
   }
 };
 
-// class Stack {
-//   VStore* stack[INITIAL_STACK_SIZE];
-//   size_t stack_size;
-// public:
-//   Stack(const VStore& root) {
-//     for (int i=0; i < INITIAL_STACK_SIZE; ++i) {
-//       malloc2_managed(stack[i], 1);
-//       new(stack[i]) VStore(root, no_copy_tag());
-//     }
-//     stack[0]->reset(root);
-//     stack_size = 1;
-//   }
-
-//   CUDA VStore*& pop() {
-//     LOG(printf("pop frame %lu\n", stack_size - 1));
-//     assert(stack_size > 0);
-//     --stack_size;
-//     return stack[stack_size];
-//   }
-
-//   CUDA VStore*& next_frame() {
-//     assert((stack_size + 1) < INITIAL_STACK_SIZE);
-//     ++stack_size;
-//     return stack[stack_size - 1];
-//   }
-
-//   CUDA bool is_empty() const {
-//     return stack_size == 0;
-//   }
-
-//   CUDA size_t size() const {
-//     return stack_size;
-//   }
-
-//   CUDA size_t capacity() {
-//     return INITIAL_STACK_SIZE;
-//   }
-// };
-
 // Select the variable with the smallest domain in the store.
 CUDA Var first_fail(const VStore& vstore, Var* vars) {
   Var x = -1;
