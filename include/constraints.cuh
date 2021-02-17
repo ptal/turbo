@@ -233,9 +233,7 @@ struct LinearIneq {
   CUDA int potential(const VStore& vstore) const {
     int potential = 0;
     for(int i=0; i < n; ++i) {
-      if (vstore.lb(vars[i]) == 0 && vstore.ub(vars[i]) == 1) {
-        potential += constants[i];
-      }
+      potential += vstore.ub(vars[i]) * constants[i];
     }
     return potential;
   }
@@ -257,8 +255,8 @@ struct LinearIneq {
   //     |-------------------|_____|____|------|
   //               ^               ^        ^
   //            lb = 1            max    ub = 0
-  //                         |_________________|
-  //                              potential
+  //     |______________________________|
+  //                           potential
   //                         |_____|
   //                          slack
   //
@@ -270,7 +268,7 @@ struct LinearIneq {
     // The reason is that whenever `constants[i] > s` it will stay true for any slack s' since s > s' by def. of the function slack.
     for(int i=0; i < n; ++i) {
       Interval x = vstore.view_of(vars[i]);
-      if (x.lb == 0 && x.ub == 1 && constants[i] > s) {
+      if (constants[i] > s) {
         has_changed |= vstore.assign(vars[i], 0);
       }
     }
@@ -291,7 +289,7 @@ struct LinearIneq {
   CUDA bool is_entailed(const VStore& vstore) const {
     return
          !one_top(vstore)
-      && potential(vstore) <= slack(vstore);
+      && potential(vstore) <= max;
   }
 
   CUDA bool is_disentailed(const VStore& vstore) const {
