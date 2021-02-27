@@ -471,7 +471,6 @@ void XCSP3_turbo_callbacks::buildConstraintExtensionAs(string id, vector<XVariab
   throw std::runtime_error("constraint unsupported");
 }
 
-
 void XCSP3_turbo_callbacks::buildConstraintIntension(string id, string expr) {
   if(debug) {
     cout << "\n    intension constraint (using string) : " << id << " : " << expr << endl;
@@ -479,28 +478,29 @@ void XCSP3_turbo_callbacks::buildConstraintIntension(string id, string expr) {
   throw std::runtime_error("constraint unsupported");
 }
 
-
 void XCSP3_turbo_callbacks::buildConstraintIntension(string id, Tree *tree) {
   if(debug) {
     cout << "\n    intension constraint using canonized tree: " << id << " : ";
     tree->prefixe();
     std::cout << "\n";
   }
-  model_builder->add_constraint(tree);
+  Propagator* p = model_builder->intensional_constraint(tree->root);
+  model_builder->push(p);
 }
 
 void XCSP3_turbo_callbacks::buildConstraintPrimitive(string id, OrderType op, XVariable *x, int k, XVariable *y) {
   if(debug) {
     cout << "\n   intension constraint " << id << ": " << x->id << (k >= 0 ? "+" : "") << k << " op " << y->id << endl;
   }
-  model_builder->add_temporal_constraint(x, k, op, y);
+  Propagator* p = model_builder->temporal_constraint(x, k, op, y);
+  model_builder->push(p);
 }
 
 void XCSP3_turbo_callbacks::buildConstraintPrimitive(string id, OrderType op, XVariable *x, int k) {
   if(debug) {
     cout << "\n   constraint  " << id << ":" << x->id << " op " << k << "\n";
   }
-  model_builder->strengthen_domain(x, op, k);
+  model_builder->domain_constraint(x, op, k);
 }
 
 void XCSP3_turbo_callbacks::buildConstraintPrimitive(string id, XVariable *x, bool in, int min, int max) {
