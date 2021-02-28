@@ -100,6 +100,7 @@ class ModelBuilder {
           }
           else if(isRelationalOperator(node->type)) {
             move_expr_to_lhs(node);
+            move_var_to_lhs(node);
             Node* lhs = node->parameters[0];
             switch (lhs->type) {
               case OADD: p = add_sub_expr_constraint(node, std::bind(&ModelBuilder::add_lhs, this, _1, _2, _3)); break;
@@ -109,6 +110,19 @@ class ModelBuilder {
               case OMOD: p = mod_expr_constraint(node); break;
               default:
                 error(node, "This arithmetic operator is not supported.");
+            }
+          }
+          else if(node->type == OAND || node->type == OOR) {
+            Propagator* lhs = intensional_constraint(node->parameters[0]);
+            Propagator* rhs = intensional_constraint(node->parameters[1]);
+            if(lhs == nullptr || rhs == nullptr) {
+              error(node, "non-composable constraints");
+            }
+            if(node->type == OAND) {
+              p = new LogicalAnd(lhs, rhs);
+            }
+            else if(node->type == OOR) {
+              p = new LogicalOr(lhs, rhs);
             }
           }
           // b <=> C
@@ -124,28 +138,22 @@ class ModelBuilder {
     }
 
     Propagator* reified_constraint(Node* node) {
-      if (node->parameters[0]->type == OVAR &&
-          node->parameters[1]->type == OAND)
+      if (node->parameters[0]->type == OVAR)
       {
         std::string b = node->parameters[0]->toString();
-        NodeAnd* and_node = dynamic_cast<NodeAnd*>(node->parameters[1]);
-        assert(and_node->parameters.size() == 2);
-        Propagator* p1 = intensional_constraint(and_node->parameters[0]);
-        Propagator* p2 = intensional_constraint(and_node->parameters[1]);
-        if(p1 == nullptr || p2 == nullptr) {
+        Propagator* rhs = intensional_constraint(node->parameters[1]);
+        if(rhs == nullptr) {
           error(node, "non-reifiable constraints");
         }
-        Propagator* rhs = new LogicalAnd(p1, p2);
         return new ReifiedProp(std::get<0>(var2idx[b]), rhs);
       }
-      else if (node->parameters[0]->type == OAND &&
-               node->parameters[1]->type == OVAR)
+      else if (node->parameters[1]->type == OVAR)
       {
         std::swap(node->parameters[0], node->parameters[1]);
         return reified_constraint(node);
       }
       else {
-        error(node, "Expected reified constraint of the form  b <=> (c1 /\\ c2)");
+        error(node, "Expected reified constraint of the form  b <=> C");
         return nullptr;
       }
     }
@@ -286,7 +294,9 @@ class ModelBuilder {
       else if(z->type == OVAR && yi == 0) {
         yi = -std::get<0>(var2idx[z->toString()]);
       }
-      else { assert(false); }
+      else if(z->type != ODECIMAL) {
+        error(node, "three variables detected in primitive constraint.");
+      }
       // Case where x <op> k
       auto inv = [](OrderType o) {
         switch(o) {
@@ -361,6 +371,18 @@ class ModelBuilder {
       }
       else if(ty2 != OVAR && ty2 != ODECIMAL) {
         error(node, "expected one side of intensional constraint to be either a constant or a variable.");
+      }
+    }
+
+    // Given a node where `x <op> y`, transform it into `x - y <op> 0`.
+    void move_var_to_lhs(Node* node) {
+      if(node->parameters[0]->type == OVAR && node->parameters[1]->type == OVAR) {
+        Node* rhs = new NodeConstant(0);
+        NodeSub* lhs = new NodeSub();
+        lhs->addParameter(node->parameters[0]);
+        lhs->addParameter(node->parameters[1]);
+        node->parameters[0] = lhs;
+        node->parameters[1] = rhs;
       }
     }
 
@@ -483,7 +505,7 @@ class ModelBuilder {
         case GT: res = l > k; break;
         case EQ: res = l == k; break;
         case NE: res = l != k; break;
-        default: assert(false);
+        default: throw std::runtime_error("tautology: cannot handle this operator.");
       }
       if(!res) {
         add_var("fake var (contradiction detected at root node)", 1, 0);
