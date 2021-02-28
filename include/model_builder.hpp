@@ -279,6 +279,9 @@ class ModelBuilder {
       }
       if(y->type == OVAR) {
         yi = std::get<0>(var2idx[y->toString()]);
+        if(lhs->type == OSUB) {
+          yi = -yi;
+        }
       }
       if(z->type == ODECIMAL) {
         k = val(z);
@@ -377,12 +380,11 @@ class ModelBuilder {
     // Given a node where `x <op> y`, transform it into `x - y <op> 0`.
     void move_var_to_lhs(Node* node) {
       if(node->parameters[0]->type == OVAR && node->parameters[1]->type == OVAR) {
-        Node* rhs = new NodeConstant(0);
         NodeSub* lhs = new NodeSub();
         lhs->addParameter(node->parameters[0]);
         lhs->addParameter(node->parameters[1]);
         node->parameters[0] = lhs;
-        node->parameters[1] = rhs;
+        node->parameters[1] = new NodeConstant(0);
       }
     }
 

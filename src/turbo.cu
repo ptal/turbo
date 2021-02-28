@@ -51,8 +51,6 @@ int main(int argc, char** argv) {
     Constraints constraints = model_builder->build_constraints();
     VStore* vstore = model_builder->build_store();
     Var minimize_x = model_builder->build_minimize_obj();
-    // vstore->print();
-    // constraints.print();
     solve(vstore, constraints, minimize_x, timeout);
     vstore->free_names();
     vstore->~VStore();
