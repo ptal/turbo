@@ -263,6 +263,16 @@ class ModelBuilder {
       }
     }
 
+    OrderType inv(OrderType o) {
+      switch(o) {
+        case LE: return GE;
+        case LT: return GT;
+        case GE: return LE;
+        case GT: return LT;
+        default: return o;
+      }
+    }
+
     // Precondition: constraint of the form `x + y <op> z` or `x - y <op> z` where x,y,z can be variables or integers.
     Propagator* add_sub_expr_constraint(Node* node, std::function<void(Node* node,int&,bool)> treat_lhs) {
       int xi = 0;
@@ -301,15 +311,6 @@ class ModelBuilder {
         error(node, "three variables detected in primitive constraint.");
       }
       // Case where x <op> k
-      auto inv = [](OrderType o) {
-        switch(o) {
-          case LE: return GE;
-          case LT: return GT;
-          case GE: return LE;
-          case GT: return LT;
-          default: return o;
-        }
-      };
       if(xi == 0 && yi != 0) {
         if(yi < 0) { yi = -yi; k = -k; op = inv(op); }
         strengthen_domain(idx2var[yi], op, k);
@@ -371,6 +372,7 @@ class ModelBuilder {
       int ty2 = node->parameters[1]->type;
       if(ty1 == OVAR || ty1 == ODECIMAL && ty2 != ODECIMAL) {
         std::swap(node->parameters[0], node->parameters[1]);
+        node->type = from_order_type(inv(to_order_type(node->type)));
       }
       else if(ty2 != OVAR && ty2 != ODECIMAL) {
         error(node, "expected one side of intensional constraint to be either a constant or a variable.");
@@ -466,18 +468,33 @@ class ModelBuilder {
     }
 
     OrderType to_order_type(ExpressionType t) {
-        switch(t) {
-          case OLE: return LE;
-          case OLT: return LT;
-          case OGE: return GE;
-          case OGT: return GT;
-          case OEQ: return EQ;
-          case ONE: return NE;
-          case OIN: return IN;
-          default:
-            throw std::runtime_error("Unsupported unary domain operator.");
-        }
+      switch(t) {
+        case OLE: return LE;
+        case OLT: return LT;
+        case OGE: return GE;
+        case OGT: return GT;
+        case OEQ: return EQ;
+        case ONE: return NE;
+        case OIN: return IN;
+        default:
+          throw std::runtime_error("Unsupported relational operator.");
+      }
     }
+
+    ExpressionType from_order_type(OrderType t) {
+      switch(t) {
+        case LE: return OLE;
+        case LT: return OLT;
+        case GE: return OGE;
+        case GT: return OGT;
+        case EQ: return OEQ;
+        case NE: return ONE;
+        case IN: return OIN;
+        default:
+          throw std::runtime_error("Unsupported relational operator.");
+      }
+    }
+
 
     void unary_constraint(Node* node) {
       bool treated = le_mul_domain(node);
