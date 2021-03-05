@@ -27,12 +27,11 @@
   #define CUDIE(result) { \
     cudaError_t e = (result); \
     if (e != cudaSuccess) { \
-      std::cerr << __FILE__ << ":" << __LINE__; \
-      std::cerr << " CUDA runtime error: " << cudaGetErrorString(e) << '\n'; \
-      exit((int)e); \
+      printf("%s:%d CUDA runtime error %s\n", __FILE__, __LINE__, cudaGetErrorString(e)); \
     }}
 
   #define CUDIE0() CUDIE(cudaGetLastError())
+
 #endif
 
 template<typename T>CUDA T min(T a, T b) { return a<=b ? a : b; }

@@ -46,7 +46,10 @@ bool propagate(Propagator** props, int nc, VStore& vstore, PropagatorsStatus& ps
 }
 
 CUDA_GLOBAL void propagate_nodes_k(
-    TreeData* td, Propagator** props, int nc) {
+    TreeData* td, 
+    Propagator** props, 
+    int nc)
+{
   int nid = threadIdx.x + blockIdx.x * blockDim.x;
   if (nid >= td->node_array.size()) { return; }
 
@@ -62,85 +65,50 @@ CUDA_GLOBAL void propagate_nodes_k(
   }
 }
 
-CUDA_GLOBAL void transfer_from_search(TreeData* td) {
-  td->transferFromSearch();
-}
-CUDA_GLOBAL void transfer_to_search(TreeData* td) {
-  //int i = threadIdx.x + blockIdx.x*blockDim.x;
-  //td->transferToSearch_i(i);  // doesn't work, because write access to stack/node_array
-  td->transferToSearch();
+CUDA_GLOBAL void explore(
+    TreeData *tree_data, 
+    Propagator **props, 
+    int cons_sz)
+{
+  while (!tree_data->stack.is_empty()) {
+    tree_data->transferFromSearch();
+    propagate_nodes_k<<<1, 1>>>(tree_data, props, cons_sz);
+    CUDIE(cudaDeviceSynchronize());
+    tree_data->transferToSearch();
+  }
 }
 
 void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
 {
   INFO(constraints.print(*vstore));
 
-  auto t1 = std::chrono::high_resolution_clock::now();
-
   Var* temporal_vars = constraints.temporal_vars(vstore->size());
 
+  std::cout << "Start transfering propagator to device memory." << std::endl;
+  auto t1 = std::chrono::high_resolution_clock::now();
+  Propagator** props;
+  CUDIE(cudaMallocManaged(&props, constraints.size() * sizeof(Propagator*)));
+  for (auto p : constraints.propagators) {
+    // std::cout << "Transferring " << p->uid << std::endl;
+    props[p->uid] = p->to_device();
+  }
+  auto t2 = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
+  std::cout << "Finish transfering propagators to device memory (" << duration << " ms)" << std::endl;
+
+  // process one tree (subtree later), within a CUDA thread
   TreeData *tree_data;
   CUDIE(cudaMallocManaged(&tree_data, sizeof(*tree_data)));
   new(tree_data) TreeData(temporal_vars, minimize_x, *vstore, constraints.size());
 
-  std::cout << "Start transfering propagator to device memory." << std::endl;
-  Propagator** props;
-  CUDIE(cudaMallocManaged(&props, constraints.size() * sizeof(Propagator*)));
-  for (auto p : constraints.propagators) {
-    std::cout << "Transferring " << p->uid << std::endl;
-    props[p->uid] = p->to_device();
-  }
-  std::cout << "Finish transfering propagators to device memory." << std::endl;
+  t1 = std::chrono::high_resolution_clock::now();
 
-  int64_t durf (0);
-  int64_t durk (0);
-  int64_t durt (0);
+  explore<<<1,1>>>(tree_data, props, constraints.size());
+  CUDIE(cudaDeviceSynchronize());
 
-  int loops (0);
-  int device;
-  CUDIE(cudaGetDevice(&device));
-  cudaDeviceProp cudaProperties;
-  CUDIE(cudaGetDeviceProperties(&cudaProperties, device));
-  int nproc = cudaProperties.multiProcessorCount;
-  std::cout<<"processors "<<nproc<<'\n';
-  int threads, blocks;
-
-  while (!tree_data->stack.is_empty()) {
-    loops++;
-    auto current = std::chrono::high_resolution_clock::now();
-    if (std::chrono::duration_cast<std::chrono::seconds>(current - t1).count() > timeout) {
-      break;
-    }
-    auto ts = std::chrono::high_resolution_clock::now();
-    tree_data->transferFromSearch();
-    //transfer_from_search<<<1,1>>>(tree_data);
-    //CUDIE(cudaDeviceSynchronize());
-    auto tf = std::chrono::high_resolution_clock::now();
-    durf += std::chrono::duration_cast<std::chrono::milliseconds>( tf - ts ).count();
-
-    //propagate_nodes_k<<<tree_data->node_array.size(), 1>>>(
-    threads = 4;
-    blocks = (1 + tree_data->node_array.size()/threads);
-    ts = std::chrono::high_resolution_clock::now();
-    propagate_nodes_k<<<blocks, threads>>>(
-        tree_data, props, constraints.size());
-    CUDIE(cudaDeviceSynchronize());
-    tf = std::chrono::high_resolution_clock::now();
-    durk += std::chrono::duration_cast<std::chrono::milliseconds>( tf - ts ).count();
-
-    ts = std::chrono::high_resolution_clock::now();
-    tree_data->transferToSearch();
-    //transfer_to_search<<<1, 1>>>(tree_data);
-    //CUDIE(cudaDeviceSynchronize());
-    tf = std::chrono::high_resolution_clock::now();
-    durt += std::chrono::duration_cast<std::chrono::milliseconds>( tf - ts ).count();
-  }
-
-  auto t2 = std::chrono::high_resolution_clock::now();
+  t2 = std::chrono::high_resolution_clock::now();
   CUDIE(cudaFree(props));
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
-
-  std::cout <<"[x"<<loops<<"] TPB="<<threads<<", fromsearch="<<durf<<", kernels="<<durk<<", tosearch="<<durt<<" (ms)\n";
+  duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
 
   tree_data->stats.print();
   if(duration > timeout * 1000) {
