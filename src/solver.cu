@@ -70,12 +70,29 @@ CUDA_GLOBAL void explore(
     Propagator **props, 
     int cons_sz)
 {
+  int tid = blockIdx.x + threadIdx.x*blockDim.x;
   while (!tree_data->stack.is_empty()) {
     tree_data->transferFromSearch();
-    propagate_nodes_k<<<1, 1>>>(tree_data, props, cons_sz);
+    printf("nodes %d\n", tree_data->node_array.size());
+    propagate_nodes_k<<<1, tree_data->node_array.size()>>>(tree_data, props, cons_sz);
     CUDIE(cudaDeviceSynchronize());
     tree_data->transferToSearch();
   }
+}
+
+CUDA_GLOBAL void new_tree(
+    TreeData *tree_data, 
+    Var* temporal_vars, 
+    Var minimize_x, 
+    VStore* vstore,
+    size_t csize)
+{
+  new(tree_data) TreeData(temporal_vars, minimize_x, *vstore, csize);
+}
+
+CUDA_GLOBAL void tree_stats(TreeData *tree_data)
+{
+  tree_data->stats.print();
 }
 
 void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
@@ -98,8 +115,10 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
 
   // process one tree (subtree later), within a CUDA thread
   TreeData *tree_data;
-  CUDIE(cudaMallocManaged(&tree_data, sizeof(*tree_data)));
-  new(tree_data) TreeData(temporal_vars, minimize_x, *vstore, constraints.size());
+  CUDIE(cudaMalloc(&tree_data, sizeof(*tree_data)));
+  new_tree<<<1, 1>>>(tree_data, temporal_vars, minimize_x, vstore, constraints.size());
+  CUDIE(cudaDeviceSynchronize());
+  //new(tree_data) TreeData(temporal_vars, minimize_x, *vstore, constraints.size());
 
   t1 = std::chrono::high_resolution_clock::now();
 
@@ -110,7 +129,10 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
   CUDIE(cudaFree(props));
   duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
 
-  tree_data->stats.print();
+  tree_stats<<<1,1>>>(tree_data);
+  CUDIE(cudaDeviceSynchronize());
+  //tree_data->stats.print();
+
   if(duration > timeout * 1000) {
     std::cout << "solveTime=timeout" << std::endl;
   }

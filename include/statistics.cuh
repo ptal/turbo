@@ -27,7 +27,7 @@ struct Statistics {
   CUDA Statistics(): nodes(0), fails(0), sols(0),
     best_bound(-1), peak_depth(0) {}
 
-  void print() {
+  CUDA void print() {
     printf("nodes=%d\n", nodes);
     printf("fails=%d\n", fails);
     printf("solutions=%d\n", sols);

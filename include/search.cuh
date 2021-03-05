@@ -33,9 +33,9 @@ struct NodeData {
   PropagatorsStatus* pstatus;
   VStore* vstore;
 
-  NodeData() = default;
+  CUDA NodeData() = default;
 
-  NodeData(const VStore& root, int n): n(n) {
+  CUDA NodeData(const VStore& root, int n): n(n) {
     malloc2_managed<PropagatorsStatus>(pstatus, 1);
     new(pstatus) PropagatorsStatus(n);
     malloc2_managed(vstore, 1);
@@ -43,7 +43,7 @@ struct NodeData {
     vstore->reset(root);
   }
 
-  ~NodeData() {
+  CUDA ~NodeData() {
     if(pstatus != nullptr) {
       pstatus->~PropagatorsStatus();
       free2(pstatus);
@@ -60,11 +60,11 @@ class Stack {
   size_t stack_size;
 public:
 
-  /* static */ VStore** init_stack(const VStore& root) {
+  CUDA /* static */ VStore** init_stack(const VStore& root) {
     VStore** stack;
     malloc2_managed(stack, INITIAL_STACK_SIZE);
     for (int i=0; i < INITIAL_STACK_SIZE; ++i) {
-      malloc2_managed(stack[i], 1);
+      malloc2(stack[i], 1);
       new(stack[i]) VStore(root, no_copy_tag());
       stack[i]->reset(root);
     }
@@ -73,7 +73,7 @@ public:
 
   CUDA /* static */ VStore** init_stack2(const VStore& root) {
     VStore** stack;
-    malloc2_managed(stack, INITIAL_STACK_SIZE);
+    malloc2(stack, INITIAL_STACK_SIZE);
     for (int i=0; i < INITIAL_STACK_SIZE; ++i) {
       malloc2_managed(stack[i], 1);
       new(stack[i]) VStore(root, no_copy_tag());
@@ -81,7 +81,7 @@ public:
     return stack;
   }
 
-  Stack(const VStore& root): stacks_capacity(1),
+  CUDA Stack(const VStore& root): stacks_capacity(1),
     stack_no(0), stack_size(1)
   {
     malloc2_managed(stacks, stacks_capacity);
@@ -187,7 +187,7 @@ class NodeArray {
   NodeData data[MAX_NODE_ARRAY];
   size_t data_size;
 public:
-  NodeArray(const VStore& root, int np) {
+  CUDA NodeArray(const VStore& root, int np) {
     for (int i=0; i < MAX_NODE_ARRAY; ++i) {
       new(&data[i]) NodeData(root, np);
     }
@@ -231,7 +231,7 @@ struct TreeData {
   Stack stack;
   NodeArray node_array;
 
-  TreeData(Var* temporal_vars, Var minimize_x, const VStore& root, int np):
+  CUDA TreeData(Var* temporal_vars, Var minimize_x, const VStore& root, int np):
     temporal_vars(temporal_vars), minimize_x(minimize_x),
     best_sol(root.size(), no_copy_tag()), stack(root), node_array(root, np)
   {}

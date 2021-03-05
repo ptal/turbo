@@ -47,14 +47,14 @@ class PropagatorsStatus {
   size_t n;
 
 public:
-  PropagatorsStatus(size_t n): changed(false), n(n) {
+  CUDA PropagatorsStatus(size_t n): changed(false), n(n) {
     malloc2_managed(status, n);
     for(int i = 0; i < n; ++i) {
       status[i] = UNKNOWN;
     }
   }
 
-  ~PropagatorsStatus() {
+  CUDA ~PropagatorsStatus() {
     // free2(status);
   }
 

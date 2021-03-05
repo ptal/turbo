@@ -98,13 +98,13 @@ public:
     free2(names);
   }
 
-  VStore(int nvar) {
+  CUDA VStore(int nvar) {
     n = nvar;
     malloc2_managed(data, n);
   }
-  VStore(const VStore& other) = delete;
+  CUDA VStore(const VStore& other) = delete;
 
-  VStore(const VStore& other, no_copy_tag) {
+  CUDA VStore(const VStore& other, no_copy_tag) {
     n = other.n;
     names = other.names;
     names_len = other.names_len;
@@ -125,7 +125,7 @@ public:
     }
   }
 
-  ~VStore() {
+  CUDA ~VStore() {
     cudaFree(data);
   }
 
