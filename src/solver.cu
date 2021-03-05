@@ -75,7 +75,6 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
 {
   INFO(constraints.print(*vstore));
 
-  auto t1 = std::chrono::high_resolution_clock::now();
 
   Var* temporal_vars = constraints.temporal_vars(vstore->size());
 
@@ -84,13 +83,16 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
   new(tree_data) TreeData(temporal_vars, minimize_x, *vstore, constraints.size());
 
   std::cout << "Start transfering propagator to device memory." << std::endl;
+  auto t1 = std::chrono::high_resolution_clock::now();
   Propagator** props;
   CUDIE(cudaMallocManaged(&props, constraints.size() * sizeof(Propagator*)));
   for (auto p : constraints.propagators) {
-    std::cout << "Transferring " << p->uid << std::endl;
+    //std::cout << "Transferring " << p->uid << std::endl;
     props[p->uid] = p->to_device();
   }
-  std::cout << "Finish transfering propagators to device memory." << std::endl;
+  auto t2 = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
+  std::cout << "Finish transfering propagators to device memory (" << duration << " ms)." << std::endl;
 
   int64_t durf (0);
   int64_t durk (0);
@@ -136,9 +138,9 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
     durt += std::chrono::duration_cast<std::chrono::milliseconds>( tf - ts ).count();
   }
 
-  auto t2 = std::chrono::high_resolution_clock::now();
+  t2 = std::chrono::high_resolution_clock::now();
   CUDIE(cudaFree(props));
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
+  duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
 
   std::cout <<"[x"<<loops<<"] TPB="<<threads<<", fromsearch="<<durf<<", kernels="<<durk<<", tosearch="<<durt<<" (ms)\n";
 
