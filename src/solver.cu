@@ -113,16 +113,11 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
   std::cout << "Finish transfering propagators to device memory (" << duration << " ms)" << std::endl;
 
-  // process one tree (subtree later), within a CUDA thread
-  TreeData *tree_data;
-  CUDIE(cudaMalloc(&tree_data, sizeof(*tree_data)));
-  new_tree<<<1, 1>>>(tree_data, temporal_vars, minimize_x, vstore, constraints.size());
-  CUDIE(cudaDeviceSynchronize());
-  //new(tree_data) TreeData(temporal_vars, minimize_x, *vstore, constraints.size());
+  TreeAndPar *tree_data;
 
   t1 = std::chrono::high_resolution_clock::now();
 
-  explore<<<1,1>>>(tree_data, props, constraints.size());
+  search<<<1,1>>>(tree_data, props, constraints.size());
   CUDIE(cudaDeviceSynchronize());
 
   t2 = std::chrono::high_resolution_clock::now();
