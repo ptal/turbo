@@ -349,13 +349,13 @@ struct TreeAndPar
   Var *branching_vars;
   Propagator *props;
   int props_sz;
-  VStore root;
-  VStore current;
-  Delta deltas[DEPTH_MAX];
+  __shared__ VStore root;
+  __shared__ VStore current;
+  __shared__ Delta deltas[DEPTH_MAX];
   int deltas_sz;
-  PropagatorsStatus pstatus;
+  __shared__ PropagatorsStatus pstatus;
   Interval *best_bound;
-  VStore best_sol;
+  __shared__ VStore best_sol;
   Var minimize_x;
 
   CUDA TreeAndPar(VStore root, Propagator *props, int props_sz, Var *vars, 
@@ -370,19 +370,6 @@ struct TreeAndPar
    for (int i=0; i < deltas_sz; ++i) {
     current.update(deltas[i].x, deltas[i].next);
    }
-  }
-
-  CUDA void propagate(int i) {
-    Propagator& p = props[i];
-    bool has_changed = p.propagate(current);
-    Status s = has_changed ? UNKNOWN : IDLE;
-    if(p.is_entailed(current)) {
-      s = ENTAILED;
-    }
-    if(p.is_disentailed(current)) {
-      s = DISENTAILED;
-    }
-    pstatus.inplace_join(p.uid, s);
   }
 
   CUDA void backtrack() {
@@ -404,34 +391,67 @@ struct TreeAndPar
       current->lb(x), current->ub(x)));
   }
 
-  CUDA void search() {
+  CUDA void propagate_one(int i) {
+    Propagator& p = props[i];
+    bool has_changed = p.propagate(current);
+    Status s = has_changed ? UNKNOWN : IDLE;
+    if(p.is_entailed(current)) {
+      s = ENTAILED;
+    }
+    if(p.is_disentailed(current)) {
+      s = DISENTAILED;
+    }
+    pstatus.inplace_join(p.uid, s);
+  }
+
+  CUDA void propagate_stride(int tid, int stride) {
+    Status s = UNKNOWN;
+    while(s == UNKNOWN || s.has_changed()) {
+      if (tid == 0) {
+        tree->pstatus.reset_changed();
+      }
+      __threadfence_block();
+      for (int t=tid; t<props_sz; t+=stride) {
+        propagate_one(tid);
+      }
+      __threadfence_block();
+      s = pstatus.join();
+    }
+  }
+
+  CUDA void search(int tid, int stride) {
     Interval b;
     while (deltas_sz >= 0) {
-      b = {best_bound.lb, best_bound.ub - 1};
-      current.update(minimize_x, b);
-      propagate_k<<<1, min(props_sz, 256)>>>(this);
-      CUDIE(cudaDeviceSynchronize());
-      Status res = pstatus.join();
-      res = (current.is_top() ? DISENTAILED : res);
-      if (res == DISENTAILED) {
-        INFO(printf("backtracking on failed node %p...\n", this));
-        backtrack();
-        replay();
-      }
-      else if (res == ENTAILED) {
-        INFO(printf("previous best...(bound %d..%d)\n", best_bound.lb, best_bound.ub));
-        Interval new_bound = current.view_of(minimize_x);
-        // Due to parallelism, it is possible that several bounds are found in one iteration, thus we need to perform a (lattice) join on the best bound.
-        best_bound.ub = min(best_bound.ub, new_bound.lb);
-        INFO(printf("backtracking on solution...(bound %d..%d)\n", best_bound.lb, best_bound.ub));
-        best_sol.reset(current);
-        backtrack();
-        replay();
-      }
-      else {
-        assert(res == IDLE);
-        INFO(printf("branching on unknown...(bound %d..%d)\n", best_bound.lb, best_bound.ub));
-        branch();
+      if (tid == 0) {
+          b = {best_bound.lb, best_bound.ub - 1};
+          current.update(minimize_x, b);
+      } 
+      __syncthreads();
+      propagate_stride(tid, stride);
+      __syncthreads();
+      if (tid == 0) {
+        Status res = pstatus.join();
+        res = (current.is_top() ? DISENTAILED : res);
+        if (res == DISENTAILED) {
+          INFO(printf("backtracking on failed node %p...\n", this));
+          backtrack();
+          replay();
+        }
+        else if (res == ENTAILED) {
+          INFO(printf("previous best...(bound %d..%d)\n", best_bound.lb, best_bound.ub));
+          Interval new_bound = current.view_of(minimize_x);
+          // Due to parallelism, it is possible that several bounds are found in one iteration, thus we need to perform a (lattice) join on the best bound.
+          best_bound.ub = min(best_bound.ub, new_bound.lb);
+          INFO(printf("backtracking on solution...(bound %d..%d)\n", best_bound.lb, best_bound.ub));
+          best_sol.reset(current);
+          backtrack();
+          replay();
+        }
+        else {
+          assert(res == IDLE);
+          INFO(printf("branching on unknown...(bound %d..%d)\n", best_bound.lb, best_bound.ub));
+          branch();
+        }
       }
     }
   }

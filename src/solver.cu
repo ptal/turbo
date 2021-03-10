@@ -90,10 +90,21 @@ CUDA_GLOBAL void new_tree(
   new(tree_data) TreeData(temporal_vars, minimize_x, *vstore, csize);
 }
 
-CUDA_GLOBAL void tree_stats(TreeData *tree_data)
+CUDA_GLOBAL void search_k()
 {
-  tree_data->stats.print();
+  // initialiser shared
+  // creer TreeAndPar
+  int tid = threadIdx.x + blockIdx.x * blockDim.x;
+  int nodeid = blockIdx.x;
+  int stride = gridDim.x * blockDim.x;
+  if (tid == 0) {
+    // construire treeandpar 
+  }
+  __syncthread();
+  tree->search(tid, stride);
 }
+
+__shared__ TreeAndPar tree[OR_NODES];
 
 void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
 {
@@ -113,11 +124,9 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
   std::cout << "Finish transfering propagators to device memory (" << duration << " ms)" << std::endl;
 
-  TreeAndPar *tree_data;
-
   t1 = std::chrono::high_resolution_clock::now();
 
-  search<<<1,1>>>(tree_data, props, constraints.size());
+  search<<<1,512>>>(tree_data, props, constraints.size());
   CUDIE(cudaDeviceSynchronize());
 
   t2 = std::chrono::high_resolution_clock::now();
