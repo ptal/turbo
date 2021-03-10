@@ -48,7 +48,7 @@ class PropagatorsStatus {
 
 public:
   CUDA PropagatorsStatus(size_t n): changed(false), n(n) {
-    malloc2_managed(status, n);
+    malloc2(status, n);
     for(int i = 0; i < n; ++i) {
       status[i] = UNKNOWN;
     }

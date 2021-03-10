@@ -316,4 +316,73 @@ struct TreeData {
   }
 };
 
+// -------------------------------------------------------------------------------------
+
+#define DEPTH_MAX 200
+
+struct Delta
+{
+  Var x;
+  Interval next, right;
+  CUDA Delta(Var x, Interval l, Interval r) : x(x), next(l), right(r) {}
+};
+
+__global__ void propagate_k(TreeAndPar *tree) {
+  int tid = threadIdx.x + blockIdx.x * blockDim.x;
+  int stride = gridDim.x * blockDim.x;
+  Status s = UNKNOWN;
+  while(s == UNKNOWN || s.has_changed()) {
+    if (tid == 0) {
+      tree->pstatus.reset_changed();
+    }
+    __threadfence_block();
+    for (int t=tid; t<tree->props_sz; t+=stride) {
+      tree->propagate(t);
+    }
+    __threadfence_block();
+    s = tree->pstatus.join();
+  }
+}
+
+struct TreeAndPar
+{
+  Propagator *props;
+  int props_sz;
+  VStore root;
+  VStore current;
+  Delta deltas[DEPTH_MAX];
+  int deltas_sz;
+  PropagatorsStatus pstatus;
+
+  CUDA TreeAndPar(VStore root, Propagator *props, int props_sz) : 
+    root(root), props(props), props_sz(props_sz), delta_sz(0), pstatus(props_sz) {}
+
+  CUDA void replay() {
+   current = root;
+   deltas[deltas_sz -1].next = delta[deltas_sz -1].right;
+   for (int i=0; i < deltas_sz; ++i) {
+    current.update(deltas[i].x, deltas[i].next);
+   }
+  }
+
+  CUDA void propagate(int i) {
+    Propagator& p = props[i];
+    bool has_changed = p.propagate(current);
+    Status s = has_changed ? UNKNOWN : IDLE;
+    if(p.is_entailed(current)) {
+      s = ENTAILED;
+    }
+    if(p.is_disentailed(current)) {
+      s = DISENTAILED;
+    }
+    pstatus.inplace_join(p.uid, s);
+  }
+
+  CUDA void search() {
+
+  }
+
+  
+};
+
 #endif

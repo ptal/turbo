@@ -51,11 +51,11 @@ CUDA_GLOBAL void propagate_nodes_k(
     int nc)
 {
   int nid = threadIdx.x + blockIdx.x * blockDim.x;
-  if (nid >= td->node_array.size()) { return; }
+  if (nid >= nc) { return; }
 
   bool has_changed = true;
-  PropagatorsStatus& pstatus = *(td->node_array[nid].pstatus);
-  VStore& vstore = *(td->node_array[nid].vstore);
+  PropagatorsStatus& pstatus = *(td->node_array->pstatus);
+  VStore& vstore = *(td->node_array->vstore);
   while(has_changed && pstatus.join() < ENTAILED) {
     has_changed = propagate(props, nc, vstore, pstatus);
   }
@@ -74,7 +74,7 @@ CUDA_GLOBAL void explore(
   while (!tree_data->stack.is_empty()) {
     tree_data->transferFromSearch();
     printf("nodes %d\n", tree_data->node_array.size());
-    propagate_nodes_k<<<1, tree_data->node_array.size()>>>(tree_data, props, cons_sz);
+    propagate_nodes_k<<<1, cons_sz>>>(tree_data, props, cons_sz);
     CUDIE(cudaDeviceSynchronize());
     tree_data->transferToSearch();
   }
