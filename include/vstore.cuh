@@ -67,15 +67,14 @@ struct Interval {
 struct no_copy_tag {};
 struct device_tag {};
 
+template<typename Allocator>
 class VStore {
-  Interval* data;
-  size_t n;
+  Vector<Interval, Allocator> data;
 
   // The names don't change during solving. We want to avoid useless copies.
   // Unfortunately, static member are not supported in CUDA, so we use an instance variable which is never copied.
   char** names;
   size_t names_len;
-
 public:
 
   void init_names(std::vector<std::string>& vnames) {
@@ -98,11 +97,17 @@ public:
     free2(names);
   }
 
-  CUDA VStore(int nvar) {
+  CUDA VStore(int nvar, Allocator& allocator = Allocator()) {
     n = nvar;
-    malloc2_managed(data, n);
+    data = allocator.allocate(n);
   }
-  CUDA VStore(const VStore& other) = delete;
+
+  template<typename Allocator2>
+  CUDA VStore(const VStore<Allocator2>& other, Allocator& allocator = Allocator()):
+    n(other.n), data(allocator.allocate(n))
+  {
+
+  }
 
   CUDA VStore(const VStore& other, no_copy_tag) {
     n = other.n;
@@ -243,5 +248,8 @@ public:
 
   CUDA size_t size() const { return n; }
 };
+
+using VStoreS = VStore<SharedAllocator>;
+using VStoreM = VStore<ManagedAllocator>;
 
 #endif

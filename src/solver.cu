@@ -26,6 +26,8 @@
 #include "status.cuh"
 #include "search.cuh"
 
+extern __shared__ int mem[];
+
 CUDA_DEVICE
 bool propagate(Propagator** props, int nc, VStore& vstore, PropagatorsStatus& pstatus) {
   bool has_changed = false;
@@ -46,8 +48,8 @@ bool propagate(Propagator** props, int nc, VStore& vstore, PropagatorsStatus& ps
 }
 
 CUDA_GLOBAL void propagate_nodes_k(
-    TreeData* td, 
-    Propagator** props, 
+    TreeData* td,
+    Propagator** props,
     int nc)
 {
   int nid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -66,8 +68,8 @@ CUDA_GLOBAL void propagate_nodes_k(
 }
 
 CUDA_GLOBAL void explore(
-    TreeData *tree_data, 
-    Propagator **props, 
+    TreeData *tree_data,
+    Propagator **props,
     int cons_sz)
 {
   int tid = blockIdx.x + threadIdx.x*blockDim.x;
@@ -81,9 +83,9 @@ CUDA_GLOBAL void explore(
 }
 
 CUDA_GLOBAL void new_tree(
-    TreeData *tree_data, 
-    Var* temporal_vars, 
-    Var minimize_x, 
+    TreeData *tree_data,
+    Var* temporal_vars,
+    Var minimize_x,
     VStore* vstore,
     size_t csize)
 {
@@ -98,7 +100,7 @@ CUDA_GLOBAL void search_k()
   int nodeid = blockIdx.x;
   int stride = gridDim.x * blockDim.x;
   if (tid == 0) {
-    // construire treeandpar 
+    // construire treeandpar
   }
   __syncthread();
   tree->search(tid, stride);
