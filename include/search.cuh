@@ -92,6 +92,10 @@ public:
     }
   }
 
+  CUDA const VStore& best() const {
+    return best_sol;
+  }
+
 private:
     CUDA void before_propagation() {
     if (tid == 0) {

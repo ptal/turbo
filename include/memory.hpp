@@ -123,6 +123,10 @@ public:
 
   CUDA T* operator->() const { assert(ptr != nullptr); return ptr; }
   CUDA T& operator*() const { assert(ptr != nullptr); return *ptr; }
+
+  CUDA void reset(T* ptr) {
+    this->ptr = ptr;
+  }
 };
 
 template<typename T>

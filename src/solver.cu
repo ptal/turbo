@@ -26,102 +26,39 @@
 #include "status.cuh"
 #include "search.cuh"
 
-extern __shared__ int mem[];
-
-CUDA_DEVICE
-bool propagate(Propagator** props, int nc, VStore& vstore, PropagatorsStatus& pstatus) {
-  bool has_changed = false;
-  for(int i=nc-1; i>= 0; --i) {
-    Propagator* p = props[i];
-    bool has_changed2 = p->propagate(vstore);
-    has_changed |= has_changed2;
-    Status s = has_changed2 ? UNKNOWN : IDLE;
-    if(p->is_entailed(vstore)) {
-      s = ENTAILED;
-    }
-    if(p->is_disentailed(vstore)) {
-      s = DISENTAILED;
-    }
-    pstatus.inplace_join(p->uid, s);
-  }
-  return has_changed;
-}
-
-CUDA_GLOBAL void propagate_nodes_k(
-    TreeData* td,
-    Propagator** props,
-    int nc)
-{
-  int nid = threadIdx.x + blockIdx.x * blockDim.x;
-  if (nid >= nc) { return; }
-
-  bool has_changed = true;
-  PropagatorsStatus& pstatus = *(td->node_array->pstatus);
-  VStore& vstore = *(td->node_array->vstore);
-  while(has_changed && pstatus.join() < ENTAILED) {
-    has_changed = propagate(props, nc, vstore, pstatus);
-  }
-  // We propagate once more to verify that all propagators are really entailed.
-  if(pstatus.join() == ENTAILED) {
-    propagate(props, nc, vstore, pstatus);
-  }
-}
-
-CUDA_GLOBAL void explore(
-    TreeData *tree_data,
-    Propagator **props,
-    int cons_sz)
-{
-  int tid = blockIdx.x + threadIdx.x*blockDim.x;
-  while (!tree_data->stack.is_empty()) {
-    tree_data->transferFromSearch();
-    printf("nodes %d\n", tree_data->node_array.size());
-    propagate_nodes_k<<<1, cons_sz>>>(tree_data, props, cons_sz);
-    CUDIE(cudaDeviceSynchronize());
-    tree_data->transferToSearch();
-  }
-}
-
-CUDA_GLOBAL void new_tree(
-    TreeData *tree_data,
-    Var* temporal_vars,
-    Var minimize_x,
-    VStore* vstore,
-    size_t csize)
-{
-  new(tree_data) TreeData(temporal_vars, minimize_x, *vstore, csize);
-}
-
 #define OR_NODES 1
 
-extern __shared__ int shmem[];
-
 CUDA_GLOBAL void search_k(
+    Pointer<TreeAndPar>* tree;
     VStore root,
     Vector<Pointer<Propagator>> props,
-    int props_sz,
-    Vector<Var> vars,
-    Pointer<Interval> best_bound,
+    Vector<Var> branching_vars,
+    Pointer<Interval>* best_bound,
+    VStore* best_sols,
     Var min_x)
 {
+  extern __shared__ int shmem[];
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   int nodeid = blockIdx.x;
   int stride = gridDim.x * blockDim.x;
 
-  TreeAndPar *tree;
   if (tid == 0) {
     SharedAllocator allocator(shmem);
-    tree = new(allocator) TreeAndPar(root, props, props_sz, vars, best_bound, min_x, salloc);
+    tree.reset(new(allocator) TreeAndPar(
+      root, props, branching_vars, *best_bound, min_x, allocator));
   }
   __syncthreads();
   tree->search(tid, stride);
+  best_sols[blockIdx.x].reset(tree->best());
+  __syncthreads();
+
 }
 
 void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
 {
   INFO(constraints.print(*vstore));
 
-  Var* temporal_vars = constraints.temporal_vars(vstore->size());
+  Array<Var> temporal_vars = constraints.temporal_vars(vstore->size());
 
   std::cout << "Start transfering propagator to device memory." << std::endl;
   auto t1 = std::chrono::high_resolution_clock::now();
