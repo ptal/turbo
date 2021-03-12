@@ -21,9 +21,8 @@
 #include <vector>
 #include <string>
 #include "cuda_helper.hpp"
+#include "memory.hpp"
 
-// A variable with a negative index represents the negation `-x`.
-// The conversion is automatically handled in `VStore::view_of`.
 typedef int Var;
 
 struct Interval {
@@ -64,12 +63,8 @@ struct Interval {
   }
 };
 
-struct no_copy_tag {};
-struct device_tag {};
-
-template<typename Allocator>
 class VStore {
-  Vector<Interval, Allocator> data;
+  Vector<Interval> data;
 
   // The names don't change during solving. We want to avoid useless copies.
 // Unfortunately, static member are not supported in CUDA, so we use an instance variable which is never copied.
@@ -97,49 +92,29 @@ public:
     free2(names);
   }
 
-  CUDA VStore(int nvar, Allocator& allocator = Allocator()) {
-    n = nvar;
-    data = allocator.allocate(n);
-  }
+  template<typename Allocator = ManagedAllocator>
+  CUDA VStore(int nvar, Allocator& allocator = Allocator()):
+    data(nvar)
+  {}
 
-  template<typename Allocator2>
-  CUDA VStore(const VStore<Allocator2>& other, Allocator& allocator = Allocator()):
-    n(other.n), data(allocator.allocate(n))
-  {
-  }
+  template<typename Allocator = ManagedAllocator>
+  CUDA VStore(const VStore& other, Allocator& allocator = Allocator()):
+    data(other.data, ground_type_tag, allocator),
+    names(other.names), names_len(other.names_len)
+  {}
 
-  CUDA VStore(const VStore& other, no_copy_tag) {
-    n = other.n;
-    names = other.names;
-    names_len = other.names_len;
-    malloc2_managed(data, n);
-  }
-
-  CUDA VStore(const VStore& other, no_copy_tag, device_tag) {
-    n = other.n;
-    names = other.names;
-    names_len = other.names_len;
-    malloc2(data, n);
-  }
-
-  CUDA init_shared(VStore& vs) {
-    this->data = &data_shared;
-    for (int
-  }
+  CUDA VStore() = delete;
+  CUDA VStore(const VStore&) = delete;
 
   CUDA void reset(const VStore& other) {
-    assert(n == other.n);
-    for(int i = 0; i < n; ++i) {
+    assert(size() == other.size());
+    for(int i = 0; i < size(); ++i) {
       data[i] = other.data[i];
     }
   }
 
-  CUDA ~VStore() {
-    cudaFree(data);
-  }
-
   CUDA bool all_assigned() const {
-    for(int i = 0; i < n; ++i) {
+    for(int i = 0; i < size(); ++i) {
       if(!data[i].is_assigned()) {
         return false;
       }
@@ -148,7 +123,7 @@ public:
   }
 
   CUDA bool is_top() const {
-    for(int i = 0; i < n; ++i) {
+    for(int i = 0; i < size(); ++i) {
       if(data[i].is_top()) {
         return true;
       }
@@ -157,15 +132,15 @@ public:
   }
 
   CUDA bool is_top(Var x) const {
-    return data[abs(x)].is_top();
+    return data[x].is_top();
   }
 
   CUDA const char* name_of(Var x) const {
-    return names[abs(x)];
+    return names[x];
   }
 
   CUDA void print_var(Var x) const {
-    printf("%s%s", (x < 0 ? "-" : ""), names[abs(x)]);
+    printf("%s", names[x]);
   }
 
   CUDA void print_view(Var* vars) const {
@@ -179,7 +154,7 @@ public:
 
   CUDA void print() const {
     // The first variable is the fake one, c.f. `ModelBuilder` constructor.
-    for(int i=1; i < n; ++i) {
+    for(int i=1; i < size(); ++i) {
       print_var(i);
       printf(" = ");
       data[i].print();
@@ -193,37 +168,19 @@ public:
   }
 
   CUDA bool update_lb(Var i, int lb) {
-    if(i >= 0) {
-      if (data[i].lb < lb) {
-        LOG(printf("Update LB(%s) with %d (old = %d) in %p\n", names[i], lb, data[i].lb, this));
-        data[i].lb = lb;
-        return true;
-      }
-    }
-    else {
-      if (data[-i].ub > -lb) {
-        LOG(printf("Update UB(%s) with %d (old = %d) in %p\n", names[-i], -lb, data[-i].ub, this));
-        data[-i].ub = -lb;
-        return true;
-      }
+    if (data[i].lb < lb) {
+      LOG(printf("Update LB(%s) with %d (old = %d) in %p\n", names[i], lb, data[i].lb, this));
+      data[i].lb = lb;
+      return true;
     }
     return false;
   }
 
   CUDA bool update_ub(Var i, int ub) {
-    if(i >= 0) {
-      if (data[i].ub > ub) {
-        LOG(printf("Update UB(%s) with %d (old = %d) in %p\n", names[i], ub, data[i].ub, this));
-        data[i].ub = ub;
-        return true;
-      }
-    }
-    else {
-      if (data[-i].lb < -ub) {
-        LOG(printf("Update LB(%s) with %d (old = %d) in %p\n", names[-i], -ub, data[-i].lb, this));
-        data[-i].lb = -ub;
-        return true;
-      }
+    if (data[i].ub > ub) {
+      LOG(printf("Update UB(%s) with %d (old = %d) in %p\n", names[i], ub, data[i].ub, this));
+      data[i].ub = ub;
+      return true;
     }
     return false;
   }
@@ -238,22 +195,23 @@ public:
     return update(i, {v, v});
   }
 
-  CUDA Interval view_of(Var i) const {
-    return i < 0 ? data[-i].neg() : data[i];
+  CUDA Interval& operator[](size_t i) {
+    return data[i];
+  }
+
+  CUDA const Interval& operator[](size_t i) const {
+    return data[i];
   }
 
   CUDA int lb(Var i) const {
-    return view_of(i).lb;
+    return data[i].lb;
   }
 
   CUDA int ub(Var i) const {
-    return view_of(i).ub;
+    return data[i].ub;
   }
 
-  CUDA size_t size() const { return n; }
+  CUDA size_t size() const { return data.size(); }
 };
-
-using VStoreS = VStore<SharedAllocator>;
-using VStoreM = VStore<ManagedAllocator>;
 
 #endif

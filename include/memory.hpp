@@ -156,9 +156,10 @@ public:
   }
 
   CUDA size_t size() const { return n; }
-  CUDA T& operator[](size_t i) const { return data[i]; }
+  CUDA T& operator[](size_t i) { return data[i]; }
   CUDA const T& operator[](size_t i) const { return data[i]; }
-  CUDA T* data() const { return data; }
+  CUDA T* data() { return data; }
+  CUDA const T* data() const { return data; }
 };
 
 #endif // MEMORY_HPP
