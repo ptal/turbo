@@ -1,0 +1,55 @@
+// Copyright 2021 Pierre Talbot, Frédéric Pinel
+
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+
+//     http://www.apache.org/licenses/LICENSE-2.0
+
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "memory.cuh"
+
+ground_type_tag_t ground_type_tag;
+polymorphic_type_tag_t polymorphic_type_tag;
+
+__device__ SharedAllocator::SharedAllocator(char* mem):
+  mem(mem), offset(0) {}
+
+__device__ void* SharedAllocator::allocate(size_t bytes) {
+  void* m = (void*)&mem[offset];
+  offset += bytes;
+  return m;
+}
+
+__device__ void* operator new(size_t bytes, SharedAllocator& p) {
+  return p.allocate(bytes);
+}
+
+__device__ void* operator new[](size_t bytes, SharedAllocator& p) {
+  return p.allocate(bytes);
+}
+
+void* ManagedAllocator::allocate(size_t bytes) {
+  void* data;
+  CUDIE(cudaMallocManaged(&data, bytes));
+  return data;
+}
+
+void ManagedAllocator::deallocate(void* data) {
+  cudaFree(data);
+}
+
+__device__ ManagedAllocator managed_allocator;
+
+void* operator new(size_t bytes, ManagedAllocator& p) {
+  return p.allocate(bytes);
+}
+
+void* operator new[](size_t bytes, ManagedAllocator& p) {
+  return p.allocate(bytes);
+}

@@ -29,29 +29,29 @@
 #define OR_NODES 1
 
 CUDA_GLOBAL void search_k(
-    Pointer<TreeAndPar>* tree;
-    VStore root,
-    Vector<Pointer<Propagator>> props,
-    Vector<Var> branching_vars,
+    Array<Pointer<TreeAndPar>>& trees,
+    VStore& root,
+    Array<Pointer<Propagator>>& props,
+    Array<Var>& branching_vars,
     Pointer<Interval>* best_bound,
-    VStore* best_sols,
-    Var min_x)
+    Array<VStore>& best_sols,
+    Var minimize_x)
 {
-  extern __shared__ int shmem[];
+  extern __shared__ char shmem[];
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   int nodeid = blockIdx.x;
   int stride = gridDim.x * blockDim.x;
 
   if (tid == 0) {
     SharedAllocator allocator(shmem);
-    tree.reset(new(allocator) TreeAndPar(
-      root, props, branching_vars, *best_bound, min_x, allocator));
+    trees[nodeid].reset(new(allocator) TreeAndPar(
+      root, props, branching_vars, **best_bound, minimize_x, allocator));
   }
   __syncthreads();
-  tree->search(tid, stride);
-  best_sols[blockIdx.x].reset(tree->best());
-  __syncthreads();
-
+  trees[nodeid]->search(tid, stride);
+  if (tid == 0) {
+    best_sols[nodeid].reset(trees[nodeid]->best());
+  }
 }
 
 void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
@@ -62,11 +62,9 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
 
   std::cout << "Start transfering propagator to device memory." << std::endl;
   auto t1 = std::chrono::high_resolution_clock::now();
-  Propagator** props;
-  CUDIE(cudaMallocManaged(&props, constraints.size() * sizeof(Propagator*)));
+  Array<Pointer<Propagator>> props(constraints.size());
   for (auto p : constraints.propagators) {
-    // std::cout << "Transferring " << p->uid << std::endl;
-    props[p->uid] = p->to_device();
+    props[p->uid].reset(p->to_device());
   }
   auto t2 = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
@@ -74,17 +72,20 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
 
   t1 = std::chrono::high_resolution_clock::now();
 
-  search_k<<<OR_NODES, 1>>>(tree_data, props, constraints.size());
+  Array<Pointer<TreeAndPar>> trees(OR_NODES);
+  Array<VStore> best_sols(*vstore, OR_NODES);
+  Pointer<Interval>* best_bound;
+  malloc2_managed(best_bound, 1);
+  new(best_bound) Pointer<Interval>(Interval(), ground_type_tag);
+
+  search_k<<<OR_NODES, 1>>>(trees, *vstore, props, temporal_vars,
+    best_bound, best_sols, minimize_x);
   CUDIE(cudaDeviceSynchronize());
 
   t2 = std::chrono::high_resolution_clock::now();
-  CUDIE(cudaFree(props));
   duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
 
-  tree_stats<<<1,1>>>(tree_data);
-  CUDIE(cudaDeviceSynchronize());
   //tree_data->stats.print();
-
   if(duration > timeout * 1000) {
     std::cout << "solveTime=timeout" << std::endl;
   }
@@ -92,6 +93,5 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
     std::cout << "solveTime=" << duration << std::endl;
   }
 
-  CUDIE(cudaFree(tree_data));
-  CUDIE(cudaFree(temporal_vars));
+  CUDIE(cudaFree(best_bound));
 }

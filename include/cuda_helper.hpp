@@ -72,7 +72,7 @@ CUDA void malloc2(T* &data, int n) {
 }
 
 template<typename T>
-CUDA void malloc2_managed(T* &data, int n) {
+void malloc2_managed(T* &data, int n) {
   CUDIE(cudaMallocManaged(&data, sizeof(T) * n));
 }
 

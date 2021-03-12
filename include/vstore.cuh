@@ -21,7 +21,7 @@
 #include <vector>
 #include <string>
 #include "cuda_helper.hpp"
-#include "memory.hpp"
+#include "memory.cuh"
 
 typedef int Var;
 
@@ -52,6 +52,10 @@ struct Interval {
 
   CUDA bool operator==(int x) const {
     return lb == x && ub == x;
+  }
+
+  CUDA bool operator==(const Interval& x) const {
+    return lb == x.lb && ub == x.ub;
   }
 
   CUDA bool operator!=(const Interval& other) const {
@@ -93,17 +97,17 @@ public:
   }
 
   template<typename Allocator = ManagedAllocator>
-  CUDA VStore(int nvar, Allocator& allocator = Allocator()):
+  CUDA VStore(int nvar, Allocator& allocator = managed_allocator):
     data(nvar)
   {}
 
   template<typename Allocator = ManagedAllocator>
-  CUDA VStore(const VStore& other, Allocator& allocator = Allocator()):
+  CUDA VStore(const VStore& other, Allocator& allocator = managed_allocator):
     data(other.data, ground_type_tag, allocator),
     names(other.names), names_len(other.names_len)
   {}
 
-  CUDA VStore() = delete;
+  CUDA VStore(): data(0) {}
   CUDA VStore(const VStore&) = delete;
 
   CUDA void reset(const VStore& other) {

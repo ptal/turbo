@@ -20,7 +20,7 @@
 #include "statistics.cuh"
 #include "cuda_helper.hpp"
 
-#define DEPTH_MAX 200
+#define MAX_DEPTH 200
 
 // Select the variable with the smallest domain in the store.
 CUDA Var first_fail(const VStore& vstore, Array<Var>& vars) {
@@ -43,6 +43,7 @@ struct Delta
   Var x;
   Interval next;
   Interval right;
+  CUDA Delta() = default;
   CUDA Delta(Var x, Interval l, Interval r):
     x(x), next(l), right(r) {}
 };
@@ -73,7 +74,7 @@ public:
     current(root, allocator),
     pstatus(props.size(), allocator),
     props(props, polymorphic_type_tag, allocator),
-    deltas(DEPTH_MAX, ground_type_tag, allocator),
+    deltas(MAX_DEPTH, ground_type_tag, allocator),
     deltas_size(0),
     branching_vars(branching_vars, ground_type_tag, allocator),
     best_bound(best_bound),
@@ -81,37 +82,36 @@ public:
     minimize_x(min_x)
   {}
 
-  CUDA void search(int tid, int stride) {
+  __device__ void search(int tid, int stride) {
     Interval b;
     while (deltas_size >= 0) {
-      before_propagation();
+      before_propagation(tid);
       __syncthreads();
       propagation(tid, stride);
       __syncthreads();
-      after_propagation();
+      after_propagation(tid);
     }
   }
 
-  CUDA const VStore& best() const {
+  __device__ const VStore& best() const {
     return best_sol;
   }
 
 private:
-    CUDA void before_propagation() {
+  __device__ void before_propagation(int tid) {
     if (tid == 0) {
-      b = {best_bound.lb, best_bound.ub - 1};
-      current.update(minimize_x, b);
+      current.update(minimize_x, {best_bound.lb, best_bound.ub - 1});
     }
   }
 
-  CUDA void propagation(int tid, int stride) {
+  __device__ void propagation(int tid, int stride) {
     Status s = UNKNOWN;
     while(s == UNKNOWN || pstatus.has_changed()) {
       if (tid == 0) {
         pstatus.reset_changed();
       }
       __threadfence_block();
-      for (int t = tid; t < props_sz; t += stride) {
+      for (int t = tid; t < props.size(); t += stride) {
         propagate_one(tid);
       }
       __threadfence_block();
@@ -119,7 +119,7 @@ private:
     }
   }
 
-  CUDA void after_propagation() {
+  __device__ void after_propagation(int tid) {
     if (tid == 0) {
       Status res = (current.is_top() ? DISENTAILED : pstatus.join());
       switch(res) {
@@ -131,13 +131,13 @@ private:
     }
   }
 
-  CUDA void on_failure() {
+  __device__ void on_failure() {
     INFO(printf("backtracking on failed node %p...\n", this));
     backtrack();
     replay();
   }
 
-  CUDA void on_solution() {
+  __device__ void on_solution() {
     INFO(printf("previous best...(bound %d..%d)\n", best_bound.lb, best_bound.ub));
     const Interval& new_bound = current[minimize_x];
     // Due to parallelism, it is possible that several bounds are found in one iteration, thus we need to perform a (lattice) join on the best bound.
@@ -148,39 +148,39 @@ private:
     replay();
   }
 
-  CUDA void on_unknown() {
+  __device__ void on_unknown() {
     INFO(printf("branching on unknown node... (bound %d..%d)\n", best_bound.lb, best_bound.ub));
     branch();
   }
 
-  CUDA void replay() {
+  __device__ void replay() {
     current.reset(root);
-    deltas[deltas_size - 1].next = delta[deltas_size - 1].right;
+    deltas[deltas_size - 1].next = deltas[deltas_size - 1].right;
     for (int i = 0; i < deltas_size; ++i) {
       current.update(deltas[i].x, deltas[i].next);
     }
   }
 
-  CUDA void backtrack() {
+  __device__ void backtrack() {
     while (deltas_size >= 0 && deltas[deltas_size - 1].next == deltas[deltas_size - 1].right) {
       --deltas_size;
     }
   }
 
-  CUDA void branch() {
+  __device__ void branch() {
     assert(deltas_size < MAX_DEPTH);
     Var x = first_fail(current, branching_vars);
     deltas[deltas_size].x = x;
-    deltas[deltas_size].next = {current->lb(x), current->lb(x)};
-    deltas[deltas_size].right = {current->lb(x) + 1, current->ub(x)};
+    deltas[deltas_size].next = {current.lb(x), current.lb(x)};
+    deltas[deltas_size].right = {current.lb(x) + 1, current.ub(x)};
     current.update(x, deltas[deltas_size].next);
     LOG(printf("Branching on %s: %d..%d \\/ %d..%d\n",
-      current->name_of(x), deltas[deltas_size].next.lb, deltas[deltas_size].next.ub,
+      current.name_of(x), deltas[deltas_size].next.lb, deltas[deltas_size].next.ub,
       deltas[deltas_size].right.lb, deltas[deltas_size].right.ub));
     deltas_size++;
   }
 
-  CUDA void propagate_one(int i) {
+  __device__ void propagate_one(int i) {
     Pointer<Propagator>& p = props[i];
     bool has_changed = p->propagate(current);
     Status s = has_changed ? UNKNOWN : IDLE;

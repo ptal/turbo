@@ -16,7 +16,7 @@
 #define TURBO_STATUS_HPP
 
 #include "cuda_helper.hpp"
-#include "memory.hpp"
+#include "memory.cuh"
 
 enum Status {
   UNKNOWN = 0,

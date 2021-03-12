@@ -34,7 +34,7 @@ CUDA_GLOBAL void init_reified_prop(Propagator** p, int uid, Var b, Propagator* r
   (*p)->uid = uid;
 }
 
-CUDA_GLOBAL void init_linear_ineq(Propagator** p, int uid, int n, const Var* vars, const int* constants, int max) {
-  *p = new LinearIneq(n, vars, constants, max);
+CUDA_GLOBAL void init_linear_ineq(Propagator** p, int uid, const Array<Var>& vars, const Array<int>& constants, int max) {
+  *p = new LinearIneq(vars, constants, max);
   (*p)->uid = uid;
 }
