@@ -97,22 +97,21 @@ CUDA_GLOBAL void new_tree(
 extern __shared__ int shmem[];
 
 CUDA_GLOBAL void search_k(
-    VStoreM root,
-    VectorM<PointerM<Propagator>> &props,
+    VStore root,
+    Vector<Pointer<Propagator>> props,
     int props_sz,
-    VectorM<Var> vars,
-    PointerM<Interval> best_bound,
+    Vector<Var> vars,
+    Pointer<Interval> best_bound,
     Var min_x)
 {
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   int nodeid = blockIdx.x;
   int stride = gridDim.x * blockDim.x;
 
-  SharedAllocator *salloc;
   TreeAndPar *tree;
   if (tid == 0) {
-    salloc = new SharedAllocator(shmem);
-    tree = new TreeAndPar(root, props, props_sz, vars, best_bound, min_x, &(*salloc));
+    SharedAllocator allocator(shmem);
+    tree = new(allocator) TreeAndPar(root, props, props_sz, vars, best_bound, min_x, salloc);
   }
   __syncthreads();
   tree->search(tid, stride);

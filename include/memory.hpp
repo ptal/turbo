@@ -18,6 +18,7 @@
 #include "cuda_helper.hpp"
 
 struct ground_type_tag {};
+struct polymorphic_type_tag {};
 
 class SharedAllocator {
   char* mem;
@@ -90,10 +91,10 @@ template<typename T>
 class Pointer {
   T* ptr;
 public:
-  template<typename Allocator = ManagedAllocator>
-  CUDA Pointer(Allocator& allocator = Allocator())
-    : ptr(new(allocator) T())
+  CUDA Pointer(): ptr(nullptr)
   {}
+
+  CUDA Pointer(T* ptr): ptr(ptr) {}
 
   template<typename Allocator = ManagedAllocator>
   CUDA Pointer(const T& from, Allocator& allocator = Allocator()):
@@ -105,22 +106,37 @@ public:
     ptr(new(allocator) T(from))
   {}
 
-  CUDA T* operator->() const { return ptr; }
-  CUDA T& operator*() const { return *ptr; }
+  template<typename Allocator = ManagedAllocator>
+  CUDA Pointer(const Pointer<T>& from, Allocator& allocator = Allocator()):
+    ptr(new(allocator) T(*from.ptr, allocator))
+  {}
+
+  template<typename Allocator = ManagedAllocator>
+  CUDA Pointer(const Pointer<T>& from, ground_type_tag, Allocator& allocator = Allocator()):
+    ptr(new(allocator) T(*from.ptr))
+  {}
+
+  template<typename Allocator>
+  CUDA Pointer<T> clone_in(Allocator& allocator) {
+    return Pointer(ptr->clone_in(allocator));
+  }
+
+  CUDA T* operator->() const { assert(ptr != nullptr); return ptr; }
+  CUDA T& operator*() const { assert(ptr != nullptr); return *ptr; }
 };
 
 template<typename T>
-class Vector {
+class Array {
   T* data;
   size_t n;
 public:
 
   template<typename Allocator = ManagedAllocator>
-  CUDA Vector(int n, Allocator& allocator = Allocator()):
+  CUDA Array(int n, Allocator& allocator = Allocator()):
     n(n), data(new(allocator) T[n]) {}
 
   template<typename Allocator = ManagedAllocator>
-  CUDA Vector(int n, const T* from, Allocator& allocator = Allocator()):
+  CUDA Array(int n, const T* from, Allocator& allocator = Allocator()):
     n(n), data(new(allocator) T[n])
   {
     for(int i = 0; i < n; ++i) {
@@ -129,7 +145,7 @@ public:
   }
 
   template<typename Allocator = ManagedAllocator>
-  CUDA Vector(int n, const T* from, ground_type_tag, Allocator& allocator = Allocator()):
+  CUDA Array(int n, const T* from, ground_type_tag, Allocator& allocator = Allocator()):
     n(n), data(new(allocator) T[n])
   {
     for(int i = 0; i < n; ++i) {
@@ -138,7 +154,7 @@ public:
   }
 
   template <typename Allocator = ManagedAllocator>
-  CUDA Vector(const Vector<T>& from, Allocator& allocator = Allocator()):
+  CUDA Array(const Array<T>& from, Allocator& allocator = Allocator()):
     n(from.n), data(new(allocator) T[n])
   {
     for(int i = 0; i < n; ++i) {
@@ -147,7 +163,7 @@ public:
   }
 
   template <typename Allocator = ManagedAllocator>
-  CUDA Vector(const Vector<T>& from, ground_type_tag, Allocator& allocator = Allocator()):
+  CUDA Array(const Array<T>& from, ground_type_tag, Allocator& allocator = Allocator()):
     n(from.n), data(new(allocator) T[n])
   {
     for(int i = 0; i < n; ++i) {
@@ -160,6 +176,19 @@ public:
   CUDA const T& operator[](size_t i) const { return data[i]; }
   CUDA T* data() { return data; }
   CUDA const T* data() const { return data; }
+};
+
+// Special constructor for array of polymorphic pointers.
+template<typename T>
+class Array<Pointer<T>> {
+  template <typename Allocator = ManagedAllocator>
+  CUDA Array(const Array<Pointer<T>>& from, polymorphic_type_tag, Allocator& allocator = Allocator()):
+    n(from.n), data(new(allocator) Pointer<T>[n])
+  {
+    for(int i = 0; i < n; ++i) {
+      data[i] = from[i].clone_in(allocator);
+    }
+  }
 };
 
 #endif // MEMORY_HPP

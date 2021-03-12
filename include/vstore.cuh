@@ -64,7 +64,7 @@ struct Interval {
 };
 
 class VStore {
-  Vector<Interval> data;
+  Array<Interval> data;
 
   // The names don't change during solving. We want to avoid useless copies.
 // Unfortunately, static member are not supported in CUDA, so we use an instance variable which is never copied.

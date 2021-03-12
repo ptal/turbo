@@ -43,7 +43,7 @@ CUDA inline const char* string_of_status(Status status) {
 }
 
 class PropagatorsStatus {
-  Vector<Status> status;
+  Array<Status> status;
   bool changed;
 
 public:
