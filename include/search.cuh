@@ -346,22 +346,22 @@ __global__ void propagate_k(TreeAndPar *tree) {
 
 struct TreeAndPar
 {
-  Var *branching_vars;
-  Propagator *props;
+  Vector<Var> branching_vars;
+  Vector<Pointer<Propagator>> props;
   int props_sz;
-  __shared__ VStore root;
-  __shared__ VStore current;
-  __shared__ Delta deltas[DEPTH_MAX];
+  VStore root;
+  VStore current;
   int deltas_sz;
-  __shared__ PropagatorsStatus pstatus;
-  Interval *best_bound;
-  __shared__ VStore best_sol;
+  PropagatorsStatus pstatus;
+  Pointer<Interval> best_bound;
+  VStore best_sol;
   Var minimize_x;
 
-  CUDA TreeAndPar(VStore root, Propagator *props, int props_sz, Var *vars, 
-      Interval *best_bound, Var min_x) : 
-    root(root), props(props), props_sz(props_sz), delta_sz(0), pstatus(props_sz), 
-    branching_vars(vars), best_sol(), minimize_x(min_x), best_bound(best_bound) 
+  template<typename Allocator>
+  CUDA TreeAndPar(VStore &root, Vector<Pointer<Propagator>> &props, int props_sz, 
+      Vector<Var> &vars, Pointer<Interval> &best_bound, Var min_x, Allocator &alloc) :
+    root(root, alloc), props(props, alloc), props_sz(props_sz), delta_sz(0), pstatus(props_sz), 
+    branching_vars(vars, ground_type_tag, alloc), best_sol(), minimize_x(min_x), best_bound(best_bound, alloc)
   {}
 
   CUDA void replay() {
