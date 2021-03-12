@@ -92,21 +92,31 @@ CUDA_GLOBAL void new_tree(
   new(tree_data) TreeData(temporal_vars, minimize_x, *vstore, csize);
 }
 
-CUDA_GLOBAL void search_k()
+#define OR_NODES 1
+
+extern __shared__ int shmem[];
+
+CUDA_GLOBAL void search_k(
+    VStoreM root,
+    VectorM<PointerM<Propagator>> &props,
+    int props_sz,
+    VectorM<Var> vars,
+    PointerM<Interval> best_bound,
+    Var min_x)
 {
-  // initialiser shared
-  // creer TreeAndPar
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   int nodeid = blockIdx.x;
   int stride = gridDim.x * blockDim.x;
+
+  SharedAllocator *salloc;
+  TreeAndPar *tree;
   if (tid == 0) {
-    // construire treeandpar
+    salloc = new SharedAllocator(shmem);
+    tree = new TreeAndPar(root, props, props_sz, vars, best_bound, min_x, &(*salloc));
   }
-  __syncthread();
+  __syncthreads();
   tree->search(tid, stride);
 }
-
-__shared__ TreeAndPar tree[OR_NODES];
 
 void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
 {
@@ -128,7 +138,7 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
 
   t1 = std::chrono::high_resolution_clock::now();
 
-  search<<<1,512>>>(tree_data, props, constraints.size());
+  search_k<<<OR_NODES, 1>>>(tree_data, props, constraints.size());
   CUDIE(cudaDeviceSynchronize());
 
   t2 = std::chrono::high_resolution_clock::now();

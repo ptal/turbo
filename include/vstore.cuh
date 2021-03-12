@@ -72,7 +72,7 @@ class VStore {
   Vector<Interval, Allocator> data;
 
   // The names don't change during solving. We want to avoid useless copies.
-  // Unfortunately, static member are not supported in CUDA, so we use an instance variable which is never copied.
+// Unfortunately, static member are not supported in CUDA, so we use an instance variable which is never copied.
   char** names;
   size_t names_len;
 public:
@@ -106,7 +106,6 @@ public:
   CUDA VStore(const VStore<Allocator2>& other, Allocator& allocator = Allocator()):
     n(other.n), data(allocator.allocate(n))
   {
-
   }
 
   CUDA VStore(const VStore& other, no_copy_tag) {
@@ -121,6 +120,11 @@ public:
     names = other.names;
     names_len = other.names_len;
     malloc2(data, n);
+  }
+
+  CUDA init_shared(VStore& vs) {
+    this->data = &data_shared;
+    for (int
   }
 
   CUDA void reset(const VStore& other) {
