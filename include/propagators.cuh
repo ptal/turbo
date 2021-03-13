@@ -295,16 +295,16 @@ public:
   const int max;
 
   LinearIneq(const std::vector<Var>& vvars, const std::vector<int>& vconstants, int max):
-    Propagator(-1), max(max), vars(vvars, ground_type_tag),
-    constants(vconstants, ground_type_tag)
+    Propagator(-1), max(max), vars(vvars),
+    constants(vconstants)
   {
     assert(vvars.size() == vconstants.size());
   }
 
   template<typename Allocator = ManagedAllocator>
   CUDA LinearIneq(const Array<Var>& vars, const Array<int>& constants, int max, Allocator& allocator = managed_allocator):
-    Propagator(-1), max(max), vars(vars, ground_type_tag, allocator),
-    constants(constants, ground_type_tag, allocator)
+    Propagator(-1), max(max), vars(vars, allocator),
+    constants(constants, allocator)
   {}
 
   // Returns the maximum amount of additional resources this constraint can use if we fix all remaining boolean variables to 1.

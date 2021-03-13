@@ -76,7 +76,7 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
   Array<VStore> best_sols(*vstore, OR_NODES);
   Pointer<Interval>* best_bound;
   malloc2_managed(best_bound, 1);
-  new(best_bound) Pointer<Interval>(Interval(), ground_type_tag);
+  new(best_bound) Pointer<Interval>(Interval());
 
   search_k<<<OR_NODES, 1>>>(trees, *vstore, props, temporal_vars,
     best_bound, best_sols, minimize_x);

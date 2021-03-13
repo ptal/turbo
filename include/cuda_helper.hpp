@@ -31,7 +31,6 @@
     }}
 
   #define CUDIE0() CUDIE(cudaGetLastError())
-
 #endif
 
 template<typename T>CUDA T min(T a, T b) { return a<=b ? a : b; }

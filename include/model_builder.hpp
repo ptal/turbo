@@ -334,24 +334,6 @@ class ModelBuilder {
 
     // Precondition: constraint of the form `x * y <op> z` where x,y,z can be variables or integers.
     Propagator* mul_expr_constraint(Node* node) {
-      int xi = 0;
-      int yi = 0;
-      int k = 0;
-      OrderType op = to_order_type(node->type);
-      Node* lhs = node->parameters[0];
-      Node* x = lhs->parameters[0];
-      Node* y = lhs->parameters[1];
-      Node* z = node->parameters[1];
-      // Base situation
-      if(x->type == OVAR) {
-        xi = std::get<0>(var2idx[x->toString()]);
-      }
-      if(y->type == OVAR) {
-        yi = std::get<0>(var2idx[y->toString()]);
-      }
-      if(z->type == ODECIMAL) {
-        k = val(z);
-      }
       error(node, "mul not implemented");
       return nullptr;
     }

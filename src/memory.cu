@@ -14,8 +14,7 @@
 
 #include "memory.cuh"
 
-ground_type_tag_t ground_type_tag;
-polymorphic_type_tag_t polymorphic_type_tag;
+__managed__ polymorphic_type_tag_t polymorphic_type_tag;
 
 __device__ SharedAllocator::SharedAllocator(char* mem):
   mem(mem), offset(0) {}
@@ -33,6 +32,10 @@ __device__ void* operator new(size_t bytes, SharedAllocator& p) {
 __device__ void* operator new[](size_t bytes, SharedAllocator& p) {
   return p.allocate(bytes);
 }
+
+// For now, we don't support freeing the memory.
+__device__ void operator delete(void* ptr, SharedAllocator& p) {}
+__device__ void operator delete[](void* ptr, SharedAllocator& p) {}
 
 void* ManagedAllocator::allocate(size_t bytes) {
   void* data;
@@ -52,4 +55,38 @@ void* operator new(size_t bytes, ManagedAllocator& p) {
 
 void* operator new[](size_t bytes, ManagedAllocator& p) {
   return p.allocate(bytes);
+}
+
+void operator delete(void* ptr, ManagedAllocator& p) {
+  p.deallocate(ptr);
+}
+
+void operator delete[](void* ptr, ManagedAllocator& p) {
+  p.deallocate(ptr);
+}
+
+__device__ void* GlobalAllocator::allocate(size_t bytes) {
+  void* data;
+  MALLOC_CHECK(cudaMalloc(&data, bytes));
+  return data;
+}
+
+__device__ void GlobalAllocator::deallocate(void* data) {
+  cudaFree(data);
+}
+
+__device__ void* operator new(size_t bytes, GlobalAllocator& p) {
+  return p.allocate(bytes);
+}
+
+__device__ void* operator new[](size_t bytes, GlobalAllocator& p) {
+  return p.allocate(bytes);
+}
+
+__device__ void operator delete(void* ptr, GlobalAllocator& p) {
+  p.deallocate(ptr);
+}
+
+__device__ void operator delete[](void* ptr, GlobalAllocator& p) {
+  p.deallocate(ptr);
 }

@@ -43,7 +43,7 @@ struct Delta
   Var x;
   Interval next;
   Interval right;
-  CUDA Delta() = default;
+  CUDA Delta(): x(0), next(), right() {}
   CUDA Delta(Var x, Interval l, Interval r):
     x(x), next(l), right(r) {}
 };
@@ -74,9 +74,9 @@ public:
     current(root, allocator),
     pstatus(props.size(), allocator),
     props(props, polymorphic_type_tag, allocator),
-    deltas(MAX_DEPTH, ground_type_tag, allocator),
+    deltas(MAX_DEPTH, allocator),
     deltas_size(0),
-    branching_vars(branching_vars, ground_type_tag, allocator),
+    branching_vars(branching_vars, allocator),
     best_bound(best_bound),
     best_sol(root, allocator),
     minimize_x(min_x)

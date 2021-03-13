@@ -98,12 +98,12 @@ public:
 
   template<typename Allocator = ManagedAllocator>
   CUDA VStore(int nvar, Allocator& allocator = managed_allocator):
-    data(nvar)
+    data(nvar, allocator)
   {}
 
   template<typename Allocator = ManagedAllocator>
   CUDA VStore(const VStore& other, Allocator& allocator = managed_allocator):
-    data(other.data, ground_type_tag, allocator),
+    data(other.data, allocator),
     names(other.names), names_len(other.names_len)
   {}
 
