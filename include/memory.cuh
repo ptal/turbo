@@ -20,10 +20,6 @@
 #include <type_traits>
 #include "cuda_helper.hpp"
 
-struct polymorphic_type_tag_t {};
-
-extern __managed__ polymorphic_type_tag_t polymorphic_type_tag;
-
 class SharedAllocator {
   char* mem;
   size_t offset;
@@ -44,7 +40,7 @@ public:
   void deallocate(void* data);
 };
 
-__device__ extern ManagedAllocator managed_allocator;
+extern ManagedAllocator managed_allocator;
 
 void* operator new(size_t bytes, ManagedAllocator& p);
 void* operator new[](size_t bytes, ManagedAllocator& p);
@@ -57,15 +53,20 @@ public:
   __device__ void deallocate(void* data);
 };
 
+__device__ extern GlobalAllocator global_allocator;
+
 __device__ void* operator new(size_t bytes, GlobalAllocator& p);
 __device__ void* operator new[](size_t bytes, GlobalAllocator& p);
 __device__ void operator delete(void* ptr, GlobalAllocator& p);
 __device__ void operator delete[](void* ptr, GlobalAllocator& p);
 
 template<typename T>
-struct GroundTypeAllocatorDispatch {
+class Pointer;
+
+template<typename T>
+struct TypeAllocatorDispatch {
   template<typename Allocator>
-  CUDA static T* build(const T& from, Allocator& allocator) {
+  __device__ static T* build(const T& from, Allocator& allocator) {
     if constexpr(std::is_constructible<T, const T&, Allocator&>{}) {
       return new(allocator) T(from, allocator);
     }
@@ -76,7 +77,7 @@ struct GroundTypeAllocatorDispatch {
   }
 
   template<typename Allocator>
-  CUDA static void build(T* placement, const T& from, Allocator& allocator) {
+  __device__ static void build(T* placement, const T& from, Allocator& allocator) {
     if constexpr(std::is_constructible<T, const T&, Allocator&>{}) {
       new(placement) T(from, allocator);
     }
@@ -87,27 +88,39 @@ struct GroundTypeAllocatorDispatch {
 };
 
 template<typename T>
+struct TypeAllocatorDispatch<Pointer<T>> {
+  __device__ static void build(Pointer<T>* placement, const Pointer<T>& from, SharedAllocator& allocator) {
+    if constexpr(std::is_polymorphic_v<T>) {
+      new(placement) Pointer(from->clone_in(allocator));
+    }
+    else {
+      new(placement) T(from, allocator);
+    }
+  }
+};
+
+template<typename T>
 class Pointer {
   T* ptr;
 public:
-  CUDA Pointer(): ptr(nullptr)
-  {}
+  typedef T ptr_type;
+  typedef Pointer<T> this_type;
 
+  CUDA Pointer(): ptr(nullptr) {}
   CUDA Pointer(T* ptr): ptr(ptr) {}
 
-  template<typename Allocator = ManagedAllocator>
-  CUDA Pointer(const T& from, Allocator& allocator = managed_allocator):
-    ptr(GroundTypeAllocatorDispatch<T>::build(from, allocator))
+  template<typename Allocator>
+  __device__ Pointer(const T& from, Allocator& allocator):
+    ptr(TypeAllocatorDispatch<T>::build(from, allocator))
   {}
 
-  template<typename Allocator = ManagedAllocator>
-  CUDA Pointer(const Pointer<T>& from, Allocator& allocator = managed_allocator):
-    ptr(GroundTypeAllocatorDispatch<T>::build(*from.ptr, allocator))
+  template<typename Allocator>
+  __device__ Pointer(const Pointer<T>& from, Allocator& allocator):
+    ptr(TypeAllocatorDispatch<T>::build(*from.ptr, allocator))
   {}
 
-  CUDA Pointer<T> clone_in(SharedAllocator& allocator) const {
-    return Pointer(ptr->clone_in(allocator));
-  }
+  Pointer(const T& from): ptr(new(managed_allocator) T(from)) {}
+  Pointer(const Pointer<T>& from): ptr(new(managed_allocator) T(*from.ptr)) {}
 
   CUDA T* operator->() const { assert(ptr != nullptr); return ptr; }
   CUDA T& operator*() const { assert(ptr != nullptr); return *ptr; }
@@ -118,82 +131,75 @@ public:
 };
 
 template<typename T>
-class ArrayBase {
-protected:
+class Array {
+  typedef Array<T> this_type;
+
   T* array;
   size_t n;
-
-  CUDA ArrayBase(size_t n, T* array): n(n), array(array) {}
 public:
+  template<typename Allocator>
+  __device__ Array(int n, Allocator& allocator):
+    n(n), array(new(allocator) T[n]) {}
+
+  template<typename Allocator>
+  __device__ Array(int n, const T* from, Allocator& allocator):
+    n(n), array(new(allocator) T[n])
+  {
+    for(int i = 0; i < n; ++i) {
+      TypeAllocatorDispatch<T>::build(&array[i], from[i], allocator);
+    }
+  }
+
+  template <typename Allocator>
+  __device__ Array(const Array<T>& from, Allocator& allocator):
+    n(from.n), array(new(allocator) T[from.n])
+  {
+    for(int i = 0; i < n; ++i) {
+      TypeAllocatorDispatch<T>::build(&array[i], from[i], allocator);
+    }
+  }
+
+  template <typename Allocator>
+  __device__ Array(const T& from, int n, Allocator& allocator):
+    n(n), array(new(allocator) T[n])
+  {
+    for(int i = 0; i < n; ++i) {
+      TypeAllocatorDispatch<T>::build(&array[i], from, allocator);
+    }
+  }
+
+  Array(int n): n(n), array(new(managed_allocator) T[n]) {}
+  Array(const T* from, int n): n(n), array(new(managed_allocator) T[n]) {
+    for(int i = 0; i < n; ++i) {
+      new(&array[i]) T(from[i]);
+    }
+  }
+
+  Array(const Array<T>& from): n(from.n), array(new(managed_allocator) T[from.n]) {
+    for(int i = 0; i < n; ++i) {
+      new(&array[i]) T(from[i]);
+    }
+  }
+
+  Array(const T& from, int n): n(n), array(new(managed_allocator) T[n]) {
+    for(int i = 0; i < n; ++i) {
+      new(&array[i]) T(from);
+    }
+  }
+
+  Array(const std::vector<T>& from):
+    n(from.size()), array(new(managed_allocator) T[from.size()])
+  {
+    for(int i = 0; i < n; ++i) {
+      TypeAllocatorDispatch<T>::build(&array[i], from[i], managed_allocator);
+    }
+  }
+
   CUDA size_t size() const { return n; }
   CUDA T& operator[](size_t i) { assert(i < n); return array[i]; }
   CUDA const T& operator[](size_t i) const { assert(i < n); return array[i]; }
   CUDA T* data() { return array; }
   CUDA const T* data() const { return array; }
-};
-
-template<typename T>
-class Array: public ArrayBase<T> {
-  typedef ArrayBase<T> base_type;
-public:
-  template<typename Allocator = ManagedAllocator>
-  CUDA Array(int n, Allocator& allocator = managed_allocator):
-    base_type(n, new(allocator) T[n]) {}
-
-  template<typename Allocator = ManagedAllocator>
-  CUDA Array(int n, const T* from, Allocator& allocator = managed_allocator):
-    base_type(n, new(allocator) T[n])
-  {
-    for(int i = 0; i < this->n; ++i) {
-      GroundTypeAllocatorDispatch<T>::build(&this->array[i], from[i], allocator);
-    }
-  }
-
-  template <typename Allocator = ManagedAllocator>
-  CUDA Array(const Array<T>& from, Allocator& allocator = managed_allocator):
-    base_type(from.n, new(allocator) T[from.n])
-  {
-    for(int i = 0; i < this->n; ++i) {
-      GroundTypeAllocatorDispatch<T>::build(&this->array[i], from[i], allocator);
-    }
-  }
-
-  template <typename Allocator = ManagedAllocator>
-  Array(const std::vector<T>& from, Allocator& allocator = managed_allocator):
-    base_type(from.size(), new(allocator) T[from.size()])
-  {
-    for(int i = 0; i < this->n; ++i) {
-      GroundTypeAllocatorDispatch<T>::build(&this->array[i], from[i], allocator);
-    }
-  }
-
-  template <typename Allocator = ManagedAllocator>
-  CUDA Array(const T& from, int n, Allocator& allocator = managed_allocator):
-    base_type(n, new(allocator) T[n])
-  {
-    for(int i = 0; i < this->n; ++i) {
-      GroundTypeAllocatorDispatch<T>::build(&this->array[i], from, allocator);
-    }
-  }
-};
-
-// Special constructor for array of polymorphic pointers.
-template<typename T>
-class Array<Pointer<T>>: public ArrayBase<Pointer<T>> {
-  typedef ArrayBase<Pointer<T>> base_type;
-public:
-  CUDA Array(const Array<Pointer<T>>& from, polymorphic_type_tag_t, SharedAllocator& allocator):
-    base_type(from.n, new(allocator) Pointer<T>[from.n])
-  {
-    for(int i = 0; i < this->n; ++i) {
-      this->array[i] = from[i].clone_in(allocator);
-    }
-  }
-
-  template <typename Allocator = ManagedAllocator>
-  CUDA Array(int n, Allocator& allocator = managed_allocator):
-    base_type(n, new(allocator) Pointer<T>[n])
-  {}
 };
 
 #endif // MEMORY_HPP

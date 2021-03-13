@@ -14,7 +14,8 @@
 
 #include "memory.cuh"
 
-__managed__ polymorphic_type_tag_t polymorphic_type_tag;
+ManagedAllocator managed_allocator;
+__device__ GlobalAllocator global_allocator;
 
 __device__ SharedAllocator::SharedAllocator(char* mem):
   mem(mem), offset(0) {}
@@ -46,8 +47,6 @@ void* ManagedAllocator::allocate(size_t bytes) {
 void ManagedAllocator::deallocate(void* data) {
   cudaFree(data);
 }
-
-__device__ ManagedAllocator managed_allocator;
 
 void* operator new(size_t bytes, ManagedAllocator& p) {
   return p.allocate(bytes);

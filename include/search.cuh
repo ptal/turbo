@@ -63,7 +63,7 @@ class TreeAndPar
 
 public:
   template<typename Allocator>
-  CUDA TreeAndPar(
+  __device__ TreeAndPar(
    const VStore &root,
    const Array<Pointer<Propagator>> &props,
    const Array<Var> &branching_vars,
@@ -73,7 +73,7 @@ public:
   : root(root, allocator),
     current(root, allocator),
     pstatus(props.size(), allocator),
-    props(props, polymorphic_type_tag, allocator),
+    props(props, allocator),
     deltas(MAX_DEPTH, allocator),
     deltas_size(0),
     branching_vars(branching_vars, allocator),

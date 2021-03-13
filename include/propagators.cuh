@@ -35,7 +35,7 @@ public:
   virtual Propagator* neg() const = 0;
   // This function is called from host, and copy the object on the device memory.
   virtual Propagator* to_device() const = 0;
-  CUDA virtual Propagator* clone_in(SharedAllocator& allocator) const = 0;
+  __device__ virtual Propagator* clone_in(SharedAllocator& allocator) const = 0;
 };
 
 CUDA_GLOBAL void init_temporal_prop(Propagator** p, int uid, Var x, Var y, int c);
@@ -99,7 +99,7 @@ public:
     return *p;
   }
 
-  CUDA Propagator* clone_in(SharedAllocator& allocator) const {
+  __device__ Propagator* clone_in(SharedAllocator& allocator) const {
     Propagator* p = new(allocator) TemporalProp(x, y, c);
     p->uid = uid;
     return p;
@@ -155,7 +155,7 @@ public:
     return *p;
   }
 
-  CUDA Propagator* clone_in(SharedAllocator& allocator) const {
+  __device__ Propagator* clone_in(SharedAllocator& allocator) const {
     Propagator* p = new(allocator) LogicalOr(left->clone_in(allocator), right->clone_in(allocator));
     p->uid = uid;
     return p;
@@ -207,7 +207,7 @@ public:
     return *p;
   }
 
-  CUDA Propagator* clone_in(SharedAllocator& allocator) const {
+  __device__ Propagator* clone_in(SharedAllocator& allocator) const {
     Propagator* p = new(allocator) LogicalAnd(left->clone_in(allocator), right->clone_in(allocator));
     p->uid = uid;
     return p;
@@ -280,7 +280,7 @@ public:
     return *p;
   }
 
-  CUDA Propagator* clone_in(SharedAllocator& allocator) const {
+  __device__ Propagator* clone_in(SharedAllocator& allocator) const {
     Propagator* p = new(allocator) ReifiedProp(b, rhs->clone_in(allocator), not_rhs->clone_in(allocator));
     p->uid = uid;
     return p;
@@ -301,8 +301,13 @@ public:
     assert(vvars.size() == vconstants.size());
   }
 
-  template<typename Allocator = ManagedAllocator>
-  CUDA LinearIneq(const Array<Var>& vars, const Array<int>& constants, int max, Allocator& allocator = managed_allocator):
+  __host__ LinearIneq(const Array<Var>& vars, const Array<int>& constants, int max):
+    Propagator(-1), max(max), vars(vars),
+    constants(constants)
+  {}
+
+  template<typename Allocator>
+  __device__ LinearIneq(const Array<Var>& vars, const Array<int>& constants, int max, Allocator& allocator):
     Propagator(-1), max(max), vars(vars, allocator),
     constants(constants, allocator)
   {}
@@ -402,7 +407,7 @@ public:
     return *p;
   }
 
-  CUDA Propagator* clone_in(SharedAllocator& allocator) const {
+  __device__ Propagator* clone_in(SharedAllocator& allocator) const {
     Propagator* p = new(allocator) LinearIneq(vars, constants, max, allocator);
     p->uid = uid;
     return p;

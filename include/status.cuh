@@ -47,13 +47,15 @@ class PropagatorsStatus {
   bool changed;
 
 public:
-  template<typename Allocator = ManagedAllocator>
-  CUDA PropagatorsStatus(size_t n, Allocator& allocator = Allocator()):
-    status(n), changed(false)
+  template<typename Allocator>
+  __device__ PropagatorsStatus(size_t n, Allocator& allocator):
+    status(n, allocator), changed(false)
   {
-    for(int i = 0; i < n; ++i) {
-      status[i] = UNKNOWN;
-    }
+    reset();
+  }
+
+  PropagatorsStatus(size_t n): status(n), changed(false) {
+    reset();
   }
 
   CUDA PropagatorsStatus() = delete;

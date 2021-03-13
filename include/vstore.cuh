@@ -96,19 +96,21 @@ public:
     free2(names);
   }
 
-  template<typename Allocator = ManagedAllocator>
-  CUDA VStore(int nvar, Allocator& allocator = managed_allocator):
+  template<typename Allocator>
+  CUDA VStore(int nvar, Allocator& allocator):
     data(nvar, allocator)
   {}
 
-  template<typename Allocator = ManagedAllocator>
-  CUDA VStore(const VStore& other, Allocator& allocator = managed_allocator):
+  template<typename Allocator>
+  CUDA VStore(const VStore& other, Allocator& allocator):
     data(other.data, allocator),
     names(other.names), names_len(other.names_len)
   {}
 
-  CUDA VStore(): data(0) {}
-  CUDA VStore(const VStore&) = delete;
+  VStore(int nvar): data(nvar) {}
+  VStore(const VStore& other): data(other.data), names(other.names), names_len(other.names_len) {}
+
+  VStore(): data(0) {}
 
   CUDA void reset(const VStore& other) {
     assert(size() == other.size());
