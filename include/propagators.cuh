@@ -42,7 +42,7 @@ public:
 CUDA_GLOBAL void init_logical_or(Propagator** p, int uid, Propagator* left, Propagator* right);
 CUDA_GLOBAL void init_logical_and(Propagator** p, int uid, Propagator* left, Propagator* right);
 CUDA_GLOBAL void init_reified_prop(Propagator** p, int uid, Var b, Propagator* rhs, Propagator* not_rhs);
-CUDA_GLOBAL void init_linear_ineq(Propagator** p, int uid, const Array<Var>& vars, const Array<int>& constants, int max);
+CUDA_GLOBAL void init_linear_ineq(Propagator** p, int uid, const Array<Var> vars, const Array<int> constants, int max);
 
 template<typename TermX, typename TermY>
 CUDA_GLOBAL void init_temporal_prop(Propagator** p, int uid, TermX x, TermY y, int c);
@@ -432,8 +432,8 @@ struct Constraints {
 
   // Retrieve the temporal variables (those in temporal constraints).
   // It is useful for branching.
-  Array<Var> branching_vars() {
-    return Array<Var>(temporal_vars);
+  Array<Var>* branching_vars() {
+    return new(managed_allocator) Array<Var>(temporal_vars);
   }
 
   void init_uids() {

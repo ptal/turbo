@@ -177,6 +177,7 @@ class ModelBuilder {
 
     // Must be guarded with `is_sum_constraint`.
     Propagator* sum_constraint(Node* node) {
+      std::cout << "Add sum constraint " << node->toString() << std::endl;
       int c = dynamic_cast<NodeConstant*>(node->parameters[1])->val;
       std::vector<Var> vars;
       std::vector<int> constants;
@@ -198,14 +199,15 @@ class ModelBuilder {
     }
 
     static Propagator* create_temporal_prop(int x, int y, int k) {
-      if(x < 0 && y < 0) { return new TemporalProp(Negation(Variable(x)),Negation(Variable(y)),k); }
-      if(x < 0 && y >= 0) { return new TemporalProp(Negation(Variable(x)),Variable(y),k); }
-      if(x >= 0 && y < 0) { return new TemporalProp(Variable(x),Negation(Variable(y)),k); }
+      if(x < 0 && y < 0) { return new TemporalProp(Negation(Variable(-x)),Negation(Variable(-y)),k); }
+      if(x < 0 && y >= 0) { return new TemporalProp(Negation(Variable(-x)),Variable(y),k); }
+      if(x >= 0 && y < 0) { return new TemporalProp(Variable(x),Negation(Variable(-y)),k); }
       if(x >= 0 && y >= 0) { return new TemporalProp(Variable(x),Variable(y),k); }
       return nullptr;
     }
 
     Propagator* temporal_constraint(std::string x, int k, OrderType op, std::string y) {
+      std::cout << "Add temporal constraints: " << x << " " << y << std::endl;
       Var xi = std::get<0>(var2idx[x]);
       Var yi = std::get<0>(var2idx[y]);
       assert(xi != 0 && yi != 0);
@@ -287,6 +289,7 @@ class ModelBuilder {
 
     // Precondition: constraint of the form `x + y <op> z` or `x - y <op> z` where x,y,z can be variables or integers.
     Propagator* add_sub_expr_constraint(Node* node, std::function<void(Node* node,int&,bool)> treat_lhs) {
+      std::cout << "add_sub_expr_constraint " << node->toString() << std::endl;
       int xi = 0;
       int yi = 0;
       int k = 0;

@@ -21,10 +21,10 @@
 #include "cuda_helper.hpp"
 
 class SharedAllocator {
-  char* mem;
+  int* mem;
   size_t offset;
 public:
-  __device__ SharedAllocator(char* mem);
+  __device__ SharedAllocator(int* mem);
   __device__ SharedAllocator() = delete;
   __device__ void* allocate(size_t bytes);
 };
@@ -190,8 +190,9 @@ public:
   Array(const std::vector<T>& from):
     n(from.size()), array(new(managed_allocator) T[from.size()])
   {
+    std::cout << "Building array from vector: " << from.size() << std::endl;
     for(int i = 0; i < n; ++i) {
-      TypeAllocatorDispatch<T>::build(&array[i], from[i], managed_allocator);
+      new(&array[i]) T(from[i]);
     }
   }
 

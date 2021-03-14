@@ -56,7 +56,9 @@ class Variable {
   int idx;
 public:
   typedef Negation<Variable> neg_type;
-  CUDA Variable(int idx) : idx(idx) {}
+  CUDA Variable(int idx) : idx(idx) {
+    assert(idx >= 0);
+  }
   CUDA bool update_lb(VStore& vstore, int lb) const {
     return vstore.update_lb(idx, lb);
   }

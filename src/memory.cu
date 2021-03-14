@@ -17,12 +17,14 @@
 ManagedAllocator managed_allocator;
 __device__ GlobalAllocator global_allocator;
 
-__device__ SharedAllocator::SharedAllocator(char* mem):
+__device__ SharedAllocator::SharedAllocator(int* mem):
   mem(mem), offset(0) {}
 
 __device__ void* SharedAllocator::allocate(size_t bytes) {
+  printf("before mem[%lu] for %lu\n", offset, bytes);
   void* m = (void*)&mem[offset];
-  offset += bytes;
+  offset += bytes / sizeof(int) + bytes % sizeof(int);
+  printf("after mem[%lu]\n", offset);
   return m;
 }
 
@@ -40,7 +42,7 @@ __device__ void operator delete[](void* ptr, SharedAllocator& p) {}
 
 void* ManagedAllocator::allocate(size_t bytes) {
   void* data;
-  CUDIE(cudaMallocManaged(&data, bytes));
+  cudaMallocManaged(&data, bytes);
   return data;
 }
 
