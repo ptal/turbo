@@ -27,6 +27,7 @@
 
 #include "vstore.cuh"
 #include "propagators.cuh"
+#include "terms.hpp"
 
 using namespace XCSP3Core;
 using namespace std::placeholders;
@@ -69,6 +70,9 @@ class ModelBuilder {
       Var idx = idx2var.size();
       idx2var.push_back(name);
       var2idx[name] = std::make_tuple(idx, Interval(min,max));
+      if(name.substr(0,5) == "start") {
+        constraints.temporal_vars.push_back(idx);
+      }
     }
 
     // x <op> k
@@ -193,6 +197,14 @@ class ModelBuilder {
       throw std::runtime_error("unsupported: " + msg);
     }
 
+    static Propagator* create_temporal_prop(int x, int y, int k) {
+      if(x < 0 && y < 0) { return new TemporalProp(Negation(Variable(x)),Negation(Variable(y)),k); }
+      if(x < 0 && y >= 0) { return new TemporalProp(Negation(Variable(x)),Variable(y),k); }
+      if(x >= 0 && y < 0) { return new TemporalProp(Variable(x),Negation(Variable(y)),k); }
+      if(x >= 0 && y >= 0) { return new TemporalProp(Variable(x),Variable(y),k); }
+      return nullptr;
+    }
+
     Propagator* temporal_constraint(std::string x, int k, OrderType op, std::string y) {
       Var xi = std::get<0>(var2idx[x]);
       Var yi = std::get<0>(var2idx[y]);
@@ -200,7 +212,7 @@ class ModelBuilder {
 
       auto p = std::make_pair(xi,-yi);
       return le_canonical_form<std::pair<int,int>>(p, op, -k,
-        [](std::pair<int, int>& left, int k) -> Propagator* { return new TemporalProp(left.first, left.second, k); },
+        [](std::pair<int, int>& left, int k) -> Propagator* { return create_temporal_prop(left.first, left.second, k); },
         [](std::pair<int, int>& left) {left.first = -left.first; left.second = abs(left.second); });
     }
 
@@ -325,7 +337,7 @@ class ModelBuilder {
       else {
         auto p = std::make_pair(xi,yi);
         return le_canonical_form<std::pair<int,int>>(p, op, k,
-          [](std::pair<int, int>& left, int k) -> Propagator* { return new TemporalProp(left.first, left.second, k); },
+          [](std::pair<int, int>& left, int k) -> Propagator* { return create_temporal_prop(left.first, left.second, k); },
           [](std::pair<int, int>& left) {left.first = -left.first; left.second = abs(left.second); });
       }
       // No propagator was created (the constraint was handled directly).

@@ -58,7 +58,7 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
 {
   INFO(constraints.print(*vstore));
 
-  Array<Var> temporal_vars = constraints.temporal_vars(vstore->size());
+  Array<Var> branching_vars = constraints.branching_vars();
 
   std::cout << "Start transfering propagator to device memory." << std::endl;
   auto t1 = std::chrono::high_resolution_clock::now();
@@ -78,7 +78,7 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
   malloc2_managed(best_bound, 1);
   new(best_bound) Pointer<Interval>(Interval());
 
-  search_k<<<OR_NODES, 1>>>(trees, *vstore, props, temporal_vars,
+  search_k<<<OR_NODES, 1>>>(trees, *vstore, props, branching_vars,
     best_bound, best_sols, minimize_x);
   CUDIE(cudaDeviceSynchronize());
 

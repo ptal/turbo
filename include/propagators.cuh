@@ -20,6 +20,7 @@
 #include <stdexcept>
 #include "cuda_helper.hpp"
 #include "vstore.cuh"
+#include "terms.hpp"
 
 class Propagator {
 public:
@@ -38,56 +39,57 @@ public:
   __device__ virtual Propagator* clone_in(SharedAllocator& allocator) const = 0;
 };
 
-CUDA_GLOBAL void init_temporal_prop(Propagator** p, int uid, Var x, Var y, int c);
 CUDA_GLOBAL void init_logical_or(Propagator** p, int uid, Propagator* left, Propagator* right);
 CUDA_GLOBAL void init_logical_and(Propagator** p, int uid, Propagator* left, Propagator* right);
 CUDA_GLOBAL void init_reified_prop(Propagator** p, int uid, Var b, Propagator* rhs, Propagator* not_rhs);
 CUDA_GLOBAL void init_linear_ineq(Propagator** p, int uid, const Array<Var>& vars, const Array<int>& constants, int max);
 
-/// x + y <= c
-class TemporalProp: public Propagator {
+template<typename TermX, typename TermY>
+CUDA_GLOBAL void init_temporal_prop(Propagator** p, int uid, TermX x, TermY y, int c);
 
+/// x + y <= c
+template<typename TermX, typename TermY>
+class TemporalProp: public Propagator {
 public:
-  const Var x;
-  const Var y;
+  const TermX x;
+  const TermY y;
   const int c;
 
-  CUDA TemporalProp(Var x, Var y, int c):
+  CUDA TemporalProp(TermX x, TermY y, int c):
    Propagator(-1), x(x), y(y), c(c)
-  {
-    assert(x != 0 && y != 0);
-  }
+  {}
 
   CUDA ~TemporalProp() {}
 
   CUDA bool propagate(VStore& vstore) const override {
-    bool has_changed = vstore.update_ub(x, c - vstore.lb(y));
-    has_changed |= vstore.update_ub(y, c - vstore.lb(x));
+    bool has_changed = x.update_ub(vstore, c - y.lb(vstore));
+    has_changed |= y.update_ub(vstore, c - x.lb(vstore));
     return has_changed;
   }
 
   CUDA bool is_entailed(const VStore& vstore) const override {
     return
-      !vstore.is_top(x) &&
-      !vstore.is_top(y) &&
-      vstore.ub(x) + vstore.ub(y) <= c;
+      !x.is_top(vstore) &&
+      !y.is_top(vstore) &&
+      x.ub(vstore) + y.ub(vstore) <= c;
   }
 
   CUDA bool is_disentailed(const VStore& vstore) const override {
-    return vstore.is_top(x) ||
-           vstore.is_top(y) ||
-           vstore.lb(x) + vstore.lb(y) > c;
+    return x.is_top(vstore) ||
+           y.is_top(vstore) ||
+           x.lb(vstore) + y.lb(vstore) > c;
   }
 
   Propagator* neg() const {
-    return new TemporalProp(-x, -y, -c - 1);
+    return new TemporalProp<typename TermX::neg_type, typename TermY::neg_type>
+      (x.neg(), y.neg(), -c - 1);
   }
 
   CUDA void print(const VStore& vstore) const override {
     printf("%d: ", uid);
-    vstore.print_var(x);
+    x.print(vstore);
     printf(" + ");
-    vstore.print_var(y);
+    y.print(vstore);
     printf(" <= %d", c);
   }
 
@@ -99,12 +101,18 @@ public:
     return *p;
   }
 
-  __device__ Propagator* clone_in(SharedAllocator& allocator) const {
+  __device__ Propagator* clone_in(SharedAllocator& allocator) const override {
     Propagator* p = new(allocator) TemporalProp(x, y, c);
     p->uid = uid;
     return p;
   }
 };
+
+template<typename TermX, typename TermY>
+CUDA_GLOBAL void init_temporal_prop(Propagator** p, int uid, TermX x, TermY y, int c) {
+  *p = new TemporalProp<TermX, TermY>(x, y, c);
+  (*p)->uid = uid;
+}
 
 // C1 \/ C2
 class LogicalOr: public Propagator {
@@ -155,7 +163,7 @@ public:
     return *p;
   }
 
-  __device__ Propagator* clone_in(SharedAllocator& allocator) const {
+  __device__ Propagator* clone_in(SharedAllocator& allocator) const override {
     Propagator* p = new(allocator) LogicalOr(left->clone_in(allocator), right->clone_in(allocator));
     p->uid = uid;
     return p;
@@ -416,6 +424,7 @@ public:
 
 struct Constraints {
   std::vector<Propagator*> propagators;
+  std::vector<Var> temporal_vars;
 
   size_t size() {
     return propagators.size();
@@ -423,27 +432,8 @@ struct Constraints {
 
   // Retrieve the temporal variables (those in temporal constraints).
   // It is useful for branching.
-  Array<Var> temporal_vars(int max) {
-    bool is_temporal[max] = {false};
-    for(int i=0; i < size(); ++i) {
-      if(TemporalProp* p = dynamic_cast<TemporalProp*>(propagators[i])) {
-        is_temporal[p->x] = true;
-        is_temporal[p->y] = true;
-      }
-    }
-    int n=0;
-    for(int i=0; i < max; ++i) {
-      n += is_temporal[i];
-    }
-    Array<Var> vars(n);
-    int j = 0;
-    for(int i=0; i < max; ++i) {
-      if (is_temporal[i]) {
-        vars[j] = i;
-        j++;
-      }
-    }
-    return vars;
+  Array<Var> branching_vars() {
+    return Array<Var>(temporal_vars);
   }
 
   void init_uids() {

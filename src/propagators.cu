@@ -14,11 +14,6 @@
 
 #include "propagators.cuh"
 
-CUDA_GLOBAL void init_temporal_prop(Propagator** p, int uid, Var x, Var y, int c) {
-  *p = new TemporalProp(x, y, c);
-  (*p)->uid = uid;
-}
-
 CUDA_GLOBAL void init_logical_or(Propagator** p, int uid, Propagator* left, Propagator* right) {
   *p = new LogicalOr(left, right);
   (*p)->uid = uid;
