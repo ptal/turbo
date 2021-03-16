@@ -17,14 +17,14 @@
 ManagedAllocator managed_allocator;
 __device__ GlobalAllocator global_allocator;
 
-__device__ SharedAllocator::SharedAllocator(int* mem):
-  mem(mem), offset(0) {}
+__device__ SharedAllocator::SharedAllocator(int* mem, size_t capacity):
+  mem(mem), capacity(capacity), offset(0) {}
 
 __device__ void* SharedAllocator::allocate(size_t bytes) {
-  printf("before mem[%lu] for %lu\n", offset, bytes);
+  assert(offset < capacity);
   void* m = (void*)&mem[offset];
-  offset += bytes / sizeof(int) + bytes % sizeof(int);
-  printf("after mem[%lu]\n", offset);
+  offset += bytes / sizeof(int);
+  offset += offset % sizeof(int*);
   return m;
 }
 

@@ -48,18 +48,25 @@ struct Delta
     x(x), next(l), right(r) {}
 };
 
+#define PROPAGATOR_IN_GLOBAL
+
 class TreeAndPar
 {
   VStore root;
   VStore current;
   PropagatorsStatus pstatus;
-  Array<Pointer<Propagator>> props;
+  #ifdef PROPAGATOR_IN_GLOBAL
+    const Array<Pointer<Propagator>>& props;
+  #else
+    Array<Pointer<Propagator>> props;
+  #endif
   Array<Delta> deltas;
   int deltas_size;
   Array<Var> branching_vars;
   Interval& best_bound;
   VStore best_sol;
   Var minimize_x;
+  Statistics stats;
 
 public:
   template<typename Allocator>
@@ -73,12 +80,16 @@ public:
   : root(root, allocator),
     current(root, allocator),
     pstatus(props.size(), allocator),
-    props(props, allocator),
+    #ifdef PROPAGATOR_IN_GLOBAL
+      props(props),
+    #else
+      props(props, allocator),
+    #endif
     deltas(MAX_DEPTH, allocator),
     deltas_size(0),
     branching_vars(branching_vars, allocator),
     best_bound(best_bound),
-    best_sol(root, allocator),
+    best_sol(root, global_allocator),
     minimize_x(min_x)
   {}
 
@@ -97,9 +108,14 @@ public:
     return best_sol;
   }
 
+  __device__ const Statistics& statistics() const {
+    return stats;
+  }
+
 private:
   __device__ void before_propagation(int tid) {
     if (tid == 0) {
+      stats.nodes++;
       current.update(minimize_x, {best_bound.lb, best_bound.ub - 1});
     }
   }
@@ -112,7 +128,7 @@ private:
       }
       __threadfence_block();
       for (int t = tid; t < props.size(); t += stride) {
-        propagate_one(tid);
+        propagate_one(t);
       }
       __threadfence_block();
       s = pstatus.join();
@@ -133,15 +149,20 @@ private:
 
   __device__ void on_failure() {
     INFO(printf("backtracking on failed node %p...\n", this));
+    stats.fails++;
+    stats.peak_depth = max(stats.peak_depth, deltas_size);
     backtrack();
     replay();
   }
 
   __device__ void on_solution() {
     INFO(printf("previous best...(bound %d..%d)\n", best_bound.lb, best_bound.ub));
+    stats.sols++;
+    stats.peak_depth = max(stats.peak_depth, deltas_size);
     const Interval& new_bound = current[minimize_x];
     // Due to parallelism, it is possible that several bounds are found in one iteration, thus we need to perform a (lattice) join on the best bound.
     best_bound.ub = min(best_bound.ub, new_bound.lb);
+    stats.best_bound = best_bound.ub;
     INFO(printf("backtracking on solution...(bound %d..%d)\n", best_bound.lb, best_bound.ub));
     best_sol.reset(current);
     backtrack();
@@ -154,15 +175,19 @@ private:
   }
 
   __device__ void replay() {
-    current.reset(root);
-    deltas[deltas_size - 1].next = deltas[deltas_size - 1].right;
-    for (int i = 0; i < deltas_size; ++i) {
-      current.update(deltas[i].x, deltas[i].next);
+    if(deltas_size >= 0) {
+      current.reset(root);
+      deltas[deltas_size].next = deltas[deltas_size].right;
+      for (int i = 0; i <= deltas_size; ++i) {
+        current.update(deltas[i].x, deltas[i].next);
+      }
+      deltas_size++;
     }
   }
 
   __device__ void backtrack() {
-    while (deltas_size >= 0 && deltas[deltas_size - 1].next == deltas[deltas_size - 1].right) {
+    --deltas_size;
+    while (deltas_size >= 0 && deltas[deltas_size].next == deltas[deltas_size].right) {
       --deltas_size;
     }
   }
@@ -181,7 +206,7 @@ private:
   }
 
   __device__ void propagate_one(int i) {
-    Pointer<Propagator>& p = props[i];
+    const Pointer<Propagator>& p = props[i];
     bool has_changed = p->propagate(current);
     Status s = has_changed ? UNKNOWN : IDLE;
     if(p->is_entailed(current)) {

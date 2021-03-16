@@ -42,24 +42,15 @@ int main(int argc, char** argv) {
     usage_and_exit(argv);
   }
 
-  std::cout << "Start..." << std::endl;
-
   try
   {
     ModelBuilder* model_builder = new ModelBuilder();
     XCSP3_turbo_callbacks cb(model_builder);
     XCSP3CoreParser parser(&cb);
     parser.parse(argv[file_arg]); // fileName is a string
-    std::cout << "parsing successful..." << std::endl;
     Constraints constraints = model_builder->build_constraints();
-
-    std::cout << "parsing successful..." << std::endl;
     VStore* vstore = model_builder->build_store();
-
-    std::cout << "parsing successful..." << std::endl;
     Var minimize_x = model_builder->build_minimize_obj();
-
-    std::cout << "parsing successful..." << std::endl;
     solve(vstore, constraints, minimize_x, timeout);
     vstore->free_names();
     vstore->~VStore();

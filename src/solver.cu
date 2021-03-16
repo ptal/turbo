@@ -27,6 +27,7 @@
 #include "search.cuh"
 
 #define OR_NODES 1
+#define AND_NODES 512
 
 CUDA_GLOBAL void search_k(
     Array<Pointer<TreeAndPar>>* trees,
@@ -35,23 +36,28 @@ CUDA_GLOBAL void search_k(
     Array<Var>* branching_vars,
     Pointer<Interval>* best_bound,
     Array<VStore>* best_sols,
-    Var minimize_x)
+    Var minimize_x,
+    Array<Statistics>* stats)
 {
   extern __shared__ int shmem[];
-  // __shared__ int shmem[1000];
+  const int n = 65536;
+  // __shared__ int shmem[n];
   int tid = threadIdx.x + blockIdx.x * blockDim.x;
   int nodeid = blockIdx.x;
   int stride = gridDim.x * blockDim.x;
 
-  if (tid == 0) {
-    SharedAllocator allocator(shmem);
-    (*trees)[nodeid].reset(new(allocator) TreeAndPar(
-      *root, *props, *branching_vars, **best_bound, minimize_x, allocator));
-  }
-  __syncthreads();
-  (*trees)[nodeid]->search(tid, stride);
-  if (tid == 0) {
-    (*best_sols)[nodeid].reset((*trees)[nodeid]->best());
+  if(tid < props->size()) {
+    if (tid == 0) {
+      SharedAllocator allocator(shmem, n);
+      (*trees)[nodeid].reset(new(allocator) TreeAndPar(
+        *root, *props, *branching_vars, **best_bound, minimize_x, allocator));
+    }
+    __syncthreads();
+    (*trees)[nodeid]->search(tid, stride);
+    if (tid == 0) {
+      (*best_sols)[nodeid].reset((*trees)[nodeid]->best());
+      (*stats)[nodeid] = (*trees)[nodeid]->statistics();
+    }
   }
 }
 
@@ -61,44 +67,56 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
 
   Array<Var>* branching_vars = constraints.branching_vars();
 
-  std::cout << "Start transfering propagator to device memory." << std::endl;
+  LOG(std::cout << "Start transfering propagator to device memory." << std::endl);
   auto t1 = std::chrono::high_resolution_clock::now();
   Array<Pointer<Propagator>>* props = new(managed_allocator) Array<Pointer<Propagator>>(constraints.size());
-  std::cout << "props created " << props->size() << std::endl;
+  LOG(std::cout << "props created " << props->size() << std::endl);
   for (auto p : constraints.propagators) {
-    p->print(*vstore);
-    std::cout << std::endl;
+    LOG(p->print(*vstore));
+    LOG(std::cout << std::endl);
     (*props)[p->uid].reset(p->to_device());
   }
   auto t2 = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
-  std::cout << "Finish transfering propagators to device memory (" << duration << " ms)" << std::endl;
+  LOG(std::cout << "Finish transfering propagators to device memory (" << duration << " ms)" << std::endl);
 
   t1 = std::chrono::high_resolution_clock::now();
 
   Array<Pointer<TreeAndPar>>* trees = new(managed_allocator) Array<Pointer<TreeAndPar>>(OR_NODES);
-  Array<VStore>* best_sols = new(managed_allocator) Array<VStore>(*vstore, OR_NODES);
   Pointer<Interval>* best_bound = new(managed_allocator) Pointer<Interval>(Interval());
+  Array<VStore>* best_sols = new(managed_allocator) Array<VStore>(*vstore, OR_NODES);
+  Array<Statistics>* stats = new(managed_allocator) Array<Statistics>(OR_NODES);
 
-  search_k<<<OR_NODES, 1, sizeof(int) * vstore->size() * 20>>>(trees, vstore, props, branching_vars,
-    best_bound, best_sols, minimize_x);
+  cudaFuncSetAttribute(search_k, cudaFuncAttributeMaxDynamicSharedMemorySize, 65536);
+  search_k<<<OR_NODES, AND_NODES, 65536>>>(trees, vstore, props, branching_vars,
+    best_bound, best_sols, minimize_x, stats);
   CUDIE(cudaDeviceSynchronize());
 
   t2 = std::chrono::high_resolution_clock::now();
   duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
 
-  //tree_data->stats.print();
-  if(duration > timeout * 1000) {
+  // Gather statistics and best bound.
+  Statistics statistics;
+  for(int i = 0; i < stats->size(); ++i) {
+    statistics.nodes += (*stats)[i].nodes;
+    statistics.fails += (*stats)[i].fails;
+    statistics.sols += (*stats)[i].sols;
+    statistics.best_bound = statistics.best_bound == -1 ? (*stats)[i].best_bound : min(statistics.best_bound, (*stats)[i].best_bound);
+    statistics.peak_depth = max(statistics.peak_depth, (*stats)[i].peak_depth);
+  }
+
+  statistics.print();
+  if(timeout != INT_MAX && duration > timeout * 1000) {
     std::cout << "solveTime=timeout" << std::endl;
   }
   else {
     std::cout << "solveTime=" << duration << std::endl;
   }
 
-  // delete(managed_allocator) best_bound;
-  // delete(managed_allocator) props;
-  // delete(managed_allocator) trees;
-  // delete(managed_allocator) branching_vars;
-  // delete(managed_allocator) best_bound;
-  // delete(managed_allocator) best_sols;
+  operator delete(best_bound, managed_allocator);
+  operator delete(props, managed_allocator);
+  operator delete(trees, managed_allocator);
+  operator delete(branching_vars, managed_allocator);
+  operator delete(best_bound, managed_allocator);
+  operator delete(best_sols, managed_allocator);
 }

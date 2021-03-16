@@ -23,8 +23,9 @@
 class SharedAllocator {
   int* mem;
   size_t offset;
+  size_t capacity;
 public:
-  __device__ SharedAllocator(int* mem);
+  __device__ SharedAllocator(int* mem, size_t capacity);
   __device__ SharedAllocator() = delete;
   __device__ void* allocate(size_t bytes);
 };
@@ -116,11 +117,16 @@ public:
 
   template<typename Allocator>
   __device__ Pointer(const Pointer<T>& from, Allocator& allocator):
-    ptr(TypeAllocatorDispatch<T>::build(*from.ptr, allocator))
+    ptr(from.ptr == nullptr
+        ? nullptr
+        : TypeAllocatorDispatch<T>::build(*from.ptr, allocator))
   {}
 
   Pointer(const T& from): ptr(new(managed_allocator) T(from)) {}
-  Pointer(const Pointer<T>& from): ptr(new(managed_allocator) T(*from.ptr)) {}
+  Pointer(const Pointer<T>& from): ptr(
+    from.ptr == nullptr
+     ? nullptr
+     : new(managed_allocator) T(*from.ptr)) {}
 
   CUDA T* operator->() const { assert(ptr != nullptr); return ptr; }
   CUDA T& operator*() const { assert(ptr != nullptr); return *ptr; }
@@ -190,7 +196,6 @@ public:
   Array(const std::vector<T>& from):
     n(from.size()), array(new(managed_allocator) T[from.size()])
   {
-    std::cout << "Building array from vector: " << from.size() << std::endl;
     for(int i = 0; i < n; ++i) {
       new(&array[i]) T(from[i]);
     }
