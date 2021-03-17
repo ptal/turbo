@@ -49,7 +49,7 @@ struct Delta
 };
 
 #define PROPAGATOR_IN_GLOBAL
-#define NODES_LIMIT 1000
+#define NODES_LIMIT 100000
 
 class TreeAndPar
 {
@@ -126,6 +126,7 @@ private:
   __device__ void propagation(int tid, int stride) {
     Status s = UNKNOWN;
     while(s == UNKNOWN || pstatus.has_changed()) {
+      __syncthreads();
       if (tid == 0) {
         pstatus.reset_changed();
       }

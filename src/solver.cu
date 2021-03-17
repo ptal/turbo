@@ -27,7 +27,7 @@
 #include "search.cuh"
 
 #define OR_NODES 1
-#define AND_NODES 1
+#define AND_NODES 512
 // #define SHMEM_SIZE 65536
 #define SHMEM_SIZE 44000
 
@@ -48,18 +48,16 @@ CUDA_GLOBAL void search_k(
   int nodeid = blockIdx.x;
   int stride = blockDim.x;
 
-  if(tid < props->size()) {
-    if (tid == 0) {
-      SharedAllocator allocator(shmem, n);
-      (*trees)[nodeid].reset(new(allocator) TreeAndPar(
-        *root, *props, *branching_vars, **best_bound, minimize_x, allocator));
-    }
-    __syncthreads();
-    (*trees)[nodeid]->search(tid, stride);
-    if (tid == 0) {
-      (*best_sols)[nodeid].reset((*trees)[nodeid]->best());
-      (*stats)[nodeid] = (*trees)[nodeid]->statistics();
-    }
+  if (tid == 0) {
+    SharedAllocator allocator(shmem, n);
+    (*trees)[nodeid].reset(new(allocator) TreeAndPar(
+      *root, *props, *branching_vars, **best_bound, minimize_x, allocator));
+  }
+  __syncthreads();
+  (*trees)[nodeid]->search(tid, stride);
+  if (tid == 0) {
+    (*best_sols)[nodeid].reset((*trees)[nodeid]->best());
+    (*stats)[nodeid] = (*trees)[nodeid]->statistics();
   }
 }
 
@@ -90,7 +88,7 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
   Array<Statistics>* stats = new(managed_allocator) Array<Statistics>(OR_NODES);
 
   // cudaFuncSetAttribute(search_k, cudaFuncAttributeMaxDynamicSharedMemorySize, SHMEM_SIZE);
-  search_k<<<OR_NODES, AND_NODES, SHMEM_SIZE>>>(trees, vstore, props, branching_vars,
+  search_k<<<OR_NODES, min((int)props->size(), AND_NODES), SHMEM_SIZE>>>(trees, vstore, props, branching_vars,
     best_bound, best_sols, minimize_x, stats);
   CUDIE(cudaDeviceSynchronize());
 
@@ -109,12 +107,13 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
 
   statistics.print();
   // if(timeout != INT_MAX && duration > timeout * 1000) {
-  if(statistics.nodes == NODES_LIMIT) {
-    std::cout << "solveTime=timeout(" << duration/1000 << "." << duration % 1000 << "s)" << std::endl;
-  }
-  else {
-    std::cout << "solveTime=" << duration/1000 << "." << duration % 1000 << "s" << std::endl;
-  }
+  std::cout << "solveTime=" << duration << std::endl;
+  // if(statistics.nodes == NODES_LIMIT) {
+  //   std::cout << "solveTime=timeout (" << duration/1000 << "." << duration % 1000 << "s)" << std::endl;
+  // }
+  // else {
+  //   std::cout << "solveTime=" << duration/1000 << "." << duration % 1000 << "s" << std::endl;
+  // }
 
   operator delete(best_bound, managed_allocator);
   operator delete(props, managed_allocator);
