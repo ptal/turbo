@@ -49,6 +49,7 @@ struct Delta
 };
 
 #define PROPAGATOR_IN_GLOBAL
+#define NODES_LIMIT 1000
 
 class TreeAndPar
 {
@@ -98,6 +99,7 @@ public:
     while (deltas_size >= 0) {
       before_propagation(tid);
       __syncthreads();
+      if(stats.nodes >= NODES_LIMIT) break;
       propagation(tid, stride);
       __syncthreads();
       after_propagation(tid);
@@ -127,11 +129,11 @@ private:
       if (tid == 0) {
         pstatus.reset_changed();
       }
-      __threadfence_block();
+      __syncthreads();
       for (int t = tid; t < props.size(); t += stride) {
         propagate_one(t);
       }
-      __threadfence_block();
+      __syncthreads();
       s = pstatus.join();
     }
   }

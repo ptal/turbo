@@ -27,7 +27,7 @@
 #include "search.cuh"
 
 #define OR_NODES 1
-#define AND_NODES 128
+#define AND_NODES 1
 // #define SHMEM_SIZE 65536
 #define SHMEM_SIZE 44000
 
@@ -108,11 +108,12 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
   }
 
   statistics.print();
-  if(timeout != INT_MAX && duration > timeout * 1000) {
-    std::cout << "solveTime=timeout" << std::endl;
+  // if(timeout != INT_MAX && duration > timeout * 1000) {
+  if(statistics.nodes == NODES_LIMIT) {
+    std::cout << "solveTime=timeout(" << duration/1000 << "." << duration % 1000 << "s)" << std::endl;
   }
   else {
-    std::cout << "solveTime=" << duration << std::endl;
+    std::cout << "solveTime=" << duration/1000 << "." << duration % 1000 << "s" << std::endl;
   }
 
   operator delete(best_bound, managed_allocator);
