@@ -48,7 +48,6 @@ CUDA_GLOBAL void search_k(
   int nodeid = blockIdx.x;
   int stride = blockDim.x;
 
-
   if(tid < props->size()) {
     if (tid == 0) {
       SharedAllocator allocator(shmem, n);
