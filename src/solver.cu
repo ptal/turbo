@@ -26,8 +26,8 @@
 #include "status.cuh"
 #include "search.cuh"
 
-#define OR_NODES 1
-#define AND_NODES 512
+#define OR_NODES 2
+#define AND_NODES 16
 
 CUDA_GLOBAL void search_k(
     Array<Pointer<TreeAndPar>>* trees,
@@ -41,10 +41,9 @@ CUDA_GLOBAL void search_k(
 {
   extern __shared__ int shmem[];
   const int n = 65536;
-  // __shared__ int shmem[n];
-  int tid = threadIdx.x + blockIdx.x * blockDim.x;
+  int tid = threadIdx.x;
   int nodeid = blockIdx.x;
-  int stride = gridDim.x * blockDim.x;
+  int stride = blockDim.x;
 
   if(tid < props->size()) {
     if (tid == 0) {
