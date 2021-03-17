@@ -117,6 +117,7 @@ private:
     if (tid == 0) {
       stats.nodes++;
       current.update(minimize_x, {best_bound.lb, best_bound.ub - 1});
+      pstatus.reset();
     }
   }
 

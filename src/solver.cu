@@ -27,7 +27,9 @@
 #include "search.cuh"
 
 #define OR_NODES 1
-#define AND_NODES 512
+#define AND_NODES 128
+// #define SHMEM_SIZE 65536
+#define SHMEM_SIZE 44000
 
 CUDA_GLOBAL void search_k(
     Array<Pointer<TreeAndPar>>* trees,
@@ -40,11 +42,12 @@ CUDA_GLOBAL void search_k(
     Array<Statistics>* stats)
 {
   extern __shared__ int shmem[];
-  const int n = 65536;
+  const int n = SHMEM_SIZE;
   // __shared__ int shmem[n];
-  int tid = threadIdx.x + blockIdx.x * blockDim.x;
+  int tid = threadIdx.x;
   int nodeid = blockIdx.x;
-  int stride = gridDim.x * blockDim.x;
+  int stride = blockDim.x;
+
 
   if(tid < props->size()) {
     if (tid == 0) {
@@ -87,8 +90,8 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
   Array<VStore>* best_sols = new(managed_allocator) Array<VStore>(*vstore, OR_NODES);
   Array<Statistics>* stats = new(managed_allocator) Array<Statistics>(OR_NODES);
 
-  cudaFuncSetAttribute(search_k, cudaFuncAttributeMaxDynamicSharedMemorySize, 65536);
-  search_k<<<OR_NODES, AND_NODES, 65536>>>(trees, vstore, props, branching_vars,
+  // cudaFuncSetAttribute(search_k, cudaFuncAttributeMaxDynamicSharedMemorySize, SHMEM_SIZE);
+  search_k<<<OR_NODES, AND_NODES, SHMEM_SIZE>>>(trees, vstore, props, branching_vars,
     best_bound, best_sols, minimize_x, stats);
   CUDIE(cudaDeviceSynchronize());
 

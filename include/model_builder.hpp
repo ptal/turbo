@@ -349,7 +349,9 @@ class ModelBuilder {
 
     // Precondition: constraint of the form `x * y <op> z` where x,y,z can be variables or integers.
     Propagator* mul_expr_constraint(Node* node) {
-      error(node, "mul not implemented");
+      if(!le_mul_domain(node)) {
+        error(node, "mul not implemented");
+      }
       return nullptr;
     }
 
