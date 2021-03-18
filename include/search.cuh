@@ -202,7 +202,6 @@ private:
           deltas[deltas_size - 1].right = deltas[deltas_size - 1].next;
         }
         deltas[deltas_size - 1].next = deltas[deltas_size - 1].right;
-        decomposition_size -= 1;
         decomposition >>= 1;
       }
     }

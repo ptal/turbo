@@ -28,8 +28,8 @@
 
 __device__ int decomposition = 0;
 
-#define OR_NODES 2
-#define AND_NODES 512
+#define OR_NODES 4
+#define AND_NODES 128
 // #define SHMEM_SIZE 65536
 #define SHMEM_SIZE 44000
 
@@ -41,8 +41,7 @@ CUDA_GLOBAL void search_k(
     Pointer<Interval>* best_bound,
     Array<VStore>* best_sols,
     Var minimize_x,
-    Array<Statistics>* stats,
-    int *decomposition)
+    Array<Statistics>* stats)
 {
   extern __shared__ int shmem[];
   const int n = SHMEM_SIZE;
@@ -50,22 +49,28 @@ CUDA_GLOBAL void search_k(
   int tid = threadIdx.x;
   int nodeid = blockIdx.x;
   int stride = blockDim.x;
-  int curr_decomposition = 0;
-  int max_decomposition = gridDim.x;  // launched with OR_NODES
+  __shared__ int curr_decomposition;
+  __shared__ int decomposition_size;
+  int max_decomposition = gridDim.x;
 
-  while ((curr_decomposition = atomicAdd(decomposition, 1)) < max_decomposition) {
+  if (tid == 0) {
+    decomposition_size = (int)log2f((float)(max_decomposition));  // launched with OR_NODES
+    INFO(printf("decomposition = %d, %d\n", decomposition_size, max_decomposition));
+    SharedAllocator allocator(shmem, n);
+    (*trees)[nodeid].reset(new(allocator) TreeAndPar(
+      *root, *props, *branching_vars, **best_bound, minimize_x, allocator));
+  }
+  __syncthreads();
+  do {
     if (tid == 0) {
-      SharedAllocator allocator(shmem, n);
-      (*trees)[nodeid].reset(new(allocator) TreeAndPar(
-        *root, *props, *branching_vars, **best_bound, minimize_x, allocator));
+      curr_decomposition = atomicAdd(&decomposition, 1);
     }
-    __syncthreads();
-    (*trees)[nodeid]->search(tid, stride, curr_decomposition, max_decomposition);
+    (*trees)[nodeid]->search(tid, stride, curr_decomposition, decomposition_size);
     if (tid == 0) {
       (*best_sols)[nodeid].reset((*trees)[nodeid]->best());
       (*stats)[nodeid] = (*trees)[nodeid]->statistics();
     }
-  }
+  } while (curr_decomposition < max_decomposition);
 }
 
 void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
@@ -96,7 +101,7 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
 
   // cudaFuncSetAttribute(search_k, cudaFuncAttributeMaxDynamicSharedMemorySize, SHMEM_SIZE);
   search_k<<<OR_NODES, min((int)props->size(), AND_NODES), SHMEM_SIZE>>>(trees, vstore, props, branching_vars,
-    best_bound, best_sols, minimize_x, stats, &decomposition);
+    best_bound, best_sols, minimize_x, stats);
   CUDIE(cudaDeviceSynchronize());
 
   t2 = std::chrono::high_resolution_clock::now();
