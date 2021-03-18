@@ -387,9 +387,9 @@ public:
 
   CUDA bool is_disentailed(const VStore& vstore) const {
     bool disentailed = one_top(vstore) || slack(vstore) < 0;
-    LOG(if(disentailed) {
-      printf("LinearIneq disentailed %d: %d < 0\n", uid, slack(vstore));
-    })
+    // LOG(if(disentailed) {
+    //   printf("LinearIneq disentailed %d: %d < 0\n", uid, slack(vstore));
+    // })
     return disentailed;
   }
 

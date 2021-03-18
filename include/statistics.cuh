@@ -27,6 +27,14 @@ struct Statistics {
   CUDA Statistics(): nodes(0), fails(0), sols(0),
     best_bound(-1), peak_depth(0) {}
 
+  CUDA void join(const Statistics& other) {
+    nodes += other.nodes;
+    fails += other.fails;
+    sols += other.sols;
+    best_bound = best_bound == -1 ? other.best_bound : min(best_bound, other.best_bound);
+    peak_depth = max(peak_depth, other.peak_depth);
+  }
+
   CUDA void print() {
     printf("nodes=%d\n", nodes);
     printf("fails=%d\n", fails);

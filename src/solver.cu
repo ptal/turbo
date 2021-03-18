@@ -28,8 +28,8 @@
 
 __device__ int decomposition = 0;
 
-#define OR_NODES 4
-#define AND_NODES 128
+#define OR_NODES 8
+#define AND_NODES 1
 // #define SHMEM_SIZE 65536
 #define SHMEM_SIZE 44000
 
@@ -56,21 +56,29 @@ CUDA_GLOBAL void search_k(
   if (tid == 0) {
     decomposition_size = (int)log2f((float)(max_decomposition));  // launched with OR_NODES
     INFO(printf("decomposition = %d, %d\n", decomposition_size, max_decomposition));
+    printf("decomposition = %d, %d\n", decomposition_size, max_decomposition);
     SharedAllocator allocator(shmem, n);
     (*trees)[nodeid].reset(new(allocator) TreeAndPar(
       *root, *props, *branching_vars, **best_bound, minimize_x, allocator));
   }
   __syncthreads();
-  do {
+  while(true) {
     if (tid == 0) {
       curr_decomposition = atomicAdd(&decomposition, 1);
     }
+    __syncthreads();
+    if(curr_decomposition >= max_decomposition) {
+      break;
+    }
     (*trees)[nodeid]->search(tid, stride, curr_decomposition, decomposition_size);
     if (tid == 0) {
-      (*best_sols)[nodeid].reset((*trees)[nodeid]->best());
-      (*stats)[nodeid] = (*trees)[nodeid]->statistics();
+      Statistics latest = (*trees)[nodeid]->statistics();
+      if(latest.best_bound != -1 && latest.best_bound < (*stats)[nodeid].best_bound) {
+        (*best_sols)[nodeid].reset((*trees)[nodeid]->best());
+      }
+      (*stats)[nodeid].join(latest);
     }
-  } while (curr_decomposition < max_decomposition);
+  }
 }
 
 void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
@@ -110,11 +118,7 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
   // Gather statistics and best bound.
   Statistics statistics;
   for(int i = 0; i < stats->size(); ++i) {
-    statistics.nodes += (*stats)[i].nodes;
-    statistics.fails += (*stats)[i].fails;
-    statistics.sols += (*stats)[i].sols;
-    statistics.best_bound = statistics.best_bound == -1 ? (*stats)[i].best_bound : min(statistics.best_bound, (*stats)[i].best_bound);
-    statistics.peak_depth = max(statistics.peak_depth, (*stats)[i].peak_depth);
+    statistics.join((*stats)[i]);
   }
 
   statistics.print();

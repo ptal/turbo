@@ -131,6 +131,7 @@ private:
       stats.nodes++;
       current.update(minimize_x, {best_bound.lb, best_bound.ub - 1});
       pstatus.reset();
+      end_bootstrap();
     }
   }
 
@@ -190,20 +191,25 @@ private:
     bootstrap_branch();
   }
 
+  __device__ void end_bootstrap() {
+    if(decomposition_size == 0) { // collapse the beginning of the tree to ignore the bootstrapped path of the decomposition, and avoid recomputing on root.
+      root.reset(current);
+      deltas_size = 0;
+    }
+  }
+
   __device__ void bootstrap_branch() {
+    decomposition_size -= 1;
     if(decomposition_size >= 0) {
-      decomposition_size -= 1;
-      if(decomposition_size == -1) { // collapse the beginning of the tree to ignore the bootstrapped path of the decomposition, and avoid recomputing on root.
-        root.reset(current);
-        deltas_size = 0;
+      if (!(decomposition & 1)) { // left branch
+        printf("decomposition %d: %d, %d, left\n", blockIdx.x, decomposition, decomposition_size);
+        deltas[deltas_size - 1].right = deltas[deltas_size - 1].next;
       }
       else {
-        if (!(decomposition & 1)) { // left branch
-          deltas[deltas_size - 1].right = deltas[deltas_size - 1].next;
-        }
-        deltas[deltas_size - 1].next = deltas[deltas_size - 1].right;
-        decomposition >>= 1;
+        printf("decomposition %d: %d, %d, right\n", blockIdx.x, decomposition, decomposition_size);
       }
+      deltas[deltas_size - 1].next = deltas[deltas_size - 1].right;
+      decomposition >>= 1;
     }
   }
 
