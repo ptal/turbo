@@ -31,7 +31,12 @@ struct Statistics {
     nodes += other.nodes;
     fails += other.fails;
     sols += other.sols;
-    best_bound = best_bound == -1 ? other.best_bound : min(best_bound, other.best_bound);
+    if(best_bound == -1) {
+      best_bound = other.best_bound;
+    }
+    else if(other.best_bound != -1) {
+      best_bound = min(best_bound, other.best_bound);
+    }
     peak_depth = max(peak_depth, other.peak_depth);
   }
 

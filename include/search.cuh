@@ -48,7 +48,6 @@ struct Delta
     x(x), next(l), right(r) {}
 };
 
-#define PROPAGATOR_IN_GLOBAL
 #define NODES_LIMIT 100000
 
 class TreeAndPar
@@ -56,11 +55,7 @@ class TreeAndPar
   VStore root;
   VStore current;
   PropagatorsStatus pstatus;
-  #ifdef PROPAGATOR_IN_GLOBAL
-    const Array<Pointer<Propagator>>& props;
-  #else
-    Array<Pointer<Propagator>> props;
-  #endif
+  const Array<Pointer<Propagator>>& props;
   Array<Delta> deltas;
   int deltas_size;
   Array<Var> branching_vars;
@@ -83,11 +78,7 @@ public:
   : root(root, allocator),
     current(root, allocator),
     pstatus(props.size(), allocator),
-    #ifdef PROPAGATOR_IN_GLOBAL
-      props(props),
-    #else
-      props(props, allocator),
-    #endif
+    props(props),
     deltas(MAX_DEPTH, allocator),
     deltas_size(0),
     branching_vars(branching_vars, allocator),
@@ -131,7 +122,6 @@ private:
       stats.nodes++;
       current.update(minimize_x, {best_bound.lb, best_bound.ub - 1});
       pstatus.reset();
-      end_bootstrap();
     }
   }
 
@@ -177,7 +167,7 @@ private:
     stats.peak_depth = max(stats.peak_depth, deltas_size);
     const Interval& new_bound = current[minimize_x];
     // Due to parallelism, it is possible that several bounds are found in one iteration, thus we need to perform a (lattice) join on the best bound.
-    best_bound.ub = min(best_bound.ub, new_bound.lb);
+    atomicMin(&best_bound.ub, new_bound.lb);
     stats.best_bound = best_bound.ub;
     INFO(printf("backtracking on solution...(bound %d..%d)\n", best_bound.lb, best_bound.ub));
     best_sol.reset(current);
@@ -187,8 +177,10 @@ private:
 
   __device__ void on_unknown() {
     INFO(printf("branching on unknown node... (bound %d..%d)\n", best_bound.lb, best_bound.ub));
+    // end_bootstrap();
     branch();
     bootstrap_branch();
+    commit_branch();
   }
 
   __device__ void end_bootstrap() {
@@ -202,11 +194,11 @@ private:
     decomposition_size -= 1;
     if(decomposition_size >= 0) {
       if (!(decomposition & 1)) { // left branch
-        printf("decomposition %d: %d, %d, left\n", blockIdx.x, decomposition, decomposition_size);
+        LOG(printf("decomposition %d: %d, %d, left\n", blockIdx.x, decomposition, decomposition_size));
         deltas[deltas_size - 1].right = deltas[deltas_size - 1].next;
       }
       else {
-        printf("decomposition %d: %d, %d, right\n", blockIdx.x, decomposition, decomposition_size);
+        LOG(printf("decomposition %d: %d, %d, right\n", blockIdx.x, decomposition, decomposition_size));
       }
       deltas[deltas_size - 1].next = deltas[deltas_size - 1].right;
       decomposition >>= 1;
@@ -231,13 +223,16 @@ private:
     }
   }
 
+  __device__ void commit_branch() {
+    current.update(deltas[deltas_size - 1].x, deltas[deltas_size - 1].next);
+  }
+
   __device__ void branch() {
     assert(deltas_size < MAX_DEPTH);
     Var x = first_fail(current, branching_vars);
     deltas[deltas_size].x = x;
     deltas[deltas_size].next = {current.lb(x), current.lb(x)};
     deltas[deltas_size].right = {current.lb(x) + 1, current.ub(x)};
-    current.update(x, deltas[deltas_size].next);
     LOG(printf("Branching on %s: %d..%d \\/ %d..%d\n",
       current.name_of(x), deltas[deltas_size].next.lb, deltas[deltas_size].next.ub,
       deltas[deltas_size].right.lb, deltas[deltas_size].right.ub));
