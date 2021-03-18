@@ -68,6 +68,8 @@ class TreeAndPar
   VStore best_sol;
   Var minimize_x;
   Statistics stats;
+  int decomposition;
+  int decomposition_size;
 
 public:
   template<typename Allocator>
@@ -94,7 +96,9 @@ public:
     minimize_x(min_x)
   {}
 
-  __device__ void search(int tid, int stride) {
+  __device__ void search(int tid, int stride, int decomposition, int decomposition_size) {
+    bootstrap(tid, decomposition, decomposition_size);
+    __syncthreads();
     Interval b;
     while (deltas_size >= 0) {
       before_propagation(tid);
@@ -103,6 +107,13 @@ public:
       propagation(tid, stride);
       __syncthreads();
       after_propagation(tid);
+    }
+  }
+
+  __device__ void bootstrap(int tid, int decomposition, int decomposition_size) {
+    if(tid == 0) {
+      this->decomposition = decomposition;
+      this->decomposition_size = decomposition_size;
     }
   }
 
@@ -176,6 +187,25 @@ private:
   __device__ void on_unknown() {
     INFO(printf("branching on unknown node... (bound %d..%d)\n", best_bound.lb, best_bound.ub));
     branch();
+    bootstrap_branch();
+  }
+
+  __device__ void bootstrap_branch() {
+    if(decomposition_size >= 0) {
+      decomposition_size -= 1;
+      if(decomposition_size == -1) { // collapse the beginning of the tree to ignore the bootstrapped path of the decomposition, and avoid recomputing on root.
+        root.reset(current);
+        deltas_size = 0;
+      }
+      else {
+        if (!(decomposition & 1)) { // left branch
+          deltas[deltas_size - 1].right = deltas[deltas_size - 1].next;
+        }
+        deltas[deltas_size - 1].next = deltas[deltas_size - 1].right;
+        decomposition_size -= 1;
+        decomposition >>= 1;
+      }
+    }
   }
 
   __device__ void replay() {

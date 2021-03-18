@@ -54,7 +54,7 @@ CUDA_GLOBAL void search_k(
       *root, *props, *branching_vars, **best_bound, minimize_x, allocator));
   }
   __syncthreads();
-  (*trees)[nodeid]->search(tid, stride);
+  (*trees)[nodeid]->search(tid, stride, 0, 0);
   if (tid == 0) {
     (*best_sols)[nodeid].reset((*trees)[nodeid]->best());
     (*stats)[nodeid] = (*trees)[nodeid]->statistics();
