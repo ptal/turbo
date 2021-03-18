@@ -28,8 +28,8 @@
 
 __device__ int decomposition = 0;
 
-#define OR_NODES 2
-#define AND_NODES 512
+#define OR_NODES 4
+#define AND_NODES 128
 // #define SHMEM_SIZE 65536
 #define SHMEM_SIZE 44000
 
@@ -50,24 +50,27 @@ CUDA_GLOBAL void search_k(
   int nodeid = blockIdx.x;
   int stride = blockDim.x;
   __shared__ int curr_decomposition;
-  int max_decomposition = gridDim.x;  // launched with OR_NODES
+  __shared__ int decomposition_size;
+  int max_decomposition = gridDim.x;
 
   if (tid == 0) {
+    decomposition_size = (int)log2f((float)(max_decomposition));  // launched with OR_NODES
+    INFO(printf("decomposition = %d, %d\n", decomposition_size, max_decomposition));
     SharedAllocator allocator(shmem, n);
     (*trees)[nodeid].reset(new(allocator) TreeAndPar(
       *root, *props, *branching_vars, **best_bound, minimize_x, allocator));
   }
+  __syncthreads();
   do {
-    if(tid == 0) {
+    if (tid == 0) {
       curr_decomposition = atomicAdd(&decomposition, 1);
     }
-    __syncthreads();
-    (*trees)[nodeid]->search(tid, stride, curr_decomposition, max_decomposition);
-  } while(curr_decomposition < max_decomposition);
-  if (tid == 0) {
-    (*best_sols)[nodeid].reset((*trees)[nodeid]->best());
-    (*stats)[nodeid] = (*trees)[nodeid]->statistics();
-  }
+    (*trees)[nodeid]->search(tid, stride, curr_decomposition, decomposition_size);
+    if (tid == 0) {
+      (*best_sols)[nodeid].reset((*trees)[nodeid]->best());
+      (*stats)[nodeid] = (*trees)[nodeid]->statistics();
+    }
+  } while (curr_decomposition < max_decomposition);
 }
 
 void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
