@@ -28,8 +28,8 @@
 
 __device__ int decomposition = 0;
 
-#define OR_NODES 48
-#define AND_NODES 128
+#define OR_NODES 8
+#define AND_NODES 64
 #define SUB_PROBLEMS_POWER 8 // 2^N
 // #define SHMEM_SIZE 65536
 #define SHMEM_SIZE 44000
@@ -67,21 +67,11 @@ CUDA_GLOBAL void search_k(
     #endif
     (*trees)[nodeid].reset(new(allocator) TreeAndPar(
       *root, *props, *branching_vars, **best_bound, minimize_x, allocator));
+    curr_decomposition = atomicAdd(&decomposition, 1);
   }
   __syncthreads();
-  while(true) {
-    if (tid == 0) {
-      curr_decomposition = atomicAdd(&decomposition, 1);
-    }
-    __syncthreads();
-    if(curr_decomposition >= sub_problems) {
-      // INFO(if(tid == 0) printf("Block %d quits %d.\n", nodeid, (*stats)[nodeid].best_bound));
-      if(tid == 0) printf("Block %d quits %d.\n", nodeid, (*stats)[nodeid].best_bound);
-      break;
-    }
-    else {
-      INFO(if(tid == 0) printf("Block %d with decomposition %d.\n", nodeid, curr_decomposition));
-    }
+  while(curr_decomposition < sub_problems) {
+    INFO(if(tid == 0) printf("Block %d with decomposition %d.\n", nodeid, curr_decomposition));
     (*trees)[nodeid]->search(tid, stride, *root, curr_decomposition, decomposition_size);
     if (tid == 0) {
       Statistics latest = (*trees)[nodeid]->statistics();
@@ -89,8 +79,12 @@ CUDA_GLOBAL void search_k(
         (*best_sols)[nodeid].reset((*trees)[nodeid]->best());
       }
       (*stats)[nodeid].join(latest);
+      curr_decomposition = atomicAdd(&decomposition, 1);
     }
+    __syncthreads();
   }
+  // INFO(if(tid == 0) printf("Block %d quits %d.\n", nodeid, (*stats)[nodeid].best_bound));
+  if(tid == 0) printf("Block %d quits %d.\n", nodeid, (*stats)[nodeid].best_bound);
 }
 
 void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
