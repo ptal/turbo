@@ -87,8 +87,8 @@ public:
     minimize_x(min_x)
   {}
 
-  __device__ void search(int tid, int stride, int decomposition, int decomposition_size) {
-    bootstrap(tid, decomposition, decomposition_size);
+  __device__ void search(int tid, int stride, const VStore& root, int decomposition, int decomposition_size) {
+    bootstrap(tid, root, decomposition, decomposition_size);
     __syncthreads();
     Interval b;
     while (deltas_size >= 0) {
@@ -101,8 +101,12 @@ public:
     }
   }
 
-  __device__ void bootstrap(int tid, int decomposition, int decomposition_size) {
+  __device__ void bootstrap(int tid, const VStore& root, int decomposition, int decomposition_size) {
     if(tid == 0) {
+      this->root.reset(root);
+      this->current.reset(root);
+      this->deltas_size = 0;
+      this->pstatus.reset();
       this->decomposition = decomposition;
       this->decomposition_size = decomposition_size;
     }

@@ -30,7 +30,7 @@ __device__ int decomposition = 0;
 
 #define OR_NODES 48
 #define AND_NODES 128
-#define SUB_PROBLEMS_POWER 6 // 2^N
+#define SUB_PROBLEMS_POWER 8 // 2^N
 // #define SHMEM_SIZE 65536
 #define SHMEM_SIZE 44000
 
@@ -75,10 +75,14 @@ CUDA_GLOBAL void search_k(
     }
     __syncthreads();
     if(curr_decomposition >= sub_problems) {
-      INFO(if(tid == 0) printf("Block %d quits %d.\n", nodeid, (*stats)[nodeid].best_bound));
+      // INFO(if(tid == 0) printf("Block %d quits %d.\n", nodeid, (*stats)[nodeid].best_bound));
+      if(tid == 0) printf("Block %d quits %d.\n", nodeid, (*stats)[nodeid].best_bound);
       break;
     }
-    (*trees)[nodeid]->search(tid, stride, curr_decomposition, decomposition_size);
+    else {
+      INFO(if(tid == 0) printf("Block %d with decomposition %d.\n", nodeid, curr_decomposition));
+    }
+    (*trees)[nodeid]->search(tid, stride, *root, curr_decomposition, decomposition_size);
     if (tid == 0) {
       Statistics latest = (*trees)[nodeid]->statistics();
       if(latest.best_bound != -1 && latest.best_bound < (*stats)[nodeid].best_bound) {
