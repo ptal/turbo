@@ -88,20 +88,21 @@ public:
   {}
 
   __device__ void search(int tid, int stride, const VStore& root, int decomposition, int decomposition_size) {
-    bootstrap(tid, root, decomposition, decomposition_size);
+    reset(tid, root, decomposition, decomposition_size);
+    before_propagation(tid);
     __syncthreads();
     Interval b;
     while (deltas_size >= 0) {
-      before_propagation(tid);
-      __syncthreads();
       if(stats.nodes >= NODES_LIMIT) break;
       propagation(tid, stride);
       __syncthreads();
       after_propagation(tid);
+      before_propagation(tid);
+      __syncthreads();
     }
   }
 
-  __device__ void bootstrap(int tid, const VStore& root, int decomposition, int decomposition_size) {
+  __device__ void reset(int tid, const VStore& root, int decomposition, int decomposition_size) {
     if(tid == 0) {
       this->root.reset(root);
       this->current.reset(root);
@@ -109,6 +110,7 @@ public:
       this->pstatus.reset();
       this->decomposition = decomposition;
       this->decomposition_size = decomposition_size;
+      this->stats = Statistics();
     }
   }
 

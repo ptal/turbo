@@ -28,8 +28,8 @@
 
 __device__ int decomposition = 0;
 
-#define OR_NODES 8
-#define AND_NODES 64
+#define OR_NODES 48
+#define AND_NODES 256
 #define SUB_PROBLEMS_POWER 8 // 2^N
 // #define SHMEM_SIZE 65536
 #define SHMEM_SIZE 44000
@@ -83,8 +83,9 @@ CUDA_GLOBAL void search_k(
     }
     __syncthreads();
   }
-  // INFO(if(tid == 0) printf("Block %d quits %d.\n", nodeid, (*stats)[nodeid].best_bound));
-  if(tid == 0) printf("Block %d quits %d.\n", nodeid, (*stats)[nodeid].best_bound);
+  INFO(if(tid == 0) printf("Block %d quits %d.\n", nodeid, (*stats)[nodeid].best_bound));
+  // if(tid == 0)
+   // printf("%d: Block %d quits %d.\n", tid, nodeid, (*stats)[nodeid].best_bound);
 }
 
 void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
