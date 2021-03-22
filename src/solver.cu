@@ -30,7 +30,7 @@ __device__ int decomposition = 0;
 
 #define OR_NODES 48
 #define AND_NODES 256
-#define SUB_PROBLEMS_POWER 8 // 2^N
+#define SUB_PROBLEMS_POWER 12 // 2^N
 // #define SHMEM_SIZE 65536
 #define SHMEM_SIZE 44000
 

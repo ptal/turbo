@@ -48,7 +48,7 @@ struct Delta
     x(x), next(l), right(r) {}
 };
 
-#define NODES_LIMIT 100000
+#define NODES_LIMIT 10000000
 
 class TreeAndPar
 {
