@@ -48,7 +48,7 @@ struct Delta
     x(x), next(l), right(r) {}
 };
 
-#define NODES_LIMIT 10000000
+#define NODES_LIMIT 1000000
 
 class TreeAndPar
 {
@@ -93,7 +93,10 @@ public:
     __syncthreads();
     Interval b;
     while (deltas_size >= 0) {
-      if(stats.nodes >= NODES_LIMIT) break;
+      if(stats.nodes >= NODES_LIMIT) {
+        stats.exhaustive = false;
+        break;
+      }
       propagation(tid, stride);
       __syncthreads();
       after_propagation(tid);

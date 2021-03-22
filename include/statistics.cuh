@@ -15,6 +15,7 @@
 #ifndef STATISTICS_HPP
 #define STATISTICS_HPP
 
+#include <chrono>
 #include "cuda_helper.hpp"
 
 struct Statistics {
@@ -23,9 +24,10 @@ struct Statistics {
   int sols;
   int best_bound;
   int peak_depth;
+  int exhaustive;
 
   CUDA Statistics(): nodes(0), fails(0), sols(0),
-    best_bound(-1), peak_depth(0) {}
+    best_bound(-1), peak_depth(0), exhaustive(true) {}
 
   CUDA void join(const Statistics& other) {
     nodes += other.nodes;
@@ -38,6 +40,7 @@ struct Statistics {
       best_bound = min(best_bound, other.best_bound);
     }
     peak_depth = max(peak_depth, other.peak_depth);
+    exhaustive = exhaustive && other.exhaustive;
   }
 
   CUDA void print() {
@@ -46,11 +49,34 @@ struct Statistics {
     printf("solutions=%d\n", sols);
     if(best_bound != -1) {
       printf("objective=%d\n", best_bound);
+      printf("satisfiability=true\n");
+    }
+    else if(exhaustive) {
+      printf("satisfiability=false\n");
     }
     else {
-      printf("objective=unsat\n");
+      printf("satisfiability=unknown\n");
     }
     printf("peakDepth=%d\n", peak_depth);
+  }
+};
+
+struct GlobalStatistics {
+  size_t variables;
+  size_t constraints;
+  int64_t duration;
+  size_t memory;
+  Statistics local;
+
+  GlobalStatistics(size_t variables, size_t constraints, int64_t duration, size_t memory, Statistics local):
+    variables(variables), constraints(constraints), duration(duration), memory(memory), local(local) {}
+
+  void print() {
+    std::cout << "variables=" << variables << std::endl;
+    std::cout << "constraints=" << constraints << std::endl;
+    local.print();
+    std::cout << "solveTime=" << duration << std::endl;
+    std::cout << "memory=" << memory << std::endl;
   }
 };
 

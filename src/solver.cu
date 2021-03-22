@@ -14,9 +14,9 @@
 
 #include <iostream>
 #include <algorithm>
-#include <stdio.h>
-#include <new>
+#include <cstdio>
 #include <chrono>
+#include <thread>
 
 #include "solver.cuh"
 #include "vstore.cuh"
@@ -88,6 +88,17 @@ CUDA_GLOBAL void search_k(
    // printf("%d: Block %d quits %d.\n", tid, nodeid, (*stats)[nodeid].best_bound);
 }
 
+void measure_memory(size_t& total_mem) {
+  // Try to have an estimation of the memory on start.
+  total_mem = 0;
+  for(int i = 0; i < 100; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    size_t f, t;
+    CUDIE(cudaMemGetInfo(&f, &t));
+    total_mem = max(t, total_mem);
+  }
+}
+
 void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
 {
   // INFO(constraints.print(*vstore));
@@ -120,26 +131,23 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
       , SHMEM_SIZE
     #endif
   >>>(trees, vstore, props, branching_vars, best_bound, best_sols, minimize_x, stats);
+
+  size_t total_mem;
+  std::thread measure_mem_thread(measure_memory, std::ref(total_mem));
   CUDIE(cudaDeviceSynchronize());
 
   t2 = std::chrono::high_resolution_clock::now();
   duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
+
+  measure_mem_thread.join();
 
   // Gather statistics and best bound.
   Statistics statistics;
   for(int i = 0; i < stats->size(); ++i) {
     statistics.join((*stats)[i]);
   }
-
-  statistics.print();
-  // if(timeout != INT_MAX && duration > timeout * 1000) {
-  std::cout << "solveTime=" << duration << std::endl;
-  // if(statistics.nodes == NODES_LIMIT) {
-  //   std::cout << "solveTime=timeout (" << duration/1000 << "." << duration % 1000 << "s)" << std::endl;
-  // }
-  // else {
-  //   std::cout << "solveTime=" << duration/1000 << "." << duration % 1000 << "s" << std::endl;
-  // }
+  GlobalStatistics gstats(vstore->size(), constraints.size(), duration, total_mem, statistics);
+  gstats.print();
 
   operator delete(best_bound, managed_allocator);
   operator delete(props, managed_allocator);
