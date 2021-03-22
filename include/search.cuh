@@ -48,8 +48,6 @@ struct Delta
     x(x), next(l), right(r) {}
 };
 
-#define NODES_LIMIT 1000000
-
 class TreeAndPar
 {
   VStore root;
@@ -87,13 +85,13 @@ public:
     minimize_x(min_x)
   {}
 
-  __device__ void search(int tid, int stride, const VStore& root, int decomposition, int decomposition_size) {
+  __device__ void search(int tid, int stride, const VStore& root, int decomposition, int decomposition_size, bool& stop) {
     reset(tid, root, decomposition, decomposition_size);
     before_propagation(tid);
     __syncthreads();
     Interval b;
     while (deltas_size >= 0) {
-      if(stats.nodes >= NODES_LIMIT) {
+      if(stop) {
         stats.exhaustive = false;
         break;
       }
@@ -165,7 +163,7 @@ private:
   __device__ void on_failure() {
     INFO(printf("backtracking on failed node %p...\n", this));
     stats.fails++;
-    stats.peak_depth = max(stats.peak_depth, deltas_size);
+    stats.depth_max = max(stats.depth_max, deltas_size);
     backtrack();
     replay();
   }
@@ -173,7 +171,7 @@ private:
   __device__ void on_solution() {
     INFO(printf("previous best...(bound %d..%d)\n", best_bound.lb, best_bound.ub));
     stats.sols++;
-    stats.peak_depth = max(stats.peak_depth, deltas_size);
+    stats.depth_max = max(stats.depth_max, deltas_size);
     const Interval& new_bound = current[minimize_x];
     // Due to parallelism, it is possible that several bounds are found in one iteration, thus we need to perform a (lattice) join on the best bound.
     atomicMin(&best_bound.ub, new_bound.lb);

@@ -32,7 +32,6 @@ int main(int argc, char** argv) {
   int file_arg = 1;
   if(argc == 3) {
     timeout = std::atoi(argv[1]);
-    printf("timeout = %d\n", timeout);
     if(timeout <= 0) {
       usage_and_exit(argv);
     }

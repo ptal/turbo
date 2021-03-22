@@ -1,7 +1,7 @@
 {
   "problem_set_path":
     "../../absolute-project/kobe-rcpsp/data/rcpsp/patterson.rcp/",
-  "timeout": 6000,
+  "timeout": 60,
   "solver_instance": [
     "XCSP3Solver",
     {
