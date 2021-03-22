@@ -7,12 +7,12 @@ LIBXCSP3 = -Llib/XCSP3-CPP-Parser/lib  -lxcsp3parser -Ilib/XCSP3-CPP-Parser/incl
 LIBS= $(LIBXML2) $(LIBXCSP3)
 
 NVCC=nvcc
-NVCC_FLAGS=-std=c++14 -rdc=true -arch=sm_75 -I/usr/local/cuda/include -I$(INC_DIR)
+NVCC_FLAGS=-std=c++17 --expt-relaxed-constexpr -rdc=true -arch=sm_75 -I/usr/local/cuda/include -I$(INC_DIR)
 
 EXE = turbo
 
 # Object files:
-SOURCES = $(SRC_DIR)/propagators.cu $(SRC_DIR)/turbo.cu $(SRC_DIR)/solver.cu
+SOURCES = $(SRC_DIR)/propagators.cu $(SRC_DIR)/turbo.cu $(SRC_DIR)/solver.cu $(SRC_DIR)/memory.cu
 INC_ONLY = $(INC_DIR)/*
 
 ## Compile ##

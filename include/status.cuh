@@ -16,6 +16,7 @@
 #define TURBO_STATUS_HPP
 
 #include "cuda_helper.hpp"
+#include "memory.cuh"
 
 enum Status {
   UNKNOWN = 0,
@@ -42,29 +43,31 @@ CUDA inline const char* string_of_status(Status status) {
 }
 
 class PropagatorsStatus {
-  Status* status;
+  Array<Status> status;
   bool changed;
-  size_t n;
 
 public:
-  PropagatorsStatus(size_t n): changed(false), n(n) {
-    malloc2_managed(status, n);
-    for(int i = 0; i < n; ++i) {
-      status[i] = UNKNOWN;
-    }
+  template<typename Allocator>
+  __device__ PropagatorsStatus(size_t n, Allocator& allocator):
+    status(n, allocator), changed(false)
+  {
+    reset();
   }
 
-  ~PropagatorsStatus() {
-    // free2(status);
+  PropagatorsStatus(size_t n): status(n), changed(false) {
+    reset();
   }
 
-  CUDA inline size_t size() const { return n; }
+  CUDA PropagatorsStatus() = delete;
+  CUDA PropagatorsStatus(const PropagatorsStatus&) = delete;
 
-  CUDA inline Status of(int i) const {
+  CUDA inline size_t size() const { return status.size(); }
+
+  CUDA inline const Status& operator[](size_t i) const {
     return status[i];
   }
 
-  CUDA inline void inplace_join(int i, Status s) {
+  CUDA inline void inplace_join(size_t i, Status s) {
     if (status[i] < s) {
       changed = true;
     }
@@ -74,7 +77,7 @@ public:
   CUDA Status join() const {
     int unk = 0;
     int idle = 0;
-    for(int i = 0; i < n; ++i) {
+    for(int i = 0; i < size(); ++i) {
       switch (status[i]) {
         case UNKNOWN: ++unk; break;
         case IDLE: ++idle; break;
@@ -101,7 +104,7 @@ public:
   }
 
   CUDA void wake_up_all() {
-    for(int i = 0; i < n; ++i) {
+    for(int i = 0; i < size(); ++i) {
       if (status[i] == IDLE) {
         status[i] = UNKNOWN;
       }
@@ -109,7 +112,7 @@ public:
   }
 
   CUDA void reset() {
-    for(int i = 0; i < n; ++i) {
+    for(int i = 0; i < size(); ++i) {
       status[i] = UNKNOWN;
     }
   }

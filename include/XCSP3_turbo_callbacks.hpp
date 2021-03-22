@@ -255,8 +255,6 @@ namespace XCSP3Core {
         bool debug = false;
         ModelBuilder* model_builder;
     };
-
-
 }
 
 using namespace XCSP3Core;

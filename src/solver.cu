@@ -26,132 +26,125 @@
 #include "status.cuh"
 #include "search.cuh"
 
-CUDA_DEVICE
-bool propagate(Propagator** props, int nc, VStore& vstore, PropagatorsStatus& pstatus) {
-  bool has_changed = false;
-  for(int i=nc-1; i>= 0; --i) {
-    Propagator* p = props[i];
-    bool has_changed2 = p->propagate(vstore);
-    has_changed |= has_changed2;
-    Status s = has_changed2 ? UNKNOWN : IDLE;
-    if(p->is_entailed(vstore)) {
-      s = ENTAILED;
+__device__ int decomposition = 0;
+
+#define OR_NODES 48
+#define AND_NODES 256
+#define SUB_PROBLEMS_POWER 12 // 2^N
+// #define SHMEM_SIZE 65536
+#define SHMEM_SIZE 44000
+
+#define IN_GLOBAL_MEMORY
+
+CUDA_GLOBAL void search_k(
+    Array<Pointer<TreeAndPar>>* trees,
+    VStore* root,
+    Array<Pointer<Propagator>>* props,
+    Array<Var>* branching_vars,
+    Pointer<Interval>* best_bound,
+    Array<VStore>* best_sols,
+    Var minimize_x,
+    Array<Statistics>* stats)
+{
+  #ifndef IN_GLOBAL_MEMORY
+    extern __shared__ int shmem[];
+    const int n = SHMEM_SIZE;
+  #endif
+  int tid = threadIdx.x;
+  int nodeid = blockIdx.x;
+  int stride = blockDim.x;
+  __shared__ int curr_decomposition;
+  __shared__ int decomposition_size;
+  int sub_problems = pow(2, SUB_PROBLEMS_POWER);
+
+  if (tid == 0) {
+    decomposition_size = SUB_PROBLEMS_POWER;
+    INFO(printf("decomposition = %d, %d\n", decomposition_size, sub_problems));
+    #ifdef IN_GLOBAL_MEMORY
+      GlobalAllocator allocator;
+    #else
+      SharedAllocator allocator(shmem, n);
+    #endif
+    (*trees)[nodeid].reset(new(allocator) TreeAndPar(
+      *root, *props, *branching_vars, **best_bound, minimize_x, allocator));
+    curr_decomposition = atomicAdd(&decomposition, 1);
+  }
+  __syncthreads();
+  while(curr_decomposition < sub_problems) {
+    INFO(if(tid == 0) printf("Block %d with decomposition %d.\n", nodeid, curr_decomposition));
+    (*trees)[nodeid]->search(tid, stride, *root, curr_decomposition, decomposition_size);
+    if (tid == 0) {
+      Statistics latest = (*trees)[nodeid]->statistics();
+      if(latest.best_bound != -1 && latest.best_bound < (*stats)[nodeid].best_bound) {
+        (*best_sols)[nodeid].reset((*trees)[nodeid]->best());
+      }
+      (*stats)[nodeid].join(latest);
+      curr_decomposition = atomicAdd(&decomposition, 1);
     }
-    if(p->is_disentailed(vstore)) {
-      s = DISENTAILED;
-    }
-    pstatus.inplace_join(p->uid, s);
+    __syncthreads();
   }
-  return has_changed;
-}
-
-CUDA_GLOBAL void propagate_nodes_k(
-    TreeData* td, Propagator** props, int nc) {
-  int nid = threadIdx.x + blockIdx.x * blockDim.x;
-  if (nid >= td->node_array.size()) { return; }
-
-  bool has_changed = true;
-  PropagatorsStatus& pstatus = *(td->node_array[nid].pstatus);
-  VStore& vstore = *(td->node_array[nid].vstore);
-  while(has_changed && pstatus.join() < ENTAILED) {
-    has_changed = propagate(props, nc, vstore, pstatus);
-  }
-  // We propagate once more to verify that all propagators are really entailed.
-  if(pstatus.join() == ENTAILED) {
-    propagate(props, nc, vstore, pstatus);
-  }
-}
-
-CUDA_GLOBAL void transfer_from_search(TreeData* td) {
-  td->transferFromSearch();
-}
-CUDA_GLOBAL void transfer_to_search(TreeData* td) {
-  //int i = threadIdx.x + blockIdx.x*blockDim.x;
-  //td->transferToSearch_i(i);  // doesn't work, because write access to stack/node_array
-  td->transferToSearch();
+  INFO(if(tid == 0) printf("Block %d quits %d.\n", nodeid, (*stats)[nodeid].best_bound));
+  // if(tid == 0)
+   // printf("%d: Block %d quits %d.\n", tid, nodeid, (*stats)[nodeid].best_bound);
 }
 
 void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
 {
-  INFO(constraints.print(*vstore));
+  // INFO(constraints.print(*vstore));
+  Array<Var>* branching_vars = constraints.branching_vars();
 
-
-  Var* temporal_vars = constraints.temporal_vars(vstore->size());
-
-  TreeData *tree_data;
-  CUDIE(cudaMallocManaged(&tree_data, sizeof(*tree_data)));
-  new(tree_data) TreeData(temporal_vars, minimize_x, *vstore, constraints.size());
-
-  std::cout << "Start transfering propagator to device memory." << std::endl;
+  LOG(std::cout << "Start transfering propagator to device memory." << std::endl);
   auto t1 = std::chrono::high_resolution_clock::now();
-  Propagator** props;
-  CUDIE(cudaMallocManaged(&props, constraints.size() * sizeof(Propagator*)));
+  Array<Pointer<Propagator>>* props = new(managed_allocator) Array<Pointer<Propagator>>(constraints.size());
+  LOG(std::cout << "props created " << props->size() << std::endl);
   for (auto p : constraints.propagators) {
-    //std::cout << "Transferring " << p->uid << std::endl;
-    props[p->uid] = p->to_device();
+    LOG(p->print(*vstore));
+    LOG(std::cout << std::endl);
+    (*props)[p->uid].reset(p->to_device());
   }
   auto t2 = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
-  std::cout << "Finish transfering propagators to device memory (" << duration << " ms)." << std::endl;
+  LOG(std::cout << "Finish transfering propagators to device memory (" << duration << " ms)" << std::endl);
 
-  int64_t durf (0);
-  int64_t durk (0);
-  int64_t durt (0);
+  t1 = std::chrono::high_resolution_clock::now();
 
-  int loops (0);
-  int device;
-  CUDIE(cudaGetDevice(&device));
-  cudaDeviceProp cudaProperties;
-  CUDIE(cudaGetDeviceProperties(&cudaProperties, device));
-  int nproc = cudaProperties.multiProcessorCount;
-  std::cout<<"processors "<<nproc<<'\n';
-  int threads, blocks;
+  Array<Pointer<TreeAndPar>>* trees = new(managed_allocator) Array<Pointer<TreeAndPar>>(OR_NODES);
+  Pointer<Interval>* best_bound = new(managed_allocator) Pointer<Interval>(Interval());
+  Array<VStore>* best_sols = new(managed_allocator) Array<VStore>(*vstore, OR_NODES);
+  Array<Statistics>* stats = new(managed_allocator) Array<Statistics>(OR_NODES);
 
-  while (!tree_data->stack.is_empty()) {
-    loops++;
-    auto current = std::chrono::high_resolution_clock::now();
-    if (std::chrono::duration_cast<std::chrono::seconds>(current - t1).count() > timeout) {
-      break;
-    }
-    auto ts = std::chrono::high_resolution_clock::now();
-    tree_data->transferFromSearch();
-    //transfer_from_search<<<1,1>>>(tree_data);
-    //CUDIE(cudaDeviceSynchronize());
-    auto tf = std::chrono::high_resolution_clock::now();
-    durf += std::chrono::duration_cast<std::chrono::milliseconds>( tf - ts ).count();
-
-    //propagate_nodes_k<<<tree_data->node_array.size(), 1>>>(
-    threads = 4;
-    blocks = (1 + tree_data->node_array.size()/threads);
-    ts = std::chrono::high_resolution_clock::now();
-    propagate_nodes_k<<<blocks, threads>>>(
-        tree_data, props, constraints.size());
-    CUDIE(cudaDeviceSynchronize());
-    tf = std::chrono::high_resolution_clock::now();
-    durk += std::chrono::duration_cast<std::chrono::milliseconds>( tf - ts ).count();
-
-    ts = std::chrono::high_resolution_clock::now();
-    tree_data->transferToSearch();
-    //transfer_to_search<<<1, 1>>>(tree_data);
-    //CUDIE(cudaDeviceSynchronize());
-    tf = std::chrono::high_resolution_clock::now();
-    durt += std::chrono::duration_cast<std::chrono::milliseconds>( tf - ts ).count();
-  }
+  // cudaFuncSetAttribute(search_k, cudaFuncAttributeMaxDynamicSharedMemorySize, SHMEM_SIZE);
+  int and_nodes = min((int)props->size(), AND_NODES);
+  search_k<<<OR_NODES, and_nodes
+    #ifndef IN_GLOBAL_MEMORY
+      , SHMEM_SIZE
+    #endif
+  >>>(trees, vstore, props, branching_vars, best_bound, best_sols, minimize_x, stats);
+  CUDIE(cudaDeviceSynchronize());
 
   t2 = std::chrono::high_resolution_clock::now();
-  CUDIE(cudaFree(props));
   duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
 
-  std::cout <<"[x"<<loops<<"] TPB="<<threads<<", fromsearch="<<durf<<", kernels="<<durk<<", tosearch="<<durt<<" (ms)\n";
-
-  tree_data->stats.print();
-  if(duration > timeout * 1000) {
-    std::cout << "solveTime=timeout" << std::endl;
-  }
-  else {
-    std::cout << "solveTime=" << duration << std::endl;
+  // Gather statistics and best bound.
+  Statistics statistics;
+  for(int i = 0; i < stats->size(); ++i) {
+    statistics.join((*stats)[i]);
   }
 
-  CUDIE(cudaFree(tree_data));
-  CUDIE(cudaFree(temporal_vars));
+  statistics.print();
+  // if(timeout != INT_MAX && duration > timeout * 1000) {
+  std::cout << "solveTime=" << duration << std::endl;
+  // if(statistics.nodes == NODES_LIMIT) {
+  //   std::cout << "solveTime=timeout (" << duration/1000 << "." << duration % 1000 << "s)" << std::endl;
+  // }
+  // else {
+  //   std::cout << "solveTime=" << duration/1000 << "." << duration % 1000 << "s" << std::endl;
+  // }
+
+  operator delete(best_bound, managed_allocator);
+  operator delete(props, managed_allocator);
+  operator delete(trees, managed_allocator);
+  operator delete(branching_vars, managed_allocator);
+  operator delete(best_bound, managed_allocator);
+  operator delete(best_sols, managed_allocator);
 }

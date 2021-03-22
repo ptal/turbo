@@ -20,6 +20,7 @@
 #include <stdexcept>
 #include "cuda_helper.hpp"
 #include "vstore.cuh"
+#include "terms.hpp"
 
 class Propagator {
 public:
@@ -35,58 +36,60 @@ public:
   virtual Propagator* neg() const = 0;
   // This function is called from host, and copy the object on the device memory.
   virtual Propagator* to_device() const = 0;
+  __device__ virtual Propagator* clone_in(SharedAllocator& allocator) const = 0;
 };
 
-CUDA_GLOBAL void init_temporal_prop(Propagator** p, int uid, Var x, Var y, int c);
 CUDA_GLOBAL void init_logical_or(Propagator** p, int uid, Propagator* left, Propagator* right);
 CUDA_GLOBAL void init_logical_and(Propagator** p, int uid, Propagator* left, Propagator* right);
 CUDA_GLOBAL void init_reified_prop(Propagator** p, int uid, Var b, Propagator* rhs, Propagator* not_rhs);
-CUDA_GLOBAL void init_linear_ineq(Propagator** p, int uid, int n, const Var* vars, const int* constants, int max);
+CUDA_GLOBAL void init_linear_ineq(Propagator** p, int uid, const Array<Var> vars, const Array<int> constants, int max);
+
+template<typename TermX, typename TermY>
+CUDA_GLOBAL void init_temporal_prop(Propagator** p, int uid, TermX x, TermY y, int c);
 
 /// x + y <= c
+template<typename TermX, typename TermY>
 class TemporalProp: public Propagator {
-
 public:
-  const Var x;
-  const Var y;
+  const TermX x;
+  const TermY y;
   const int c;
 
-  CUDA TemporalProp(Var x, Var y, int c):
+  CUDA TemporalProp(TermX x, TermY y, int c):
    Propagator(-1), x(x), y(y), c(c)
-  {
-    assert(x != 0 && y != 0);
-  }
+  {}
 
   CUDA ~TemporalProp() {}
 
   CUDA bool propagate(VStore& vstore) const override {
-    bool has_changed = vstore.update_ub(x, c - vstore.lb(y));
-    has_changed |= vstore.update_ub(y, c - vstore.lb(x));
+    bool has_changed = x.update_ub(vstore, c - y.lb(vstore));
+    has_changed |= y.update_ub(vstore, c - x.lb(vstore));
     return has_changed;
   }
 
   CUDA bool is_entailed(const VStore& vstore) const override {
     return
-      !vstore.is_top(x) &&
-      !vstore.is_top(y) &&
-      vstore.ub(x) + vstore.ub(y) <= c;
+      !x.is_top(vstore) &&
+      !y.is_top(vstore) &&
+      x.ub(vstore) + y.ub(vstore) <= c;
   }
 
   CUDA bool is_disentailed(const VStore& vstore) const override {
-    return vstore.is_top(x) ||
-           vstore.is_top(y) ||
-           vstore.lb(x) + vstore.lb(y) > c;
+    return x.is_top(vstore) ||
+           y.is_top(vstore) ||
+           x.lb(vstore) + y.lb(vstore) > c;
   }
 
   Propagator* neg() const {
-    return new TemporalProp(-x, -y, -c - 1);
+    return new TemporalProp<typename TermX::neg_type, typename TermY::neg_type>
+      (x.neg(), y.neg(), -c - 1);
   }
 
   CUDA void print(const VStore& vstore) const override {
     printf("%d: ", uid);
-    vstore.print_var(x);
+    x.print(vstore);
     printf(" + ");
-    vstore.print_var(y);
+    y.print(vstore);
     printf(" <= %d", c);
   }
 
@@ -97,7 +100,19 @@ public:
     CUDIE(cudaDeviceSynchronize());
     return *p;
   }
+
+  __device__ Propagator* clone_in(SharedAllocator& allocator) const override {
+    Propagator* p = new(allocator) TemporalProp(x, y, c);
+    p->uid = uid;
+    return p;
+  }
 };
+
+template<typename TermX, typename TermY>
+CUDA_GLOBAL void init_temporal_prop(Propagator** p, int uid, TermX x, TermY y, int c) {
+  *p = new TemporalProp<TermX, TermY>(x, y, c);
+  (*p)->uid = uid;
+}
 
 // C1 \/ C2
 class LogicalOr: public Propagator {
@@ -147,6 +162,12 @@ public:
     CUDIE(cudaDeviceSynchronize());
     return *p;
   }
+
+  __device__ Propagator* clone_in(SharedAllocator& allocator) const override {
+    Propagator* p = new(allocator) LogicalOr(left->clone_in(allocator), right->clone_in(allocator));
+    p->uid = uid;
+    return p;
+  }
 };
 
 // C1 /\ C2
@@ -193,6 +214,12 @@ public:
     CUDIE(cudaDeviceSynchronize());
     return *p;
   }
+
+  __device__ Propagator* clone_in(SharedAllocator& allocator) const {
+    Propagator* p = new(allocator) LogicalAnd(left->clone_in(allocator), right->clone_in(allocator));
+    p->uid = uid;
+    return p;
+  }
 };
 
 /// b <=> C
@@ -201,8 +228,6 @@ public:
   const Var b;
   const Propagator* rhs;
   const Propagator* not_rhs;
-
-  CUDA ReifiedProp() = default;
 
   ReifiedProp(Var b, Propagator* rhs) :
     Propagator(-1), b(b), rhs(rhs), not_rhs(rhs->neg()) {}
@@ -213,10 +238,10 @@ public:
   CUDA ~ReifiedProp() {}
 
   CUDA bool propagate(VStore& vstore) const override {
-    if (vstore.view_of(b) == 0) {
+    if (vstore[b] == 0) {
       return not_rhs->propagate(vstore);
     }
-    else if (vstore.view_of(b) == 1) {
+    else if (vstore[b] == 1) {
       return rhs->propagate(vstore);
     }
     else if (rhs->is_entailed(vstore)) {
@@ -262,59 +287,45 @@ public:
     CUDIE(cudaDeviceSynchronize());
     return *p;
   }
+
+  __device__ Propagator* clone_in(SharedAllocator& allocator) const {
+    Propagator* p = new(allocator) ReifiedProp(b, rhs->clone_in(allocator), not_rhs->clone_in(allocator));
+    p->uid = uid;
+    return p;
+  }
 };
 
 // x1c1 + ... + xNcN <= max
 class LinearIneq: public Propagator {
 public:
-  const int n;
-  const Var* vars;
-  const int* constants;
+  const Array<Var> vars;
+  const Array<int> constants;
   const int max;
 
-  template <typename T>
-  static T* from_vec(std::vector<T> a) {
-    T* b;
-    malloc2_managed(b, a.size());
-    for(int i = 0; i < a.size(); ++i) {
-      b[i] = a[i];
-    }
-    return b;
-  }
-
-  template <typename T>
-  static T* from_ptr(const T* a, int n) {
-    T* b;
-    malloc2_managed(b, n);
-    for(int i = 0; i < n; ++i) {
-      b[i] = a[i];
-    }
-    return b;
-  }
-
-  LinearIneq(std::vector<Var> vvars, std::vector<int> vconstants, int max):
-    Propagator(-1), n(vvars.size()), max(max), vars(from_vec(vvars)),
-    constants(from_vec(vconstants))
+  LinearIneq(const std::vector<Var>& vvars, const std::vector<int>& vconstants, int max):
+    Propagator(-1), max(max), vars(vvars),
+    constants(vconstants)
   {
     assert(vvars.size() == vconstants.size());
   }
 
-  CUDA LinearIneq(int n, const Var* vars, const int* constants, int max):
-    Propagator(-1), n(n), max(max), vars(vars),
+  __host__ LinearIneq(const Array<Var>& vars, const Array<int>& constants, int max):
+    Propagator(-1), max(max), vars(vars),
     constants(constants)
   {}
 
-  CUDA ~LinearIneq() {
-    free2((void*)vars);
-    free2((void*)constants);
-  }
+  template<typename Allocator>
+  __device__ LinearIneq(const Array<Var>& vars, const Array<int>& constants, int max, Allocator& allocator):
+    Propagator(-1), max(max), vars(vars, allocator),
+    constants(constants, allocator)
+  {}
 
   // Returns the maximum amount of additional resources this constraint can use if we fix all remaining boolean variables to 1.
   // LATTICE: monotone function w.r.t. `vstore`.
   // The potential can only decrease for any evolution of non-top `vstore`.
   CUDA int potential(const VStore& vstore) const {
     int potential = 0;
-    for(int i=0; i < n; ++i) {
+    for(int i=0; i < vars.size(); ++i) {
       potential += vstore.ub(vars[i]) * constants[i];
     }
     return potential;
@@ -325,7 +336,7 @@ public:
   // The slack can only decrease for any evolution of non-top `vstore`.
   CUDA int slack(const VStore& vstore) const {
     int current = 0;
-    for(int i=0; i < n; ++i) {
+    for(int i=0; i < vars.size(); ++i) {
       current += vstore.lb(vars[i]) * constants[i];
     }
     return max - current;
@@ -348,8 +359,8 @@ public:
     bool has_changed = false;
     // CORRECTNESS: Even if the slack changes after its computation (or even when we are computing it), it does not hinder the correctness of the propagation.
     // The reason is that whenever `constants[i] > s` it will stay true for any slack s' since s > s' by def. of the function slack.
-    for(int i=0; i < n; ++i) {
-      Interval x = vstore.view_of(vars[i]);
+    for(int i=0; i < vars.size(); ++i) {
+      Interval x = vstore[vars[i]];
       if (vstore.lb(vars[i]) == 0 && vstore.ub(vars[i]) == 1 && constants[i] > s) {
         has_changed |= vstore.assign(vars[i], 0);
       }
@@ -358,7 +369,7 @@ public:
   }
 
   CUDA bool one_top(const VStore& vstore) const {
-    for(int i = 0; i < n; ++i) {
+    for(int i = 0; i < vars.size(); ++i) {
       if(vstore.is_top(vars[i])) {
         return true;
       }
@@ -376,18 +387,18 @@ public:
 
   CUDA bool is_disentailed(const VStore& vstore) const {
     bool disentailed = one_top(vstore) || slack(vstore) < 0;
-    LOG(if(disentailed) {
-      printf("LinearIneq disentailed %d: %d < 0\n", uid, slack(vstore));
-    })
+    // LOG(if(disentailed) {
+    //   printf("LinearIneq disentailed %d: %d < 0\n", uid, slack(vstore));
+    // })
     return disentailed;
   }
 
   CUDA void print(const VStore& vstore) const {
     printf("%d: ", uid);
-    for(int i = 0; i < n; ++i) {
+    for(int i = 0; i < vars.size(); ++i) {
       printf("%d * ", constants[i]);
       vstore.print_var(vars[i]);
-      if (i != n-1) printf(" + ");
+      if (i != vars.size() - 1) printf(" + ");
     }
     printf(" <= %d", max);
   }
@@ -399,14 +410,21 @@ public:
   Propagator* to_device() const override {
     Propagator** p;
     malloc2_managed(p, 1);
-    init_linear_ineq<<<1, 1>>>(p, uid, n, vars, constants, max);
+    init_linear_ineq<<<1, 1>>>(p, uid, vars, constants, max);
     CUDIE(cudaDeviceSynchronize());
     return *p;
+  }
+
+  __device__ Propagator* clone_in(SharedAllocator& allocator) const {
+    Propagator* p = new(allocator) LinearIneq(vars, constants, max, allocator);
+    p->uid = uid;
+    return p;
   }
 };
 
 struct Constraints {
   std::vector<Propagator*> propagators;
+  std::vector<Var> temporal_vars;
 
   size_t size() {
     return propagators.size();
@@ -414,30 +432,8 @@ struct Constraints {
 
   // Retrieve the temporal variables (those in temporal constraints).
   // It is useful for branching.
-  // The array is terminated by -1.
-  Var* temporal_vars(int max) {
-    bool is_temporal[max] = {false};
-    for(int i=0; i < size(); ++i) {
-      if(TemporalProp* p = dynamic_cast<TemporalProp*>(propagators[i])) {
-        is_temporal[abs(p->x)] = true;
-        is_temporal[abs(p->y)] = true;
-      }
-    }
-    int n=0;
-    for(int i=0; i < max; ++i) {
-      n += is_temporal[i];
-    }
-    Var* vars;
-    malloc2_managed(vars, (n+1));
-    int j = 0;
-    for(int i=0; i < max; ++i) {
-      if (is_temporal[i]) {
-        vars[j] = i;
-        j++;
-      }
-    }
-    vars[n] = -1;
-    return vars;
+  Array<Var>* branching_vars() {
+    return new(managed_allocator) Array<Var>(temporal_vars);
   }
 
   void init_uids() {

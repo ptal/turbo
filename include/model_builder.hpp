@@ -27,6 +27,7 @@
 
 #include "vstore.cuh"
 #include "propagators.cuh"
+#include "terms.hpp"
 
 using namespace XCSP3Core;
 using namespace std::placeholders;
@@ -69,6 +70,9 @@ class ModelBuilder {
       Var idx = idx2var.size();
       idx2var.push_back(name);
       var2idx[name] = std::make_tuple(idx, Interval(min,max));
+      if(name.substr(0,5) == "start") {
+        constraints.temporal_vars.push_back(idx);
+      }
     }
 
     // x <op> k
@@ -173,6 +177,7 @@ class ModelBuilder {
 
     // Must be guarded with `is_sum_constraint`.
     Propagator* sum_constraint(Node* node) {
+      // std::cout << "Add sum constraint " << node->toString() << std::endl;
       int c = dynamic_cast<NodeConstant*>(node->parameters[1])->val;
       std::vector<Var> vars;
       std::vector<int> constants;
@@ -193,14 +198,23 @@ class ModelBuilder {
       throw std::runtime_error("unsupported: " + msg);
     }
 
+    static Propagator* create_temporal_prop(int x, int y, int k) {
+      if(x < 0 && y < 0) { return new TemporalProp(Negation(Variable(-x)),Negation(Variable(-y)),k); }
+      if(x < 0 && y >= 0) { return new TemporalProp(Negation(Variable(-x)),Variable(y),k); }
+      if(x >= 0 && y < 0) { return new TemporalProp(Variable(x),Negation(Variable(-y)),k); }
+      if(x >= 0 && y >= 0) { return new TemporalProp(Variable(x),Variable(y),k); }
+      return nullptr;
+    }
+
     Propagator* temporal_constraint(std::string x, int k, OrderType op, std::string y) {
+      // std::cout << "Add temporal constraints: " << x << " " << y << std::endl;
       Var xi = std::get<0>(var2idx[x]);
       Var yi = std::get<0>(var2idx[y]);
       assert(xi != 0 && yi != 0);
 
       auto p = std::make_pair(xi,-yi);
       return le_canonical_form<std::pair<int,int>>(p, op, -k,
-        [](std::pair<int, int>& left, int k) -> Propagator* { return new TemporalProp(left.first, left.second, k); },
+        [](std::pair<int, int>& left, int k) -> Propagator* { return create_temporal_prop(left.first, left.second, k); },
         [](std::pair<int, int>& left) {left.first = -left.first; left.second = abs(left.second); });
     }
 
@@ -275,6 +289,7 @@ class ModelBuilder {
 
     // Precondition: constraint of the form `x + y <op> z` or `x - y <op> z` where x,y,z can be variables or integers.
     Propagator* add_sub_expr_constraint(Node* node, std::function<void(Node* node,int&,bool)> treat_lhs) {
+      // std::cout << "add_sub_expr_constraint " << node->toString() << std::endl;
       int xi = 0;
       int yi = 0;
       int k = 0;
@@ -325,7 +340,7 @@ class ModelBuilder {
       else {
         auto p = std::make_pair(xi,yi);
         return le_canonical_form<std::pair<int,int>>(p, op, k,
-          [](std::pair<int, int>& left, int k) -> Propagator* { return new TemporalProp(left.first, left.second, k); },
+          [](std::pair<int, int>& left, int k) -> Propagator* { return create_temporal_prop(left.first, left.second, k); },
           [](std::pair<int, int>& left) {left.first = -left.first; left.second = abs(left.second); });
       }
       // No propagator was created (the constraint was handled directly).
@@ -334,25 +349,9 @@ class ModelBuilder {
 
     // Precondition: constraint of the form `x * y <op> z` where x,y,z can be variables or integers.
     Propagator* mul_expr_constraint(Node* node) {
-      int xi = 0;
-      int yi = 0;
-      int k = 0;
-      OrderType op = to_order_type(node->type);
-      Node* lhs = node->parameters[0];
-      Node* x = lhs->parameters[0];
-      Node* y = lhs->parameters[1];
-      Node* z = node->parameters[1];
-      // Base situation
-      if(x->type == OVAR) {
-        xi = std::get<0>(var2idx[x->toString()]);
+      if(!le_mul_domain(node)) {
+        error(node, "mul not implemented");
       }
-      if(y->type == OVAR) {
-        yi = std::get<0>(var2idx[y->toString()]);
-      }
-      if(z->type == ODECIMAL) {
-        k = val(z);
-      }
-      error(node, "mul not implemented");
       return nullptr;
     }
 
