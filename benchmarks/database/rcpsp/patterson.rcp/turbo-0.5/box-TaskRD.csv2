@@ -1,1 +1,15 @@
-problem, nodes, solutions, fails, time, optimum
+nodes, fails, solutions, depthmax, variables, constraints, satisfiability, exhaustivity, time, optimum
+pat1.rcp, 10349, 4176, 9, 22, 197, 209, sat, true, 0.08s, 19
+pat2.rcp, 8541, 4040, 56, 10, 50, 63, sat, true, 0.02s, 7
+pat3.rcp, 9312, 4090, 9, 13, 170, 201, sat, true, 0.07s, 20
+pat4.rcp, 9582, 4502, 1, 21, 485, 557, sat, true, 0.11s, 6
+pat5.rcp, 9564, 4491, 3, 21, 485, 557, sat, true, 0.16s, 7
+pat6.rcp, 18008, 4537, 5, 22, 485, 557, sat, true, 0.33s, 8
+pat7.rcp, 8768, 4092, 4, 12, 82, 90, sat, true, 0.02s, 8
+pat8.rcp, 12801, 4076, 20, 12, 82, 90, sat, true, 0.08s, 11
+pat9.rcp, 12796, 4316, 9, 30, 325, 350, sat, true, 0.11s, 19
+pat10.rcp, 8597, 4057, 39, 11, 65, 75, sat, true, 0.02s, 14
+pat11.rcp, 8600, 4057, 39, 11, 65, 75, sat, true, 0.05s, 18
+pat12.rcp, 368099, 170221, 15, 34, 530, 574, sat, true, 12.79s, 13
+pat13.rcp, 186449, 70729, 2, 39, 485, 544, sat, true, 7.28s, 20
+pat14.rcp, 1140920, 568954, 5, 44, 1226, 1278, sat, false, 60.02s, 43

@@ -23,11 +23,11 @@ struct Statistics {
   int fails;
   int sols;
   int best_bound;
-  int peak_depth;
+  int depth_max;
   int exhaustive;
 
   CUDA Statistics(): nodes(0), fails(0), sols(0),
-    best_bound(-1), peak_depth(0), exhaustive(true) {}
+    best_bound(-1), depth_max(0), exhaustive(true) {}
 
   CUDA void join(const Statistics& other) {
     nodes += other.nodes;
@@ -39,7 +39,7 @@ struct Statistics {
     else if(other.best_bound != -1) {
       best_bound = min(best_bound, other.best_bound);
     }
-    peak_depth = max(peak_depth, other.peak_depth);
+    depth_max = max(depth_max, other.depth_max);
     exhaustive = exhaustive && other.exhaustive;
   }
 
@@ -57,10 +57,13 @@ struct Statistics {
     else {
       printf("satisfiability=unknown\n");
     }
-    if(!exhaustive) {
-      printf("exhaustive=false\n");
+    if(exhaustive) {
+      printf("exhaustivity=true\n");
     }
-    printf("peakDepth=%d\n", peak_depth);
+    else {
+      printf("exhaustivity=false\n");
+    }
+    printf("depthMax=%d\n", depth_max);
   }
 };
 
