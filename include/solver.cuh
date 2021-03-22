@@ -18,6 +18,21 @@
 #include "vstore.cuh"
 #include "propagators.cuh"
 
-void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout);
+#define OR_NODES 48
+#define AND_NODES 256
+#define SUBPROBLEMS_POWER 12 // 2^N
+
+struct Configuration {
+  int timeout;
+  int and_nodes;
+  int or_nodes;
+  int subproblems_power;
+  std::string problem_path;
+
+  Configuration(): timeout(INT_MAX), and_nodes(AND_NODES),
+    or_nodes(OR_NODES), subproblems_power(SUBPROBLEMS_POWER) {}
+};
+
+void solve(VStore* vstore, Constraints constraints, Var minimize_x, Configuration config);
 
 #endif

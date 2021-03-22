@@ -10,7 +10,7 @@
           "name": "gecode",
           "version": "6.2.0",
           "exec":
-            "/home/ptalbot/repositories/resources/solvers/gecode/build/bin/fzn-gecode",
+            "fzn-gecode",
           "globals":
             "/home/ptalbot/repositories/resources/solvers/gecode/gecode/flatzinc/mznlib"
         },
