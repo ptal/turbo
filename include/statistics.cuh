@@ -57,6 +57,9 @@ struct Statistics {
     else {
       printf("satisfiability=unknown\n");
     }
+    if(!exhaustive) {
+      printf("exhaustive=false\n");
+    }
     printf("peakDepth=%d\n", peak_depth);
   }
 };
@@ -65,18 +68,16 @@ struct GlobalStatistics {
   size_t variables;
   size_t constraints;
   int64_t duration;
-  size_t memory;
   Statistics local;
 
-  GlobalStatistics(size_t variables, size_t constraints, int64_t duration, size_t memory, Statistics local):
-    variables(variables), constraints(constraints), duration(duration), memory(memory), local(local) {}
+  GlobalStatistics(size_t variables, size_t constraints, int64_t duration, Statistics local):
+    variables(variables), constraints(constraints), duration(duration), local(local) {}
 
   void print() {
     std::cout << "variables=" << variables << std::endl;
     std::cout << "constraints=" << constraints << std::endl;
     local.print();
     std::cout << "solveTime=" << duration << std::endl;
-    std::cout << "memory=" << memory << std::endl;
   }
 };
 

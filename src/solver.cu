@@ -44,7 +44,7 @@ CUDA_GLOBAL void search_k(
     Pointer<Interval>* best_bound,
     Array<VStore>* best_sols,
     Var minimize_x,
-    Array<Statistics>* stats)
+    Array<Statistics>* blocks_stats)
 {
   #ifndef IN_GLOBAL_MEMORY
     extern __shared__ int shmem[];
@@ -75,27 +75,34 @@ CUDA_GLOBAL void search_k(
     (*trees)[nodeid]->search(tid, stride, *root, curr_decomposition, decomposition_size);
     if (tid == 0) {
       Statistics latest = (*trees)[nodeid]->statistics();
-      if(latest.best_bound != -1 && latest.best_bound < (*stats)[nodeid].best_bound) {
+      if(latest.best_bound != -1 && latest.best_bound < (*blocks_stats)[nodeid].best_bound) {
         (*best_sols)[nodeid].reset((*trees)[nodeid]->best());
       }
-      (*stats)[nodeid].join(latest);
+      (*blocks_stats)[nodeid].join(latest);
       curr_decomposition = atomicAdd(&decomposition, 1);
     }
     __syncthreads();
   }
-  INFO(if(tid == 0) printf("Block %d quits %d.\n", nodeid, (*stats)[nodeid].best_bound));
+  INFO(if(tid == 0) printf("Block %d quits %d.\n", nodeid, (*blocks_stats)[nodeid].best_bound));
   // if(tid == 0)
-   // printf("%d: Block %d quits %d.\n", tid, nodeid, (*stats)[nodeid].best_bound);
+   // printf("%d: Block %d quits %d.\n", tid, nodeid, (*blocks_stats)[nodeid].best_bound);
 }
 
-void measure_memory(size_t& total_mem) {
-  // Try to have an estimation of the memory on start.
-  total_mem = 0;
-  for(int i = 0; i < 100; ++i) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    size_t f, t;
-    CUDIE(cudaMemGetInfo(&f, &t));
-    total_mem = max(t, total_mem);
+// Inspired by https://stackoverflow.com/questions/39513830/launch-cuda-kernel-with-a-timeout/39514902
+// Timeout expected in seconds.
+void guard_timeout(int timeout, bool& stop, Statistics& statistics, Array<Statistics>& blocks_stats) {
+  int progressed = 0;
+  while (!stop) {
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    progressed += 1;
+    if (progressed >= timeout) {
+      for(int i = 0; i < blocks_stats.size(); ++i) {
+        statistics.join(blocks_stats[i]);
+      }
+      statistics.exhaustive = false;
+      cudaDeviceReset();
+      stop = true;
+    }
   }
 }
 
@@ -122,7 +129,7 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
   Array<Pointer<TreeAndPar>>* trees = new(managed_allocator) Array<Pointer<TreeAndPar>>(OR_NODES);
   Pointer<Interval>* best_bound = new(managed_allocator) Pointer<Interval>(Interval());
   Array<VStore>* best_sols = new(managed_allocator) Array<VStore>(*vstore, OR_NODES);
-  Array<Statistics>* stats = new(managed_allocator) Array<Statistics>(OR_NODES);
+  Array<Statistics>* blocks_stats = new(managed_allocator) Array<Statistics>(OR_NODES);
 
   // cudaFuncSetAttribute(search_k, cudaFuncAttributeMaxDynamicSharedMemorySize, SHMEM_SIZE);
   int and_nodes = min((int)props->size(), AND_NODES);
@@ -130,23 +137,21 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, int timeout)
     #ifndef IN_GLOBAL_MEMORY
       , SHMEM_SIZE
     #endif
-  >>>(trees, vstore, props, branching_vars, best_bound, best_sols, minimize_x, stats);
+  >>>(trees, vstore, props, branching_vars, best_bound, best_sols, minimize_x, blocks_stats);
 
-  size_t total_mem;
-  std::thread measure_mem_thread(measure_memory, std::ref(total_mem));
+  Statistics statistics;
+  bool stop = false;
+  std::thread timeout_thread(guard_timeout, timeout, std::ref(stop), std::ref(statistics), std::ref(*blocks_stats));
   CUDIE(cudaDeviceSynchronize());
+  stop = true;
 
   t2 = std::chrono::high_resolution_clock::now();
   duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
 
-  measure_mem_thread.join();
+  timeout_thread.join();
 
   // Gather statistics and best bound.
-  Statistics statistics;
-  for(int i = 0; i < stats->size(); ++i) {
-    statistics.join((*stats)[i]);
-  }
-  GlobalStatistics gstats(vstore->size(), constraints.size(), duration, total_mem, statistics);
+  GlobalStatistics gstats(vstore->size(), constraints.size(), duration, statistics);
   gstats.print();
 
   operator delete(best_bound, managed_allocator);
