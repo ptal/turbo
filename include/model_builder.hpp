@@ -28,6 +28,7 @@
 #include "vstore.cuh"
 #include "propagators.cuh"
 #include "terms.hpp"
+#include "memory.cuh"
 
 using namespace XCSP3Core;
 using namespace std::placeholders;
@@ -47,9 +48,7 @@ class ModelBuilder {
     }
 
     VStore* build_store() {
-      alignas(VStore) unsigned char *v;
-      malloc2_managed(v, sizeof(VStore));
-      VStore* vstore = new(v) VStore(idx2var.size());
+      VStore* vstore = new(managed_allocator) VStore(idx2var.size());
       for (const auto& x : var2idx) {
         vstore->dom(std::get<0>(x.second), std::get<1>(x.second));
       }
