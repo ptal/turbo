@@ -42,8 +42,6 @@ class ModelBuilder {
 
   public:
     ModelBuilder() {
-      // Negative variable's indices are used for negative view of variable, e.g., `-x`.
-      // However the index `0` can't be negated, so we occupy this position with a dumb value.
       add_var("zero_var(fake)", 0, 0);
     }
 
@@ -72,6 +70,7 @@ class ModelBuilder {
       if(name.substr(0,5) == "start") {
         constraints.temporal_vars.push_back(idx);
       }
+      constraints.all_vars.push_back(idx);
     }
 
     // x <op> k
@@ -185,6 +184,16 @@ class ModelBuilder {
         constants.push_back(dynamic_cast<NodeConstant*>(n->parameters[1])->val);
       }
       return new LinearIneq(vars, constants, c);
+    }
+
+    Propagator* table_constraint(std::vector<XVariable *> list,
+      std::vector<std::vector<int>>& tuples)
+    {
+      std::vector<Var> vars(list.size());
+      for(int i = 0; i < list.size(); ++i) {
+        vars.push_back(std::get<0>(var2idx[list[i]->id]));
+      }
+      return new TablePropagator(vars, tuples);
     }
 
     void add_objective_minimize(XVariable *x) {

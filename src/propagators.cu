@@ -33,3 +33,8 @@ CUDA_GLOBAL void init_linear_ineq(Propagator** p, int uid, const Array<Var> vars
   *p = new LinearIneq(vars, constants, max, global_allocator);
   (*p)->uid = uid;
 }
+
+CUDA_GLOBAL void init_table(Propagator** p, int uid, const Array<Var> vars, const Array<Array<int>> table) {
+  *p = new TablePropagator(vars, table, global_allocator);
+  (*p)->uid = uid;
+}

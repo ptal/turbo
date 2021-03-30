@@ -143,6 +143,8 @@ class Array {
   T* array;
   size_t n;
 public:
+  __device__ Array(): n(0), array(nullptr) {}
+
   template<typename Allocator>
   __device__ Array(int n, Allocator& allocator):
     n(n), array(new(allocator) T[n]) {}
@@ -193,7 +195,8 @@ public:
     }
   }
 
-  Array(const std::vector<T>& from):
+  template<typename U>
+  Array(const std::vector<U>& from):
     n(from.size()), array(new(managed_allocator) T[from.size()])
   {
     for(int i = 0; i < n; ++i) {

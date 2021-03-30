@@ -43,6 +43,7 @@ CUDA_GLOBAL void init_logical_or(Propagator** p, int uid, Propagator* left, Prop
 CUDA_GLOBAL void init_logical_and(Propagator** p, int uid, Propagator* left, Propagator* right);
 CUDA_GLOBAL void init_reified_prop(Propagator** p, int uid, Var b, Propagator* rhs, Propagator* not_rhs);
 CUDA_GLOBAL void init_linear_ineq(Propagator** p, int uid, const Array<Var> vars, const Array<int> constants, int max);
+CUDA_GLOBAL void init_table(Propagator** p, int uid, const Array<Var> vars, const Array<Array<int>> table);
 
 template<typename TermX, typename TermY>
 CUDA_GLOBAL void init_temporal_prop(Propagator** p, int uid, TermX x, TermY y, int c);
@@ -422,9 +423,75 @@ public:
   }
 };
 
+class TablePropagator : public Propagator {
+  const Array<Var> vars;
+  const Array<Array<int>> table;
+
+public:
+  // constructor
+  TablePropagator(const std::vector<Var>& vvars, const std::vector<std::vector<int>>& tuples):
+    Propagator(-1), vars(vvars), table(tuples)
+  {}
+
+  template<typename Allocator>
+  __device__ TablePropagator(const Array<Var>& vars, const Array<Array<int>>& table, Allocator& allocator):
+    Propagator(-1), vars(vars, allocator), table(table, allocator)
+  {}
+
+
+  // return true if vstore has changed, false otherwise.
+  CUDA bool propagate(VStore& vstore) const {
+    // propagate the constraint
+    return false;
+  }
+
+  // Return true if the constraint is satisfied by vstore
+  CUDA bool is_entailed(const VStore& vstore) const {
+    return false;
+  }
+
+  CUDA bool is_disentailed(const VStore& vstore) const {
+    return false;
+  }
+
+  CUDA void print(const VStore& vstore) const {
+    printf("%d: ", uid);
+    for(int i = 0; i < vars.size(); ++i) {
+      vstore.print_var(vars[i]);
+      printf(" ");
+    }
+    printf("\n");
+    for(int i = 0; i < table.size(); ++i) {
+      for(int j = 0; j < table[i].size(); ++j) {
+        printf("%d ", table[i][j]);
+      }
+      printf("\n");
+    }
+  }
+
+  Propagator* neg() const {
+    throw new std::runtime_error("Negation of table constraint unimplemented.");
+  }
+
+  Propagator* to_device() const override {
+    Propagator** p;
+    malloc2_managed(p, 1);
+    init_table<<<1, 1>>>(p, uid, vars, table);
+    CUDIE(cudaDeviceSynchronize());
+    return *p;
+  }
+
+  __device__ Propagator* clone_in(SharedAllocator& allocator) const {
+    Propagator* p = new(allocator) TablePropagator(vars, table, allocator);
+    p->uid = uid;
+    return p;
+  }
+};
+
 struct Constraints {
   std::vector<Propagator*> propagators;
   std::vector<Var> temporal_vars;
+  std::vector<Var> all_vars;
 
   size_t size() {
     return propagators.size();
@@ -433,7 +500,11 @@ struct Constraints {
   // Retrieve the temporal variables (those in temporal constraints).
   // It is useful for branching.
   Array<Var>* branching_vars() {
-    return new(managed_allocator) Array<Var>(temporal_vars);
+    // return new(managed_allocator) Array<Var>(temporal_vars);
+    std::vector<Var> bvars;
+    bvars.insert(bvars.end(), temporal_vars.begin(), temporal_vars.end());
+    bvars.insert(bvars.end(), all_vars.begin(), all_vars.end());
+    return new(managed_allocator) Array<Var>(bvars);
   }
 
   void init_uids() {

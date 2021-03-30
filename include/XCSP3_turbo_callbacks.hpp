@@ -447,7 +447,11 @@ void XCSP3_turbo_callbacks::buildConstraintExtension(string id, vector<XVariable
     cout << "        ";
     displayList(list);
   }
-  throw std::runtime_error("constraint unsupported");
+  if(hasStar || !support) {
+    throw std::runtime_error("constraint unsupported");
+  }
+  Propagator* p = model_builder->table_constraint(list, tuples);
+  model_builder->push(p);
 }
 
 
