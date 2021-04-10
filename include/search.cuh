@@ -93,7 +93,6 @@ public:
         break;
       }
       propagation(tid, stride);
-      __syncthreads();
       after_propagation(tid);
       before_propagation(tid);
       __syncthreads();
@@ -128,19 +127,16 @@ private:
   }
 
   __device__ void propagation(int tid, int stride) {
-    __shared__ bool has_changed;
-    has_changed = true;
-    while(!current.is_top() && has_changed) {
-      __syncthreads();
-      if (tid == 0) {
-        has_changed = false;
-      }
-      __syncthreads();
+    __shared__ bool has_changed[2];
+    has_changed[0] = true;
+    has_changed[1] = true;
+    for(int i = 1; !current.is_top() && has_changed[(i-1)%2]; ++i) {
       for (int t = tid; t < props.size(); t += stride) {
         if(props[t]->propagate(current)) {
-          has_changed = true;
+          has_changed[i%2] = true;
         }
       }
+      has_changed[(i+1)%2] = false;
       __syncthreads();
     }
   }
