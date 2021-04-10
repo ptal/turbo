@@ -1,7 +1,7 @@
 {
   "problem_set_path":
     "../../absolute-project/kobe-rcpsp/data/rcpsp/patterson.rcp/",
-  "timeout": 60,
+  "timeout": 300,
   "solver_instance": [
     "FznSolver",
     {
@@ -10,7 +10,7 @@
           "name": "gecode",
           "version": "6.2.0",
           "exec":
-            "fzn-gecode",
+            "/home/ptalbot/repositories/resources/solvers/gecode/build/bin/fzn-gecode",
           "globals":
             "/home/ptalbot/repositories/resources/solvers/gecode/gecode/flatzinc/mznlib"
         },

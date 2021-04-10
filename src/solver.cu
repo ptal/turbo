@@ -100,9 +100,18 @@ void guard_timeout(int timeout, bool& stop) {
   }
 }
 
+void update_heap_limit() {
+  size_t heap_limit;
+  cudaDeviceGetLimit(&heap_limit, cudaLimitMallocHeapSize);
+  cudaDeviceSetLimit(cudaLimitMallocHeapSize, heap_limit*10);
+  INFO(std::cout << "heap limit = " << heap_limit << std::endl);
+}
+
 void solve(VStore* vstore, Constraints constraints, Var minimize_x, Configuration config)
 {
   // INFO(constraints.print(*vstore));
+  update_heap_limit();
+
   Array<Var>* branching_vars = constraints.branching_vars();
 
   LOG(std::cout << "Start transfering propagator to device memory." << std::endl);
