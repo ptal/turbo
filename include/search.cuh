@@ -134,7 +134,7 @@ private:
 
   __device__ void propagation(int tid, int stride) {
     Status s = UNKNOWN;
-    while(s == UNKNOWN || pstatus.has_changed()) {
+    while(!current.is_top() && (s == UNKNOWN || pstatus.has_changed())) {
       __syncthreads();
       if (tid == 0) {
         pstatus.reset_changed();
@@ -150,12 +150,16 @@ private:
 
   __device__ void after_propagation(int tid) {
     if (tid == 0) {
-      Status res = (current.is_top() ? DISENTAILED : pstatus.join());
-      switch(res) {
-        case DISENTAILED: on_failure(); break;
-        case ENTAILED: on_solution(); break;
-        case IDLE: on_unknown(); break;
-        default: assert(false);
+      if (current.is_top()) {
+        on_failure();
+      }
+      else {
+        Status res = pstatus.join();
+        switch(res) {
+          case ENTAILED: on_solution(); break;
+          case IDLE: on_unknown(); break;
+          default: assert(false);
+        }
       }
     }
   }
@@ -252,9 +256,6 @@ private:
     Status s = has_changed ? UNKNOWN : IDLE;
     if(p->is_entailed(current)) {
       s = ENTAILED;
-    }
-    if(p->is_disentailed(current)) {
-      s = DISENTAILED;
     }
     pstatus.inplace_join(p->uid, s);
   }

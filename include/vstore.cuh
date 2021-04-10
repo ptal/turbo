@@ -69,6 +69,7 @@ struct Interval {
 
 class VStore {
   Array<Interval> data;
+  bool top;
 
   // The names don't change during solving. We want to avoid useless copies.
 // Unfortunately, static member are not supported in CUDA, so we use an instance variable which is never copied.
@@ -98,25 +99,28 @@ public:
 
   template<typename Allocator>
   CUDA VStore(int nvar, Allocator& allocator):
-    data(nvar, allocator)
+    data(nvar, allocator), top(false)
   {}
 
   template<typename Allocator>
   CUDA VStore(const VStore& other, Allocator& allocator):
     data(other.data, allocator),
+    top(false),
     names(other.names), names_len(other.names_len)
   {}
 
-  VStore(int nvar): data(nvar) {}
-  VStore(const VStore& other): data(other.data), names(other.names), names_len(other.names_len) {}
+  VStore(int nvar): data(nvar), top(false) {}
+  VStore(const VStore& other): data(other.data), top(false),
+    names(other.names), names_len(other.names_len) {}
 
-  VStore(): data(0) {}
+  VStore(): data(0), top(false) {}
 
   CUDA void reset(const VStore& other) {
     assert(size() == other.size());
     for(int i = 0; i < size(); ++i) {
       data[i] = other.data[i];
     }
+    top = other.top;
   }
 
   CUDA bool all_assigned() const {
@@ -129,12 +133,7 @@ public:
   }
 
   CUDA bool is_top() const {
-    for(int i = 0; i < size(); ++i) {
-      if(data[i].is_top()) {
-        return true;
-      }
-    }
-    return false;
+    return top;
   }
 
   CUDA bool is_top(Var x) const {
@@ -168,15 +167,27 @@ public:
     }
   }
 
+private:
+
+  CUDA void update_top(Var x) {
+    if(data[x].is_top()) {
+      top = true;
+    }
+  }
+
+public:
+
   // lb <= x <= ub
   CUDA void dom(Var x, Interval itv) {
     data[x] = itv;
+    update_top(x);
   }
 
   CUDA bool update_lb(Var i, int lb) {
     if (data[i].lb < lb) {
       LOG(printf("Update LB(%s) with %d (old = %d) in %p\n", names[i], lb, data[i].lb, this));
       data[i].lb = lb;
+      update_top(i);
       return true;
     }
     return false;
@@ -186,6 +197,7 @@ public:
     if (data[i].ub > ub) {
       LOG(printf("Update UB(%s) with %d (old = %d) in %p\n", names[i], ub, data[i].ub, this));
       data[i].ub = ub;
+      update_top(i);
       return true;
     }
     return false;

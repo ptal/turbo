@@ -357,6 +357,10 @@ public:
   CUDA bool propagate(VStore& vstore) const {
     int s = slack(vstore);
     bool has_changed = false;
+    if(s < 0) {
+      vstore.update_ub(vars[0], vstore.lb(vars[0]) - 1);
+      return has_changed;
+    }
     // CORRECTNESS: Even if the slack changes after its computation (or even when we are computing it), it does not hinder the correctness of the propagation.
     // The reason is that whenever `constants[i] > s` it will stay true for any slack s' since s > s' by def. of the function slack.
     for(int i=0; i < vars.size(); ++i) {

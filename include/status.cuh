@@ -21,8 +21,7 @@
 enum Status {
   UNKNOWN = 0,
   IDLE = 1,
-  ENTAILED = 2,
-  DISENTAILED = 3
+  ENTAILED = 2
 };
 
 CUDA inline Status join_status(Status status1, Status status2) {
@@ -33,12 +32,10 @@ CUDA inline const char* string_of_status(Status status) {
   static const char* unknown = "unknown";
   static const char* idle = "idle";
   static const char* entailed = "entailed";
-  static const char* disentailed = "disentailed";
   switch (status) {
     case UNKNOWN: return unknown;
     case IDLE: return idle;
-    case ENTAILED: return entailed;
-    default: return disentailed;
+    default: return entailed;
   }
 }
 
@@ -82,7 +79,6 @@ public:
         case UNKNOWN: ++unk; break;
         case IDLE: ++idle; break;
         case ENTAILED: break;
-        case DISENTAILED: return DISENTAILED;
       }
       //printf("join: %d %s\n", i, string_of_status(status[i]));
     }
