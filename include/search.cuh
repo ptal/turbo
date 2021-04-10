@@ -16,7 +16,6 @@
 #define SEARCH_HPP
 
 #include "vstore.cuh"
-#include "status.cuh"
 #include "statistics.cuh"
 #include "cuda_helper.hpp"
 
@@ -52,7 +51,6 @@ class TreeAndPar
 {
   VStore root;
   VStore current;
-  PropagatorsStatus pstatus;
   const Array<Pointer<Propagator>>& props;
   Array<Delta> deltas;
   int deltas_size;
@@ -75,7 +73,6 @@ public:
    Allocator &allocator)
   : root(root, allocator),
     current(root, allocator),
-    pstatus(props.size(), allocator),
     props(props),
     deltas(MAX_DEPTH, allocator),
     deltas_size(0),
@@ -108,7 +105,6 @@ public:
       this->root.reset(root);
       this->current.reset(root);
       this->deltas_size = 0;
-      this->pstatus.reset();
       this->decomposition = decomposition;
       this->decomposition_size = decomposition_size;
       this->stats = Statistics();
@@ -128,23 +124,24 @@ private:
     if (tid == 0) {
       stats.nodes++;
       current.update(minimize_x, {best_bound.lb, best_bound.ub - 1});
-      pstatus.reset();
     }
   }
 
   __device__ void propagation(int tid, int stride) {
-    Status s = UNKNOWN;
-    while(!current.is_top() && (s == UNKNOWN || pstatus.has_changed())) {
+    __shared__ bool has_changed;
+    has_changed = true;
+    while(!current.is_top() && has_changed) {
       __syncthreads();
       if (tid == 0) {
-        pstatus.reset_changed();
+        has_changed = false;
       }
       __syncthreads();
       for (int t = tid; t < props.size(); t += stride) {
-        propagate_one(t);
+        if(props[t]->propagate(current)) {
+          has_changed = true;
+        }
       }
       __syncthreads();
-      s = pstatus.join();
     }
   }
 
@@ -154,11 +151,15 @@ private:
         on_failure();
       }
       else {
-        Status res = pstatus.join();
-        switch(res) {
-          case ENTAILED: on_solution(); break;
-          case IDLE: on_unknown(); break;
-          default: assert(false);
+        bool is_entailed = true;
+        for (int i = 0; is_entailed && i < props.size(); ++i) {
+          is_entailed = props[i]->is_entailed(current);
+        }
+        if(is_entailed) {
+          on_solution();
+        }
+        else {
+          on_unknown();
         }
       }
     }
@@ -248,16 +249,6 @@ private:
       current.name_of(x), deltas[deltas_size].next.lb, deltas[deltas_size].next.ub,
       deltas[deltas_size].right.lb, deltas[deltas_size].right.ub));
     deltas_size++;
-  }
-
-  __device__ void propagate_one(int i) {
-    const Pointer<Propagator>& p = props[i];
-    bool has_changed = p->propagate(current);
-    Status s = has_changed ? UNKNOWN : IDLE;
-    if(p->is_entailed(current)) {
-      s = ENTAILED;
-    }
-    pstatus.inplace_join(p->uid, s);
   }
 };
 

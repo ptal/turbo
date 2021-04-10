@@ -23,7 +23,6 @@
 #include "propagators.cuh"
 #include "cuda_helper.hpp"
 #include "statistics.cuh"
-#include "status.cuh"
 #include "search.cuh"
 
 __device__ int decomposition = 0;
