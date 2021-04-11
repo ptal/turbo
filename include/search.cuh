@@ -54,6 +54,7 @@ class TreeAndPar
   const Array<Pointer<Propagator>>& props;
   Array<Delta> deltas;
   int deltas_size;
+  int depth;
   Array<Var> branching_vars;
   Interval& best_bound;
   VStore best_sol;
@@ -61,6 +62,16 @@ class TreeAndPar
   Statistics stats;
   int decomposition;
   int decomposition_size;
+
+  // We maintain a set of unknown propagators.
+  // The array `punknowns` contains the indices of all propagators.
+  // For each index 0 <= i < unknown_props, props[i] is not yet entailed.
+  // All the entailed propagators are stored in punknowns[unknown_props..props.size()].
+  // When a propagator becomes entailed, we swap it with an unknown propagator at the position unknown_props, and decrease unknown_props (see `after_propagation` below).
+  // NOTE1: We do not save `unknown_props` in `deltas` because, due to the recomputation-based scheme, all the propagators must be repropagated again when we replay.
+  // NOTE2: We actually only use this at the root node because it does not seem more efficient to do it in every node.
+  Array<int> punknowns;
+  int unknown_props;
 
 public:
   template<typename Allocator>
@@ -76,10 +87,12 @@ public:
     props(props),
     deltas(MAX_DEPTH, allocator),
     deltas_size(0),
+    depth(0),
     branching_vars(branching_vars, allocator),
     best_bound(best_bound),
     best_sol(root, global_allocator),
-    minimize_x(min_x)
+    minimize_x(min_x),
+    punknowns(props.size(), allocator)
   {}
 
   __device__ void search(int tid, int stride, const VStore& root, int decomposition, int decomposition_size, bool& stop) {
@@ -107,6 +120,11 @@ public:
       this->decomposition = decomposition;
       this->decomposition_size = decomposition_size;
       this->stats = Statistics();
+      assert(punknowns.size() == props.size());
+      for(int i = 0; i < punknowns.size(); ++i) {
+        punknowns[i] = i;
+      }
+      unknown_props = punknowns.size();
     }
   }
 
@@ -131,6 +149,8 @@ private:
     has_changed[0] = true;
     has_changed[1] = true;
     for(int i = 1; !current.is_top() && has_changed[(i-1)%2]; ++i) {
+      // for (int t = tid; t < unknown_props; t += stride) {
+      //   if(props[punknowns[t]]->propagate(current)) {
       for (int t = tid; t < props.size(); t += stride) {
         if(props[t]->propagate(current)) {
           has_changed[i%2] = true;
@@ -147,16 +167,31 @@ private:
         on_failure();
       }
       else {
-        bool is_entailed = true;
-        for (int i = 0; is_entailed && i < props.size(); ++i) {
-          is_entailed = props[i]->is_entailed(current);
+        bool all_entailed = true;
+        // for (int i = 0; all_entailed && i < unknown_props; ++i) {
+        //   if(!props[punknowns[i]]->is_entailed(current)) {
+        for (int i = 0; all_entailed && i < props.size(); ++i) {
+          if(!props[i]->is_entailed(current)) {
+            all_entailed = false;
+          }
         }
-        if(is_entailed) {
+        if(all_entailed) {
           on_solution();
         }
         else {
+          INFO(assert(!current.all_assigned()));
           on_unknown();
         }
+      }
+    }
+  }
+
+  __device__ void swap_entailed_props() {
+    for (int i = 0; i < unknown_props; ++i) {
+      if(props[punknowns[i]]->is_entailed(current)) {
+        --unknown_props;
+        swap(&punknowns[i], &punknowns[unknown_props]);
+        --i;
       }
     }
   }
@@ -164,7 +199,7 @@ private:
   __device__ void on_failure() {
     INFO(printf("backtracking on failed node %p...\n", this));
     stats.fails++;
-    stats.depth_max = max(stats.depth_max, deltas_size);
+    stats.depth_max = max(stats.depth_max, depth);
     backtrack();
     replay();
   }
@@ -172,7 +207,7 @@ private:
   __device__ void on_solution() {
     INFO(printf("previous best...(bound %d..%d)\n", best_bound.lb, best_bound.ub));
     stats.sols++;
-    stats.depth_max = max(stats.depth_max, deltas_size);
+    stats.depth_max = max(stats.depth_max, depth);
     const Interval& new_bound = current[minimize_x];
     // Due to parallelism, it is possible that several bounds are found in one iteration, thus we need to perform a (lattice) join on the best bound.
     atomicMin(&best_bound.ub, new_bound.lb);
@@ -185,7 +220,7 @@ private:
 
   __device__ void on_unknown() {
     INFO(printf("branching on unknown node... (bound %d..%d)\n", best_bound.lb, best_bound.ub));
-    // end_bootstrap();
+    end_bootstrap();
     branch();
     bootstrap_branch();
     commit_branch();
@@ -195,6 +230,7 @@ private:
     if(decomposition_size == 0) { // collapse the beginning of the tree to ignore the bootstrapped path of the decomposition, and avoid recomputing on root.
       root.reset(current);
       deltas_size = 0;
+      // swap_entailed_props();
     }
   }
 
@@ -226,8 +262,10 @@ private:
 
   __device__ void backtrack() {
     --deltas_size;
+    --depth;
     while (deltas_size >= 0 && deltas[deltas_size].next == deltas[deltas_size].right) {
       --deltas_size;
+      --depth;
     }
   }
 
@@ -245,6 +283,7 @@ private:
       current.name_of(x), deltas[deltas_size].next.lb, deltas[deltas_size].next.ub,
       deltas[deltas_size].right.lb, deltas[deltas_size].right.ub));
     deltas_size++;
+    depth++;
   }
 };
 
