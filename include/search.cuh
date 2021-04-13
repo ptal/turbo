@@ -149,10 +149,9 @@ private:
     has_changed[0] = true;
     has_changed[1] = true;
     for(int i = 1; !current.is_top() && has_changed[(i-1)%2]; ++i) {
-      // for (int t = tid; t < unknown_props; t += stride) {
-      //   if(props[punknowns[t]]->propagate(current)) {
-      for (int t = tid; t < props.size(); t += stride) {
-        if(props[t]->propagate(current)) {
+      __syncthreads();
+      for (int t = tid; t < unknown_props; t += stride) {
+        if(props[punknowns[t]]->propagate(current)) {
           has_changed[i%2] = true;
         }
       }
@@ -168,10 +167,8 @@ private:
       }
       else {
         bool all_entailed = true;
-        // for (int i = 0; all_entailed && i < unknown_props; ++i) {
-        //   if(!props[punknowns[i]]->is_entailed(current)) {
-        for (int i = 0; all_entailed && i < props.size(); ++i) {
-          if(!props[i]->is_entailed(current)) {
+        for (int i = 0; all_entailed && i < unknown_props; ++i) {
+          if(!props[punknowns[i]]->is_entailed(current)) {
             all_entailed = false;
           }
         }
@@ -186,14 +183,15 @@ private:
     }
   }
 
-  __device__ void swap_entailed_props() {
+  __device__ void eliminate_entailed_props() {
     for (int i = 0; i < unknown_props; ++i) {
-      if(props[punknowns[i]]->is_entailed(current)) {
+      if(props[punknowns[i]]->is_entailed(root)) {
         --unknown_props;
         swap(&punknowns[i], &punknowns[unknown_props]);
         --i;
       }
     }
+    INFO(printf("Propagators remaining at root: %d / %lu \n", unknown_props, props.size()));
   }
 
   __device__ void on_failure() {
@@ -230,7 +228,7 @@ private:
     if(decomposition_size == 0) { // collapse the beginning of the tree to ignore the bootstrapped path of the decomposition, and avoid recomputing on root.
       root.reset(current);
       deltas_size = 0;
-      // swap_entailed_props();
+      eliminate_entailed_props();
     }
   }
 

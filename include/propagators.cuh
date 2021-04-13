@@ -250,14 +250,14 @@ public:
 
   CUDA bool is_entailed(const VStore& vstore) const override {
     return
-        ((vstore.ub(b) == 0 && rhs->is_disentailed(vstore))
-      || (vstore.lb(b) == 1 && rhs->is_entailed(vstore)));
+         (vstore[b] == 0 && rhs->is_disentailed(vstore))
+      || (vstore[b] == 1 && rhs->is_entailed(vstore));
   }
 
   CUDA bool is_disentailed(const VStore& vstore) const override {
     return
-        (vstore.ub(b) == 0 && rhs->is_entailed(vstore))
-     || (vstore.lb(b) == 1 && rhs->is_disentailed(vstore));
+        (vstore[b] == 0 && rhs->is_entailed(vstore))
+     || (vstore[b] == 1 && rhs->is_disentailed(vstore));
   }
 
   CUDA void print(const VStore& vstore) const override {
@@ -350,16 +350,15 @@ public:
   //  Propagating assign upper bound to 0, when c_i > slack.
   CUDA bool propagate(VStore& vstore) const {
     int s = slack(vstore);
-    bool has_changed = false;
     if(s < 0) {
-      vstore.update_ub(vars[0], vstore.lb(vars[0]) - 1);
-      return has_changed;
+      return vstore.update_lb(vars[0], vstore.ub(vars[0]) + 1);
     }
     // CORRECTNESS: Even if the slack changes after its computation (or even when we are computing it), it does not hinder the correctness of the propagation.
     // The reason is that whenever `constants[i] > s` it will stay true for any slack s' since s > s' by def. of the function slack.
+    bool has_changed = false;
     for(int i=0; i < vars.size(); ++i) {
-      Interval x = vstore[vars[i]];
-      if (vstore.lb(vars[i]) == 0 && vstore.ub(vars[i]) == 1 && constants[i] > s) {
+      const Interval& x = vstore[vars[i]];
+      if (x.lb == 0 && x.ub == 1 && constants[i] > s) {
         has_changed |= vstore.assign(vars[i], 0);
       }
     }
