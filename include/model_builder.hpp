@@ -191,7 +191,7 @@ class ModelBuilder {
     {
       std::vector<Var> vars(list.size());
       for(int i = 0; i < list.size(); ++i) {
-        vars.push_back(std::get<0>(var2idx[list[i]->id]));
+        vars[i] = std::get<0>(var2idx[list[i]->id]);
       }
       return new TablePropagator(vars, tuples);
     }
