@@ -145,17 +145,17 @@ private:
   }
 
   __device__ void propagation(int tid, int stride) {
-    __shared__ bool has_changed[2];
+    __shared__ bool has_changed[3];
     has_changed[0] = true;
     has_changed[1] = true;
-    for(int i = 1; !current.is_top() && has_changed[(i-1)%2]; ++i) {
-      __syncthreads();
+    has_changed[2] = true;
+    for(int i = 1; !current.is_top() && has_changed[(i-1)%3]; ++i) {
       for (int t = tid; t < unknown_props; t += stride) {
         if(props[punknowns[t]]->propagate(current)) {
-          has_changed[i%2] = true;
+          has_changed[i%3] = true;
         }
       }
-      has_changed[(i+1)%2] = false;
+      has_changed[(i+1)%3] = false;
       __syncthreads();
     }
   }
