@@ -44,8 +44,66 @@ CUDA_GLOBAL void init_logical_and(Propagator** p, int uid, Propagator* left, Pro
 CUDA_GLOBAL void init_reified_prop(Propagator** p, int uid, Var b, Propagator* rhs, Propagator* not_rhs);
 CUDA_GLOBAL void init_linear_ineq(Propagator** p, int uid, const Array<Var> vars, const Array<int> constants, int max);
 
+template <typename Term>
+CUDA_GLOBAL void init_leq_propagator(Propagator** p, int uid, Term t, int c);
+
 template<typename TermX, typename TermY>
 CUDA_GLOBAL void init_temporal_prop(Propagator** p, int uid, TermX x, TermY y, int c);
+
+// A propagator for the constraint `expr <= k` where expr is a term (cf. terms.hpp) and `k` an integer constant.
+template <typename Term>
+class LEQPropagator: public Propagator {
+  const Term t;
+  const int c;
+
+  CUDA LEQPropagator(Term t, int c):
+    Propagator(-1), t(t), c(c) {}
+
+  CUDA ~LEQPropagator() {}
+
+  CUDA bool propagate(VStore& vstore) const override {
+    return t.update_ub(vstore, c);
+  }
+
+  CUDA bool is_entailed(const VStore& vstore) const override {
+    return !t.is_top() && t.ub(vstore) <= c;
+  }
+
+  CUDA bool is_disentailed(const VStore& vstore) const override {
+    return t.is_top() || t.lb(vstore) > c;
+  }
+
+  Propagator* neg() const {
+    return new LEQPropagator<typename Term::neg_type>
+      (t.neg(), -c - 1);
+  }
+
+  CUDA void print(const VStore& vstore) const override {
+    printf("%d: ", uid);
+    t.print(vstore);
+    printf(" <= %d", c);
+  }
+
+  Propagator* to_device() const override {
+    Propagator** p;
+    malloc2_managed(p, 1);
+    init_leq_propagator<<<1, 1>>>(p, uid, t, c);
+    CUDIE(cudaDeviceSynchronize());
+    return *p;
+  }
+
+  __device__ Propagator* clone_in(SharedAllocator& allocator) const override {
+    Propagator* p = new(allocator) LEQPropagator(t, c);
+    p->uid = uid;
+    return p;
+  }
+};
+
+template <typename Term>
+CUDA_GLOBAL void init_leq_propagator(Propagator** p, int uid, Term t, int c) {
+  *p = new LEQPropagator<Term>(t, c);
+  (*p)->uid = uid;
+}
 
 /// x + y <= c
 template<typename TermX, typename TermY>
