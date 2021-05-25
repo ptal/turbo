@@ -174,6 +174,20 @@ class ModelBuilder {
       return res;
     }
 
+    // #define MAX_TEMPLATE_SIZE 10
+
+    // template <size_t n>
+    // struct MakeSumTerm {
+    //   static Add<
+    // };
+
+    // Propagator* make_sum_leq_constraint(const std::vector<Var> &vars, const std::vector<int> &constants, int c)
+    // {
+    //   switch(vars.size()) {
+    //     case 2:
+    //   }
+    // }
+
     // Must be guarded with `is_sum_constraint`.
     Propagator* sum_constraint(Node* node) {
       // std::cout << "Add sum constraint " << node->toString() << std::endl;
@@ -184,7 +198,12 @@ class ModelBuilder {
         vars.push_back(std::get<0>(var2idx[n->parameters[0]->toString()]));
         constants.push_back(dynamic_cast<NodeConstant*>(n->parameters[1])->val);
       }
-      return new LinearIneq(vars, constants, c);
+      // if(vars.size() < MAX_TEMPLATE_SIZE) {
+      //   return make_sum_leq_constraint(vars, constants, c);
+      // }
+      // else {
+        return new LinearIneq(vars, constants, c);
+      // }
     }
 
     void add_objective_minimize(XVariable *x) {
