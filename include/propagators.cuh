@@ -55,7 +55,7 @@ template <typename Term>
 class LEQPropagator: public Propagator {
   const Term t;
   const int c;
-
+public:
   CUDA LEQPropagator(Term t, int c):
     Propagator(-1), t(t), c(c) {}
 
@@ -66,11 +66,11 @@ class LEQPropagator: public Propagator {
   }
 
   CUDA bool is_entailed(const VStore& vstore) const override {
-    return !t.is_top() && t.ub(vstore) <= c;
+    return !t.is_top(vstore) && t.ub(vstore) <= c;
   }
 
   CUDA bool is_disentailed(const VStore& vstore) const override {
-    return t.is_top() || t.lb(vstore) > c;
+    return t.is_top(vstore) || t.lb(vstore) > c;
   }
 
   Propagator* neg() const {
@@ -102,68 +102,6 @@ class LEQPropagator: public Propagator {
 template <typename Term>
 CUDA_GLOBAL void init_leq_propagator(Propagator** p, int uid, Term t, int c) {
   *p = new LEQPropagator<Term>(t, c);
-  (*p)->uid = uid;
-}
-
-/// x + y <= c
-template<typename TermX, typename TermY>
-class TemporalProp: public Propagator {
-public:
-  const TermX x;
-  const TermY y;
-  const int c;
-
-  CUDA TemporalProp(TermX x, TermY y, int c):
-   Propagator(-1), x(x), y(y), c(c)
-  {}
-
-  CUDA ~TemporalProp() {}
-
-  CUDA bool propagate(VStore& vstore) const override {
-    bool has_changed = x.update_ub(vstore, c - y.lb(vstore));
-    has_changed |= y.update_ub(vstore, c - x.lb(vstore));
-    return has_changed;
-  }
-
-  CUDA bool is_entailed(const VStore& vstore) const override {
-    return x.ub(vstore) + y.ub(vstore) <= c;
-  }
-
-  CUDA bool is_disentailed(const VStore& vstore) const override {
-    return x.lb(vstore) + y.lb(vstore) > c;
-  }
-
-  Propagator* neg() const {
-    return new TemporalProp<typename TermX::neg_type, typename TermY::neg_type>
-      (x.neg(), y.neg(), -c - 1);
-  }
-
-  CUDA void print(const VStore& vstore) const override {
-    printf("%d: ", uid);
-    x.print(vstore);
-    printf(" + ");
-    y.print(vstore);
-    printf(" <= %d", c);
-  }
-
-  Propagator* to_device() const override {
-    Propagator** p;
-    malloc2_managed(p, 1);
-    init_temporal_prop<<<1, 1>>>(p, uid, x, y, c);
-    CUDIE(cudaDeviceSynchronize());
-    return *p;
-  }
-
-  __device__ Propagator* clone_in(SharedAllocator& allocator) const override {
-    Propagator* p = new(allocator) TemporalProp(x, y, c);
-    p->uid = uid;
-    return p;
-  }
-};
-
-template<typename TermX, typename TermY>
-CUDA_GLOBAL void init_temporal_prop(Propagator** p, int uid, TermX x, TermY y, int c) {
-  *p = new TemporalProp<TermX, TermY>(x, y, c);
   (*p)->uid = uid;
 }
 

@@ -78,28 +78,28 @@ class Add {
   const TermY y;
 public:
   typedef Add<typename TermX::neg_type, typename TermY::neg_type> neg_type;
-  Add(TermX x, TermY y) : x(x), y(y) {}
+  CUDA Add(TermX x, TermY y) : x(x), y(y) {}
 
   // Enforce x + y >= k
-  bool update_lb(VStore& vstore, int k) const {
+  CUDA bool update_lb(VStore& vstore, int k) const {
     return x.update_lb(vstore, k - y.ub(vstore)) |
            y.update_lb(vstore, k - x.ub(vstore));
   }
 
   // Enforce x + y <= k
-  bool update_ub(VStore& vstore, int k) const {
-    return x.update_ub(vstore, k - y.u(vstore)) |
+  CUDA bool update_ub(VStore& vstore, int k) const {
+    return x.update_ub(vstore, k - y.lb(vstore)) |
            y.update_ub(vstore, k - x.lb(vstore));
   }
 
-  int lb(VStore& vstore) const { return x.lb(vstore) + y.lb(vstore); }
-  int ub(VStore& vstore) const { return x.ub(vstore) + y.ub(vstore); }
+  CUDA int lb(const VStore& vstore) const { return x.lb(vstore) + y.lb(vstore); }
+  CUDA int ub(const VStore& vstore) const { return x.ub(vstore) + y.ub(vstore); }
 
-  bool is_top(VStore& vstore) const { return x.is_top(vstore) || y.is_top(vstore); }
+  CUDA bool is_top(const VStore& vstore) const { return x.is_top(vstore) || y.is_top(vstore); }
 
-  neg_type neg() const { return neg_type(x.neg(), y.neg()); }
+  CUDA neg_type neg() const { return neg_type(x.neg(), y.neg()); }
 
-  void print(VStore& vstore) const {
+  CUDA void print(const VStore& vstore) const {
     x.print(vstore);
     printf(" + ");
     y.print(vstore);

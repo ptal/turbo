@@ -198,10 +198,10 @@ class ModelBuilder {
     }
 
     static Propagator* create_temporal_prop(int x, int y, int k) {
-      if(x < 0 && y < 0) { return new TemporalProp(Negation(Variable(-x)),Negation(Variable(-y)),k); }
-      if(x < 0 && y >= 0) { return new TemporalProp(Negation(Variable(-x)),Variable(y),k); }
-      if(x >= 0 && y < 0) { return new TemporalProp(Variable(x),Negation(Variable(-y)),k); }
-      if(x >= 0 && y >= 0) { return new TemporalProp(Variable(x),Variable(y),k); }
+      if(x < 0 && y < 0) { return new LEQPropagator(Add(Negation(Variable(-x)),Negation(Variable(-y))),k); }
+      if(x < 0 && y >= 0) { return new LEQPropagator(Add(Negation(Variable(-x)),Variable(y)),k); }
+      if(x >= 0 && y < 0) { return new LEQPropagator(Add(Variable(x),Negation(Variable(-y))),k); }
+      if(x >= 0 && y >= 0) { return new LEQPropagator(Add(Variable(x),Variable(y)),k); }
       return nullptr;
     }
 
