@@ -16,7 +16,6 @@
 #define SEARCH_HPP
 
 #include "vstore.cuh"
-#include "status.cuh"
 #include "statistics.cuh"
 #include "cuda_helper.hpp"
 
@@ -52,10 +51,10 @@ class TreeAndPar
 {
   VStore root;
   VStore current;
-  PropagatorsStatus pstatus;
   const Array<Pointer<Propagator>>& props;
   Array<Delta> deltas;
   int deltas_size;
+  int depth;
   Array<Var> branching_vars;
   Interval& best_bound;
   VStore best_sol;
@@ -63,6 +62,16 @@ class TreeAndPar
   Statistics stats;
   int decomposition;
   int decomposition_size;
+
+  // We maintain a set of unknown propagators.
+  // The array `punknowns` contains the indices of all propagators.
+  // For each index 0 <= i < unknown_props, props[i] is not yet entailed.
+  // All the entailed propagators are stored in punknowns[unknown_props..props.size()].
+  // When a propagator becomes entailed, we swap it with an unknown propagator at the position unknown_props, and decrease unknown_props (see `after_propagation` below).
+  // NOTE1: We do not save `unknown_props` in `deltas` because, due to the recomputation-based scheme, all the propagators must be repropagated again when we replay.
+  // NOTE2: We actually only use this at the root node because it does not seem more efficient to do it in every node.
+  Array<int> punknowns;
+  int unknown_props;
 
 public:
   template<typename Allocator>
@@ -75,14 +84,15 @@ public:
    Allocator &allocator)
   : root(root, allocator),
     current(root, allocator),
-    pstatus(props.size(), allocator),
     props(props),
     deltas(MAX_DEPTH, allocator),
     deltas_size(0),
+    depth(0),
     branching_vars(branching_vars, allocator),
     best_bound(best_bound),
     best_sol(root, global_allocator),
-    minimize_x(min_x)
+    minimize_x(min_x),
+    punknowns(props.size(), allocator)
   {}
 
   __device__ void search(int tid, int stride, const VStore& root, int decomposition, int decomposition_size, bool& stop) {
@@ -96,7 +106,6 @@ public:
         break;
       }
       propagation(tid, stride);
-      __syncthreads();
       after_propagation(tid);
       before_propagation(tid);
       __syncthreads();
@@ -108,10 +117,14 @@ public:
       this->root.reset(root);
       this->current.reset(root);
       this->deltas_size = 0;
-      this->pstatus.reset();
       this->decomposition = decomposition;
       this->decomposition_size = decomposition_size;
       this->stats = Statistics();
+      assert(punknowns.size() == props.size());
+      for(int i = 0; i < punknowns.size(); ++i) {
+        punknowns[i] = i;
+      }
+      unknown_props = punknowns.size();
     }
   }
 
@@ -128,42 +141,63 @@ private:
     if (tid == 0) {
       stats.nodes++;
       current.update(minimize_x, {best_bound.lb, best_bound.ub - 1});
-      pstatus.reset();
     }
   }
 
   __device__ void propagation(int tid, int stride) {
-    Status s = UNKNOWN;
-    while(s == UNKNOWN || pstatus.has_changed()) {
-      __syncthreads();
-      if (tid == 0) {
-        pstatus.reset_changed();
+    __shared__ bool has_changed[3];
+    has_changed[0] = true;
+    has_changed[1] = true;
+    has_changed[2] = true;
+    for(int i = 1; !current.is_top() && has_changed[(i-1)%3]; ++i) {
+      for (int t = tid; t < unknown_props; t += stride) {
+        if(props[punknowns[t]]->propagate(current)) {
+          has_changed[i%3] = true;
+        }
       }
+      has_changed[(i+1)%3] = false;
       __syncthreads();
-      for (int t = tid; t < props.size(); t += stride) {
-        propagate_one(t);
-      }
-      __syncthreads();
-      s = pstatus.join();
     }
   }
 
   __device__ void after_propagation(int tid) {
     if (tid == 0) {
-      Status res = (current.is_top() ? DISENTAILED : pstatus.join());
-      switch(res) {
-        case DISENTAILED: on_failure(); break;
-        case ENTAILED: on_solution(); break;
-        case IDLE: on_unknown(); break;
-        default: assert(false);
+      if (current.is_top()) {
+        on_failure();
+      }
+      else {
+        bool all_entailed = true;
+        for (int i = 0; all_entailed && i < unknown_props; ++i) {
+          if(!props[punknowns[i]]->is_entailed(current)) {
+            all_entailed = false;
+          }
+        }
+        if(all_entailed) {
+          on_solution();
+        }
+        else {
+          INFO(assert(!current.all_assigned()));
+          on_unknown();
+        }
       }
     }
+  }
+
+  __device__ void eliminate_entailed_props() {
+    for (int i = 0; i < unknown_props; ++i) {
+      if(props[punknowns[i]]->is_entailed(root)) {
+        --unknown_props;
+        swap(&punknowns[i], &punknowns[unknown_props]);
+        --i;
+      }
+    }
+    INFO(printf("Propagators remaining at root: %d / %lu \n", unknown_props, props.size()));
   }
 
   __device__ void on_failure() {
     INFO(printf("backtracking on failed node %p...\n", this));
     stats.fails++;
-    stats.depth_max = max(stats.depth_max, deltas_size);
+    stats.depth_max = max(stats.depth_max, depth);
     backtrack();
     replay();
   }
@@ -171,7 +205,7 @@ private:
   __device__ void on_solution() {
     INFO(printf("previous best...(bound %d..%d)\n", best_bound.lb, best_bound.ub));
     stats.sols++;
-    stats.depth_max = max(stats.depth_max, deltas_size);
+    stats.depth_max = max(stats.depth_max, depth);
     const Interval& new_bound = current[minimize_x];
     // Due to parallelism, it is possible that several bounds are found in one iteration, thus we need to perform a (lattice) join on the best bound.
     atomicMin(&best_bound.ub, new_bound.lb);
@@ -184,7 +218,7 @@ private:
 
   __device__ void on_unknown() {
     INFO(printf("branching on unknown node... (bound %d..%d)\n", best_bound.lb, best_bound.ub));
-    // end_bootstrap();
+    end_bootstrap();
     branch();
     bootstrap_branch();
     commit_branch();
@@ -194,6 +228,7 @@ private:
     if(decomposition_size == 0) { // collapse the beginning of the tree to ignore the bootstrapped path of the decomposition, and avoid recomputing on root.
       root.reset(current);
       deltas_size = 0;
+      eliminate_entailed_props();
     }
   }
 
@@ -225,8 +260,10 @@ private:
 
   __device__ void backtrack() {
     --deltas_size;
+    --depth;
     while (deltas_size >= 0 && deltas[deltas_size].next == deltas[deltas_size].right) {
       --deltas_size;
+      --depth;
     }
   }
 
@@ -244,19 +281,7 @@ private:
       current.name_of(x), deltas[deltas_size].next.lb, deltas[deltas_size].next.ub,
       deltas[deltas_size].right.lb, deltas[deltas_size].right.ub));
     deltas_size++;
-  }
-
-  __device__ void propagate_one(int i) {
-    const Pointer<Propagator>& p = props[i];
-    bool has_changed = p->propagate(current);
-    Status s = has_changed ? UNKNOWN : IDLE;
-    if(p->is_entailed(current)) {
-      s = ENTAILED;
-    }
-    if(p->is_disentailed(current)) {
-      s = DISENTAILED;
-    }
-    pstatus.inplace_join(p->uid, s);
+    depth++;
   }
 };
 
