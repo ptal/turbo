@@ -174,19 +174,47 @@ class ModelBuilder {
       return res;
     }
 
-    // #define MAX_TEMPLATE_SIZE 10
+    #define MAX_TEMPLATE_SIZE 40
 
-    // template <size_t n>
-    // struct MakeSumTerm {
-    //   static Add<
-    // };
+    template<typename Term, size_t n>
+    static Propagator* make_sum_leq(const std::vector<Term>& terms, int k) {
+      Term terms_array[n];
+      for(int i = 0; i < n; ++i) {
+        terms_array[i] = terms[i];
+      }
+      return new LEQPropagator<NaryAdd<Term, n>>(NaryAdd<Term, n>(terms_array), k);
+    }
 
-    // Propagator* make_sum_leq_constraint(const std::vector<Var> &vars, const std::vector<int> &constants, int c)
-    // {
-    //   switch(vars.size()) {
-    //     case 2:
-    //   }
-    // }
+    template <typename Term, size_t n>
+    struct MakeSumLEQ {
+      static Propagator* build(const std::vector<Term>& terms, int k) {
+        if(terms.size() == n) {
+          return make_sum_leq<Term, n>(terms, k);
+        }
+        else {
+          return MakeSumLEQ<Term, n-1>::build(terms, k);
+        }
+      }
+    };
+
+    template<typename Term>
+    struct MakeSumLEQ<Term, 0> {
+      static Propagator* build(const std::vector<Term>&, int) {
+        throw std::runtime_error("[bug] failed construction of MakeSumLEQ");
+      }
+    };
+
+    Propagator* make_sum_leq_constraint(const std::vector<Var> &vars, const std::vector<int> &constants, int k)
+    {
+      assert(vars.size() == constants.size());
+      assert(vars.size() < MAX_TEMPLATE_SIZE);
+      typedef Mul<Constant, Variable> LEQTerm;
+      std::vector<LEQTerm> terms;
+      for(int i = 0; i < vars.size(); ++i) {
+        terms.push_back(LEQTerm(Constant(constants[i]), Variable(vars[i])));
+      }
+      return MakeSumLEQ<LEQTerm, MAX_TEMPLATE_SIZE>::build(terms, k);
+    }
 
     // Must be guarded with `is_sum_constraint`.
     Propagator* sum_constraint(Node* node) {
@@ -198,12 +226,13 @@ class ModelBuilder {
         vars.push_back(std::get<0>(var2idx[n->parameters[0]->toString()]));
         constants.push_back(dynamic_cast<NodeConstant*>(n->parameters[1])->val);
       }
-      // if(vars.size() < MAX_TEMPLATE_SIZE) {
-      //   return make_sum_leq_constraint(vars, constants, c);
-      // }
-      // else {
+      if(vars.size() < MAX_TEMPLATE_SIZE) {
+        return make_sum_leq_constraint(vars, constants, c);
+      }
+      else {
+        throw runtime_error("Creation of LinearIneq...");
         return new LinearIneq(vars, constants, c);
-      // }
+      }
     }
 
     void add_objective_minimize(XVariable *x) {

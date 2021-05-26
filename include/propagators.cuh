@@ -56,7 +56,7 @@ class LEQPropagator: public Propagator {
   const Term t;
   const int c;
 public:
-  CUDA LEQPropagator(Term t, int c):
+  CUDA LEQPropagator(const Term& t, int c):
     Propagator(-1), t(t), c(c) {}
 
   CUDA ~LEQPropagator() {}
