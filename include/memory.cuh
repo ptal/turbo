@@ -143,6 +143,7 @@ class Array {
   T* array;
   size_t n;
 public:
+
   template<typename Allocator>
   __device__ Array(int n, Allocator& allocator):
     n(n), array(new(allocator) T[n]) {}
