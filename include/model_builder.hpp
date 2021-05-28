@@ -367,12 +367,12 @@ class ModelBuilder {
     }
 
     Propagator* div_expr_constraint(Node* node) {
-      error(node, "mul not implemented");
+      error(node, "div not implemented");
       return nullptr;
     }
 
     Propagator* mod_expr_constraint(Node* node) {
-      error(node, "mul not implemented");
+      error(node, "mod not implemented");
       return nullptr;
     }
 

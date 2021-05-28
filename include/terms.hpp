@@ -286,47 +286,57 @@ public:
 
   // Enforce x * y <= k
   CUDA bool update_ub(VStore& vstore, int k) const {
-    int lx = x().lb(vstore);
-    int ux = x().ub(vstore);
     int ly = y().lb(vstore);
     int uy = y().ub(vstore);
-    // Check for `top` on x and y. This is necessary otherwise division by 0 might occur.
-    if(lx > ux || ly > uy) return false;
-    bool has_changed = false;
-    if(k >= 0) {
-      // Sign analysis: check if either x or y must be positive or negative according to the sign of k.
-      // When the sign are reversed, e.g. -x and y, or x and -y, these rules will automatically fails one of the domain.
-      if(ux < 0) { has_changed |= y().update_ub(vstore, -1); }
-      if(uy < 0) { has_changed |= x().update_ub(vstore, -1); }
-      if(lx >= 0) { has_changed |= y().update_lb(vstore, 0); }
-      if(ly >= 0) { has_changed |= x().update_lb(vstore, 0); }
-      // Both signs are positive.
-      if(lx > 0 && ly >= 0) { has_changed |= y().update_ub(vstore, k / lx); }
-      if(lx >= 0 && ly > 0) { has_changed |= x().update_ub(vstore, k / ly); }
-      // Both signs are negative.
-      if(ux < 0 && uy < 0) {
-        has_changed |= y().update_ub(vstore, div_up(k, lx));
-        has_changed |= x().update_ub(vstore, div_up(k, ly));
-      }
+    int lx = x().lb(vstore);
+
+    // This small optimization is for the case where `c1 * x1` and `x1` is a Boolean variable.
+    // This kind of expression occurs in pseudo-boolean expressions which are quite common.
+    // The gain in efficiency is not a lot (~5%), so it would deserve to be benchmarked on more example.
+    constexpr bool is_constant = std::is_same<TermX, Constant>();
+    if(is_constant && ly >= 0 && uy <= 1 && lx > 0) {
+      return y().update_ub(vstore, k/lx);
     }
     else {
-      // Sign analysis: check if either x or y must be positive or negative according to the sign of k.
-      if(ux < 0) { has_changed |= y().update_lb(vstore, 0); }
-      if(uy < 0) { has_changed |= x().update_lb(vstore, 0); }
-      if(lx >= 0) { has_changed |= y().update_ub(vstore, -1); }
-      if(ly >= 0) { has_changed |= x().update_ub(vstore, -1); }
-      // When both variables have both signs.
-      if(lx < 0 && ux > 0 && ly < 0 && uy > 0) {
-        if(uy * lx > k) { has_changed |= x().update_ub(vstore, -1); }
-        if(ux * ly > k) { has_changed |= y().update_ub(vstore, -1); }
+      int ux = x().ub(vstore);
+      // Check for `top` on x and y. This is necessary otherwise division by 0 might occur.
+      if(lx > ux || ly > uy) return false;
+      bool has_changed = false;
+      if(k >= 0) {
+        // Sign analysis: check if either x or y must be positive or negative according to the sign of k.
+        // When the sign are reversed, e.g. -x and y, or x and -y, these rules will automatically fails one of the domain.
+        if(ux < 0) { has_changed |= y().update_ub(vstore, -1); }
+        if(uy < 0) { has_changed |= x().update_ub(vstore, -1); }
+        if(lx >= 0) { has_changed |= y().update_lb(vstore, 0); }
+        if(ly >= 0) { has_changed |= x().update_lb(vstore, 0); }
+        // Both signs are positive.
+        if(lx > 0 && ly >= 0) { has_changed |= y().update_ub(vstore, k / lx); }
+        if(lx >= 0 && ly > 0) { has_changed |= x().update_ub(vstore, k / ly); }
+        // Both signs are negative.
+        if(ux < 0 && uy < 0) {
+          has_changed |= y().update_ub(vstore, div_up(k, lx));
+          has_changed |= x().update_ub(vstore, div_up(k, ly));
+        }
       }
-      // When the sign are reversed, e.g. -x and y, or x and -y.
-      if(ux < 0 && uy > 0) { has_changed |= x().update_ub(vstore, div_up(k, uy)); }
-      if(ux < 0 && uy >= 0) { has_changed |= y().update_lb(vstore, div_up(k, lx)); }
-      if(ux >= 0 && uy < 0) { has_changed |= x().update_lb(vstore, div_up(k, ly)); }
-      if(ux > 0 && uy < 0) { has_changed |= y().update_ub(vstore, div_up(k, ux)); }
+      else {
+        // Sign analysis: check if either x or y must be positive or negative according to the sign of k.
+        if(ux < 0) { has_changed |= y().update_lb(vstore, 0); }
+        if(uy < 0) { has_changed |= x().update_lb(vstore, 0); }
+        if(lx >= 0) { has_changed |= y().update_ub(vstore, -1); }
+        if(ly >= 0) { has_changed |= x().update_ub(vstore, -1); }
+        // When both variables have both signs.
+        if(lx < 0 && ux > 0 && ly < 0 && uy > 0) {
+          if(uy * lx > k) { has_changed |= x().update_ub(vstore, -1); }
+          if(ux * ly > k) { has_changed |= y().update_ub(vstore, -1); }
+        }
+        // When the sign are reversed, e.g. -x and y, or x and -y.
+        if(ux < 0 && uy > 0) { has_changed |= x().update_ub(vstore, div_up(k, uy)); }
+        if(ux < 0 && uy >= 0) { has_changed |= y().update_lb(vstore, div_up(k, lx)); }
+        if(ux >= 0 && uy < 0) { has_changed |= x().update_lb(vstore, div_up(k, ly)); }
+        if(ux > 0 && uy < 0) { has_changed |= y().update_ub(vstore, div_up(k, ux)); }
+      }
+      return has_changed;
     }
-    return has_changed;
   }
 
   CUDA static int lb(int lx, int ux, int ly, int uy) {
