@@ -42,7 +42,6 @@ public:
 CUDA_GLOBAL void init_logical_or(Propagator** p, int uid, Propagator* left, Propagator* right);
 CUDA_GLOBAL void init_logical_and(Propagator** p, int uid, Propagator* left, Propagator* right);
 CUDA_GLOBAL void init_reified_prop(Propagator** p, int uid, Var b, Propagator* rhs, Propagator* not_rhs);
-CUDA_GLOBAL void init_linear_ineq(Propagator** p, int uid, const Array<Var> vars, const Array<int> constants, int max);
 
 template <typename Term>
 CUDA_GLOBAL void init_leq_propagator(Propagator** p, int uid, Term t, int c);
@@ -280,125 +279,6 @@ public:
 
   __device__ Propagator* clone_in(SharedAllocator& allocator) const {
     Propagator* p = new(allocator) ReifiedProp(b, rhs->clone_in(allocator), not_rhs->clone_in(allocator));
-    p->uid = uid;
-    return p;
-  }
-};
-
-// x1c1 + ... + xNcN <= max
-class LinearIneq: public Propagator {
-public:
-  const Array<Var> vars;
-  const Array<int> constants;
-  const int max;
-
-  LinearIneq(const std::vector<Var>& vvars, const std::vector<int>& vconstants, int max):
-    Propagator(-1), max(max), vars(vvars),
-    constants(vconstants)
-  {
-    assert(vvars.size() == vconstants.size());
-  }
-
-  __host__ LinearIneq(const Array<Var>& vars, const Array<int>& constants, int max):
-    Propagator(-1), max(max), vars(vars),
-    constants(constants)
-  {}
-
-  template<typename Allocator>
-  __device__ LinearIneq(const Array<Var>& vars, const Array<int>& constants, int max, Allocator& allocator):
-    Propagator(-1), max(max), vars(vars, allocator),
-    constants(constants, allocator)
-  {}
-
-  // Returns the maximum amount of additional resources this constraint can use if we fix all remaining boolean variables to 1.
-  // LATTICE: monotone function w.r.t. `vstore`.
-  // The potential can only decrease for any evolution of non-top `vstore`.
-  CUDA int potential(const VStore& vstore) const {
-    int potential = 0;
-    for(int i=0; i < vars.size(); ++i) {
-      potential += vstore.ub(vars[i]) * constants[i];
-    }
-    return potential;
-  }
-
-  // Returns the amount of resources that this constraint can consume while still being satisfiable.
-  // LATTICE: monotone function w.r.t. `vstore`.
-  // The slack can only decrease for any evolution of non-top `vstore`.
-  CUDA int slack(const VStore& vstore) const {
-    int current = 0;
-    for(int i=0; i < vars.size(); ++i) {
-      current += vstore.lb(vars[i]) * constants[i];
-    }
-    return max - current;
-  }
-
-  // Consider this diagram of resources used.
-  // The full window represent the number of resources used if we set all Boolean variables to 1.
-  //
-  //     |-------------------|_____|____|------|
-  //               ^               ^        ^
-  //            lb = 1            max    ub = 0
-  //     |______________________________|
-  //                            potential
-  //                         |_____|
-  //                          slack
-  //
-  //  Propagating assign upper bound to 0, when c_i > slack.
-  CUDA bool propagate(VStore& vstore) const {
-    int s = slack(vstore);
-    if(s < 0) {
-      return vstore.update_lb(vars[0], vstore.ub(vars[0]) + 1);
-    }
-    // CORRECTNESS: Even if the slack changes after its computation (or even when we are computing it), it does not hinder the correctness of the propagation.
-    // The reason is that whenever `constants[i] > s` it will stay true for any slack s' since s > s' by def. of the function slack.
-    bool has_changed = false;
-    for(int i=0; i < vars.size(); ++i) {
-      const Interval& x = vstore[vars[i]];
-      if (x.lb == 0 && x.ub == 1 && constants[i] > s) {
-        has_changed |= vstore.assign(vars[i], 0);
-      }
-    }
-    return has_changed;
-  }
-
-  // From the diagram above, it is clear that once `potential <= slack` holds, it holds forever in a non-top `vstore`.
-  // So even if `vstore` is modified during or between the computation of the potential or slack.
-  CUDA bool is_entailed(const VStore& vstore) const {
-    return potential(vstore) <= max;
-  }
-
-  CUDA bool is_disentailed(const VStore& vstore) const {
-    return slack(vstore) < 0;
-    // LOG(if(disentailed) {
-    //   printf("LinearIneq disentailed %d: %d < 0\n", uid, slack(vstore));
-    // })
-    // return disentailed;
-  }
-
-  CUDA void print(const VStore& vstore) const {
-    printf("%d: ", uid);
-    for(int i = 0; i < vars.size(); ++i) {
-      printf("%d * ", constants[i]);
-      vstore.print_var(vars[i]);
-      if (i != vars.size() - 1) printf(" + ");
-    }
-    printf(" <= %d", max);
-  }
-
-  Propagator* neg() const {
-    throw new std::runtime_error("Negation of linear inequalities unimplemented.");
-  }
-
-  Propagator* to_device() const override {
-    Propagator** p;
-    malloc2_managed(p, 1);
-    init_linear_ineq<<<1, 1>>>(p, uid, vars, constants, max);
-    CUDIE(cudaDeviceSynchronize());
-    return *p;
-  }
-
-  __device__ Propagator* clone_in(SharedAllocator& allocator) const {
-    Propagator* p = new(allocator) LinearIneq(vars, constants, max, allocator);
     p->uid = uid;
     return p;
   }

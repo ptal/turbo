@@ -196,7 +196,6 @@ class ModelBuilder {
         constants.push_back(dynamic_cast<NodeConstant*>(n->parameters[1])->val);
       }
       return make_sum_leq_constraint(vars, constants, c);
-      // return new LinearIneq(vars, constants, c);
     }
 
     void add_objective_minimize(XVariable *x) {

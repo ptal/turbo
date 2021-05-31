@@ -1,6 +1,6 @@
 {
   "problem_set_path":
-    "../../absolute-project/kobe-rcpsp/data/rcpsp/patterson.rcp/",
+    "../../../absolute-project/kobe-rcpsp/data/rcpsp/patterson.rcp/",
   "timeout": 300,
   "solver_instance": [
     "FznSolver",
