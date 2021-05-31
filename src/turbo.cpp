@@ -15,8 +15,8 @@
 #include <iostream>
 #include <cstdlib>
 
-#include "solver.cuh"
-#include "propagators.cuh"
+#include "solver.hpp"
+#include "propagators.hpp"
 
 #include "XCSP3CoreParser.h"
 

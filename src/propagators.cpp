@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "propagators.cuh"
+#include "propagators.hpp"
 
 CUDA_GLOBAL void init_logical_or(Propagator** p, int uid, Propagator* left, Propagator* right) {
   *p = new LogicalOr(left, right);

@@ -15,8 +15,8 @@
 #ifndef TURBO_SOLVER_HPP
 #define TURBO_SOLVER_HPP
 
-#include "vstore.cuh"
-#include "propagators.cuh"
+#include "vstore.hpp"
+#include "propagators.hpp"
 
 #define OR_NODES 48
 #define AND_NODES 256

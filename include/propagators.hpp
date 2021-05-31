@@ -19,7 +19,7 @@
 #include <cmath>
 #include <stdexcept>
 #include "cuda_helper.hpp"
-#include "vstore.cuh"
+#include "vstore.hpp"
 #include "terms.hpp"
 
 class Propagator {

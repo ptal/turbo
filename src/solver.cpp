@@ -18,12 +18,12 @@
 #include <chrono>
 #include <thread>
 
-#include "solver.cuh"
-#include "vstore.cuh"
-#include "propagators.cuh"
+#include "solver.hpp"
+#include "vstore.hpp"
+#include "propagators.hpp"
 #include "cuda_helper.hpp"
-#include "statistics.cuh"
-#include "search.cuh"
+#include "statistics.hpp"
+#include "search.hpp"
 
 __device__ int decomposition = 0;
 

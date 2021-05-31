@@ -21,7 +21,7 @@
 #include <vector>
 #include <string>
 #include "cuda_helper.hpp"
-#include "memory.cuh"
+#include "memory.hpp"
 
 typedef int Var;
 

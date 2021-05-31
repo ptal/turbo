@@ -25,10 +25,10 @@
 #include "XCSP3Variable.h"
 #include "XCSP3Constants.h"
 
-#include "vstore.cuh"
-#include "propagators.cuh"
+#include "vstore.hpp"
+#include "propagators.hpp"
 #include "terms.hpp"
-#include "memory.cuh"
+#include "memory.hpp"
 
 using namespace XCSP3Core;
 using namespace std::placeholders;

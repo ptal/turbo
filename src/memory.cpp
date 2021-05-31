@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "memory.cuh"
+#include "memory.hpp"
 
 ManagedAllocator managed_allocator;
 __device__ GlobalAllocator global_allocator;

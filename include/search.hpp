@@ -15,8 +15,8 @@
 #ifndef SEARCH_HPP
 #define SEARCH_HPP
 
-#include "vstore.cuh"
-#include "statistics.cuh"
+#include "vstore.hpp"
+#include "statistics.hpp"
 #include "cuda_helper.hpp"
 
 #define MAX_DEPTH 200

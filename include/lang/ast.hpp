@@ -70,7 +70,7 @@ struct Formula {
   };
 };
 
-struct OptimizationMode {
+struct SolveMode {
   enum {
     MINIMIZE,
     MAXIMIZE,
@@ -86,10 +86,15 @@ struct OptimizationMode {
 
 // An environment is a formula with an optimization mode and the mapping between logical variables and abstract variables.
 struct Environment {
-  OptimizationMode mode;
+  SolveMode mode;
   Formula formula;
-  // Given an abstract variable `v`, `av2lv[AD_UID(v)][VAR_ID(v)]` is the name of the variable.
-  LVar** av2lv;
+  // Given an abstract variable `v`, `avar2lvar[AD_UID(v)][VAR_ID(v)]` is the name of the variable.
+  struct VarArray {
+    LVar* data;
+    size_t n;
+  };
+  VarArray* avar2lvar;
+  size_t n;
 };
 
 #endif
