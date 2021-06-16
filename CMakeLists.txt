@@ -37,20 +37,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(xcsp3parser)
 
-# Ecuda dependency (header only library)
-
-FetchContent_Declare(
-    ecuda
-    GIT_REPOSITORY    "https://github.com/lattice-land/ecuda.git"
-    GIT_TAG           6a004ad11c7d938b0c247d474a2f733d6aa71499
-)
-
-FetchContent_GetProperties(ecuda)
-if(NOT ecuda_POPULATED)
-    FetchContent_Populate(ecuda)
-    include_directories("${ecuda_SOURCE_DIR}/include")
-endif()
-
 # Turbo executable
 
 if(GPU)
@@ -70,8 +56,8 @@ target_compile_options(turbo PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:
         --expt-relaxed-constexpr
         -rdc=true>
-    $<$<CONFIG:Debug>:-g -G -DDEBUG>
-    $<$<CONFIG:LDebug>:-g -G -DTRACE>
+    $<$<CONFIG:Debug>:-g -DDEBUG>
+    $<$<CONFIG:LDebug>:-g -DTRACE>
 )
 
 target_link_libraries(turbo PRIVATE xcsp3parser ${LIBXML2_LIBRARIES})
