@@ -53,7 +53,7 @@ CUDA_GLOBAL void search_k(
   int stride = blockDim.x;
   __shared__ int curr_decomposition;
   __shared__ int decomposition_size;
-  int subproblems = pow(2, subproblems_power);
+  int subproblems = 1 << subproblems_power;
 
   if (tid == 0) {
     decomposition_size = subproblems_power;
@@ -70,14 +70,21 @@ CUDA_GLOBAL void search_k(
   __syncthreads();
   while(curr_decomposition < subproblems && !(*stop)) {
     INFO(if(tid == 0) printf("Block %d with decomposition %d.\n", nodeid, curr_decomposition));
-    (*trees)[nodeid]->search(tid, stride, *root, curr_decomposition, decomposition_size, *stop);
+    int remaining_depth = (*trees)[nodeid]->search(tid, stride, *root, curr_decomposition, decomposition_size, *stop);
     if (tid == 0) {
+      if(remaining_depth > 0) {
+        curr_decomposition = ((curr_decomposition >> remaining_depth) + 1) << remaining_depth;
+        curr_decomposition -= 1;
+        atomicMax(&decomposition, curr_decomposition);
+        __threadfence();
+      }
+      curr_decomposition = atomicAdd(&decomposition, 1);
+      __threadfence();
       Statistics latest = (*trees)[nodeid]->statistics();
       if(latest.best_bound != -1 && latest.best_bound < (*blocks_stats)[nodeid].best_bound) {
         (*best_sols)[nodeid].reset((*trees)[nodeid]->best());
       }
       (*blocks_stats)[nodeid].join(latest);
-      curr_decomposition = atomicAdd(&decomposition, 1);
     }
     __syncthreads();
   }
