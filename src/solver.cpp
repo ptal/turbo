@@ -53,7 +53,7 @@ CUDA_GLOBAL void search_k(
   int stride = blockDim.x;
   __shared__ int curr_decomposition;
   __shared__ int decomposition_size;
-  int subproblems = pow(2, subproblems_power);
+  int subproblems = 1 << subproblems_power;
 
   if (tid == 0) {
     decomposition_size = subproblems_power;
