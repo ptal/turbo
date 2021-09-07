@@ -95,7 +95,7 @@ public:
     punknowns(props.size(), allocator)
   {}
 
-  __device__ void search(int tid, int stride, const VStore& root, int decomposition, int decomposition_size, bool& stop) {
+  __device__ int search(int tid, int stride, const VStore& root, int decomposition, int decomposition_size, bool& stop) {
     reset(tid, root, decomposition, decomposition_size);
     before_propagation(tid);
     __syncthreads();
@@ -110,6 +110,7 @@ public:
       before_propagation(tid);
       __syncthreads();
     }
+    return this->decomposition_size;
   }
 
   __device__ void reset(int tid, const VStore& root, int decomposition, int decomposition_size) {

@@ -70,14 +70,21 @@ CUDA_GLOBAL void search_k(
   __syncthreads();
   while(curr_decomposition < subproblems && !(*stop)) {
     INFO(if(tid == 0) printf("Block %d with decomposition %d.\n", nodeid, curr_decomposition));
-    (*trees)[nodeid]->search(tid, stride, *root, curr_decomposition, decomposition_size, *stop);
+    int remaining_depth = (*trees)[nodeid]->search(tid, stride, *root, curr_decomposition, decomposition_size, *stop);
     if (tid == 0) {
+      if(remaining_depth > 0) {
+        printf("RD: %d, curr_dec: %d, decomposition_size: %d\n", remaining_depth, curr_decomposition, decomposition_size);
+        int beginning = decomposition_size - remaining_depth;
+        curr_decomposition |= (((1 << remaining_depth) - 1) << beginning);
+        atomicMax(&decomposition, curr_decomposition);
+        printf("curr_dec: %d, dec: %d\n", curr_decomposition, decomposition);
+      }
+      curr_decomposition = atomicAdd(&decomposition, 1);
       Statistics latest = (*trees)[nodeid]->statistics();
       if(latest.best_bound != -1 && latest.best_bound < (*blocks_stats)[nodeid].best_bound) {
         (*best_sols)[nodeid].reset((*trees)[nodeid]->best());
       }
       (*blocks_stats)[nodeid].join(latest);
-      curr_decomposition = atomicAdd(&decomposition, 1);
     }
     __syncthreads();
   }
