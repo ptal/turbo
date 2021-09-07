@@ -412,8 +412,8 @@ public:
     return Interval(accu_lb, accu_ub);
   }
 
-  CUDA int lb(const VStore& vstore) const { return fold(vstore).lb; }
-  CUDA int ub(const VStore& vstore) const { return fold(vstore).ub; }
+  CUDA int lb(const VStore& vstore) const { return fold(vstore).lb(); }
+  CUDA int ub(const VStore& vstore) const { return fold(vstore).ub(); }
 
   // Enforce t1 x t2 ... x tN >= k where `x` is the operation of Combinator.
   CUDA bool update_lb(VStore& vstore, int k) const {

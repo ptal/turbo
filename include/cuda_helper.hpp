@@ -23,6 +23,7 @@
   #define CUDA_DEVICE __device__
   #define CUDA_VAR __device__ __managed__
   #define CUDA_GLOBAL __global__
+  #define INLINE __forceinline__
 
   #define CUDIE(result) { \
     cudaError_t e = (result); \
@@ -31,6 +32,17 @@
     }}
 
   #define CUDIE0() CUDIE(cudaGetLastError())
+
+  #include <cuda/atomic>
+  using atomic_int = cuda::atomic<int, cuda::thread_scope_block>;
+  using atomic_bool = cuda::atomic<bool, cuda::thread_scope_block>;
+  #define memory_order_relaxed cuda::memory_order_relaxed
+#else
+  #define INLINE
+  #include <atomic>
+  using atomic_int = std::atomic_int;
+  using atomic_bool = std::atomic_bool;
+  #define memory_order_relaxed std::memory_order_relaxed
 #endif
 
 template<typename T>CUDA T min(T a, T b) { return a<=b ? a : b; }

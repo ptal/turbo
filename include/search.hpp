@@ -102,7 +102,7 @@ public:
     Interval b;
     while (deltas_size >= 0) {
       if(stop) {
-        stats.exhaustive = false;
+        if(tid == 0) stats.exhaustive = false;
         break;
       }
       propagation(tid, stride);
@@ -140,22 +140,25 @@ private:
   __device__ void before_propagation(int tid) {
     if (tid == 0) {
       stats.nodes++;
-      current.update(minimize_x, {best_bound.lb, best_bound.ub - 1});
+      current.update(minimize_x, {best_bound.lb(), best_bound.ub() - 1});
     }
   }
 
   __device__ void propagation(int tid, int stride) {
-    __shared__ bool has_changed[3];
-    has_changed[0] = true;
-    has_changed[1] = true;
-    has_changed[2] = true;
-    for(int i = 1; !current.is_top() && has_changed[(i-1)%3]; ++i) {
+    __shared__ atomic_bool has_changed[3];
+    if(tid == 0) {
+      new(&has_changed[0]) atomic_bool(true);
+      new(&has_changed[1]) atomic_bool(true);
+      new(&has_changed[2]) atomic_bool(true);
+    }
+    __syncthreads();
+    for(int i = 1; !current.is_top() && has_changed[(i-1)%3].load(memory_order_relaxed); ++i) {
       for (int t = tid; t < unknown_props; t += stride) {
         if(props[punknowns[t]]->propagate(current)) {
-          has_changed[i%3] = true;
+          has_changed[i%3].store(true, memory_order_relaxed);
         }
       }
-      has_changed[(i+1)%3] = false;
+      has_changed[(i+1)%3].store(false, memory_order_relaxed);
       __syncthreads();
     }
   }
@@ -203,21 +206,22 @@ private:
   }
 
   __device__ void on_solution() {
-    INFO(printf("previous best...(bound %d..%d)\n", best_bound.lb, best_bound.ub));
+    INFO(printf("previous best...(bound %d..%d)\n", best_bound.lb(), best_bound.ub()));
     stats.sols++;
     stats.depth_max = max(stats.depth_max, depth);
     const Interval& new_bound = current[minimize_x];
     // Due to parallelism, it is possible that several bounds are found in one iteration, thus we need to perform a (lattice) join on the best bound.
-    atomicMin(&best_bound.ub, new_bound.lb);
-    stats.best_bound = best_bound.ub;
-    INFO(printf("backtracking on solution...(bound %d..%d)\n", best_bound.lb, best_bound.ub));
+    // atomicMin(&best_bound.ub(), new_bound.lb());
+    best_bound.store_min_ub(new_bound.lb());
+    stats.best_bound = best_bound.ub();
+    INFO(printf("backtracking on solution...(bound %d..%d)\n", best_bound.lb(), best_bound.ub()));
     best_sol.reset(current);
     backtrack();
     replay();
   }
 
   __device__ void on_unknown() {
-    INFO(printf("branching on unknown node... (bound %d..%d)\n", best_bound.lb, best_bound.ub));
+    INFO(printf("branching on unknown node... (bound %d..%d)\n", best_bound.lb(), best_bound.ub()));
     end_bootstrap();
     branch();
     bootstrap_branch();
@@ -278,8 +282,8 @@ private:
     deltas[deltas_size].next = {current.lb(x), current.lb(x)};
     deltas[deltas_size].right = {current.lb(x) + 1, current.ub(x)};
     LOG(printf("Branching on %s: %d..%d \\/ %d..%d\n",
-      current.name_of(x), deltas[deltas_size].next.lb, deltas[deltas_size].next.ub,
-      deltas[deltas_size].right.lb, deltas[deltas_size].right.ub));
+      current.name_of(x), deltas[deltas_size].next.lb(), deltas[deltas_size].next.ub(),
+      deltas[deltas_size].right.lb(), deltas[deltas_size].right.ub()));
     deltas_size++;
     depth++;
   }

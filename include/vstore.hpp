@@ -25,51 +25,84 @@
 
 typedef int Var;
 
-struct Interval {
-  int lb;
-  int ub;
+class Interval {
 
-  CUDA Interval(): lb(limit_min()), ub(limit_max()) {}
+  atomic_int l;
+  atomic_int u;
 
-  CUDA Interval(int lb, int ub): lb(lb), ub(ub) {}
+public:
+
+  CUDA Interval(): l(limit_min()), u(limit_max()) {}
+
+  CUDA Interval(int l, int u): l(l), u(u) {}
+  CUDA Interval(const Interval& itv): l(itv.lb()), u(itv.ub()) {}
+
+  CUDA INLINE int lb() const {
+    return l.load(memory_order_relaxed);
+  }
+
+  CUDA INLINE int ub() const {
+    return u.load(memory_order_relaxed);
+  }
+
+  CUDA INLINE void store_lb(int new_lb) {
+    l.store(new_lb, memory_order_relaxed);
+  }
+
+  CUDA INLINE void store_ub(int new_ub) {
+    u.store(new_ub, memory_order_relaxed);
+  }
+
+  CUDA INLINE void store_min_ub(int new_ub) {
+    int prev_ub = ub();
+    while(prev_ub > new_ub &&
+      !u.compare_exchange_weak(prev_ub, new_ub))
+    {}
+  }
 
   CUDA void inplace_join(const Interval &b) {
-    lb = ::max<int>(lb, b.lb);
-    ub = ::min<int>(ub, b.ub);
+    store_lb(::max<int>(lb(), b.lb()));
+    store_ub(::min<int>(ub(), b.ub()));
   }
 
   CUDA bool is_assigned() const {
-    return lb == ub;
+    return lb() == ub();
   }
 
   CUDA bool is_top() const {
-    return lb > ub;
+    return lb() > ub();
   }
 
   CUDA Interval neg() const {
-    return {-ub, -lb};
+    return Interval(-ub(), -lb());
   }
 
   CUDA bool operator==(int x) const {
-    return lb == x && ub == x;
+    return lb() == x && ub() == x;
   }
 
   CUDA bool operator==(const Interval& x) const {
-    return lb == x.lb && ub == x.ub;
+    return lb() == x.lb() && ub() == x.ub();
   }
 
   CUDA bool operator!=(const Interval& other) const {
-    return lb != other.lb || ub != other.ub;
+    return lb() != other.lb() || ub() != other.ub();
+  }
+
+  CUDA Interval& operator=(const Interval& other) {
+    store_lb(other.lb());
+    store_ub(other.ub());
+    return *this;
   }
 
   CUDA void print() const {
-    printf("[%d..%d]", lb, ub);
+    printf("[%d..%d]", lb(), ub());
   }
 };
 
 class VStore {
   Array<Interval> data;
-  bool top;
+  atomic_bool top;
 
   // The names don't change during solving. We want to avoid useless copies.
 // Unfortunately, static member are not supported in CUDA, so we use an instance variable which is never copied.
@@ -118,9 +151,10 @@ public:
   CUDA void reset(const VStore& other) {
     assert(size() == other.size());
     for(int i = 0; i < size(); ++i) {
-      data[i] = other.data[i];
+      data[i].store_lb(other.data[i].lb());
+      data[i].store_ub(other.data[i].ub());
     }
-    top = other.top;
+    top.store(other.is_top(), memory_order_relaxed);
   }
 
   CUDA bool all_assigned() const {
@@ -133,7 +167,7 @@ public:
   }
 
   CUDA bool is_top() const {
-    return top;
+    return top.load(memory_order_relaxed);
   }
 
   CUDA bool is_top(Var x) const {
@@ -171,7 +205,7 @@ private:
 
   CUDA void update_top(Var x) {
     if(data[x].is_top()) {
-      top = true;
+      top.store(true, memory_order_relaxed);
     }
   }
 
@@ -179,14 +213,15 @@ public:
 
   // lb <= x <= ub
   CUDA void dom(Var x, Interval itv) {
-    data[x] = itv;
+    data[x].store_lb(itv.lb());
+    data[x].store_ub(itv.ub());
     update_top(x);
   }
 
   CUDA bool update_lb(Var i, int lb) {
-    if (data[i].lb < lb) {
-      LOG(printf("Update LB(%s) with %d (old = %d) in %p\n", names[i], lb, data[i].lb, this));
-      data[i].lb = lb;
+    if (data[i].lb() < lb) {
+      LOG(printf("Update LB(%s) with %d (old = %d) in %p\n", names[i], lb, data[i].lb(), this));
+      data[i].store_lb(lb);
       update_top(i);
       return true;
     }
@@ -194,9 +229,9 @@ public:
   }
 
   CUDA bool update_ub(Var i, int ub) {
-    if (data[i].ub > ub) {
-      LOG(printf("Update UB(%s) with %d (old = %d) in %p\n", names[i], ub, data[i].ub, this));
-      data[i].ub = ub;
+    if (data[i].ub() > ub) {
+      LOG(printf("Update UB(%s) with %d (old = %d) in %p\n", names[i], ub, data[i].ub(), this));
+      data[i].store_ub(ub);
       update_top(i);
       return true;
     }
@@ -204,8 +239,8 @@ public:
   }
 
   CUDA bool update(Var i, Interval itv) {
-    bool has_changed = update_lb(i, itv.lb);
-    has_changed |= update_ub(i, itv.ub);
+    bool has_changed = update_lb(i, itv.lb());
+    has_changed |= update_ub(i, itv.ub());
     return has_changed;
   }
 
@@ -222,11 +257,11 @@ public:
   }
 
   CUDA int lb(Var i) const {
-    return data[i].lb;
+    return data[i].lb();
   }
 
   CUDA int ub(Var i) const {
-    return data[i].ub;
+    return data[i].ub();
   }
 
   CUDA size_t size() const { return data.size(); }

@@ -460,16 +460,16 @@ class ModelBuilder {
     void strengthen_domain(std::string x, OrderType op, int k) {
       Interval& v = std::get<1>(var2idx[x]);
       if(op == LT) {
-        v.ub = k - 1;
+        v.store_ub(k - 1);
       }
       if (op == GT) {
-        v.lb = k + 1;
+        v.store_lb(k + 1);
       }
       if(op == LE || op == EQ) {
-        v.ub = k;
+        v.store_ub(k);
       }
       if (op == GE || op == EQ) {
-        v.lb = k;
+        v.store_lb(k);
       }
       if (op == IN || op == NE) {
         throw std::runtime_error("Operators IN and NE are not supported in unary constraints.");
