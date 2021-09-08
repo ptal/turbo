@@ -42,7 +42,7 @@ __device__ void operator delete[](void* ptr, SharedAllocator& p) {}
 
 void* ManagedAllocator::allocate(size_t bytes) {
   void* data;
-  cudaMallocManaged(&data, bytes);
+  CUDIE(cudaMallocManaged(&data, bytes));
   return data;
 }
 

@@ -29,6 +29,7 @@
     cudaError_t e = (result); \
     if (e != cudaSuccess) { \
       printf("%s:%d CUDA runtime error %s\n", __FILE__, __LINE__, cudaGetErrorString(e)); \
+      assert(0); \
     }}
 
   #define CUDIE0() CUDIE(cudaGetLastError())

@@ -276,7 +276,7 @@ private:
   }
 
   __device__ void branch() {
-    assert(deltas_size < MAX_DEPTH);
+    assert(deltas_size < 200
     Var x = first_fail(current, branching_vars);
     deltas[deltas_size].x = x;
     deltas[deltas_size].next = {current.lb(x), current.lb(x)};
