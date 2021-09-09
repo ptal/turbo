@@ -73,26 +73,29 @@ class TreeAndPar
   Array<int> punknowns;
   int unknown_props;
 
+  // Variable allocated in shared memory useful for the propagation loop.
+  bool* has_changed;
+
 public:
-  template<typename Allocator>
   __device__ TreeAndPar(
    const VStore &root,
    const Array<Pointer<Propagator>> &props,
    const Array<Var> &branching_vars,
    Interval &best_bound,
    Var min_x,
-   Allocator &allocator)
-  : root(root, allocator),
-    current(root, allocator),
+   SharedAllocator &shared_allocator)
+  : root(root, global_allocator),
+    current(root, shared_allocator),
     props(props),
-    deltas(MAX_DEPTH, allocator),
+    deltas(MAX_DEPTH, global_allocator),
     deltas_size(0),
     depth(0),
-    branching_vars(branching_vars, allocator),
+    branching_vars(branching_vars, global_allocator),
     best_bound(best_bound),
     best_sol(root, global_allocator),
     minimize_x(min_x),
-    punknowns(props.size(), allocator)
+    punknowns(props.size(), global_allocator),
+    has_changed(new(shared_allocator) bool[3])
   {}
 
   __device__ int search(int tid, int stride, const VStore& root, int decomposition, int decomposition_size, bool& stop) {
@@ -142,24 +145,20 @@ private:
     if (tid == 0) {
       stats.nodes++;
       current.update(minimize_x, {best_bound.lb(), best_bound.ub() - 1});
+      for(int i = 0; i < 3; ++i) {
+        has_changed[i] = true;
+      }
     }
   }
 
   __device__ void propagation(int tid, int stride) {
-    __shared__ atomic_bool has_changed[3];
-    if(tid == 0) {
-      new(&has_changed[0]) atomic_bool(true);
-      new(&has_changed[1]) atomic_bool(true);
-      new(&has_changed[2]) atomic_bool(true);
-    }
-    __syncthreads();
-    for(int i = 1; !current.is_top() && has_changed[(i-1)%3].load(memory_order_relaxed); ++i) {
+    for(int i = 1; !current.is_top() && has_changed[(i-1)%3]; ++i) {
       for (int t = tid; t < unknown_props; t += stride) {
         if(props[punknowns[t]]->propagate(current)) {
-          has_changed[i%3].store(true, memory_order_relaxed);
+          has_changed[i%3] = true;
         }
       }
-      has_changed[(i+1)%3].store(false, memory_order_relaxed);
+      has_changed[(i+1)%3] = false;
       __syncthreads();
     }
   }
@@ -210,10 +209,8 @@ private:
     INFO(printf("previous best...(bound %d..%d)\n", best_bound.lb(), best_bound.ub()));
     stats.sols++;
     stats.depth_max = max(stats.depth_max, depth);
-    const Interval& new_bound = current[minimize_x];
     // Due to parallelism, it is possible that several bounds are found in one iteration, thus we need to perform a (lattice) join on the best bound.
-    // atomicMin(&best_bound.ub(), new_bound.lb());
-    best_bound.store_min_ub(new_bound.lb());
+    best_bound.store_min_ub(current[minimize_x].lb());
     stats.best_bound = best_bound.ub();
     INFO(printf("backtracking on solution...(bound %d..%d)\n", best_bound.lb(), best_bound.ub()));
     best_sol.reset(current);
@@ -276,7 +273,7 @@ private:
   }
 
   __device__ void branch() {
-    assert(deltas_size < 200
+    assert(deltas_size < MAX_DEPTH);
     Var x = first_fail(current, branching_vars);
     deltas[deltas_size].x = x;
     deltas[deltas_size].next = {current.lb(x), current.lb(x)};

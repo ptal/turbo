@@ -27,8 +27,8 @@ typedef int Var;
 
 class Interval {
 
-  atomic_int l;
-  atomic_int u;
+  int l;
+  int u;
 
 public:
 
@@ -38,38 +38,35 @@ public:
   CUDA Interval(const Interval& itv): l(itv.lb()), u(itv.ub()) {}
 
   CUDA INLINE int lb() const {
-    return l.load(memory_order_relaxed);
+    return l;
   }
 
   CUDA INLINE int ub() const {
-    return u.load(memory_order_relaxed);
+    return u;
   }
 
   CUDA INLINE void store_lb(int new_lb) {
-    l.store(new_lb, memory_order_relaxed);
+    l = new_lb;
   }
 
   CUDA INLINE void store_ub(int new_ub) {
-    u.store(new_ub, memory_order_relaxed);
+    u = new_ub;
   }
 
-  CUDA INLINE void store_min_ub(int new_ub) {
-    int prev_ub = ub();
-    while(prev_ub > new_ub &&
-      !u.compare_exchange_weak(prev_ub, new_ub))
-    {}
+  __device__ INLINE void store_min_ub(int new_ub) {
+    atomicMin(&u, new_ub);
   }
 
-  CUDA void inplace_join(const Interval &b) {
+  CUDA INLINE void inplace_join(const Interval &b) {
     store_lb(::max<int>(lb(), b.lb()));
     store_ub(::min<int>(ub(), b.ub()));
   }
 
-  CUDA bool is_assigned() const {
+  CUDA INLINE bool is_assigned() const {
     return lb() == ub();
   }
 
-  CUDA bool is_top() const {
+  CUDA INLINE bool is_top() const {
     return lb() > ub();
   }
 
@@ -77,15 +74,15 @@ public:
     return Interval(-ub(), -lb());
   }
 
-  CUDA bool operator==(int x) const {
+  CUDA INLINE bool operator==(int x) const {
     return lb() == x && ub() == x;
   }
 
-  CUDA bool operator==(const Interval& x) const {
+  CUDA INLINE bool operator==(const Interval& x) const {
     return lb() == x.lb() && ub() == x.ub();
   }
 
-  CUDA bool operator!=(const Interval& other) const {
+  CUDA INLINE bool operator!=(const Interval& other) const {
     return lb() != other.lb() || ub() != other.ub();
   }
 
@@ -102,7 +99,7 @@ public:
 
 class VStore {
   Array<Interval> data;
-  atomic_bool top;
+  bool top;
 
   // The names don't change during solving. We want to avoid useless copies.
 // Unfortunately, static member are not supported in CUDA, so we use an instance variable which is never copied.
@@ -154,7 +151,7 @@ public:
       data[i].store_lb(other.data[i].lb());
       data[i].store_ub(other.data[i].ub());
     }
-    top.store(other.is_top(), memory_order_relaxed);
+    top = other.is_top();
   }
 
   CUDA bool all_assigned() const {
@@ -167,7 +164,7 @@ public:
   }
 
   CUDA bool is_top() const {
-    return top.load(memory_order_relaxed);
+    return top;
   }
 
   CUDA bool is_top(Var x) const {
@@ -205,7 +202,7 @@ private:
 
   CUDA void update_top(Var x) {
     if(data[x].is_top()) {
-      top.store(true, memory_order_relaxed);
+      top = true;
     }
   }
 

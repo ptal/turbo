@@ -5,7 +5,9 @@
   "problem_sets" : [
     { "path": "rcpsp/patterson.rcp/",
       "timeout": 300 },
-    { "path": "rcpsp/j90.sm/",
+    { "path": "rcpsp/j30.sm/",
+      "timeout": 30 },
+    { "path": "rcpsp/j60.sm/",
       "timeout": 30 }
   ],
   "pipelines" : [
@@ -22,8 +24,8 @@
     }>,
     <Solve:
       [[{"name": "turbo", "options": [
-          {"name": "o192_s22", "option": "-or 192 -sub 22"},
           {"name": "o192_s18", "option": "-or 192 -sub 18"},
+          {"name": "o192_s16", "option": "-or 192 -sub 16"},
           {"name": "o192_s14", "option": "-or 192 -sub 14"}
         ]},
         {"name": "gecode", "options": [{"name": "par0", "option": "-p 0"}]}]]
@@ -33,7 +35,7 @@
   },
   "solvers_config": [
     { "name": "turbo",
-      "version": "0.6",
+      "version": "0.6.1",
       "exec": "/home/ptalbot/repositories/lattice-land/turbo/turbo",
       "globals": "" },
     { "name": "gecode",

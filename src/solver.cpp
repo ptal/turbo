@@ -27,10 +27,11 @@
 
 __device__ int decomposition = 0;
 
-// #define SHMEM_SIZE 65536
-#define SHMEM_SIZE 44000
-
-#define IN_GLOBAL_MEMORY
+CUDA int shared_mem_size(VStore& vstore) {
+  return
+    vstore.size() * 2 * sizeof(int) // the main usage of shared memory is to store shared intervals
+    + 30 * sizeof(int); // other variables such as `top` or `size` in vstore, and has_changed Booleans in the fixed point loop.
+}
 
 CUDA_GLOBAL void search_k(
     Array<Pointer<TreeAndPar>>* trees,
@@ -44,10 +45,8 @@ CUDA_GLOBAL void search_k(
     int subproblems_power,
     bool* stop)
 {
-  #ifndef IN_GLOBAL_MEMORY
-    extern __shared__ int shmem[];
-    const int n = SHMEM_SIZE;
-  #endif
+  extern __shared__ int shmem[];
+  const int n = shared_mem_size(*root);
   int tid = threadIdx.x;
   int nodeid = blockIdx.x;
   int stride = blockDim.x;
@@ -58,13 +57,9 @@ CUDA_GLOBAL void search_k(
   if (tid == 0) {
     decomposition_size = subproblems_power;
     INFO(printf("decomposition = %d, %d\n", decomposition_size, subproblems));
-    #ifdef IN_GLOBAL_MEMORY
-      GlobalAllocator allocator;
-    #else
-      SharedAllocator allocator(shmem, n);
-    #endif
-    (*trees)[nodeid].reset(new(allocator) TreeAndPar(
-      *root, *props, *branching_vars, **best_bound, minimize_x, allocator));
+    SharedAllocator shared_allocator(shmem, n);
+    (*trees)[nodeid].reset(new(global_allocator) TreeAndPar(
+      *root, *props, *branching_vars, **best_bound, minimize_x, shared_allocator));
     curr_decomposition = atomicAdd(&decomposition, 1);
   }
   __syncthreads();
@@ -115,60 +110,63 @@ void update_heap_limit() {
 
 void solve(VStore* vstore, Constraints constraints, Var minimize_x, Configuration config)
 {
-  // INFO(constraints.print(*vstore));
-  update_heap_limit();
-
-  Array<Var>* branching_vars = constraints.branching_vars();
-
-  LOG(std::cout << "Start transfering propagator to device memory." << std::endl);
-  auto t1 = std::chrono::high_resolution_clock::now();
-  Array<Pointer<Propagator>>* props = new(managed_allocator) Array<Pointer<Propagator>>(constraints.size());
-  LOG(std::cout << "props created " << props->size() << std::endl);
-  for (auto p : constraints.propagators) {
-    LOG(p->print(*vstore));
-    LOG(std::cout << std::endl);
-    (*props)[p->uid].reset(p->to_device());
+  int shmem_size = shared_mem_size(*vstore);
+  if(shmem_size > 48000) {
+    printf("ERROR: the problem does not fit in shared memory (max 48KB, request %dB).\n", shmem_size);
   }
-  auto t2 = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
-  LOG(std::cout << "Finish transfering propagators to device memory (" << duration << " ms)" << std::endl);
+  else {
+    // INFO(constraints.print(*vstore));
+    update_heap_limit();
 
-  t1 = std::chrono::high_resolution_clock::now();
+    Array<Var>* branching_vars = constraints.branching_vars();
 
-  Array<Pointer<TreeAndPar>>* trees = new(managed_allocator) Array<Pointer<TreeAndPar>>(config.or_nodes);
-  Pointer<Interval>* best_bound = new(managed_allocator) Pointer<Interval>(Interval());
-  Array<VStore>* best_sols = new(managed_allocator) Array<VStore>(*vstore, config.or_nodes);
-  Array<Statistics>* blocks_stats = new(managed_allocator) Array<Statistics>(config.or_nodes);
+    LOG(std::cout << "Start transfering propagator to device memory." << std::endl);
+    auto t1 = std::chrono::high_resolution_clock::now();
+    Array<Pointer<Propagator>>* props = new(managed_allocator) Array<Pointer<Propagator>>(constraints.size());
+    LOG(std::cout << "props created " << props->size() << std::endl);
+    for (auto p : constraints.propagators) {
+      LOG(p->print(*vstore));
+      LOG(std::cout << std::endl);
+      (*props)[p->uid].reset(p->to_device());
+    }
+    auto t2 = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
+    LOG(std::cout << "Finish transfering propagators to device memory (" << duration << " ms)" << std::endl);
 
-  bool* stop = new(managed_allocator) bool(false);
-  // cudaFuncSetAttribute(search_k, cudaFuncAttributeMaxDynamicSharedMemorySize, SHMEM_SIZE);
-  int and_nodes = min((int)props->size(), config.and_nodes);
-  search_k<<<config.or_nodes, and_nodes
-    #ifndef IN_GLOBAL_MEMORY
-      , SHMEM_SIZE
-    #endif
-  >>>(trees, vstore, props, branching_vars, best_bound, best_sols, minimize_x, blocks_stats, config.subproblems_power, stop);
+    t1 = std::chrono::high_resolution_clock::now();
 
-  std::thread timeout_thread(guard_timeout, config.timeout, std::ref(*stop));
-  CUDIE(cudaDeviceSynchronize());
-  *stop = true;
+    Array<Pointer<TreeAndPar>>* trees = new(managed_allocator) Array<Pointer<TreeAndPar>>(config.or_nodes);
+    Pointer<Interval>* best_bound = new(managed_allocator) Pointer<Interval>(Interval());
+    Array<VStore>* best_sols = new(managed_allocator) Array<VStore>(*vstore, config.or_nodes);
+    Array<Statistics>* blocks_stats = new(managed_allocator) Array<Statistics>(config.or_nodes);
 
-  t2 = std::chrono::high_resolution_clock::now();
-  duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
+    bool* stop = new(managed_allocator) bool(false);
+    // cudaFuncSetAttribute(search_k, cudaFuncAttributeMaxDynamicSharedMemorySize, SHMEM_SIZE);
+    int and_nodes = min((int)props->size(), config.and_nodes);
+    search_k<<<config.or_nodes, and_nodes, shmem_size>>>
+    (trees, vstore, props, branching_vars, best_bound, best_sols, minimize_x, blocks_stats, config.subproblems_power, stop);
 
-  timeout_thread.join();
+    std::thread timeout_thread(guard_timeout, config.timeout, std::ref(*stop));
+    CUDIE(cudaDeviceSynchronize());
+    *stop = true;
 
-  Statistics statistics;
-  for(int i = 0; i < blocks_stats->size(); ++i) {
-    statistics.join((*blocks_stats)[i]);
+    t2 = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
+
+    timeout_thread.join();
+
+    Statistics statistics;
+    for(int i = 0; i < blocks_stats->size(); ++i) {
+      statistics.join((*blocks_stats)[i]);
+    }
+    GlobalStatistics gstats(vstore->size(), constraints.size(), duration, statistics);
+    gstats.print();
+
+    operator delete(best_bound, managed_allocator);
+    operator delete(props, managed_allocator);
+    operator delete(trees, managed_allocator);
+    operator delete(branching_vars, managed_allocator);
+    operator delete(best_bound, managed_allocator);
+    operator delete(best_sols, managed_allocator);
   }
-  GlobalStatistics gstats(vstore->size(), constraints.size(), duration, statistics);
-  gstats.print();
-
-  operator delete(best_bound, managed_allocator);
-  operator delete(props, managed_allocator);
-  operator delete(trees, managed_allocator);
-  operator delete(branching_vars, managed_allocator);
-  operator delete(best_bound, managed_allocator);
-  operator delete(best_sols, managed_allocator);
 }
