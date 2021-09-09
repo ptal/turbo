@@ -1,0 +1,36 @@
+{
+  "problem_set_path":
+    "../../../absolute-project/kobe-rcpsp/data/rcpsp/j30.sm/",
+  "timeout": 30,
+  "solver_instance": [
+    "XCSP3Solver",
+    {
+      "solver": {
+        "name": "turbo",
+        "version": "0.6.1",
+        "exec": "/home/ptalbot/repositories/lattice-land/turbo/turbo",
+        "globals": ""
+      },
+      "option": [
+        "Some",
+        { "name": "o192_s18", "option": "-or 192 -sub 18" }
+      ],
+      "decompositions": [
+        {
+          "name": "TaskRD",
+          "description": "Task-resource decomposition of cumulative"
+        }
+      ]
+    }
+  ],
+  "csv": {
+    "fields": [
+      "ProblemName",
+      "Nodes",
+      "Solutions",
+      "Fails",
+      [ "Time", "Sec" ],
+      "Optimum"
+    ]
+  }
+}

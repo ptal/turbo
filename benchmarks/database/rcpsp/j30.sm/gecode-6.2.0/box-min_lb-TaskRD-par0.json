@@ -1,0 +1,47 @@
+{
+  "problem_set_path":
+    "../../../absolute-project/kobe-rcpsp/data/rcpsp/j30.sm/",
+  "timeout": 30,
+  "solver_instance": [
+    "FznSolver",
+    {
+      "fzn": {
+        "solver": {
+          "name": "gecode",
+          "version": "6.2.0",
+          "exec":
+            "/home/ptalbot/repositories/resources/solvers/gecode/build/bin/fzn-gecode",
+          "globals":
+            "/home/ptalbot/repositories/resources/solvers/gecode/gecode/flatzinc/mznlib"
+        },
+        "mzn2fzn": {
+          "name": "mzn2fzn",
+          "version": "2.3.1",
+          "exec": "minizinc",
+          "globals": ""
+        },
+        "option": [ "Some", { "name": "par0", "option": "-p 0" } ],
+        "strategy": {
+          "plain": "smallest, indomain_min, complete",
+          "short": "min_lb"
+        }
+      },
+      "decompositions": [
+        {
+          "name": "TaskRD",
+          "description": "Task-resource decomposition of cumulative"
+        }
+      ]
+    }
+  ],
+  "csv": {
+    "fields": [
+      "ProblemName",
+      "Nodes",
+      "Solutions",
+      "Fails",
+      [ "Time", "Sec" ],
+      "Optimum"
+    ]
+  }
+}
