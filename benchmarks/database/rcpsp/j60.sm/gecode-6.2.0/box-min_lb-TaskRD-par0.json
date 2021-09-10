@@ -1,5 +1,6 @@
 {
-  "problem_set_path": "../../../absolute-project/kobe-rcpsp/data/rcpsp/j30.sm/",
+  "problem_set_path":
+    "../../../absolute-project/kobe-rcpsp/data/rcpsp/j60.sm/",
   "timeout": 30,
   "solver_instance": [
     "FznSolver",
@@ -19,7 +20,7 @@
           "exec": "minizinc",
           "globals": ""
         },
-        "option": "None",
+        "option": [ "Some", { "name": "par0", "option": "-p 0" } ],
         "strategy": {
           "plain": "smallest, indomain_min, complete",
           "short": "min_lb"
