@@ -19,7 +19,7 @@
 #include "statistics.hpp"
 #include "cuda_helper.hpp"
 
-#define MAX_DEPTH 200
+#define MAX_DEPTH 1000
 
 // Select the variable with the smallest domain in the store.
 CUDA Var first_fail(const VStore& vstore, Array<Var>& vars) {

@@ -24,7 +24,7 @@ __device__ void* SharedAllocator::allocate(size_t bytes) {
   assert(offset < capacity);
   void* m = (void*)&mem[offset];
   offset += bytes / sizeof(int);
-  offset += offset % sizeof(int*);
+  offset += (bytes % sizeof(int)) != 0;
   return m;
 }
 
