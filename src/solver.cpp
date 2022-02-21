@@ -160,7 +160,7 @@ void solve(VStore* vstore, Constraints constraints, Var minimize_x, Configuratio
       statistics.join((*blocks_stats)[i]);
     }
     GlobalStatistics gstats(vstore->size(), constraints.size(), duration, statistics);
-    gstats.print();
+    gstats.print_csv();
 
     operator delete(best_bound, managed_allocator);
     operator delete(props, managed_allocator);
