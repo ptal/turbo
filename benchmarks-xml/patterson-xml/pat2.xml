@@ -1,0 +1,402 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+   <instance format="XCSP3" type="CSP"> <variables><var id="start_j1">0..100000000</var>
+<var id="start_j2">0..100000000</var>
+<var id="start_j3">0..100000000</var>
+<var id="start_j4">0..100000000</var>
+<var id="start_j5">0..100000000</var>
+<var id="start_j6">0..100000000</var>
+<var id="start_j7">0..100000000</var>
+<var id="start_j8">0..100000000</var>
+<var id="start_j9">0..100000000</var>
+<var id="start_j10">0..100000000</var>
+<var id="start_j11">0..100000000</var>
+<var id="start_j12">0..100000000</var>
+<var id="start_j13">0..100000000</var>
+<var id="task_1_runs_when_2_starts">0..1</var>
+<var id="task_1_runs_when_3_starts">0..1</var>
+<var id="task_1_runs_when_4_starts">0..1</var>
+<var id="task_1_runs_when_5_starts">0..1</var>
+<var id="task_1_runs_when_6_starts">0..1</var>
+<var id="task_1_runs_when_7_starts">0..1</var>
+<var id="task_1_runs_when_8_starts">0..1</var>
+<var id="task_1_runs_when_9_starts">0..1</var>
+<var id="task_1_runs_when_10_starts">0..1</var>
+<var id="task_1_runs_when_11_starts">0..1</var>
+<var id="task_1_runs_when_12_starts">0..1</var>
+<var id="task_1_runs_when_13_starts">0..1</var>
+<var id="task_2_runs_when_1_starts">0..1</var>
+<var id="task_2_runs_when_3_starts">0..1</var>
+<var id="task_2_runs_when_4_starts">0..1</var>
+<var id="task_2_runs_when_5_starts">0..1</var>
+<var id="task_2_runs_when_6_starts">0..1</var>
+<var id="task_2_runs_when_7_starts">0..1</var>
+<var id="task_2_runs_when_8_starts">0..1</var>
+<var id="task_2_runs_when_9_starts">0..1</var>
+<var id="task_2_runs_when_10_starts">0..1</var>
+<var id="task_2_runs_when_11_starts">0..1</var>
+<var id="task_2_runs_when_12_starts">0..1</var>
+<var id="task_2_runs_when_13_starts">0..1</var>
+<var id="task_3_runs_when_1_starts">0..1</var>
+<var id="task_3_runs_when_2_starts">0..1</var>
+<var id="task_3_runs_when_4_starts">0..1</var>
+<var id="task_3_runs_when_5_starts">0..1</var>
+<var id="task_3_runs_when_6_starts">0..1</var>
+<var id="task_3_runs_when_7_starts">0..1</var>
+<var id="task_3_runs_when_8_starts">0..1</var>
+<var id="task_3_runs_when_9_starts">0..1</var>
+<var id="task_3_runs_when_10_starts">0..1</var>
+<var id="task_3_runs_when_11_starts">0..1</var>
+<var id="task_3_runs_when_12_starts">0..1</var>
+<var id="task_3_runs_when_13_starts">0..1</var>
+<var id="task_4_runs_when_1_starts">0..1</var>
+<var id="task_4_runs_when_2_starts">0..1</var>
+<var id="task_4_runs_when_3_starts">0..1</var>
+<var id="task_4_runs_when_5_starts">0..1</var>
+<var id="task_4_runs_when_6_starts">0..1</var>
+<var id="task_4_runs_when_7_starts">0..1</var>
+<var id="task_4_runs_when_8_starts">0..1</var>
+<var id="task_4_runs_when_9_starts">0..1</var>
+<var id="task_4_runs_when_10_starts">0..1</var>
+<var id="task_4_runs_when_11_starts">0..1</var>
+<var id="task_4_runs_when_12_starts">0..1</var>
+<var id="task_4_runs_when_13_starts">0..1</var>
+<var id="task_5_runs_when_1_starts">0..1</var>
+<var id="task_5_runs_when_2_starts">0..1</var>
+<var id="task_5_runs_when_3_starts">0..1</var>
+<var id="task_5_runs_when_4_starts">0..1</var>
+<var id="task_5_runs_when_6_starts">0..1</var>
+<var id="task_5_runs_when_7_starts">0..1</var>
+<var id="task_5_runs_when_8_starts">0..1</var>
+<var id="task_5_runs_when_9_starts">0..1</var>
+<var id="task_5_runs_when_10_starts">0..1</var>
+<var id="task_5_runs_when_11_starts">0..1</var>
+<var id="task_5_runs_when_12_starts">0..1</var>
+<var id="task_5_runs_when_13_starts">0..1</var>
+<var id="task_6_runs_when_1_starts">0..1</var>
+<var id="task_6_runs_when_2_starts">0..1</var>
+<var id="task_6_runs_when_3_starts">0..1</var>
+<var id="task_6_runs_when_4_starts">0..1</var>
+<var id="task_6_runs_when_5_starts">0..1</var>
+<var id="task_6_runs_when_7_starts">0..1</var>
+<var id="task_6_runs_when_8_starts">0..1</var>
+<var id="task_6_runs_when_9_starts">0..1</var>
+<var id="task_6_runs_when_10_starts">0..1</var>
+<var id="task_6_runs_when_11_starts">0..1</var>
+<var id="task_6_runs_when_12_starts">0..1</var>
+<var id="task_6_runs_when_13_starts">0..1</var>
+<var id="task_7_runs_when_1_starts">0..1</var>
+<var id="task_7_runs_when_2_starts">0..1</var>
+<var id="task_7_runs_when_3_starts">0..1</var>
+<var id="task_7_runs_when_4_starts">0..1</var>
+<var id="task_7_runs_when_5_starts">0..1</var>
+<var id="task_7_runs_when_6_starts">0..1</var>
+<var id="task_7_runs_when_8_starts">0..1</var>
+<var id="task_7_runs_when_9_starts">0..1</var>
+<var id="task_7_runs_when_10_starts">0..1</var>
+<var id="task_7_runs_when_11_starts">0..1</var>
+<var id="task_7_runs_when_12_starts">0..1</var>
+<var id="task_7_runs_when_13_starts">0..1</var>
+<var id="task_8_runs_when_1_starts">0..1</var>
+<var id="task_8_runs_when_2_starts">0..1</var>
+<var id="task_8_runs_when_3_starts">0..1</var>
+<var id="task_8_runs_when_4_starts">0..1</var>
+<var id="task_8_runs_when_5_starts">0..1</var>
+<var id="task_8_runs_when_6_starts">0..1</var>
+<var id="task_8_runs_when_7_starts">0..1</var>
+<var id="task_8_runs_when_9_starts">0..1</var>
+<var id="task_8_runs_when_10_starts">0..1</var>
+<var id="task_8_runs_when_11_starts">0..1</var>
+<var id="task_8_runs_when_12_starts">0..1</var>
+<var id="task_8_runs_when_13_starts">0..1</var>
+<var id="task_9_runs_when_1_starts">0..1</var>
+<var id="task_9_runs_when_2_starts">0..1</var>
+<var id="task_9_runs_when_3_starts">0..1</var>
+<var id="task_9_runs_when_4_starts">0..1</var>
+<var id="task_9_runs_when_5_starts">0..1</var>
+<var id="task_9_runs_when_6_starts">0..1</var>
+<var id="task_9_runs_when_7_starts">0..1</var>
+<var id="task_9_runs_when_8_starts">0..1</var>
+<var id="task_9_runs_when_10_starts">0..1</var>
+<var id="task_9_runs_when_11_starts">0..1</var>
+<var id="task_9_runs_when_12_starts">0..1</var>
+<var id="task_9_runs_when_13_starts">0..1</var>
+<var id="task_10_runs_when_1_starts">0..1</var>
+<var id="task_10_runs_when_2_starts">0..1</var>
+<var id="task_10_runs_when_3_starts">0..1</var>
+<var id="task_10_runs_when_4_starts">0..1</var>
+<var id="task_10_runs_when_5_starts">0..1</var>
+<var id="task_10_runs_when_6_starts">0..1</var>
+<var id="task_10_runs_when_7_starts">0..1</var>
+<var id="task_10_runs_when_8_starts">0..1</var>
+<var id="task_10_runs_when_9_starts">0..1</var>
+<var id="task_10_runs_when_11_starts">0..1</var>
+<var id="task_10_runs_when_12_starts">0..1</var>
+<var id="task_10_runs_when_13_starts">0..1</var>
+<var id="task_11_runs_when_1_starts">0..1</var>
+<var id="task_11_runs_when_2_starts">0..1</var>
+<var id="task_11_runs_when_3_starts">0..1</var>
+<var id="task_11_runs_when_4_starts">0..1</var>
+<var id="task_11_runs_when_5_starts">0..1</var>
+<var id="task_11_runs_when_6_starts">0..1</var>
+<var id="task_11_runs_when_7_starts">0..1</var>
+<var id="task_11_runs_when_8_starts">0..1</var>
+<var id="task_11_runs_when_9_starts">0..1</var>
+<var id="task_11_runs_when_10_starts">0..1</var>
+<var id="task_11_runs_when_12_starts">0..1</var>
+<var id="task_11_runs_when_13_starts">0..1</var>
+<var id="task_12_runs_when_1_starts">0..1</var>
+<var id="task_12_runs_when_2_starts">0..1</var>
+<var id="task_12_runs_when_3_starts">0..1</var>
+<var id="task_12_runs_when_4_starts">0..1</var>
+<var id="task_12_runs_when_5_starts">0..1</var>
+<var id="task_12_runs_when_6_starts">0..1</var>
+<var id="task_12_runs_when_7_starts">0..1</var>
+<var id="task_12_runs_when_8_starts">0..1</var>
+<var id="task_12_runs_when_9_starts">0..1</var>
+<var id="task_12_runs_when_10_starts">0..1</var>
+<var id="task_12_runs_when_11_starts">0..1</var>
+<var id="task_12_runs_when_13_starts">0..1</var>
+<var id="task_13_runs_when_1_starts">0..1</var>
+<var id="task_13_runs_when_2_starts">0..1</var>
+<var id="task_13_runs_when_3_starts">0..1</var>
+<var id="task_13_runs_when_4_starts">0..1</var>
+<var id="task_13_runs_when_5_starts">0..1</var>
+<var id="task_13_runs_when_6_starts">0..1</var>
+<var id="task_13_runs_when_7_starts">0..1</var>
+<var id="task_13_runs_when_8_starts">0..1</var>
+<var id="task_13_runs_when_9_starts">0..1</var>
+<var id="task_13_runs_when_10_starts">0..1</var>
+<var id="task_13_runs_when_11_starts">0..1</var>
+<var id="task_13_runs_when_12_starts">0..1</var>
+</variables>
+<constraints>
+<intension>iff(task_1_runs_when_2_starts,and(le(start_j1,start_j2),lt(sub(start_j2,start_j1),0)))</intension>
+<intension>iff(task_1_runs_when_3_starts,and(le(start_j1,start_j3),lt(sub(start_j3,start_j1),0)))</intension>
+<intension>iff(task_1_runs_when_4_starts,and(le(start_j1,start_j4),lt(sub(start_j4,start_j1),0)))</intension>
+<intension>iff(task_1_runs_when_5_starts,and(le(start_j1,start_j5),lt(sub(start_j5,start_j1),0)))</intension>
+<intension>iff(task_1_runs_when_6_starts,and(le(start_j1,start_j6),lt(sub(start_j6,start_j1),0)))</intension>
+<intension>iff(task_1_runs_when_7_starts,and(le(start_j1,start_j7),lt(sub(start_j7,start_j1),0)))</intension>
+<intension>iff(task_1_runs_when_8_starts,and(le(start_j1,start_j8),lt(sub(start_j8,start_j1),0)))</intension>
+<intension>iff(task_1_runs_when_9_starts,and(le(start_j1,start_j9),lt(sub(start_j9,start_j1),0)))</intension>
+<intension>iff(task_1_runs_when_10_starts,and(le(start_j1,start_j10),lt(sub(start_j10,start_j1),0)))</intension>
+<intension>iff(task_1_runs_when_11_starts,and(le(start_j1,start_j11),lt(sub(start_j11,start_j1),0)))</intension>
+<intension>iff(task_1_runs_when_12_starts,and(le(start_j1,start_j12),lt(sub(start_j12,start_j1),0)))</intension>
+<intension>iff(task_1_runs_when_13_starts,and(le(start_j1,start_j13),lt(sub(start_j13,start_j1),0)))</intension>
+<intension>iff(task_2_runs_when_1_starts,and(le(start_j2,start_j1),lt(sub(start_j1,start_j2),3)))</intension>
+<intension>iff(task_2_runs_when_3_starts,and(le(start_j2,start_j3),lt(sub(start_j3,start_j2),3)))</intension>
+<intension>iff(task_2_runs_when_4_starts,and(le(start_j2,start_j4),lt(sub(start_j4,start_j2),3)))</intension>
+<intension>iff(task_2_runs_when_5_starts,and(le(start_j2,start_j5),lt(sub(start_j5,start_j2),3)))</intension>
+<intension>iff(task_2_runs_when_6_starts,and(le(start_j2,start_j6),lt(sub(start_j6,start_j2),3)))</intension>
+<intension>iff(task_2_runs_when_7_starts,and(le(start_j2,start_j7),lt(sub(start_j7,start_j2),3)))</intension>
+<intension>iff(task_2_runs_when_8_starts,and(le(start_j2,start_j8),lt(sub(start_j8,start_j2),3)))</intension>
+<intension>iff(task_2_runs_when_9_starts,and(le(start_j2,start_j9),lt(sub(start_j9,start_j2),3)))</intension>
+<intension>iff(task_2_runs_when_10_starts,and(le(start_j2,start_j10),lt(sub(start_j10,start_j2),3)))</intension>
+<intension>iff(task_2_runs_when_11_starts,and(le(start_j2,start_j11),lt(sub(start_j11,start_j2),3)))</intension>
+<intension>iff(task_2_runs_when_12_starts,and(le(start_j2,start_j12),lt(sub(start_j12,start_j2),3)))</intension>
+<intension>iff(task_2_runs_when_13_starts,and(le(start_j2,start_j13),lt(sub(start_j13,start_j2),3)))</intension>
+<intension>iff(task_3_runs_when_1_starts,and(le(start_j3,start_j1),lt(sub(start_j1,start_j3),5)))</intension>
+<intension>iff(task_3_runs_when_2_starts,and(le(start_j3,start_j2),lt(sub(start_j2,start_j3),5)))</intension>
+<intension>iff(task_3_runs_when_4_starts,and(le(start_j3,start_j4),lt(sub(start_j4,start_j3),5)))</intension>
+<intension>iff(task_3_runs_when_5_starts,and(le(start_j3,start_j5),lt(sub(start_j5,start_j3),5)))</intension>
+<intension>iff(task_3_runs_when_6_starts,and(le(start_j3,start_j6),lt(sub(start_j6,start_j3),5)))</intension>
+<intension>iff(task_3_runs_when_7_starts,and(le(start_j3,start_j7),lt(sub(start_j7,start_j3),5)))</intension>
+<intension>iff(task_3_runs_when_8_starts,and(le(start_j3,start_j8),lt(sub(start_j8,start_j3),5)))</intension>
+<intension>iff(task_3_runs_when_9_starts,and(le(start_j3,start_j9),lt(sub(start_j9,start_j3),5)))</intension>
+<intension>iff(task_3_runs_when_10_starts,and(le(start_j3,start_j10),lt(sub(start_j10,start_j3),5)))</intension>
+<intension>iff(task_3_runs_when_11_starts,and(le(start_j3,start_j11),lt(sub(start_j11,start_j3),5)))</intension>
+<intension>iff(task_3_runs_when_12_starts,and(le(start_j3,start_j12),lt(sub(start_j12,start_j3),5)))</intension>
+<intension>iff(task_3_runs_when_13_starts,and(le(start_j3,start_j13),lt(sub(start_j13,start_j3),5)))</intension>
+<intension>iff(task_4_runs_when_1_starts,and(le(start_j4,start_j1),lt(sub(start_j1,start_j4),6)))</intension>
+<intension>iff(task_4_runs_when_2_starts,and(le(start_j4,start_j2),lt(sub(start_j2,start_j4),6)))</intension>
+<intension>iff(task_4_runs_when_3_starts,and(le(start_j4,start_j3),lt(sub(start_j3,start_j4),6)))</intension>
+<intension>iff(task_4_runs_when_5_starts,and(le(start_j4,start_j5),lt(sub(start_j5,start_j4),6)))</intension>
+<intension>iff(task_4_runs_when_6_starts,and(le(start_j4,start_j6),lt(sub(start_j6,start_j4),6)))</intension>
+<intension>iff(task_4_runs_when_7_starts,and(le(start_j4,start_j7),lt(sub(start_j7,start_j4),6)))</intension>
+<intension>iff(task_4_runs_when_8_starts,and(le(start_j4,start_j8),lt(sub(start_j8,start_j4),6)))</intension>
+<intension>iff(task_4_runs_when_9_starts,and(le(start_j4,start_j9),lt(sub(start_j9,start_j4),6)))</intension>
+<intension>iff(task_4_runs_when_10_starts,and(le(start_j4,start_j10),lt(sub(start_j10,start_j4),6)))</intension>
+<intension>iff(task_4_runs_when_11_starts,and(le(start_j4,start_j11),lt(sub(start_j11,start_j4),6)))</intension>
+<intension>iff(task_4_runs_when_12_starts,and(le(start_j4,start_j12),lt(sub(start_j12,start_j4),6)))</intension>
+<intension>iff(task_4_runs_when_13_starts,and(le(start_j4,start_j13),lt(sub(start_j13,start_j4),6)))</intension>
+<intension>iff(task_5_runs_when_1_starts,and(le(start_j5,start_j1),lt(sub(start_j1,start_j5),2)))</intension>
+<intension>iff(task_5_runs_when_2_starts,and(le(start_j5,start_j2),lt(sub(start_j2,start_j5),2)))</intension>
+<intension>iff(task_5_runs_when_3_starts,and(le(start_j5,start_j3),lt(sub(start_j3,start_j5),2)))</intension>
+<intension>iff(task_5_runs_when_4_starts,and(le(start_j5,start_j4),lt(sub(start_j4,start_j5),2)))</intension>
+<intension>iff(task_5_runs_when_6_starts,and(le(start_j5,start_j6),lt(sub(start_j6,start_j5),2)))</intension>
+<intension>iff(task_5_runs_when_7_starts,and(le(start_j5,start_j7),lt(sub(start_j7,start_j5),2)))</intension>
+<intension>iff(task_5_runs_when_8_starts,and(le(start_j5,start_j8),lt(sub(start_j8,start_j5),2)))</intension>
+<intension>iff(task_5_runs_when_9_starts,and(le(start_j5,start_j9),lt(sub(start_j9,start_j5),2)))</intension>
+<intension>iff(task_5_runs_when_10_starts,and(le(start_j5,start_j10),lt(sub(start_j10,start_j5),2)))</intension>
+<intension>iff(task_5_runs_when_11_starts,and(le(start_j5,start_j11),lt(sub(start_j11,start_j5),2)))</intension>
+<intension>iff(task_5_runs_when_12_starts,and(le(start_j5,start_j12),lt(sub(start_j12,start_j5),2)))</intension>
+<intension>iff(task_5_runs_when_13_starts,and(le(start_j5,start_j13),lt(sub(start_j13,start_j5),2)))</intension>
+<intension>iff(task_6_runs_when_1_starts,and(le(start_j6,start_j1),lt(sub(start_j1,start_j6),3)))</intension>
+<intension>iff(task_6_runs_when_2_starts,and(le(start_j6,start_j2),lt(sub(start_j2,start_j6),3)))</intension>
+<intension>iff(task_6_runs_when_3_starts,and(le(start_j6,start_j3),lt(sub(start_j3,start_j6),3)))</intension>
+<intension>iff(task_6_runs_when_4_starts,and(le(start_j6,start_j4),lt(sub(start_j4,start_j6),3)))</intension>
+<intension>iff(task_6_runs_when_5_starts,and(le(start_j6,start_j5),lt(sub(start_j5,start_j6),3)))</intension>
+<intension>iff(task_6_runs_when_7_starts,and(le(start_j6,start_j7),lt(sub(start_j7,start_j6),3)))</intension>
+<intension>iff(task_6_runs_when_8_starts,and(le(start_j6,start_j8),lt(sub(start_j8,start_j6),3)))</intension>
+<intension>iff(task_6_runs_when_9_starts,and(le(start_j6,start_j9),lt(sub(start_j9,start_j6),3)))</intension>
+<intension>iff(task_6_runs_when_10_starts,and(le(start_j6,start_j10),lt(sub(start_j10,start_j6),3)))</intension>
+<intension>iff(task_6_runs_when_11_starts,and(le(start_j6,start_j11),lt(sub(start_j11,start_j6),3)))</intension>
+<intension>iff(task_6_runs_when_12_starts,and(le(start_j6,start_j12),lt(sub(start_j12,start_j6),3)))</intension>
+<intension>iff(task_6_runs_when_13_starts,and(le(start_j6,start_j13),lt(sub(start_j13,start_j6),3)))</intension>
+<intension>iff(task_7_runs_when_1_starts,and(le(start_j7,start_j1),lt(sub(start_j1,start_j7),3)))</intension>
+<intension>iff(task_7_runs_when_2_starts,and(le(start_j7,start_j2),lt(sub(start_j2,start_j7),3)))</intension>
+<intension>iff(task_7_runs_when_3_starts,and(le(start_j7,start_j3),lt(sub(start_j3,start_j7),3)))</intension>
+<intension>iff(task_7_runs_when_4_starts,and(le(start_j7,start_j4),lt(sub(start_j4,start_j7),3)))</intension>
+<intension>iff(task_7_runs_when_5_starts,and(le(start_j7,start_j5),lt(sub(start_j5,start_j7),3)))</intension>
+<intension>iff(task_7_runs_when_6_starts,and(le(start_j7,start_j6),lt(sub(start_j6,start_j7),3)))</intension>
+<intension>iff(task_7_runs_when_8_starts,and(le(start_j7,start_j8),lt(sub(start_j8,start_j7),3)))</intension>
+<intension>iff(task_7_runs_when_9_starts,and(le(start_j7,start_j9),lt(sub(start_j9,start_j7),3)))</intension>
+<intension>iff(task_7_runs_when_10_starts,and(le(start_j7,start_j10),lt(sub(start_j10,start_j7),3)))</intension>
+<intension>iff(task_7_runs_when_11_starts,and(le(start_j7,start_j11),lt(sub(start_j11,start_j7),3)))</intension>
+<intension>iff(task_7_runs_when_12_starts,and(le(start_j7,start_j12),lt(sub(start_j12,start_j7),3)))</intension>
+<intension>iff(task_7_runs_when_13_starts,and(le(start_j7,start_j13),lt(sub(start_j13,start_j7),3)))</intension>
+<intension>iff(task_8_runs_when_1_starts,and(le(start_j8,start_j1),lt(sub(start_j1,start_j8),4)))</intension>
+<intension>iff(task_8_runs_when_2_starts,and(le(start_j8,start_j2),lt(sub(start_j2,start_j8),4)))</intension>
+<intension>iff(task_8_runs_when_3_starts,and(le(start_j8,start_j3),lt(sub(start_j3,start_j8),4)))</intension>
+<intension>iff(task_8_runs_when_4_starts,and(le(start_j8,start_j4),lt(sub(start_j4,start_j8),4)))</intension>
+<intension>iff(task_8_runs_when_5_starts,and(le(start_j8,start_j5),lt(sub(start_j5,start_j8),4)))</intension>
+<intension>iff(task_8_runs_when_6_starts,and(le(start_j8,start_j6),lt(sub(start_j6,start_j8),4)))</intension>
+<intension>iff(task_8_runs_when_7_starts,and(le(start_j8,start_j7),lt(sub(start_j7,start_j8),4)))</intension>
+<intension>iff(task_8_runs_when_9_starts,and(le(start_j8,start_j9),lt(sub(start_j9,start_j8),4)))</intension>
+<intension>iff(task_8_runs_when_10_starts,and(le(start_j8,start_j10),lt(sub(start_j10,start_j8),4)))</intension>
+<intension>iff(task_8_runs_when_11_starts,and(le(start_j8,start_j11),lt(sub(start_j11,start_j8),4)))</intension>
+<intension>iff(task_8_runs_when_12_starts,and(le(start_j8,start_j12),lt(sub(start_j12,start_j8),4)))</intension>
+<intension>iff(task_8_runs_when_13_starts,and(le(start_j8,start_j13),lt(sub(start_j13,start_j8),4)))</intension>
+<intension>iff(task_9_runs_when_1_starts,and(le(start_j9,start_j1),lt(sub(start_j1,start_j9),5)))</intension>
+<intension>iff(task_9_runs_when_2_starts,and(le(start_j9,start_j2),lt(sub(start_j2,start_j9),5)))</intension>
+<intension>iff(task_9_runs_when_3_starts,and(le(start_j9,start_j3),lt(sub(start_j3,start_j9),5)))</intension>
+<intension>iff(task_9_runs_when_4_starts,and(le(start_j9,start_j4),lt(sub(start_j4,start_j9),5)))</intension>
+<intension>iff(task_9_runs_when_5_starts,and(le(start_j9,start_j5),lt(sub(start_j5,start_j9),5)))</intension>
+<intension>iff(task_9_runs_when_6_starts,and(le(start_j9,start_j6),lt(sub(start_j6,start_j9),5)))</intension>
+<intension>iff(task_9_runs_when_7_starts,and(le(start_j9,start_j7),lt(sub(start_j7,start_j9),5)))</intension>
+<intension>iff(task_9_runs_when_8_starts,and(le(start_j9,start_j8),lt(sub(start_j8,start_j9),5)))</intension>
+<intension>iff(task_9_runs_when_10_starts,and(le(start_j9,start_j10),lt(sub(start_j10,start_j9),5)))</intension>
+<intension>iff(task_9_runs_when_11_starts,and(le(start_j9,start_j11),lt(sub(start_j11,start_j9),5)))</intension>
+<intension>iff(task_9_runs_when_12_starts,and(le(start_j9,start_j12),lt(sub(start_j12,start_j9),5)))</intension>
+<intension>iff(task_9_runs_when_13_starts,and(le(start_j9,start_j13),lt(sub(start_j13,start_j9),5)))</intension>
+<intension>iff(task_10_runs_when_1_starts,and(le(start_j10,start_j1),lt(sub(start_j1,start_j10),4)))</intension>
+<intension>iff(task_10_runs_when_2_starts,and(le(start_j10,start_j2),lt(sub(start_j2,start_j10),4)))</intension>
+<intension>iff(task_10_runs_when_3_starts,and(le(start_j10,start_j3),lt(sub(start_j3,start_j10),4)))</intension>
+<intension>iff(task_10_runs_when_4_starts,and(le(start_j10,start_j4),lt(sub(start_j4,start_j10),4)))</intension>
+<intension>iff(task_10_runs_when_5_starts,and(le(start_j10,start_j5),lt(sub(start_j5,start_j10),4)))</intension>
+<intension>iff(task_10_runs_when_6_starts,and(le(start_j10,start_j6),lt(sub(start_j6,start_j10),4)))</intension>
+<intension>iff(task_10_runs_when_7_starts,and(le(start_j10,start_j7),lt(sub(start_j7,start_j10),4)))</intension>
+<intension>iff(task_10_runs_when_8_starts,and(le(start_j10,start_j8),lt(sub(start_j8,start_j10),4)))</intension>
+<intension>iff(task_10_runs_when_9_starts,and(le(start_j10,start_j9),lt(sub(start_j9,start_j10),4)))</intension>
+<intension>iff(task_10_runs_when_11_starts,and(le(start_j10,start_j11),lt(sub(start_j11,start_j10),4)))</intension>
+<intension>iff(task_10_runs_when_12_starts,and(le(start_j10,start_j12),lt(sub(start_j12,start_j10),4)))</intension>
+<intension>iff(task_10_runs_when_13_starts,and(le(start_j10,start_j13),lt(sub(start_j13,start_j10),4)))</intension>
+<intension>iff(task_11_runs_when_1_starts,and(le(start_j11,start_j1),lt(sub(start_j1,start_j11),2)))</intension>
+<intension>iff(task_11_runs_when_2_starts,and(le(start_j11,start_j2),lt(sub(start_j2,start_j11),2)))</intension>
+<intension>iff(task_11_runs_when_3_starts,and(le(start_j11,start_j3),lt(sub(start_j3,start_j11),2)))</intension>
+<intension>iff(task_11_runs_when_4_starts,and(le(start_j11,start_j4),lt(sub(start_j4,start_j11),2)))</intension>
+<intension>iff(task_11_runs_when_5_starts,and(le(start_j11,start_j5),lt(sub(start_j5,start_j11),2)))</intension>
+<intension>iff(task_11_runs_when_6_starts,and(le(start_j11,start_j6),lt(sub(start_j6,start_j11),2)))</intension>
+<intension>iff(task_11_runs_when_7_starts,and(le(start_j11,start_j7),lt(sub(start_j7,start_j11),2)))</intension>
+<intension>iff(task_11_runs_when_8_starts,and(le(start_j11,start_j8),lt(sub(start_j8,start_j11),2)))</intension>
+<intension>iff(task_11_runs_when_9_starts,and(le(start_j11,start_j9),lt(sub(start_j9,start_j11),2)))</intension>
+<intension>iff(task_11_runs_when_10_starts,and(le(start_j11,start_j10),lt(sub(start_j10,start_j11),2)))</intension>
+<intension>iff(task_11_runs_when_12_starts,and(le(start_j11,start_j12),lt(sub(start_j12,start_j11),2)))</intension>
+<intension>iff(task_11_runs_when_13_starts,and(le(start_j11,start_j13),lt(sub(start_j13,start_j11),2)))</intension>
+<intension>iff(task_12_runs_when_1_starts,and(le(start_j12,start_j1),lt(sub(start_j1,start_j12),3)))</intension>
+<intension>iff(task_12_runs_when_2_starts,and(le(start_j12,start_j2),lt(sub(start_j2,start_j12),3)))</intension>
+<intension>iff(task_12_runs_when_3_starts,and(le(start_j12,start_j3),lt(sub(start_j3,start_j12),3)))</intension>
+<intension>iff(task_12_runs_when_4_starts,and(le(start_j12,start_j4),lt(sub(start_j4,start_j12),3)))</intension>
+<intension>iff(task_12_runs_when_5_starts,and(le(start_j12,start_j5),lt(sub(start_j5,start_j12),3)))</intension>
+<intension>iff(task_12_runs_when_6_starts,and(le(start_j12,start_j6),lt(sub(start_j6,start_j12),3)))</intension>
+<intension>iff(task_12_runs_when_7_starts,and(le(start_j12,start_j7),lt(sub(start_j7,start_j12),3)))</intension>
+<intension>iff(task_12_runs_when_8_starts,and(le(start_j12,start_j8),lt(sub(start_j8,start_j12),3)))</intension>
+<intension>iff(task_12_runs_when_9_starts,and(le(start_j12,start_j9),lt(sub(start_j9,start_j12),3)))</intension>
+<intension>iff(task_12_runs_when_10_starts,and(le(start_j12,start_j10),lt(sub(start_j10,start_j12),3)))</intension>
+<intension>iff(task_12_runs_when_11_starts,and(le(start_j12,start_j11),lt(sub(start_j11,start_j12),3)))</intension>
+<intension>iff(task_12_runs_when_13_starts,and(le(start_j12,start_j13),lt(sub(start_j13,start_j12),3)))</intension>
+<intension>iff(task_13_runs_when_1_starts,and(le(start_j13,start_j1),lt(sub(start_j1,start_j13),0)))</intension>
+<intension>iff(task_13_runs_when_2_starts,and(le(start_j13,start_j2),lt(sub(start_j2,start_j13),0)))</intension>
+<intension>iff(task_13_runs_when_3_starts,and(le(start_j13,start_j3),lt(sub(start_j3,start_j13),0)))</intension>
+<intension>iff(task_13_runs_when_4_starts,and(le(start_j13,start_j4),lt(sub(start_j4,start_j13),0)))</intension>
+<intension>iff(task_13_runs_when_5_starts,and(le(start_j13,start_j5),lt(sub(start_j5,start_j13),0)))</intension>
+<intension>iff(task_13_runs_when_6_starts,and(le(start_j13,start_j6),lt(sub(start_j6,start_j13),0)))</intension>
+<intension>iff(task_13_runs_when_7_starts,and(le(start_j13,start_j7),lt(sub(start_j7,start_j13),0)))</intension>
+<intension>iff(task_13_runs_when_8_starts,and(le(start_j13,start_j8),lt(sub(start_j8,start_j13),0)))</intension>
+<intension>iff(task_13_runs_when_9_starts,and(le(start_j13,start_j9),lt(sub(start_j9,start_j13),0)))</intension>
+<intension>iff(task_13_runs_when_10_starts,and(le(start_j13,start_j10),lt(sub(start_j10,start_j13),0)))</intension>
+<intension>iff(task_13_runs_when_11_starts,and(le(start_j13,start_j11),lt(sub(start_j11,start_j13),0)))</intension>
+<intension>iff(task_13_runs_when_12_starts,and(le(start_j13,start_j12),lt(sub(start_j12,start_j13),0)))</intension>
+<intension>ge(3,add(add(add(add(add(add(add(add(add(mul(task_3_runs_when_2_starts,2),mul(task_4_runs_when_2_starts,3)),mul(task_5_runs_when_2_starts,4)),mul(task_6_runs_when_2_starts,2)),mul(task_7_runs_when_2_starts,1)),mul(task_8_runs_when_2_starts,3)),mul(task_9_runs_when_2_starts,2)),mul(task_10_runs_when_2_starts,3)),mul(task_11_runs_when_2_starts,4)),mul(task_12_runs_when_2_starts,5)))</intension>
+<intension>ge(4,add(add(add(add(add(add(add(add(add(mul(task_2_runs_when_3_starts,3),mul(task_4_runs_when_3_starts,3)),mul(task_5_runs_when_3_starts,4)),mul(task_6_runs_when_3_starts,2)),mul(task_7_runs_when_3_starts,1)),mul(task_8_runs_when_3_starts,3)),mul(task_9_runs_when_3_starts,2)),mul(task_10_runs_when_3_starts,3)),mul(task_11_runs_when_3_starts,4)),mul(task_12_runs_when_3_starts,5)))</intension>
+<intension>ge(3,add(add(add(add(add(add(add(add(add(mul(task_2_runs_when_4_starts,3),mul(task_3_runs_when_4_starts,2)),mul(task_5_runs_when_4_starts,4)),mul(task_6_runs_when_4_starts,2)),mul(task_7_runs_when_4_starts,1)),mul(task_8_runs_when_4_starts,3)),mul(task_9_runs_when_4_starts,2)),mul(task_10_runs_when_4_starts,3)),mul(task_11_runs_when_4_starts,4)),mul(task_12_runs_when_4_starts,5)))</intension>
+<intension>ge(2,add(add(add(add(add(add(add(add(add(mul(task_2_runs_when_5_starts,3),mul(task_3_runs_when_5_starts,2)),mul(task_4_runs_when_5_starts,3)),mul(task_6_runs_when_5_starts,2)),mul(task_7_runs_when_5_starts,1)),mul(task_8_runs_when_5_starts,3)),mul(task_9_runs_when_5_starts,2)),mul(task_10_runs_when_5_starts,3)),mul(task_11_runs_when_5_starts,4)),mul(task_12_runs_when_5_starts,5)))</intension>
+<intension>ge(4,add(add(add(add(add(add(add(add(add(mul(task_2_runs_when_6_starts,3),mul(task_3_runs_when_6_starts,2)),mul(task_4_runs_when_6_starts,3)),mul(task_5_runs_when_6_starts,4)),mul(task_7_runs_when_6_starts,1)),mul(task_8_runs_when_6_starts,3)),mul(task_9_runs_when_6_starts,2)),mul(task_10_runs_when_6_starts,3)),mul(task_11_runs_when_6_starts,4)),mul(task_12_runs_when_6_starts,5)))</intension>
+<intension>ge(5,add(add(add(add(add(add(add(add(add(mul(task_2_runs_when_7_starts,3),mul(task_3_runs_when_7_starts,2)),mul(task_4_runs_when_7_starts,3)),mul(task_5_runs_when_7_starts,4)),mul(task_6_runs_when_7_starts,2)),mul(task_8_runs_when_7_starts,3)),mul(task_9_runs_when_7_starts,2)),mul(task_10_runs_when_7_starts,3)),mul(task_11_runs_when_7_starts,4)),mul(task_12_runs_when_7_starts,5)))</intension>
+<intension>ge(3,add(add(add(add(add(add(add(add(add(mul(task_2_runs_when_8_starts,3),mul(task_3_runs_when_8_starts,2)),mul(task_4_runs_when_8_starts,3)),mul(task_5_runs_when_8_starts,4)),mul(task_6_runs_when_8_starts,2)),mul(task_7_runs_when_8_starts,1)),mul(task_9_runs_when_8_starts,2)),mul(task_10_runs_when_8_starts,3)),mul(task_11_runs_when_8_starts,4)),mul(task_12_runs_when_8_starts,5)))</intension>
+<intension>ge(4,add(add(add(add(add(add(add(add(add(mul(task_2_runs_when_9_starts,3),mul(task_3_runs_when_9_starts,2)),mul(task_4_runs_when_9_starts,3)),mul(task_5_runs_when_9_starts,4)),mul(task_6_runs_when_9_starts,2)),mul(task_7_runs_when_9_starts,1)),mul(task_8_runs_when_9_starts,3)),mul(task_10_runs_when_9_starts,3)),mul(task_11_runs_when_9_starts,4)),mul(task_12_runs_when_9_starts,5)))</intension>
+<intension>ge(3,add(add(add(add(add(add(add(add(add(mul(task_2_runs_when_10_starts,3),mul(task_3_runs_when_10_starts,2)),mul(task_4_runs_when_10_starts,3)),mul(task_5_runs_when_10_starts,4)),mul(task_6_runs_when_10_starts,2)),mul(task_7_runs_when_10_starts,1)),mul(task_8_runs_when_10_starts,3)),mul(task_9_runs_when_10_starts,2)),mul(task_11_runs_when_10_starts,4)),mul(task_12_runs_when_10_starts,5)))</intension>
+<intension>ge(2,add(add(add(add(add(add(add(add(add(mul(task_2_runs_when_11_starts,3),mul(task_3_runs_when_11_starts,2)),mul(task_4_runs_when_11_starts,3)),mul(task_5_runs_when_11_starts,4)),mul(task_6_runs_when_11_starts,2)),mul(task_7_runs_when_11_starts,1)),mul(task_8_runs_when_11_starts,3)),mul(task_9_runs_when_11_starts,2)),mul(task_10_runs_when_11_starts,3)),mul(task_12_runs_when_11_starts,5)))</intension>
+<intension>ge(1,add(add(add(add(add(add(add(add(add(mul(task_2_runs_when_12_starts,3),mul(task_3_runs_when_12_starts,2)),mul(task_4_runs_when_12_starts,3)),mul(task_5_runs_when_12_starts,4)),mul(task_6_runs_when_12_starts,2)),mul(task_7_runs_when_12_starts,1)),mul(task_8_runs_when_12_starts,3)),mul(task_9_runs_when_12_starts,2)),mul(task_10_runs_when_12_starts,3)),mul(task_11_runs_when_12_starts,4)))</intension>
+<intension>ge(5,add(add(add(add(add(add(add(add(mul(task_3_runs_when_2_starts,4),mul(task_4_runs_when_2_starts,1)),mul(task_5_runs_when_2_starts,3)),mul(task_7_runs_when_2_starts,1)),mul(task_8_runs_when_2_starts,1)),mul(task_9_runs_when_2_starts,2)),mul(task_10_runs_when_2_starts,2)),mul(task_11_runs_when_2_starts,1)),mul(task_12_runs_when_2_starts,4)))</intension>
+<intension>ge(3,add(add(add(add(add(add(add(add(mul(task_2_runs_when_3_starts,2),mul(task_4_runs_when_3_starts,1)),mul(task_5_runs_when_3_starts,3)),mul(task_7_runs_when_3_starts,1)),mul(task_8_runs_when_3_starts,1)),mul(task_9_runs_when_3_starts,2)),mul(task_10_runs_when_3_starts,2)),mul(task_11_runs_when_3_starts,1)),mul(task_12_runs_when_3_starts,4)))</intension>
+<intension>ge(6,add(add(add(add(add(add(add(add(mul(task_2_runs_when_4_starts,2),mul(task_3_runs_when_4_starts,4)),mul(task_5_runs_when_4_starts,3)),mul(task_7_runs_when_4_starts,1)),mul(task_8_runs_when_4_starts,1)),mul(task_9_runs_when_4_starts,2)),mul(task_10_runs_when_4_starts,2)),mul(task_11_runs_when_4_starts,1)),mul(task_12_runs_when_4_starts,4)))</intension>
+<intension>ge(4,add(add(add(add(add(add(add(add(mul(task_2_runs_when_5_starts,2),mul(task_3_runs_when_5_starts,4)),mul(task_4_runs_when_5_starts,1)),mul(task_7_runs_when_5_starts,1)),mul(task_8_runs_when_5_starts,1)),mul(task_9_runs_when_5_starts,2)),mul(task_10_runs_when_5_starts,2)),mul(task_11_runs_when_5_starts,1)),mul(task_12_runs_when_5_starts,4)))</intension>
+<intension>ge(6,add(add(add(add(add(add(add(add(mul(task_2_runs_when_7_starts,2),mul(task_3_runs_when_7_starts,4)),mul(task_4_runs_when_7_starts,1)),mul(task_5_runs_when_7_starts,3)),mul(task_8_runs_when_7_starts,1)),mul(task_9_runs_when_7_starts,2)),mul(task_10_runs_when_7_starts,2)),mul(task_11_runs_when_7_starts,1)),mul(task_12_runs_when_7_starts,4)))</intension>
+<intension>ge(6,add(add(add(add(add(add(add(add(mul(task_2_runs_when_8_starts,2),mul(task_3_runs_when_8_starts,4)),mul(task_4_runs_when_8_starts,1)),mul(task_5_runs_when_8_starts,3)),mul(task_7_runs_when_8_starts,1)),mul(task_9_runs_when_8_starts,2)),mul(task_10_runs_when_8_starts,2)),mul(task_11_runs_when_8_starts,1)),mul(task_12_runs_when_8_starts,4)))</intension>
+<intension>ge(5,add(add(add(add(add(add(add(add(mul(task_2_runs_when_9_starts,2),mul(task_3_runs_when_9_starts,4)),mul(task_4_runs_when_9_starts,1)),mul(task_5_runs_when_9_starts,3)),mul(task_7_runs_when_9_starts,1)),mul(task_8_runs_when_9_starts,1)),mul(task_10_runs_when_9_starts,2)),mul(task_11_runs_when_9_starts,1)),mul(task_12_runs_when_9_starts,4)))</intension>
+<intension>ge(5,add(add(add(add(add(add(add(add(mul(task_2_runs_when_10_starts,2),mul(task_3_runs_when_10_starts,4)),mul(task_4_runs_when_10_starts,1)),mul(task_5_runs_when_10_starts,3)),mul(task_7_runs_when_10_starts,1)),mul(task_8_runs_when_10_starts,1)),mul(task_9_runs_when_10_starts,2)),mul(task_11_runs_when_10_starts,1)),mul(task_12_runs_when_10_starts,4)))</intension>
+<intension>ge(6,add(add(add(add(add(add(add(add(mul(task_2_runs_when_11_starts,2),mul(task_3_runs_when_11_starts,4)),mul(task_4_runs_when_11_starts,1)),mul(task_5_runs_when_11_starts,3)),mul(task_7_runs_when_11_starts,1)),mul(task_8_runs_when_11_starts,1)),mul(task_9_runs_when_11_starts,2)),mul(task_10_runs_when_11_starts,2)),mul(task_12_runs_when_11_starts,4)))</intension>
+<intension>ge(3,add(add(add(add(add(add(add(add(mul(task_2_runs_when_12_starts,2),mul(task_3_runs_when_12_starts,4)),mul(task_4_runs_when_12_starts,1)),mul(task_5_runs_when_12_starts,3)),mul(task_7_runs_when_12_starts,1)),mul(task_8_runs_when_12_starts,1)),mul(task_9_runs_when_12_starts,2)),mul(task_10_runs_when_12_starts,2)),mul(task_11_runs_when_12_starts,1)))</intension>
+<intension>ge(5,add(add(add(add(add(add(add(add(mul(task_3_runs_when_2_starts,2),mul(task_4_runs_when_2_starts,2)),mul(task_5_runs_when_2_starts,1)),mul(task_6_runs_when_2_starts,3)),mul(task_7_runs_when_2_starts,1)),mul(task_8_runs_when_2_starts,1)),mul(task_9_runs_when_2_starts,2)),mul(task_10_runs_when_2_starts,3)),mul(task_12_runs_when_2_starts,2)))</intension>
+<intension>ge(4,add(add(add(add(add(add(add(add(mul(task_2_runs_when_3_starts,1),mul(task_4_runs_when_3_starts,2)),mul(task_5_runs_when_3_starts,1)),mul(task_6_runs_when_3_starts,3)),mul(task_7_runs_when_3_starts,1)),mul(task_8_runs_when_3_starts,1)),mul(task_9_runs_when_3_starts,2)),mul(task_10_runs_when_3_starts,3)),mul(task_12_runs_when_3_starts,2)))</intension>
+<intension>ge(4,add(add(add(add(add(add(add(add(mul(task_2_runs_when_4_starts,1),mul(task_3_runs_when_4_starts,2)),mul(task_5_runs_when_4_starts,1)),mul(task_6_runs_when_4_starts,3)),mul(task_7_runs_when_4_starts,1)),mul(task_8_runs_when_4_starts,1)),mul(task_9_runs_when_4_starts,2)),mul(task_10_runs_when_4_starts,3)),mul(task_12_runs_when_4_starts,2)))</intension>
+<intension>ge(5,add(add(add(add(add(add(add(add(mul(task_2_runs_when_5_starts,1),mul(task_3_runs_when_5_starts,2)),mul(task_4_runs_when_5_starts,2)),mul(task_6_runs_when_5_starts,3)),mul(task_7_runs_when_5_starts,1)),mul(task_8_runs_when_5_starts,1)),mul(task_9_runs_when_5_starts,2)),mul(task_10_runs_when_5_starts,3)),mul(task_12_runs_when_5_starts,2)))</intension>
+<intension>ge(3,add(add(add(add(add(add(add(add(mul(task_2_runs_when_6_starts,1),mul(task_3_runs_when_6_starts,2)),mul(task_4_runs_when_6_starts,2)),mul(task_5_runs_when_6_starts,1)),mul(task_7_runs_when_6_starts,1)),mul(task_8_runs_when_6_starts,1)),mul(task_9_runs_when_6_starts,2)),mul(task_10_runs_when_6_starts,3)),mul(task_12_runs_when_6_starts,2)))</intension>
+<intension>ge(5,add(add(add(add(add(add(add(add(mul(task_2_runs_when_7_starts,1),mul(task_3_runs_when_7_starts,2)),mul(task_4_runs_when_7_starts,2)),mul(task_5_runs_when_7_starts,1)),mul(task_6_runs_when_7_starts,3)),mul(task_8_runs_when_7_starts,1)),mul(task_9_runs_when_7_starts,2)),mul(task_10_runs_when_7_starts,3)),mul(task_12_runs_when_7_starts,2)))</intension>
+<intension>ge(5,add(add(add(add(add(add(add(add(mul(task_2_runs_when_8_starts,1),mul(task_3_runs_when_8_starts,2)),mul(task_4_runs_when_8_starts,2)),mul(task_5_runs_when_8_starts,1)),mul(task_6_runs_when_8_starts,3)),mul(task_7_runs_when_8_starts,1)),mul(task_9_runs_when_8_starts,2)),mul(task_10_runs_when_8_starts,3)),mul(task_12_runs_when_8_starts,2)))</intension>
+<intension>ge(4,add(add(add(add(add(add(add(add(mul(task_2_runs_when_9_starts,1),mul(task_3_runs_when_9_starts,2)),mul(task_4_runs_when_9_starts,2)),mul(task_5_runs_when_9_starts,1)),mul(task_6_runs_when_9_starts,3)),mul(task_7_runs_when_9_starts,1)),mul(task_8_runs_when_9_starts,1)),mul(task_10_runs_when_9_starts,3)),mul(task_12_runs_when_9_starts,2)))</intension>
+<intension>ge(3,add(add(add(add(add(add(add(add(mul(task_2_runs_when_10_starts,1),mul(task_3_runs_when_10_starts,2)),mul(task_4_runs_when_10_starts,2)),mul(task_5_runs_when_10_starts,1)),mul(task_6_runs_when_10_starts,3)),mul(task_7_runs_when_10_starts,1)),mul(task_8_runs_when_10_starts,1)),mul(task_9_runs_when_10_starts,2)),mul(task_12_runs_when_10_starts,2)))</intension>
+<intension>ge(4,add(add(add(add(add(add(add(add(mul(task_2_runs_when_12_starts,1),mul(task_3_runs_when_12_starts,2)),mul(task_4_runs_when_12_starts,2)),mul(task_5_runs_when_12_starts,1)),mul(task_6_runs_when_12_starts,3)),mul(task_7_runs_when_12_starts,1)),mul(task_8_runs_when_12_starts,1)),mul(task_9_runs_when_12_starts,2)),mul(task_10_runs_when_12_starts,3)))</intension>
+<intension>ge(start_j1,0)</intension>
+<intension>le(start_j1,0)</intension>
+<intension>ge(start_j2,0)</intension>
+<intension>le(start_j2,40)</intension>
+<intension>ge(start_j3,0)</intension>
+<intension>le(start_j3,40)</intension>
+<intension>ge(start_j4,0)</intension>
+<intension>le(start_j4,40)</intension>
+<intension>ge(start_j5,0)</intension>
+<intension>le(start_j5,40)</intension>
+<intension>ge(start_j6,0)</intension>
+<intension>le(start_j6,40)</intension>
+<intension>ge(start_j7,0)</intension>
+<intension>le(start_j7,40)</intension>
+<intension>ge(start_j8,0)</intension>
+<intension>le(start_j8,40)</intension>
+<intension>ge(start_j9,0)</intension>
+<intension>le(start_j9,40)</intension>
+<intension>ge(start_j10,0)</intension>
+<intension>le(start_j10,40)</intension>
+<intension>ge(start_j11,0)</intension>
+<intension>le(start_j11,40)</intension>
+<intension>ge(start_j12,0)</intension>
+<intension>le(start_j12,40)</intension>
+<intension>ge(start_j13,0)</intension>
+<intension>le(start_j13,40)</intension>
+<intension>le(sub(start_j1,start_j2),0)</intension>
+<intension>le(sub(start_j1,start_j3),0)</intension>
+<intension>le(sub(start_j2,start_j4),-3)</intension>
+<intension>le(sub(start_j2,start_j5),-3)</intension>
+<intension>le(sub(start_j3,start_j8),-5)</intension>
+<intension>le(sub(start_j4,start_j10),-6)</intension>
+<intension>le(sub(start_j5,start_j6),-2)</intension>
+<intension>le(sub(start_j5,start_j7),-2)</intension>
+<intension>le(sub(start_j6,start_j11),-3)</intension>
+<intension>le(sub(start_j8,start_j9),-4)</intension>
+<intension>le(sub(start_j9,start_j13),-5)</intension>
+<intension>le(sub(start_j10,start_j11),-4)</intension>
+<intension>le(sub(start_j11,start_j12),-2)</intension>
+<intension>le(sub(start_j12,start_j13),-3)</intension>
+</constraints>
+<objectives><minimize>start_j13</minimize></objectives>
+</instance>

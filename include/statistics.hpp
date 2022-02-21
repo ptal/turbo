@@ -82,6 +82,24 @@ struct GlobalStatistics {
     local.print();
     std::cout << "solveTime=" << duration << std::endl;
   }
+
+  // nodes, fails, solutions, depthmax, variables, constraints, satisfiability, exhaustivity, time, optimum
+  void print_csv() {
+    double duration_sec =  ((double) duration) / 1000.;
+    printf("%d, %d, %d, %d, %d, %d, ", local.nodes, local.fails, local.sols, local.depth_max, variables, constraints);
+    if(local.best_bound != -1) {
+      printf("sat, ");
+      if(local.exhaustive) { printf("true, "); }
+      else { printf("false, "); }
+      printf("%.2lf, %d\n", duration_sec, local.best_bound);
+    }
+    else if(local.exhaustive) {
+      printf("unsat, true, %.2lf, unsat\n", duration_sec);
+    }
+    else {
+      printf("unknown, false, %.2lf, none\n", duration_sec);
+    }
+  }
 };
 
 #endif
