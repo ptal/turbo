@@ -9,6 +9,6 @@
 #SBATCH --time=0-00:10                     # time (DD-HH:MM)
 #SBATCH -q test
 
-srun -n 1 --exact python3 run-hpc.py 18 patterson &
-srun -n 1 --exact python3 run-hpc.py 16 patterson &
+srun -n 1 --exact python3 run-hpc.py 300 18 patterson &
+srun -n 1 --exact python3 run-hpc.py 300 16 patterson &
 wait
