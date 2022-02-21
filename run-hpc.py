@@ -22,7 +22,7 @@ directory = os.fsencode(directory_str)
 results_prefix = "benchmarks-xml/" + suite + "-" + and_option + "-" + or_option + "-" + sub_option
 results_filename = results_prefix + ".csv"
 with open(results_filename, 'w') as f:
-  f.write("name, nodes, fails, solutions, depthmax, variables, constraints, satisfiability, exhaustivity, time, optimum")
+  f.write("name, nodes, fails, solutions, depthmax, variables, constraints, satisfiability, exhaustivity, time, optimum\n")
 
 error_dir = results_prefix + "-err/"
 os.system("mkdir -p " + error_dir)
