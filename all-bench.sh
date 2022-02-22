@@ -1,9 +1,9 @@
 #!/bin/bash -l
 #SBATCH --account=p200021 # project account
 #SBATCH --partition=gpu                    # partition
-#SBATCH --nodes=1                          # number of nodes
-#SBATCH --ntasks=7                         # number of tasks
-#SBATCH --ntasks-per-node=7                # number of tasks per node
+#SBATCH --nodes=2                          # number of nodes
+#SBATCH --ntasks=8                         # number of tasks
+#SBATCH --ntasks-per-node=4                # number of tasks per node
 #SBATCH --cpus-per-task=1                  # number of cores per task
 #SBATCH --gpus-per-task=1                  # number of gpu per task
 #SBATCH --time=0-12:00                     # time (DD-HH:MM)
