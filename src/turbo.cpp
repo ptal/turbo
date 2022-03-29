@@ -1,26 +1,26 @@
-// Copyright 2021 Pierre Talbot, Frédéric Pinel
-
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-
-//     http://www.apache.org/licenses/LICENSE-2.0
-
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Copyright 2022 Pierre Talbot
 
 #include <iostream>
 #include <cstdlib>
 
-#include "solver.hpp"
-#include "propagators.hpp"
+#include "XCSP3_parser.hpp"
 
-#include "XCSP3CoreParser.h"
+using namespace lala;
 
-#include "XCSP3_turbo_callbacks.hpp"
+#define OR_NODES 48
+#define AND_NODES 256
+#define SUBPROBLEMS_POWER 12 // 2^N
+
+struct Configuration {
+  int timeout;
+  int and_nodes;
+  int or_nodes;
+  int subproblems_power;
+  std::string problem_path;
+
+  Configuration(): timeout(INT_MAX), and_nodes(AND_NODES),
+    or_nodes(OR_NODES), subproblems_power(SUBPROBLEMS_POWER) {}
+};
 
 void usage_and_exit(char** argv) {
   std::cout << "usage: " << argv[0] << " [timeout in seconds] [-or 48] [-and 256] [-sub 12] xcsp3instance.xml" << std::endl;
@@ -91,17 +91,8 @@ int main(int argc, char** argv) {
   Configuration config = parse_args(argc, argv);
   try
   {
-    ModelBuilder* model_builder = new ModelBuilder();
-    XCSP3_turbo_callbacks cb(model_builder);
-    XCSP3CoreParser parser(&cb);
-    parser.parse(config.problem_path.c_str()); // fileName is a string
-    Constraints constraints = model_builder->build_constraints();
-    VStore* vstore = model_builder->build_store();
-    Var minimize_x = model_builder->build_minimize_obj();
-    solve(vstore, constraints, minimize_x, config);
-    vstore->free_names();
-    vstore->~VStore();
-    free2(vstore);
+    auto sf = parse_xcsp3<StandardAllocator>(config.problem_path, 0, 1);
+    sf.formula().print(false);
   }
   catch (exception &e)
   {

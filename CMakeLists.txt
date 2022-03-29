@@ -7,7 +7,7 @@ project(Turbo LANGUAGES CUDA CXX)
 option(GPU "GPU" ON)
 
 if(NOT DEFINED CMAKE_CXX_STANDARD)
-    set(CMAKE_CXX_STANDARD 17)
+    set(CMAKE_CXX_STANDARD 20)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endif()
 
@@ -33,20 +33,62 @@ find_package(LibXml2 REQUIRED)
 FetchContent_Declare(
     xcsp3parser
     GIT_REPOSITORY    "https://github.com/xcsp3team/XCSP3-CPP-Parser"
-    GIT_TAG           45c3e8f2c3dac71261e3a7bc441b56715918ad56
+    GIT_TAG           50ee7bfa59327c31a0a66ca4072a23cd08d0b182
 )
 FetchContent_MakeAvailable(xcsp3parser)
+
+# Lattice land dependencies
+
+FetchContent_Declare(
+  cuda_battery
+  GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
+  GIT_TAG        abb0dbb3eb9c4b26ab384f7a4a5e7b5fe4cc8a7e
+)
+FetchContent_MakeAvailable(cuda_battery)
+
+FetchContent_Declare(
+  lala_core
+  GIT_REPOSITORY "https://github.com/lattice-land/lala-core.git"
+  GIT_TAG        56b5f3edf6f7923c1991e39a25b1bb1e94d0e5e2
+)
+FetchContent_MakeAvailable(lala_core)
+
+FetchContent_Declare(
+  lala_parsing
+  GIT_REPOSITORY "https://github.com/lattice-land/lala-parsing.git"
+  GIT_TAG        6c606858dff234f7180f0464381133e572e31f08
+)
+FetchContent_MakeAvailable(lala_parsing)
+
+FetchContent_Declare(
+  lala_ipc
+  GIT_REPOSITORY "https://github.com/lattice-land/lala-ipc.git"
+  GIT_TAG        552aa57b74f80fd418cfe9770fbfe5b2ea6c8b42
+)
+FetchContent_MakeAvailable(lala_ipc)
+
+# Thrust dependency
+
+FetchContent_Declare(
+  thrust
+  GIT_REPOSITORY "https://github.com/NVIDIA/thrust.git"
+  GIT_TAG        1.12.0
+)
+FetchContent_GetProperties(thrust)
+if(NOT thrust_POPULATED)
+    FetchContent_Populate(thrust)
+endif()
 
 # Turbo executable
 
 if(GPU)
     set_source_files_properties(
-        src/solver.cpp src/memory.cpp src/propagators.cpp src/turbo.cpp
+        src/turbo.cpp
         PROPERTIES LANGUAGE CUDA)
 endif()
 
-add_executable(turbo src/solver.cpp src/memory.cpp src/propagators.cpp src/turbo.cpp)
-target_include_directories(turbo PRIVATE include ${LIBXML2_INCLUDE_DIR})
+add_executable(turbo src/turbo.cpp)
+target_include_directories(turbo PRIVATE include ${LIBXML2_INCLUDE_DIR} ${lala_parsing_SOURCE_DIR}/include ${lala_ipc_SOURCE_DIR}/include ${xcsp3parser_SOURCE_DIR}/include ${cuda_battery_SOURCE_DIR}/include ${lala_core_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
 if(GPU)
     set_property(TARGET turbo PROPERTY CUDA_ARCHITECTURES 75)
     set_property(TARGET turbo APPEND PROPERTY CUDA_SEPARABLE_COMPILATION ON)
@@ -60,4 +102,4 @@ target_compile_options(turbo PRIVATE
     $<$<CONFIG:LDebug>:-g -DTRACE>
 )
 
-target_link_libraries(turbo PRIVATE xcsp3parser ${LIBXML2_LIBRARIES})
+target_link_libraries(turbo PRIVATE xcsp3parser ${LIBXML2_LIBRARIES} cuda_battery lala_core lala_parsing)
