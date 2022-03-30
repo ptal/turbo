@@ -83,11 +83,11 @@ endif()
 
 if(GPU)
     set_source_files_properties(
-        src/turbo.cpp
+        src/turbo.cpp src/config.cpp
         PROPERTIES LANGUAGE CUDA)
 endif()
 
-add_executable(turbo src/turbo.cpp)
+add_executable(turbo src/turbo.cpp src/config.cpp)
 target_include_directories(turbo PRIVATE include ${LIBXML2_INCLUDE_DIR} ${lala_parsing_SOURCE_DIR}/include ${lala_ipc_SOURCE_DIR}/include ${xcsp3parser_SOURCE_DIR}/include ${cuda_battery_SOURCE_DIR}/include ${lala_core_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
 if(GPU)
     set_property(TARGET turbo PROPERTY CUDA_ARCHITECTURES 75)
