@@ -3,15 +3,59 @@
 #include <iostream>
 #include "XCSP3_parser.hpp"
 #include "config.hpp"
+#include "shared_ptr.hpp"
+#include "unique_ptr.hpp"
+#include "z.hpp"
+#include "vstore.hpp"
+#include "interval.hpp"
+#include "ipc.hpp"
+#include "type_inference.hpp"
 
 using namespace lala;
+
+using zi = ZInc<int>;
+using Itv = Interval<zi>;
+using IStore = VStore<Itv, battery::StandardAllocator>;
+using IStorePtr = battery::shared_ptr<IStore, battery::StandardAllocator>;
+using IIPC = IPC<IStore>;
+
+CUDA void print_variables(const IStorePtr& store) {
+  const auto& env = store->environment();
+  for(int i = 0; i < env.size(); ++i) {
+    const auto& vname = env[i];
+    vname.print();
+    printf(" = ");
+    store->project(*(env.to_avar(vname))).print();
+    printf("\n");
+  }
+}
 
 int main(int argc, char** argv) {
   Configuration config = parse_args(argc, argv);
   try
   {
-    auto sf = parse_xcsp3<StandardAllocator>(config.problem_path, 0, 1);
-    sf.formula().print(false);
+    auto sf = parse_xcsp3<battery::StandardAllocator>(config.problem_path, 0, 1);
+    AType sty = 0;
+    AType pty = 1;
+    infer_type(sf.formula(), sty, pty);
+    // sf.formula().print(false);
+    IStorePtr istore(new IStore(IStore::bot(sty)));
+    IIPC ipc(pty, istore);
+    auto res = ipc.interpret(sf.formula());
+    if(!res.has_value()) {
+      printf("The formula could not be interpreted in the IPC abstract domain.\n");
+      exit(EXIT_FAILURE);
+    }
+    BInc has_changed = BInc::bot;
+    ipc.tell(std::move(*res), has_changed);
+    printf("Variable store before propagation: \n");
+    print_variables(istore);
+    while(has_changed.guard()) {
+      has_changed.dtell(BInc::bot());
+      ipc.refine(has_changed);
+    }
+    printf("\n\nVariable store after propagation: \n");
+    print_variables(istore);
   }
   catch (exception &e)
   {
