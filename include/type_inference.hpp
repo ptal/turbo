@@ -13,11 +13,11 @@ using namespace lala;
 template <class F>
 void infer_type(F& f, AType sty, AType pty) {
   if(f.is(F::Seq) && f.sig() == AND) {
-    auto seq = f.seq();
+    auto& seq = f.seq();
     AType res = sty;
     for(int i = 0; i < seq.size(); ++i) {
       infer_type(seq[i], sty, pty);
-      if(seq[i].type() == pty) {
+      if(seq[i].type() != sty) {
         res = pty;
       }
     }

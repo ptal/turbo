@@ -49,21 +49,21 @@ FetchContent_MakeAvailable(cuda_battery)
 FetchContent_Declare(
   lala_core
   GIT_REPOSITORY "https://github.com/lattice-land/lala-core.git"
-  GIT_TAG        670929e91fa498c2f2a44e34581449d48957a1ca
+  GIT_TAG        2217395562ccc0e32753981fe3188fa43e4906ac
 )
 FetchContent_MakeAvailable(lala_core)
 
 FetchContent_Declare(
   lala_parsing
   GIT_REPOSITORY "https://github.com/lattice-land/lala-parsing.git"
-  GIT_TAG        fed04ac0502bd29ed85dd17d9830f32f543bd57e
+  GIT_TAG        d188d2a2d29d9826a5343f04890235cebebf288f
 )
 FetchContent_MakeAvailable(lala_parsing)
 
 FetchContent_Declare(
   lala_ipc
   GIT_REPOSITORY "https://github.com/lattice-land/lala-ipc.git"
-  GIT_TAG        83b49efe46e7891233ccb0e5993ac0e0cd0b10f9
+  GIT_TAG        8a91644259561f2e9e51816ee23f9a3e7aefea29
 )
 FetchContent_MakeAvailable(lala_ipc)
 

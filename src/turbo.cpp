@@ -34,11 +34,11 @@ int main(int argc, char** argv) {
   Configuration config = parse_args(argc, argv);
   try
   {
-    auto sf = parse_xcsp3<battery::StandardAllocator>(config.problem_path, 0, 1);
+    auto sf = parse_xcsp3<battery::StandardAllocator>(config.problem_path);
     AType sty = 0;
     AType pty = 1;
     infer_type(sf.formula(), sty, pty);
-    // sf.formula().print(false);
+    // sf.formula().print(true);
     IStorePtr istore(new IStore(IStore::bot(sty)));
     IIPC ipc(pty, istore);
     auto res = ipc.interpret(sf.formula());
@@ -56,6 +56,35 @@ int main(int argc, char** argv) {
     }
     printf("\n\nVariable store after propagation: \n");
     print_variables(istore);
+
+    // Analysis of the abstract element.
+    if(ipc.is_top().guard()) {
+      printf("The problem is unsatisfiable.");
+    }
+    else {
+      // Extract propagators
+      auto seq = battery::get<0>(extract_ty(sf.formula(), pty)).seq();
+      bool all_entailed = true;
+      printf("Num of props: %d\n", seq.size());
+      for(int i = 0; i < seq.size() && all_entailed; ++i) {
+        seq[i].print(false);
+        auto prop = ipc.interpret(seq[i]);
+        assert(prop.has_value());
+        if(!ipc.ask(*prop).guard()) {
+          printf(" is unknown\n");
+          all_entailed = false;
+        }
+        else {
+          printf(" is entailed\n");
+        }
+      }
+      if(all_entailed) {
+        printf("The problem is satisfiable (all propagators are entailed).\n");
+      }
+      else {
+        printf("The problem is unknown, there are unknown propagators.\n");
+      }
+    }
   }
   catch (exception &e)
   {
