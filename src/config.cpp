@@ -5,6 +5,7 @@
 #include <iostream>
 #include <limits>
 #include <vector>
+#include <algorithm>
 
 Configuration::Configuration(): timeout(std::numeric_limits<int>::max()), and_nodes(AND_NODES),
     or_nodes(OR_NODES), subproblems_power(SUBPROBLEMS_POWER) {}
@@ -27,8 +28,7 @@ public:
   }
 
   const std::string& getCmdOption(const std::string &option) const {
-    std::vector<std::string>::const_iterator itr;
-    itr = std::find(tokens.begin(), tokens.end(), option);
+    std::vector<std::string>::const_iterator itr = std::find(tokens.begin(), tokens.end(), option);
     if (itr != tokens.end() && ++itr != tokens.end()){
       return *itr;
     }

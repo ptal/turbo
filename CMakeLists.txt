@@ -42,30 +42,37 @@ FetchContent_MakeAvailable(xcsp3parser)
 FetchContent_Declare(
   cuda_battery
   GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
-  GIT_TAG        4c63ed2f3e529d95afe367ee07abd6ce68e0d045
+  GIT_TAG        main
 )
 FetchContent_MakeAvailable(cuda_battery)
 
 FetchContent_Declare(
   lala_core
   GIT_REPOSITORY "https://github.com/lattice-land/lala-core.git"
-  GIT_TAG        2217395562ccc0e32753981fe3188fa43e4906ac
+  GIT_TAG        main
 )
 FetchContent_MakeAvailable(lala_core)
 
 FetchContent_Declare(
   lala_parsing
   GIT_REPOSITORY "https://github.com/lattice-land/lala-parsing.git"
-  GIT_TAG        d188d2a2d29d9826a5343f04890235cebebf288f
+  GIT_TAG        main
 )
 FetchContent_MakeAvailable(lala_parsing)
 
 FetchContent_Declare(
   lala_ipc
   GIT_REPOSITORY "https://github.com/lattice-land/lala-ipc.git"
-  GIT_TAG        8a91644259561f2e9e51816ee23f9a3e7aefea29
+  GIT_TAG        main
 )
 FetchContent_MakeAvailable(lala_ipc)
+
+FetchContent_Declare(
+  lala_search
+  GIT_REPOSITORY "https://github.com/lattice-land/lala-search.git"
+  GIT_TAG        main
+)
+FetchContent_MakeAvailable(lala_search)
 
 # Thrust dependency
 
@@ -88,7 +95,7 @@ if(GPU)
 endif()
 
 add_executable(turbo src/turbo.cpp src/config.cpp)
-target_include_directories(turbo PRIVATE include ${LIBXML2_INCLUDE_DIR} ${lala_parsing_SOURCE_DIR}/include ${lala_ipc_SOURCE_DIR}/include ${xcsp3parser_SOURCE_DIR}/include ${cuda_battery_SOURCE_DIR}/include ${lala_core_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
+target_include_directories(turbo PRIVATE include ${LIBXML2_INCLUDE_DIR} ${lala_parsing_SOURCE_DIR}/include ${lala_ipc_SOURCE_DIR}/include ${lala_search_SOURCE_DIR}/include ${xcsp3parser_SOURCE_DIR}/include ${cuda_battery_SOURCE_DIR}/include ${lala_core_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
 if(GPU)
     set_property(TARGET turbo PROPERTY CUDA_ARCHITECTURES 75)
     set_property(TARGET turbo APPEND PROPERTY CUDA_SEPARABLE_COMPILATION ON)
