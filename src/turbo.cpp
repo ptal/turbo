@@ -1,7 +1,11 @@
 // Copyright 2022 Pierre Talbot
 
 #include <iostream>
+#include <algorithm>
+#include <chrono>
+#include <thread>
 #include "config.hpp"
+#include "statistics.hpp"
 #include "XCSP3_parser.hpp"
 #include "shared_ptr.hpp"
 #include "unique_ptr.hpp"
@@ -47,11 +51,32 @@ CUDA void print_variables(const IStore& store) {
   printf("\n");
 }
 
+// Inspired by https://stackoverflow.com/questions/39513830/launch-cuda-kernel-with-a-timeout/39514902
+// Timeout expected in seconds.
+void guard_timeout(int timeout, bool& stop) {
+  int progressed = 0;
+  while (!stop) {
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    progressed += 1;
+    if (progressed >= timeout) {
+      stop = true;
+    }
+  }
+}
+
 int main(int argc, char** argv) {
   Configuration config = parse_args(argc, argv);
   try
   {
-    auto sf = parse_xcsp3<Allocator>(config.problem_path);
+    XCSP3Core::XCSP3_turbo_callbacks<Allocator> cb;
+    parse_xcsp3(config.problem_path, cb);
+
+    bool stop = false;
+    std::thread timeout_thread(guard_timeout, config.timeout, std::ref(stop));
+    auto t1 = std::chrono::high_resolution_clock::now();
+
+    GlobalStatistics stats(cb.num_variables(), cb.num_constraints());
+    auto sf = cb.build_formula();
     infer_type(sf.formula(), sty, pty);
     // sf.formula().print(true);
     auto store = make_shared<IStore, Allocator>(std::move(IStore::bot(sty)));
@@ -76,34 +101,36 @@ int main(int argc, char** argv) {
     // printf("Logic formula joined in the abstract domain...\n");
 
     // Branch and bound fixpoint algorithm.
-    int iterations = 0;
-    while(!bab.extract(bab) && has_changed.guard()) {
-      iterations++;
+    while(!bab.extract(bab) && has_changed.guard() && !stop) {
+      stats.local.nodes++;
+      stats.local.depth_max = std::max(stats.local.depth_max, (int)search_tree->depth());
       has_changed = BInc::bot();
       // Compute \f$ pop \circ push \circ split \circ bab \circ refine \f$.
       seq_fixpoint(*ipc, has_changed);
+      stats.local.fails += ipc->is_top().guard();
       bab.refine(has_changed);
       split->reset();
       seq_refine(*split, has_changed);
       search_tree->refine(has_changed);
     }
-    printf("iterations=%d\n", iterations);
+    stats.local.exhaustive = !stop;
+    stop = true;
+    auto t2 = std::chrono::high_resolution_clock::now();
+    stats.duration = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+    timeout_thread.join();
+    stats.local.sols = bab.solutions_count().value();
     // Found the optimum.
     if(bab.extract(bab)) {
       auto opt_lvar = sf.optimization_lvar();
       auto opt_avar = *(bab.environment().to_avar(opt_lvar));
-      printf("optimum=");
       if(sf.mode() == SF::MINIMIZE) {
-        bab.optimum().project(opt_avar).lb().print();
+        stats.local.best_bound = bab.optimum().project(opt_avar).lb().value();
       }
       else {
-        bab.optimum().project(opt_avar).ub().print();
+        stats.local.best_bound = bab.optimum().project(opt_avar).ub().value();
       }
-      printf("\n");
     }
-    else {
-      printf("The problem is unsatisfiable.");
-    }
+    stats.print_csv();
   }
   catch (exception &e)
   {

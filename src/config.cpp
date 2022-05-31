@@ -1,17 +1,18 @@
 // Copyright 2022 Pierre Talbot
 
 #include "config.hpp"
+#include "statistics.hpp"
 #include <cstdlib>
 #include <iostream>
 #include <limits>
 #include <vector>
 #include <algorithm>
 
-Configuration::Configuration(): timeout(std::numeric_limits<int>::max()), and_nodes(AND_NODES),
-    or_nodes(OR_NODES), subproblems_power(SUBPROBLEMS_POWER) {}
+Configuration::Configuration(): timeout(std::numeric_limits<int>::max()),
+  and_nodes(AND_NODES), or_nodes(OR_NODES), subproblems_power(SUBPROBLEMS_POWER) {}
 
 void usage_and_exit(char** argv) {
-  std::cout << "usage: " << argv[0] << " [timeout in seconds] [-or 48] [-and 256] [-sub 12] xcsp3instance.xml" << std::endl;
+  std::cout << "usage: " << argv[0] << " [timeout in seconds] [-only_csv_header] [-or 48] [-and 256] [-sub 12] xcsp3instance.xml" << std::endl;
   std::cout << "\tGiven -sub N, we generate 2^N subproblems." << std::endl;
   exit(EXIT_FAILURE);
 }
@@ -45,6 +46,12 @@ Configuration parse_args(int argc, char** argv) {
   int num_params = 0;
   Configuration config;
   InputParser input(argc, argv);
+
+  if(input.cmdOptionExists("-only_csv_header")) {
+    GlobalStatistics::print_csv_header();
+    exit(EXIT_SUCCESS);
+  }
+
   const std::string& or_nodes = input.getCmdOption("-or");
   const std::string& and_nodes = input.getCmdOption("-and");
   const std::string& subproblems_power = input.getCmdOption("-sub");
