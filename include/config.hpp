@@ -9,11 +9,17 @@
 #define AND_NODES 256
 #define SUBPROBLEMS_POWER 12 // 2^N
 
+enum Arch {
+  CPU,
+  GPU
+};
+
 struct Configuration {
   int timeout;
   int and_nodes;
   int or_nodes;
   int subproblems_power;
+  Arch arch;
   std::string problem_path;
 
   Configuration();

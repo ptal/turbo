@@ -7,6 +7,14 @@
 
 using namespace lala;
 
+template <class F>
+bool simple_form(const F& f) {
+  return f.is(F::E) ||
+    (f.is(F::Seq)
+    && (f.seq(0).is(F::LV) || f.seq(0).is(F::V))
+    && f.seq(1).is(F::Z));
+}
+
 /** A naive type inference algorithm.
     Formula with zero or one variable occurrence are treated in the `sty` abstract domain, others are typed in the `pty` abstract domain.
     For conjunction, if all sub-formulas are in `sty`, it inherits the `sty` type, otherwise it gets the `pty` type. */
@@ -24,7 +32,7 @@ void infer_type(F& f, AType sty, AType pty) {
     f.type_as(res);
   }
   else {
-    if(num_vars(f) <= 1) {
+    if(num_vars(f) <= 1 && simple_form(f)) {
       f.type_as(sty);
     }
     else {

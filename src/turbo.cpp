@@ -68,6 +68,9 @@ int main(int argc, char** argv) {
   Configuration config = parse_args(argc, argv);
   try
   {
+    if(config.arch == GPU) {
+      printf("not yet supported\n");
+    }
     XCSP3Core::XCSP3_turbo_callbacks<Allocator> cb;
     parse_xcsp3(config.problem_path, cb);
 
@@ -86,7 +89,6 @@ int main(int argc, char** argv) {
     auto bab = IBAB(bab_ty, search_tree);
 
     // printf("Abstract domains initialized...\n");
-
     auto res = bab.interpret(sf);
     if(!res.has_value()) {
       printf("The formula could not be interpreted in the BAB(ST(IPC)) abstract domain.\n");
