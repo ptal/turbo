@@ -8,7 +8,7 @@
 using namespace lala;
 
 template <class F>
-bool simple_form(const F& f) {
+CUDA bool simple_form(const F& f) {
   return f.is(F::E) ||
     (f.is(F::Seq)
     && (f.seq(0).is(F::LV) || f.seq(0).is(F::V))
@@ -19,7 +19,7 @@ bool simple_form(const F& f) {
     Formula with zero or one variable occurrence are treated in the `sty` abstract domain, others are typed in the `pty` abstract domain.
     For conjunction, if all sub-formulas are in `sty`, it inherits the `sty` type, otherwise it gets the `pty` type. */
 template <class F>
-void infer_type(F& f, AType sty, AType pty) {
+CUDA void infer_type(F& f, AType sty, AType pty) {
   if(f.is(F::Seq) && f.sig() == AND) {
     auto& seq = f.seq();
     AType res = sty;
