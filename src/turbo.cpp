@@ -4,13 +4,14 @@
 #include <algorithm>
 #include <chrono>
 #include <thread>
+#include "allocator.hpp"
 #include "config.hpp"
 #include "statistics.hpp"
 #include "XCSP3_parser.hpp"
 #include "cp.hpp"
+#include "fixpoint.hpp"
 
 using namespace lala;
-
 
 // CUDA void print_variables(const IStore& store) {
 //   const auto& env = store.environment();
@@ -22,24 +23,6 @@ using namespace lala;
 //     printf("  ");
 //   }
 //   printf("\n");
-// }
-
-// template <class F>
-// CUDA_GLOBAL void search_k(F& sf, Statistics& stats, bool& stop) {
-//   infer_type(sf.formula(), sty, pty);
-//   // sf.formula().print(true);
-//   auto store = make_shared<IStore, Allocator>(std::move(IStore::bot(sty)));
-//   auto ipc = make_shared<IIPC, Allocator>(IIPC(pty, store));
-//   auto split = make_shared<ISplitInputLB, Allocator>(ISplitInputLB(split_ty, ipc, ipc));
-//   auto search_tree = make_shared<IST, Allocator>(tty, ipc, split);
-//   auto bab = IBAB(bab_ty, search_tree);
-
-//   // printf("Abstract domains initialized...\n");
-//   auto res = bab.interpret(sf);
-//   if(!res.has_value()) {
-//     printf("The formula could not be interpreted in the BAB(ST(IPC)) abstract domain.\n");
-//     return;
-//   }
 // }
 
 // Inspired by https://stackoverflow.com/questions/39513830/launch-cuda-kernel-with-a-timeout/39514902
@@ -55,9 +38,9 @@ void guard_timeout(int timeout, bool& stop) {
   }
 }
 
-template <class SF>
-CUDA void run_solver(SF& sf, bool& stop, Statistics& stats) {
-  CP_BAB<battery::StandardAllocator, GaussSeidelIteration> cp(stop);
+template <class IterationStrategy, class Allocator>
+CUDA void run_solver(SFormula<Allocator>& sf, bool& stop, Statistics& stats) {
+  CP_BAB<Allocator, IterationStrategy> cp(stop);
   auto x = cp.interpret(sf);
   if(x.has_value()) {
     BInc has_changed = BInc::bot();
@@ -70,43 +53,82 @@ CUDA void run_solver(SF& sf, bool& stop, Statistics& stats) {
   }
 }
 
+#ifdef __NVCC__
+
+CUDA_GLOBAL void gpu_run_solver(const SFormula<battery::ManagedAllocator>& sf, bool& stop, Statistics& stats) {
+  SFormula<battery::GlobalAllocatorGPU> sf_in_global(sf);
+  run_solver<AsynchronousIterationGPU>(sf_in_global, stop, stats);
+}
+
+#endif
+
+template <class Allocator>
 class Bencher {
   std::thread timeout_thread;
   std::chrono::time_point<std::chrono::high_resolution_clock> start_time;
+  battery::shared_ptr<bool, Allocator> force_stop;
 public:
-  bool force_stop;
-  Bencher(): force_stop(false) {}
+  Bencher(): force_stop(battery::make_shared<bool, Allocator>(false)) {}
 
   void start(int timeout) {
-    timeout_thread = std::thread(guard_timeout, timeout, std::ref(force_stop));
+    timeout_thread = std::thread(guard_timeout, timeout, std::ref(*force_stop));
     start_time = std::chrono::high_resolution_clock::now();
   }
 
   int64_t stop() {
-    force_stop = true;
+    *force_stop = true;
     auto end_time = std::chrono::high_resolution_clock::now();
     int64_t duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
     timeout_thread.join();
     return duration;
   }
+
+  bool& stop_ref() {
+    return *force_stop;
+  }
 };
+
+template <class Allocator>
+void bench_solver(Configuration& config) {
+  XCSP3Core::XCSP3_turbo_callbacks<Allocator> cb;
+  parse_xcsp3(config.problem_path, cb);
+  auto sf = cb.build_formula();
+  Bencher<Allocator> bencher;
+  bencher.start(config.timeout);
+  auto stats = battery::make_shared<GlobalStatistics, Allocator>(GlobalStatistics(cb.num_variables(), cb.num_constraints()));
+  if(config.arch == CPU) {
+    run_solver<GaussSeidelIteration>(*sf, bencher.stop_ref(), stats->local);
+  }
+  else {
+    #ifdef __NVCC__
+      if constexpr(std::is_same_v<Allocator, battery::ManagedAllocator>) {
+        gpu_run_solver<<<config.or_nodes, config.and_nodes>>>(*sf, bencher.stop_ref(), stats->local);
+        CUDIE(cudaDeviceSynchronize());
+      }
+      else {
+        assert(0);
+      }
+    #endif
+  }
+  stats->duration = bencher.stop();
+  stats->print_csv();
+}
 
 int main(int argc, char** argv) {
   Configuration config = parse_args(argc, argv);
   try
   {
-    if(config.arch == GPU) {
-      printf("not yet supported\n");
+    if(config.arch == CPU) {
+      bench_solver<battery::StandardAllocator>(config);
     }
-    XCSP3Core::XCSP3_turbo_callbacks<battery::StandardAllocator> cb;
-    parse_xcsp3(config.problem_path, cb);
-    auto sf = cb.build_formula();
-    GlobalStatistics stats(cb.num_variables(), cb.num_constraints());
-    Bencher bencher;
-    bencher.start(config.timeout);
-    run_solver(sf, bencher.force_stop, stats.local);
-    stats.duration = bencher.stop();
-    stats.print_csv();
+    else {
+      #ifdef __NVCC__
+        bench_solver<battery::ManagedAllocator>(config);
+      #else
+        printf("Turbo need to be compiled with NVCC in order to run on GPU.");
+        exit(EXIT_FAILURE);
+      #endif
+    }
   }
   catch (exception &e)
   {

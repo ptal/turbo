@@ -109,4 +109,4 @@ target_compile_options(turbo PRIVATE
     $<$<CONFIG:LDebug>:-g -DTRACE>
 )
 
-target_link_libraries(turbo PRIVATE xcsp3parser ${LIBXML2_LIBRARIES} cuda_battery lala_core lala_parsing)
+target_link_libraries(turbo PRIVATE xcsp3parser ${LIBXML2_LIBRARIES})

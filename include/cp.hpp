@@ -12,7 +12,6 @@
 #include "vstore.hpp"
 #include "interval.hpp"
 #include "ipc.hpp"
-#include "fixpoint.hpp"
 #include "type_inference.hpp"
 #include "search_tree.hpp"
 #include "value_order.hpp"
@@ -22,12 +21,6 @@
 #include "ast.hpp"
 
 using namespace lala;
-
-const static AType sty = 0;
-const static AType pty = 1;
-const static AType tty = 2;
-const static AType split_ty = 3;
-const static AType bab_ty = 4;
 
 /** A discrete constraint programming solver, based on a branch and bound, and propagate and search algorithms. */
 template <class Allocator, class IterationStrategy>
@@ -39,7 +32,13 @@ class CP_BAB {
   using ISplitInputLB = Split<IIPC, InputOrder<IIPC>, LowerBound<IIPC>>;
   using IST = SearchTree<IIPC, ISplitInputLB>;
   using IBAB = BAB<IST>;
-  using SF = SFormula<Allocator>;
+
+
+  constexpr static AType sty = 0;
+  constexpr static AType pty = 1;
+  constexpr static AType tree_ty = 2;
+  constexpr static AType split_ty = 3;
+  constexpr static AType bab_ty = 4;
 
   Statistics stats;
   bool& stop;
@@ -58,10 +57,11 @@ public:
     store(battery::make_shared<IStore, Allocator>(std::move(IStore::bot(sty)))),
     ipc(battery::make_shared<IIPC, Allocator>(IIPC(pty, store))),
     split(battery::make_shared<ISplitInputLB, Allocator>(ISplitInputLB(split_ty, ipc, ipc))),
-    search_tree(battery::make_shared<IST, Allocator>(tty, ipc, split)),
+    search_tree(battery::make_shared<IST, Allocator>(IST(tree_ty, ipc, split))),
     bab(bab_ty, search_tree)
   {}
 
+  template <class SF>
   CUDA thrust::optional<TellType> interpret(SF& sf) {
     infer_type(sf.formula(), sty, pty);
     return bab.interpret(sf);
@@ -96,8 +96,13 @@ private:
 
 public:
   CUDA void refine(int i, BInc& has_changed) {
-    SHARED bool is_underappx;
-    SHARED bool continue_refining;
+    #ifdef __CUDA_ARCH__
+      SHARED bool is_underappx;
+      SHARED bool continue_refining;
+    #else
+      bool is_underappx;
+      bool continue_refining;
+    #endif
     if(i == 0) {
       is_underappx = bab.extract(bab);
       continue_refining = !is_underappx && !stop;
