@@ -13,18 +13,6 @@
 
 using namespace lala;
 
-// CUDA void print_variables(const IStore& store) {
-//   const auto& env = store.environment();
-//   for(int i = 0; i < env.size(); ++i) {
-//     const auto& vname = env[i];
-//     vname.print();
-//     printf("=");
-//     store.project(*(env.to_avar(vname))).print();
-//     printf("  ");
-//   }
-//   printf("\n");
-// }
-
 // Inspired by https://stackoverflow.com/questions/39513830/launch-cuda-kernel-with-a-timeout/39514902
 // Timeout expected in seconds.
 void guard_timeout(int timeout, bool& stop) {
@@ -56,7 +44,8 @@ CUDA void run_solver(SFormula<Allocator>& sf, bool& stop, Statistics& stats) {
 #ifdef __NVCC__
 
 CUDA_GLOBAL void gpu_run_solver(const SFormula<battery::ManagedAllocator>& sf, bool& stop, Statistics& stats) {
-  SFormula<battery::GlobalAllocatorGPU> sf_in_global(sf);
+  using GA = battery::GlobalAllocatorGPU;
+  SFormula<GA> sf_in_global(sf);
   run_solver<AsynchronousIterationGPU>(sf_in_global, stop, stats);
 }
 
@@ -88,6 +77,15 @@ public:
   }
 };
 
+void increase_stack_heap_limit(size_t heap_factor, size_t stack_factor) {
+  size_t heap_limit;
+  size_t stack_limit;
+  cudaDeviceGetLimit(&heap_limit, cudaLimitMallocHeapSize);
+  cudaDeviceGetLimit(&stack_limit, cudaLimitStackSize);
+  cudaDeviceSetLimit(cudaLimitMallocHeapSize, heap_limit * heap_factor);
+  cudaDeviceSetLimit(cudaLimitStackSize, stack_limit * stack_factor);
+}
+
 template <class Allocator>
 void bench_solver(Configuration& config) {
   XCSP3Core::XCSP3_turbo_callbacks<Allocator> cb;
@@ -102,6 +100,7 @@ void bench_solver(Configuration& config) {
   else {
     #ifdef __NVCC__
       if constexpr(std::is_same_v<Allocator, battery::ManagedAllocator>) {
+        increase_stack_heap_limit(10, 10);
         gpu_run_solver<<<config.or_nodes, config.and_nodes>>>(*sf, bencher.stop_ref(), stats->local);
         CUDIE(cudaDeviceSynchronize());
       }

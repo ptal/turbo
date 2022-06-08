@@ -94,6 +94,18 @@ private:
     }
   }
 
+  CUDA void print_variables() {
+    const auto& env = store->environment();
+    for(int i = 0; i < env.size(); ++i) {
+      const auto& vname = env[i];
+      vname.print();
+      printf("=");
+      store->project(*(env.to_avar(vname))).print();
+      printf("  ");
+    }
+    printf("\n");
+  }
+
 public:
   CUDA void refine(int i, BInc& has_changed) {
     #ifdef __CUDA_ARCH__
