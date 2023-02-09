@@ -3,6 +3,12 @@ cmake_minimum_required(VERSION 3.20)
 include(FetchContent)
 include(CMakePrintHelpers)
 
+# Avoid warning about DOWNLOAD_EXTRACT_TIMESTAMP in CMake 3.24:
+# Fix found at https://github.com/ethereum/solidity/pull/13429
+if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
+  cmake_policy(SET CMP0135 NEW)
+endif()
+
 project(Turbo LANGUAGES CUDA CXX)
 option(GPU "GPU" ON)
 
@@ -14,16 +20,6 @@ endif()
 if(NOT DEFINED CMAKE_CUDA_STANDARD)
     set(CMAKE_CUDA_STANDARD 17)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-endif()
-
-# A new configuration mode "LDebug" for light debug.
-
-if(CMAKE_CONFIGURATION_TYPES)
-  list(APPEND CMAKE_CONFIGURATION_TYPES LDebug)
-  list(REMOVE_DUPLICATES CMAKE_CONFIGURATION_TYPES)
-  set(CMAKE_CONFIGURATION_TYPES "${CMAKE_CONFIGURATION_TYPES}" CACHE STRING
-    "Add a light debug configuration (LDebug)"
-    FORCE)
 endif()
 
 # XCSP3 C++ Parser dependency
@@ -42,35 +38,35 @@ FetchContent_MakeAvailable(xcsp3parser)
 FetchContent_Declare(
   cuda_battery
   GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
-  GIT_TAG        main
+  GIT_TAG        develop
 )
 FetchContent_MakeAvailable(cuda_battery)
 
 FetchContent_Declare(
   lala_core
   GIT_REPOSITORY "https://github.com/lattice-land/lala-core.git"
-  GIT_TAG        main
+  GIT_TAG        develop
 )
 FetchContent_MakeAvailable(lala_core)
 
 FetchContent_Declare(
   lala_parsing
   GIT_REPOSITORY "https://github.com/lattice-land/lala-parsing.git"
-  GIT_TAG        main
+  GIT_TAG        develop
 )
 FetchContent_MakeAvailable(lala_parsing)
 
 FetchContent_Declare(
-  lala_ipc
-  GIT_REPOSITORY "https://github.com/lattice-land/lala-ipc.git"
-  GIT_TAG        main
+  lala_pc
+  GIT_REPOSITORY "https://github.com/lattice-land/lala-pc.git"
+  GIT_TAG        develop
 )
-FetchContent_MakeAvailable(lala_ipc)
+FetchContent_MakeAvailable(lala_pc)
 
 FetchContent_Declare(
   lala_search
   GIT_REPOSITORY "https://github.com/lattice-land/lala-search.git"
-  GIT_TAG        main
+  GIT_TAG        develop
 )
 FetchContent_MakeAvailable(lala_search)
 
@@ -95,7 +91,7 @@ if(GPU)
 endif()
 
 add_executable(turbo src/turbo.cpp src/config.cpp)
-target_include_directories(turbo PRIVATE include ${LIBXML2_INCLUDE_DIR} ${lala_parsing_SOURCE_DIR}/include ${lala_ipc_SOURCE_DIR}/include ${lala_search_SOURCE_DIR}/include ${xcsp3parser_SOURCE_DIR}/include ${cuda_battery_SOURCE_DIR}/include ${lala_core_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
+target_include_directories(turbo PRIVATE include ${LIBXML2_INCLUDE_DIR} ${cpp-peglib_SOURCE_DIR} ${lala_parsing_SOURCE_DIR}/include ${lala_pc_SOURCE_DIR}/include ${lala_search_SOURCE_DIR}/include ${xcsp3parser_SOURCE_DIR}/include ${cuda_battery_SOURCE_DIR}/include ${lala_core_SOURCE_DIR}/include ${thrust_SOURCE_DIR})
 if(GPU)
     set_property(TARGET turbo PROPERTY CUDA_ARCHITECTURES 75)
     set_property(TARGET turbo APPEND PROPERTY CUDA_SEPARABLE_COMPILATION ON)
