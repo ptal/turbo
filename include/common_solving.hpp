@@ -32,10 +32,40 @@
 using namespace lala;
 using namespace battery;
 
-const AType sty = 0;
-const AType pty = 1;
-const AType tty = 2;
-const AType split_ty = 3;
-const AType bab_ty = 4;
+template <class Universe, class Allocator, class ManagedAlloc = Allocator>
+struct AbstractDomains {
+  const int sty = 0;
+  const int pty = 1;
+  const int tty = 2;
+  const int split_ty = 3;
+  const int bab_ty = 4;
+
+  using IStore = VStore<Universe, Allocator>;
+  using IPC = PC<IStore>; // Interval Propagators Completion
+  using ISplitInputLB = Split<IPC, InputOrder<IPC>, LowerBound<IPC>>;
+  using IST = SearchTree<IPC, ISplitInputLB>;
+  using IBAB = BAB<IST>;
+
+  template <class Alloc>
+  AbstractDomains(const Configuration<Alloc>& config):
+    config(config) {}
+
+  AbstractDomains(AbstractDomains&& other) = default;
+
+  shared_ptr<IStore, Allocator> store;
+  shared_ptr<IPC, Allocator> ipc;
+  shared_ptr<ISplitInputLB, Allocator> split;
+  shared_ptr<IST, Allocator> search_tree;
+  shared_ptr<IBAB, Allocator> bab;
+
+  // The environment of variables, storing the mapping between variable's name and their representation in the abstract domains.
+  VarEnv<Allocator> env;
+
+  // Information about the output of the solutions expected by MiniZinc.
+  FlatZincOutput<ManagedAlloc> fzn_output;
+
+  Configuration<ManagedAlloc> config;
+  Statistics stats;
+};
 
 #endif

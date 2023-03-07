@@ -20,6 +20,11 @@
 #include "utility.hpp"
 
 struct Statistics {
+  size_t variables;
+  size_t constraints;
+  bool optimization;
+  int64_t duration;
+  int64_t interpretation_duration;
   int nodes;
   int fails;
   int solutions;
@@ -27,10 +32,28 @@ struct Statistics {
   int depth_max;
   int exhaustive;
 
-  CUDA Statistics(): nodes(0), fails(0), solutions(0),
+  CUDA Statistics(size_t variables, size_t constraints, bool optimization):
+    variables(variables), constraints(constraints), optimization(optimization),
+    duration(0), interpretation_duration(0),
+    nodes(0), fails(0), solutions(0),
     best_bound(-1), depth_max(0), exhaustive(true) {}
 
+  CUDA Statistics(): Statistics(0,0,false) {}
+  Statistics(const Statistics&) = default;
+  Statistics(Statistics&&) = default;
+
+  /** Reset the statistics of a subtree of the search tree, but keep the global statistics: max_depth, best_bound, variables, constraints, optimization, exhaustive. */
+  CUDA void reset_local_stats() {
+    duration = 0;
+    interpretation_duration = 0;
+    nodes = 0;
+    fails = 0;
+    solutions = 0;
+  }
+
   CUDA void join(const Statistics& other) {
+    duration += other.duration;
+    interpretation_duration += other.interpretation_duration;
     nodes += other.nodes;
     fails += other.fails;
     solutions += other.solutions;
@@ -43,35 +66,20 @@ struct Statistics {
     depth_max = std::max(depth_max, other.depth_max);
     exhaustive = exhaustive && other.exhaustive;
   }
-};
-
-struct GlobalStatistics {
-  size_t variables;
-  size_t constraints;
-  bool optimization;
-  int64_t duration;
-  int64_t interpretation_duration;
-  Statistics local;
-
-  GlobalStatistics(size_t variables, size_t constraints, bool optimization):
-    variables(variables), constraints(constraints), optimization(optimization), duration(0), interpretation_duration(0), local() {}
-
-  GlobalStatistics(size_t variables, size_t constraints, int64_t duration, Statistics local):
-    variables(variables), constraints(constraints), duration(duration), local(local) {}
 
   static void print_csv_header() {
     printf("nodes, fails, solutions, depthmax, variables, constraints, satisfiability, exhaustivity, time, optimum\n");
   }
 
   void print_csv() const {
-    printf("%d, %d, %d, %d, %ld, %ld, ", local.nodes, local.fails, local.solutions, local.depth_max, variables, constraints);
-    if(local.best_bound != -1) {
+    printf("%d, %d, %d, %d, %ld, %ld, ", nodes, fails, solutions, depth_max, variables, constraints);
+    if(best_bound != -1) {
       printf("sat, ");
-      if(local.exhaustive) { printf("true, "); }
+      if(exhaustive) { printf("true, "); }
       else { printf("false, "); }
-      printf("%.2lf, %d\n", to_sec(duration), local.best_bound);
+      printf("%.2lf, %d\n", to_sec(duration), best_bound);
     }
-    else if(local.exhaustive) {
+    else if(exhaustive) {
       printf("unsat, true, %.2lf, unsat\n", to_sec(duration));
     }
     else {
@@ -94,17 +102,17 @@ private:
 
 public:
   CUDA void print_mzn_statistics() const {
-    print_stat("nodes", local.nodes);
-    print_stat("failures", local.fails);
+    print_stat("nodes", nodes);
+    print_stat("failures", fails);
     print_stat("variables", (int)variables);
     print_stat("propagators", (int)constraints);
-    print_stat("peakDepth", local.depth_max);
-    if(local.best_bound != -1) {
-      print_stat("objective", local.best_bound);
+    print_stat("peakDepth", depth_max);
+    if(best_bound != -1) {
+      print_stat("objective", best_bound);
     }
     print_stat("initTime", to_sec(interpretation_duration));
     print_stat("solveTime", to_sec(duration));
-    print_stat("solutions", local.solutions);
+    print_stat("solutions", solutions);
   }
 
   CUDA void print_mzn_separator() const {
@@ -112,14 +120,14 @@ public:
   }
 
   CUDA void print_mzn_final_separator() const {
-    if(local.solutions > 0) {
-      if(local.exhaustive) {
+    if(solutions > 0) {
+      if(exhaustive) {
         printf("==========\n");
       }
     }
     else {
-      assert(local.solutions == 0);
-      if(local.exhaustive) {
+      assert(solutions == 0);
+      if(exhaustive) {
         printf("=====UNSATISFIABLE=====\n");
       }
       else if(optimization) {

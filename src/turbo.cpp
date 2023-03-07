@@ -7,18 +7,14 @@
 int main(int argc, char** argv) {
   try
   {
-    Configuration config = parse_args(argc, argv);
-    GlobalStatistics stats(10, 10, false);
+    Configuration<StandardAllocator> config = parse_args(argc, argv);
     printf("%%");
     config.print_commandline(argv[0]);
     if(config.arch == CPU) {
-      cpu_solve(config, stats);
+      cpu_solve(config);
     }
     else if(config.arch == GPU) {
-      gpu_solve(config, stats);
-    }
-    if(config.print_statistics) {
-      stats.print_mzn_statistics();
+      gpu_solve(config);
     }
   }
   catch (std::exception &e)

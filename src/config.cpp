@@ -87,8 +87,8 @@ public:
   }
 };
 
-Configuration parse_args(int argc, char** argv) {
-  Configuration config;
+Configuration<battery::StandardAllocator> parse_args(int argc, char** argv) {
+  Configuration<battery::StandardAllocator> config;
   InputParser input(argc, argv);
 
   if(input.cmdOptionExists("-or") && input.cmdOptionExists("-p")) {
@@ -124,6 +124,8 @@ Configuration parse_args(int argc, char** argv) {
       exit(EXIT_FAILURE);
     }
   }
-  input.read_input_file(config.problem_path);
+  std::string problem_path;
+  input.read_input_file(problem_path);
+  config.problem_path = battery::string<battery::StandardAllocator>(problem_path.data());
   return config;
 }
