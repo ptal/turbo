@@ -3,8 +3,8 @@
 #ifndef CONFIG_HPP
 #define CONFIG_HPP
 
-#include "allocator.hpp"
-#include "string.hpp"
+#include "battery/allocator.hpp"
+#include "battery/string.hpp"
 
 #define OR_NODES 48
 #define AND_NODES 256
@@ -82,6 +82,6 @@ struct Configuration {
 };
 
 void usage_and_exit(const std::string& program_name);
-Configuration<battery::StandardAllocator> parse_args(int argc, char** argv);
+Configuration<battery::standard_allocator> parse_args(int argc, char** argv);
 
 #endif
