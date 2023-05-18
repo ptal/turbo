@@ -7,7 +7,7 @@
 int main(int argc, char** argv) {
   try
   {
-    Configuration<StandardAllocator> config = parse_args(argc, argv);
+    Configuration<standard_allocator> config = parse_args(argc, argv);
     printf("%%");
     config.print_commandline(argv[0]);
     if(config.arch == CPU) {

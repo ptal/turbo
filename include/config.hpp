@@ -72,10 +72,10 @@ struct Configuration {
       (verbose_solving ? "-v " : "")
     );
     if(arch == GPU) {
-      printf("-or %d -and %d -sub %d ", or_nodes, and_nodes, subproblems_power);
+      printf("-arch gpu -or %d -and %d -sub %d ", or_nodes, and_nodes, subproblems_power);
     }
     else {
-      printf("-p %d ", or_nodes);
+      printf("-arch cpu -p %d ", or_nodes);
     }
     printf("%s\n", problem_path.data());
   }

@@ -45,11 +45,16 @@ bool check_timeout(A& a, const Timepoint& start) {
 
 template <class Universe, class Allocator, class FastAllocator = Allocator>
 struct AbstractDomains {
+  /** Version of the abstract domains with a simple allocator, to represent the best solutions. */
+  using LIStore = VStore<typename Universe::local_type, Allocator>;
+  using LIPC = PC<LIStore, Allocator>; // Interval Propagators Completion
+  using LIST = SearchTree<LIPC>;
+
   using IStore = VStore<Universe, FastAllocator>;
   using IPC = PC<IStore, Allocator>; // Interval Propagators Completion
   using Split = SplitStrategy<IPC>;
   using IST = SearchTree<IPC>;
-  using IBAB = BAB<IST>;
+  using IBAB = BAB<IST, LIST>;
 
   template <class U2, class Alloc2, class FastAllocator2>
   CUDA AbstractDomains(const AbstractDomains<U2, Alloc2, FastAllocator2>& other,
@@ -61,15 +66,15 @@ struct AbstractDomains {
    , env(other.env)
   {
     AbstractDeps<Allocator, FastAllocator> deps(allocator, fast_allocator);
-    store = deps.clone(other.store);
-    ipc = deps.clone(other.ipc);
-    split = deps.clone(other.split);
-    search_tree = deps.clone(other.search_tree);
-    bab = deps.clone(other.bab);
+    store = deps.template clone<IStore>(other.store);
+    ipc = deps.template clone<IPC>(other.ipc);
+    split = deps.template clone<Split>(other.split);
+    search_tree = deps.template clone<IST>(other.search_tree);
+    bab = deps.template clone<IBAB>(other.bab);
   }
 
   template <class Alloc>
-  AbstractDomains(const Configuration<Alloc>& config):
+  CUDA AbstractDomains(const Configuration<Alloc>& config):
     config(config) {}
 
   AbstractDomains(AbstractDomains&& other) = default;
@@ -111,7 +116,7 @@ struct AbstractDomains {
 
   template <class F>
   CUDA bool interpret(const F& f) {
-    auto r = bab->interpret_in(f, env);
+    auto r = bab->interpret_tell_in(f, env);
     if(!r.has_value()) {
       r.print_diagnostics();
       return false;
@@ -120,7 +125,36 @@ struct AbstractDomains {
     bab->tell(std::move(r.value()), has_changed);
     stats.variables = store->vars();
     stats.constraints = ipc->num_refinements();
+    if(split->num_strategies() == 0) {
+      return interpret_default_strategy<F>();
+    }
+    return true;
   }
+
+private:
+  template <class F>
+  CUDA bool interpret_default_strategy() {
+    if(config.verbose_solving) {
+      printf("%%No split strategy provided, using the default one (first_fail, indomain_split).\n");
+    }
+    typename F::Sequence seq;
+    seq.push_back(F::make_nary("first_fail", {}));
+    seq.push_back(F::make_nary("indomain_split", {}));
+    for(int i = 0; i < env.num_vars(); ++i) {
+      seq.push_back(F::make_avar(env[i].avars[0]));
+    }
+    F search_strat = F::make_nary("search", std::move(seq));
+    auto r = bab->interpret_tell_in(search_strat, env);
+    if(!r.has_value()) {
+      r.print_diagnostics();
+      return false;
+    }
+    local::BInc has_changed;
+    bab->tell(std::move(r.value()), has_changed);
+    return true;
+  }
+
+public:
 
   CUDA void print_store() const {
     for(int i = 0; i < store->vars(); ++i) {
@@ -137,6 +171,7 @@ struct AbstractDomains {
     fzn_output.print_solution(env, bab->optimum());
     stats.print_mzn_separator();
     stats.solutions++;
+    stats.depth_max = battery::max(stats.depth_max, search_tree->depth());
     if(config.stop_after_n_solutions != 0 &&
        stats.solutions >= config.stop_after_n_solutions)
     {
@@ -148,6 +183,21 @@ struct AbstractDomains {
 
   CUDA void on_failed_node() {
     stats.fails += 1;
+    stats.depth_max = battery::max(stats.depth_max, search_tree->depth());
+  }
+
+  CUDA void on_finish() {
+    stats.print_mzn_final_separator();
+    if(config.print_statistics) {
+      stats.print_mzn_statistics();
+      stats.print_mzn_objective(*bab);
+    }
+  }
+
+  template <class U2, class Alloc2, class FastAlloc2>
+  CUDA void join(AbstractDomains<U2, Alloc2, FastAlloc2>& other) {
+    other.bab->extract(*bab);
+    stats.join(other.stats);
   }
 };
 

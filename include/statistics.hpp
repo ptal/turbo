@@ -17,7 +17,7 @@
 
 #include <chrono>
 #include <algorithm>
-#include "utility.hpp"
+#include "battery/utility.hpp"
 
 struct Statistics {
   size_t variables;
@@ -25,18 +25,17 @@ struct Statistics {
   bool optimization;
   int64_t duration;
   int64_t interpretation_duration;
-  int nodes;
-  int fails;
-  int solutions;
-  int best_bound;
-  int depth_max;
-  int exhaustive;
+  size_t nodes;
+  size_t fails;
+  size_t solutions;
+  size_t depth_max;
+  size_t exhaustive;
 
   CUDA Statistics(size_t variables, size_t constraints, bool optimization):
     variables(variables), constraints(constraints), optimization(optimization),
     duration(0), interpretation_duration(0),
     nodes(0), fails(0), solutions(0),
-    best_bound(-1), depth_max(0), exhaustive(true) {}
+    depth_max(0), exhaustive(true) {}
 
   CUDA Statistics(): Statistics(0,0,false) {}
   Statistics(const Statistics&) = default;
@@ -57,39 +56,13 @@ struct Statistics {
     nodes += other.nodes;
     fails += other.fails;
     solutions += other.solutions;
-    if(best_bound == -1) {
-      best_bound = other.best_bound;
-    }
-    else if(other.best_bound != -1) {
-      best_bound = std::min(best_bound, other.best_bound);
-    }
-    depth_max = std::max(depth_max, other.depth_max);
+    depth_max = battery::max(depth_max, other.depth_max);
     exhaustive = exhaustive && other.exhaustive;
   }
 
-  static void print_csv_header() {
-    printf("nodes, fails, solutions, depthmax, variables, constraints, satisfiability, exhaustivity, time, optimum\n");
-  }
-
-  void print_csv() const {
-    printf("%d, %d, %d, %d, %ld, %ld, ", nodes, fails, solutions, depth_max, variables, constraints);
-    if(best_bound != -1) {
-      printf("sat, ");
-      if(exhaustive) { printf("true, "); }
-      else { printf("false, "); }
-      printf("%.2lf, %d\n", to_sec(duration), best_bound);
-    }
-    else if(exhaustive) {
-      printf("unsat, true, %.2lf, unsat\n", to_sec(duration));
-    }
-    else {
-      printf("unknown, false, %.2lf, none\n", to_sec(duration));
-    }
-  }
-
 private:
-  CUDA void print_stat(const char* name, int value) const {
-    printf("%%%%%%mzn-stat: %s=%d\n", name, value);
+  CUDA void print_stat(const char* name, size_t value) const {
+    printf("%%%%%%mzn-stat: %s=%lu\n", name, value);
   }
 
   CUDA void print_stat(const char* name, double value) const {
@@ -104,15 +77,21 @@ public:
   CUDA void print_mzn_statistics() const {
     print_stat("nodes", nodes);
     print_stat("failures", fails);
-    print_stat("variables", (int)variables);
-    print_stat("propagators", (int)constraints);
+    print_stat("variables", variables);
+    print_stat("propagators", constraints);
     print_stat("peakDepth", depth_max);
-    if(best_bound != -1) {
-      print_stat("objective", best_bound);
-    }
     print_stat("initTime", to_sec(interpretation_duration));
     print_stat("solveTime", to_sec(duration));
     print_stat("solutions", solutions);
+  }
+
+  template <class BAB>
+  CUDA void print_mzn_objective(const BAB& bab) const {
+    if(!bab.objective_var().is_untyped()) {
+      printf("%%%%%%mzn-stat: objective=");
+      bab.optimum().project(bab.objective_var()).print();
+      printf("\n");
+    }
   }
 
   CUDA void print_mzn_separator() const {
