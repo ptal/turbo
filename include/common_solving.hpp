@@ -43,63 +43,115 @@ bool check_timeout(A& a, const Timepoint& start) {
   return true;
 }
 
-template <class Universe, class Allocator, class FastAllocator = Allocator>
+/** This is a simple wrapper aimed at giving a unique type to the allocator, to use them in AbstractDeps. */
+template <class Alloc, size_t n>
+struct UniqueAlloc {
+  Alloc allocator;
+  CUDA UniqueAlloc(const Alloc& alloc): allocator(alloc) {}
+  UniqueAlloc(const UniqueAlloc& alloc) = default;
+  UniqueAlloc& operator=(const UniqueAlloc& alloc) = default;
+  CUDA void* allocate(size_t bytes) {
+    return allocator.allocate(bytes);
+  }
+  CUDA void deallocate(void* data) {
+    return allocator.deallocate(data);
+  }
+};
+
+template <class Alloc, size_t n>
+struct UniqueLightAlloc {
+  CUDA void* allocate(size_t bytes) {
+    return Alloc{}.allocate(bytes);
+  }
+  CUDA void deallocate(void* data) {
+    return Alloc{}.deallocate(data);
+  }
+};
+
+/** This class is parametrized by a universe of discourse, which is the domain of the variables in the store and various allocators:
+ * - BasicAllocator: default allocator, used to allocate abstract domains, the environment, storing intermediate results, etc.
+ * - PropAllocator: allocator used for the PC abstract domain, to allocate the propagators.
+ * - StoreAllocator: allocator used for the store, to allocate the variables.
+ *
+ * Normally, you should use the fastest memory for the store, then for the propagators and then for the rest.
+ */
+template <class Universe,
+  class BasicAllocator,
+  class PropAllocator,
+  class StoreAllocator>
 struct AbstractDomains {
   /** Version of the abstract domains with a simple allocator, to represent the best solutions. */
-  using LIStore = VStore<typename Universe::local_type, Allocator>;
-  using LIPC = PC<LIStore, Allocator>; // Interval Propagators Completion
-  using LIST = SearchTree<LIPC>;
+  using LIStore = VStore<typename Universe::local_type, BasicAllocator>;
 
-  using IStore = VStore<Universe, FastAllocator>;
-  using IPC = PC<IStore, Allocator>; // Interval Propagators Completion
-  using Split = SplitStrategy<IPC>;
-  using IST = SearchTree<IPC>;
-  using IBAB = BAB<IST, LIST>;
+  using IStore = VStore<Universe, StoreAllocator>;
+  using IPC = PC<IStore, PropAllocator>; // Interval Propagators Completion
+  using Split = SplitStrategy<IPC, BasicAllocator>;
+  using IST = SearchTree<IPC, Split, BasicAllocator>;
+  using IBAB = BAB<IST, LIStore>;
 
-  template <class U2, class Alloc2, class FastAllocator2>
-  CUDA AbstractDomains(const AbstractDomains<U2, Alloc2, FastAllocator2>& other,
-    const Allocator& allocator = Allocator(),
-    const FastAllocator fast_allocator = FastAllocator())
-   : fzn_output(other.fzn_output)
-   , config(other.config)
+  template <class U2, class BasicAlloc2, class PropAllocator2, class StoreAllocator2>
+  CUDA AbstractDomains(const AbstractDomains<U2, BasicAlloc2, PropAllocator2, StoreAllocator2>& other,
+    const BasicAllocator& basic_allocator = BasicAllocator(),
+    const PropAllocator& prop_allocator = PropAllocator(),
+    const StoreAllocator& store_allocator = StoreAllocator())
+   : basic_allocator(basic_allocator)
+   , prop_allocator(prop_allocator)
+   , store_allocator(store_allocator)
+   , fzn_output(other.fzn_output, basic_allocator)
+   , config(other.config, basic_allocator)
    , stats(other.stats)
-   , env(other.env)
+   , env(other.env, basic_allocator)
   {
-    AbstractDeps<Allocator, FastAllocator> deps(allocator, fast_allocator);
+    AbstractDeps<BasicAllocator, PropAllocator, StoreAllocator> deps{basic_allocator, prop_allocator, store_allocator};
     store = deps.template clone<IStore>(other.store);
     ipc = deps.template clone<IPC>(other.ipc);
     split = deps.template clone<Split>(other.split);
     search_tree = deps.template clone<IST>(other.search_tree);
+    best = deps.template clone<LIStore>(other.best);
     bab = deps.template clone<IBAB>(other.bab);
   }
 
   template <class Alloc>
-  CUDA AbstractDomains(const Configuration<Alloc>& config):
-    config(config) {}
+  CUDA AbstractDomains(const Configuration<Alloc>& config,
+   const BasicAllocator& basic_allocator = BasicAllocator(),
+   const PropAllocator& prop_allocator = PropAllocator(),
+   const StoreAllocator store_allocator = StoreAllocator())
+  : basic_allocator(basic_allocator)
+  , prop_allocator(prop_allocator)
+  , store_allocator(store_allocator)
+  , config(config, basic_allocator)
+  {}
 
   AbstractDomains(AbstractDomains&& other) = default;
 
-  shared_ptr<IStore, Allocator> store;
-  shared_ptr<IPC, Allocator> ipc;
-  shared_ptr<Split, Allocator> split;
-  shared_ptr<IST, Allocator> search_tree;
-  shared_ptr<IBAB, Allocator> bab;
+  BasicAllocator basic_allocator;
+  PropAllocator prop_allocator;
+  StoreAllocator store_allocator;
+
+  abstract_ptr<IStore> store;
+  abstract_ptr<IPC> ipc;
+  abstract_ptr<Split> split;
+  abstract_ptr<IST> search_tree;
+  abstract_ptr<LIStore> best;
+  abstract_ptr<IBAB> bab;
 
   // The environment of variables, storing the mapping between variable's name and their representation in the abstract domains.
-  VarEnv<Allocator> env;
+  VarEnv<BasicAllocator> env;
 
   // Information about the output of the solutions expected by MiniZinc.
-  FlatZincOutput<Allocator> fzn_output;
+  FlatZincOutput<BasicAllocator> fzn_output;
 
-  Configuration<Allocator> config;
+  Configuration<BasicAllocator> config;
   Statistics stats;
 
   CUDA void allocate(int num_vars) {
-    store = make_shared<IStore, Allocator>(env.extends_abstract_dom(), num_vars);
-    ipc = make_shared<IPC, Allocator>(env.extends_abstract_dom(), store);
-    split = make_shared<Split, Allocator>(env.extends_abstract_dom(), ipc);
-    search_tree = make_shared<IST, Allocator>(env.extends_abstract_dom(), ipc, split);
-    bab = make_shared<IBAB, Allocator>(env.extends_abstract_dom(), search_tree);
+    store = allocate_shared<IStore, StoreAllocator>(store_allocator, env.extends_abstract_dom(), num_vars, store_allocator);
+    ipc = allocate_shared<IPC, PropAllocator>(prop_allocator, env.extends_abstract_dom(), store, prop_allocator);
+    split = allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
+    search_tree = allocate_shared<IST, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, split, basic_allocator);
+    // Note that best must have the same abstract type then store (otherwise projection of the variables will fail).
+    best = allocate_shared<LIStore, BasicAllocator>(basic_allocator, store->aty(), num_vars, basic_allocator);
+    bab = allocate_shared<IBAB, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), search_tree, best);
     if(config.verbose_solving) {
       printf("%%Abstract domain allocated.\n");
     }
@@ -110,6 +162,7 @@ struct AbstractDomains {
     ipc = nullptr;
     split = nullptr;
     search_tree = nullptr;
+    best = nullptr;
     bab = nullptr;
     env = VarEnv<standard_allocator>{}; // this is to release the memory used by `VarEnv`.
   }
@@ -194,8 +247,8 @@ public:
     }
   }
 
-  template <class U2, class Alloc2, class FastAlloc2>
-  CUDA void join(AbstractDomains<U2, Alloc2, FastAlloc2>& other) {
+  template <class U2, class BasicAlloc2, class PropAlloc2, class StoreAlloc2>
+  CUDA void join(AbstractDomains<U2, BasicAlloc2, PropAlloc2, StoreAlloc2>& other) {
     other.bab->extract(*bab);
     stats.join(other.stats);
   }

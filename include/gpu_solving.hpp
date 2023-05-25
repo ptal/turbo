@@ -9,17 +9,34 @@
 #ifdef __NVCC__
 
 using F = TFormula<managed_allocator>;
-using FormulaPtr = battery::shared_ptr<F, battery::managed_allocator>;
+using FormulaPtr = battery::shared_ptr<F, managed_allocator>;
 
 /** We first interpret the formula in an abstract domain with sequential managed memory, that we call `A0`. */
 using Itv0 = Interval<local::ZInc>;
-using A0 = AbstractDomains<Itv0, managed_allocator>;
+using A0 = AbstractDomains<Itv0,
+  managed_allocator,
+  UniqueLightAlloc<managed_allocator, 0>,
+  UniqueLightAlloc<managed_allocator, 1>>;
 
 /** Then, once everything is initialized, we rely on a parallel abstract domain called `A1`, using atomic global memory. */
 using Itv1 = Interval<ZInc<int, atomic_memory_block<global_allocator>>>;
 using AtomicBInc = BInc<atomic_memory_block<global_allocator>>;
 using FPEngine = BlockAsynchronousIterationGPU<global_allocator>;
-using A1 = AbstractDomains<Itv1, global_allocator>;
+// using A1 = AbstractDomains<Itv1, global_allocator, pool_allocator>;
+using A1 = AbstractDomains<Itv1,
+  global_allocator,
+  UniqueLightAlloc<global_allocator, 0>,
+  UniqueLightAlloc<global_allocator, 1>>;
+
+using A2 = AbstractDomains<Itv1,
+  global_allocator,
+  UniqueLightAlloc<global_allocator, 0>,
+  pool_allocator>;
+
+using A3 = AbstractDomains<Itv1,
+  global_allocator,
+  UniqueAlloc<pool_allocator, 0>,
+  pool_allocator>;
 
 /** We have one abstract element `A1` per GPU block. */
 struct BlockData {
@@ -60,6 +77,7 @@ __global__ void gpu_solve_kernel(A0* a0, bool* is_timeout)
       auto block = cooperative_groups::this_thread_block();
       block_data->fp_engine = make_shared<FPEngine, global_allocator>(block);
       block_data->has_changed = make_shared<AtomicBInc, global_allocator>(true);
+      // pool_allocator shared_mem_pool{};
       block_data->a1 = make_shared<A1, global_allocator>(*a0);
       printf("%%GPU_block_size=%d\n", blockDim.x);
     }
@@ -131,6 +149,9 @@ void gpu_solve(const Configuration<standard_allocator>& config) {
   #else
   auto start = std::chrono::high_resolution_clock::now();
 
+  cudaDeviceProp deviceProp;
+  cudaGetDeviceProperties(&deviceProp, 0);
+  size_t shared_mem_capacity = deviceProp.sharedMemPerBlock;
   auto a0 = make_shared<A0, managed_allocator>(config);
   // I. Parse the FlatZinc model.
   FormulaPtr f = parse_flatzinc<managed_allocator>(a0->config.problem_path.data(), a0->fzn_output);
@@ -142,6 +163,22 @@ void gpu_solve(const Configuration<standard_allocator>& config) {
   printf("%%FlatZinc parsed\n");
 
   increase_memory_limits();
+
+  // printf("  Total amount of constant memory:               %zu bytes\n",
+  //       deviceProp.totalConstMem);
+  // printf("  Total amount of shared memory per block:       %zu bytes\n",
+  //         );
+  // printf("  Total shared memory per multiprocessor:        %zu bytes\n",
+  //         deviceProp.sharedMemPerMultiprocessor);
+  // printf("  Total amount of global memory:                 %.0f MBytes "
+  //     "(%llu bytes)\n",
+  //     static_cast<float>(deviceProp.totalGlobalMem / 1048576.0f),
+  //     (unsigned long long)deviceProp.totalGlobalMem);
+  // printf("  Maximum number of threads per multiprocessor:  %d\n",
+  //          deviceProp.maxThreadsPerMultiProcessor);
+  // printf("  Maximum number of threads per block:           %d\n",
+  //          deviceProp.maxThreadsPerBlock);
+  // printf("  Number of SMs: %lu\n", deviceProp.multiProcessorCount);
 
   auto failure = make_shared<bool, managed_allocator>(false);
   auto is_timeout = make_shared<bool, managed_allocator>(false);

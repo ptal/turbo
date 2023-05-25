@@ -6,7 +6,10 @@
 #include "common_solving.hpp"
 
 using Itv = Interval<local::ZInc>;
-using A = AbstractDomains<Itv, standard_allocator>;
+using A = AbstractDomains<Itv,
+  standard_allocator,
+  UniqueLightAlloc<standard_allocator, 0>,
+  UniqueLightAlloc<standard_allocator, 1>>;
 
 void cpu_solve(const Configuration<standard_allocator>& config) {
   auto start = std::chrono::high_resolution_clock::now();
