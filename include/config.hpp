@@ -1,7 +1,7 @@
 // Copyright 2022 Pierre Talbot
 
-#ifndef CONFIG_HPP
-#define CONFIG_HPP
+#ifndef TURBO_CONFIG_HPP
+#define TURBO_CONFIG_HPP
 
 #include "battery/allocator.hpp"
 #include "battery/string.hpp"

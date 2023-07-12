@@ -8,60 +8,164 @@
   "configurePresets": [
     {
       "name": "default",
-      "displayName": "Default configuration",
+      "hidden": true,
       "binaryDir": "${sourceDir}/build/${presetName}"
+    },
+    {
+      "name": "default-gpu",
+      "hidden": true,
+      "inherits": "default",
+      "cacheVariables": {
+        "GPU": {
+          "type": "BOOL",
+          "value": "ON"
+        }
+      }
+    },
+    {
+      "name": "default-cpu",
+      "hidden": true,
+      "inherits": "default",
+      "cacheVariables": {
+        "GPU": {
+          "type": "BOOL",
+          "value": "OFF"
+        }
+      }
+    },
+    {
+      "name": "debug",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "release",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "verbose",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_VERBOSE_MAKEFILE": {
+          "type": "BOOL",
+          "value": "ON"
+        }
+      }
     },
     {
       "name": "gpu-debug",
       "displayName": "GPU Debug configuration",
       "description": "Build the project with CUDA NVCC compiler.",
-      "inherits": "default",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "GPU": {
-          "type": "BOOL",
-          "value": "ON"
-        }
-      }
+      "inherits": [
+        "default-gpu",
+        "debug",
+        "verbose"
+      ]
     },
     {
       "name": "gpu-release",
       "displayName": "GPU Release configuration",
       "description": "Build the project with CUDA NVCC compiler.",
-      "inherits": "default",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "GPU": {
-          "type": "BOOL",
-          "value": "ON"
-        }
-      }
-    },
-    {
-      "name": "cpu-release",
-      "displayName": "CPU Release configuration",
-      "description": "Build the project with a CPU compiler such as GCC.",
-      "inherits": "default",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "GPU": {
-          "type": "BOOL",
-          "value": "OFF"
-        }
-      }
+      "inherits": [
+        "default-gpu",
+        "release"
+      ]
     },
     {
       "name": "cpu-debug",
       "displayName": "CPU Debug configuration",
       "description": "Build the project with a CPU compiler such as GCC.",
-      "inherits": "default",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "GPU": {
-          "type": "BOOL",
-          "value": "OFF"
+      "inherits": [
+        "default-cpu",
+        "debug",
+        "verbose"
+      ]
+    },
+    {
+      "name": "cpu-release",
+      "displayName": "CPU Release configuration",
+      "description": "Build the project with a CPU compiler such as GCC.",
+      "inherits": [
+        "default-cpu",
+        "release"
+      ]
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "gpu-debug",
+      "configurePreset": "gpu-debug"
+    },
+    {
+      "name": "gpu-release",
+      "configurePreset": "gpu-release"
+    },
+    {
+      "name": "cpu-debug",
+      "configurePreset": "cpu-debug"
+    },
+    {
+      "name": "cpu-release",
+      "configurePreset": "cpu-release"
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "cpu-debug",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "cpu-debug"
+        },
+        {
+          "type": "build",
+          "name": "cpu-debug"
         }
-      }
+      ]
+    },
+    {
+      "name": "cpu-release",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "cpu-release"
+        },
+        {
+          "type": "build",
+          "name": "cpu-release"
+        }
+      ]
+    },
+    {
+      "name": "gpu-debug",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "gpu-debug"
+        },
+        {
+          "type": "build",
+          "name": "gpu-debug"
+        }
+      ]
+    },
+    {
+      "name": "gpu-release",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "gpu-release"
+        },
+        {
+          "type": "build",
+          "name": "gpu-release"
+        }
+      ]
     }
   ]
 }

@@ -1,7 +1,7 @@
 // Copyright 2023 Pierre Talbot
 
-#ifndef CPU_SOLVING_HPP
-#define CPU_SOLVING_HPP
+#ifndef TURBO_CPU_SOLVING_HPP
+#define TURBO_CPU_SOLVING_HPP
 
 #include "common_solving.hpp"
 

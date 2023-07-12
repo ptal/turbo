@@ -1,7 +1,7 @@
 // Copyright 2023 Pierre Talbot
 
-#ifndef COMMON_SOLVING_HPP
-#define COMMON_SOLVING_HPP
+#ifndef TURBO_COMMON_SOLVING_HPP
+#define TURBO_COMMON_SOLVING_HPP
 
 #include <algorithm>
 #include <chrono>
@@ -10,6 +10,7 @@
 #include "config.hpp"
 #include "statistics.hpp"
 
+#include "battery/utility.hpp"
 #include "battery/allocator.hpp"
 #include "battery/vector.hpp"
 #include "battery/shared_ptr.hpp"
@@ -29,6 +30,9 @@
 using namespace lala;
 using namespace battery;
 
+/** Check if the timeout of the current execution is exceeded and returns `false` otherwise.
+ * It also update the statistics relevant to the solving duration and the exhaustive flag if we reach the timeout.
+ */
 template <class A, class Timepoint>
 bool check_timeout(A& a, const Timepoint& start) {
   auto now = std::chrono::high_resolution_clock::now();
@@ -54,7 +58,7 @@ struct UniqueAlloc {
     return allocator.allocate(bytes);
   }
   CUDA void deallocate(void* data) {
-    return allocator.deallocate(data);
+    allocator.deallocate(data);
   }
 };
 
@@ -64,7 +68,7 @@ struct UniqueLightAlloc {
     return Alloc{}.allocate(bytes);
   }
   CUDA void deallocate(void* data) {
-    return Alloc{}.deallocate(data);
+    Alloc{}.deallocate(data);
   }
 };
 
@@ -89,6 +93,10 @@ struct AbstractDomains {
   using IST = SearchTree<IPC, Split, BasicAllocator>;
   using IBAB = BAB<IST, LIStore>;
 
+  using basic_allocator_type = BasicAllocator;
+  using prop_allocator_type = PropAllocator;
+  using store_allocator_type = StoreAllocator;
+
   template <class U2, class BasicAlloc2, class PropAllocator2, class StoreAllocator2>
   CUDA AbstractDomains(const AbstractDomains<U2, BasicAlloc2, PropAllocator2, StoreAllocator2>& other,
     const BasicAllocator& basic_allocator = BasicAllocator(),
@@ -101,6 +109,12 @@ struct AbstractDomains {
    , config(other.config, basic_allocator)
    , stats(other.stats)
    , env(other.env, basic_allocator)
+   , store(store_allocator)
+   , ipc(prop_allocator)
+   , split(basic_allocator)
+   , search_tree(basic_allocator)
+   , best(basic_allocator)
+   , bab(basic_allocator)
   {
     AbstractDeps<BasicAllocator, PropAllocator, StoreAllocator> deps{basic_allocator, prop_allocator, store_allocator};
     store = deps.template clone<IStore>(other.store);
@@ -115,11 +129,19 @@ struct AbstractDomains {
   CUDA AbstractDomains(const Configuration<Alloc>& config,
    const BasicAllocator& basic_allocator = BasicAllocator(),
    const PropAllocator& prop_allocator = PropAllocator(),
-   const StoreAllocator store_allocator = StoreAllocator())
+   const StoreAllocator& store_allocator = StoreAllocator())
   : basic_allocator(basic_allocator)
   , prop_allocator(prop_allocator)
   , store_allocator(store_allocator)
   , config(config, basic_allocator)
+  , env(basic_allocator)
+  , fzn_output(basic_allocator)
+  , store(store_allocator)
+  , ipc(prop_allocator)
+  , split(basic_allocator)
+  , search_tree(basic_allocator)
+  , best(basic_allocator)
+  , bab(basic_allocator)
   {}
 
   AbstractDomains(AbstractDomains&& other) = default;
@@ -149,7 +171,7 @@ struct AbstractDomains {
     ipc = allocate_shared<IPC, PropAllocator>(prop_allocator, env.extends_abstract_dom(), store, prop_allocator);
     split = allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
     search_tree = allocate_shared<IST, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, split, basic_allocator);
-    // Note that best must have the same abstract type then store (otherwise projection of the variables will fail).
+    // Note that `best` must have the same abstract type then store (otherwise projection of the variables will fail).
     best = allocate_shared<LIStore, BasicAllocator>(basic_allocator, store->aty(), num_vars, basic_allocator);
     bab = allocate_shared<IBAB, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), search_tree, best);
     if(config.verbose_solving) {
@@ -164,11 +186,14 @@ struct AbstractDomains {
     search_tree = nullptr;
     best = nullptr;
     bab = nullptr;
-    env = VarEnv<standard_allocator>{}; // this is to release the memory used by `VarEnv`.
+    env = VarEnv<BasicAllocator>{basic_allocator}; // this is to release the memory used by `VarEnv`.
   }
 
   template <class F>
   CUDA bool interpret(const F& f) {
+    if(config.verbose_solving) {
+      printf("%%Interpreting the formula...\n");
+    }
     auto r = bab->interpret_tell_in(f, env);
     if(!r.has_value()) {
       r.print_diagnostics();
