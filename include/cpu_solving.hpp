@@ -71,7 +71,7 @@ void cpu_solve(const Configuration<standard_allocator>& config) {
     if(a.ipc->is_top()) {
       a.on_failed_node();
     }
-    else if(a.bab->refine(has_changed)) {
+    else if(a.bab->template refine<AtomicExtraction>(has_changed)) {
       if(!a.on_solution_node()) {
         break;
       }

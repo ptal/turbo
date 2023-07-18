@@ -110,7 +110,7 @@ __global__ void gpu_solve_kernel(A0* a0, bool* is_timeout, size_t shared_mem_cap
         if(a.ipc->is_top()) {
           a.on_failed_node();
         }
-        else if(a.bab->refine(has_changed)) {
+        else if(a.bab->template refine<AtomicExtraction>(has_changed)) {
           if(!a.on_solution_node()) {
             stop = true;
           }
