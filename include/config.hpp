@@ -23,6 +23,7 @@ struct Configuration {
   bool free_search;
   bool print_statistics;
   bool verbose_solving;
+  bool print_ast;
   int timeout_ms;
   int or_nodes;
   int and_nodes; // (only for GPU)
@@ -35,12 +36,19 @@ struct Configuration {
     stop_after_n_solutions(1),
     free_search(false),
     verbose_solving(false),
+    print_ast(false),
     print_statistics(false),
     timeout_ms(0),
     and_nodes(AND_NODES),
     or_nodes(OR_NODES),
     subproblems_power(SUBPROBLEMS_POWER),
-    arch(CPU)
+    arch(
+      #ifdef __NVCC__
+        GPU
+      #else
+        CPU
+      #endif
+    )
   {}
 
   Configuration(Configuration&&) = default;
@@ -53,6 +61,7 @@ struct Configuration {
     free_search(other.free_search),
     print_statistics(other.print_statistics),
     verbose_solving(other.verbose_solving),
+    print_ast(other.print_ast),
     timeout_ms(other.timeout_ms),
     or_nodes(other.or_nodes),
     and_nodes(other.and_nodes),
@@ -62,7 +71,7 @@ struct Configuration {
   {}
 
   CUDA void print_commandline(const char* program_name) {
-    printf("%s -t %d %s-n %d %s%s%s%s",
+    printf("%s -t %d %s-n %d %s%s%s%s%s",
       program_name,
       timeout_ms,
       (print_intermediate_solutions ? "-a ": ""),
@@ -70,7 +79,8 @@ struct Configuration {
       (print_intermediate_solutions ? "-i ": ""),
       (free_search ? "-f " : ""),
       (print_statistics ? "-s " : ""),
-      (verbose_solving ? "-v " : "")
+      (verbose_solving ? "-v " : ""),
+      (print_ast ? "-ast " : "")
     );
     if(arch == GPU) {
       printf("-arch gpu -or %d -and %d -sub %d ", or_nodes, and_nodes, subproblems_power);

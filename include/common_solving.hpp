@@ -189,6 +189,27 @@ struct AbstractDomains {
     env = VarEnv<BasicAllocator>{basic_allocator}; // this is to release the memory used by `VarEnv`.
   }
 
+  // Mainly to interpret the IN constraint in IPC instead of only over-approximating in intervals.
+  template <class F>
+  CUDA void typing(F& f) const {
+    switch(f.index()) {
+      case F::Seq:
+      if(f.sig() == IN && f.seq(1).is(F::S) && f.seq(1).s().size() > 1) {
+          f.type_as(ipc->aty());
+          return;
+        }
+        for(int i = 0; i < f.seq().size(); ++i) {
+          typing(f.seq(i));
+        }
+        break;
+      case F::ESeq:
+        for(int i = 0; i < f.eseq().size(); ++i) {
+          typing(f.eseq(i));
+        }
+        break;
+    }
+  }
+
   template <class F>
   CUDA bool interpret(const F& f) {
     if(config.verbose_solving) {
@@ -233,7 +254,6 @@ private:
   }
 
 public:
-
   CUDA void print_store() const {
     for(int i = 0; i < store->vars(); ++i) {
       (*store)[i].print();
@@ -245,12 +265,16 @@ public:
     stats.nodes++;
   }
 
+  CUDA bool is_optimization() {
+    return !bab->objective_var().is_untyped();
+  }
+
   CUDA bool on_solution_node() {
     fzn_output.print_solution(env, bab->optimum());
     stats.print_mzn_separator();
     stats.solutions++;
     stats.depth_max = battery::max(stats.depth_max, search_tree->depth());
-    if(config.stop_after_n_solutions != 0 &&
+    if(!is_optimization() && config.stop_after_n_solutions != 0 &&
        stats.solutions >= config.stop_after_n_solutions)
     {
       stats.exhaustive = false;
@@ -269,6 +293,7 @@ public:
     if(config.print_statistics) {
       stats.print_mzn_statistics();
       stats.print_mzn_objective(*bab);
+      stats.print_mzn_end_stats();
     }
   }
 

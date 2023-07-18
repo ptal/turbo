@@ -130,23 +130,29 @@ __global__ void gpu_solve_kernel(A0* a0, bool* is_timeout, size_t shared_mem_cap
   }
 }
 
-void increase_memory_limits_interpretation() {
+void increase_memory_limits_interpretation(const Config& config) {
   size_t max_stack_size = 1024;
   CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, max_stack_size*100));
   cudaDeviceGetLimit(&max_stack_size, cudaLimitStackSize);
-  printf("%%GPU_max_stack_size=%zu (%zuKB)\n", max_stack_size, max_stack_size/1000);
+  if(config.verbose_solving) {
+    printf("%%GPU_max_stack_size=%zu (%zuKB)\n", max_stack_size, max_stack_size/1000);
+  }
   size_t max_heap_size;
   cudaDeviceGetLimit(&max_heap_size, cudaLimitMallocHeapSize);
   CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, max_heap_size*10));
   cudaDeviceGetLimit(&max_heap_size, cudaLimitMallocHeapSize);
-  printf("%%GPU_max_heap_size=%zu (%zuMB)\n", max_heap_size, max_heap_size/1000/1000);
+  if(config.verbose_solving) {
+    printf("%%GPU_max_heap_size=%zu (%zuMB)\n", max_heap_size, max_heap_size/1000/1000);
+  }
 }
 
-void increase_memory_limits_solving() {
+void increase_memory_limits_solving(const Config& config) {
   size_t max_stack_size = 1024;
   CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, max_stack_size*100));
   cudaDeviceGetLimit(&max_stack_size, cudaLimitStackSize);
-  printf("%%GPU_max_stack_size=%zu (%zuKB)\n", max_stack_size, max_stack_size/1000);
+  if(config.verbose_solving) {
+    printf("%%GPU_max_stack_size=%zu (%zuKB)\n", max_stack_size, max_stack_size/1000);
+  }
 }
 
 // Inspired by https://stackoverflow.com/questions/39513830/launch-cuda-kernel-with-a-timeout/39514902
@@ -184,9 +190,10 @@ CUDA void print_allocation_statistics(A0& a) {
 void run_gpu_kernel(shared_ptr<A0, managed_allocator> a0, shared_ptr<bool, managed_allocator> is_timeout) {
   cudaDeviceProp deviceProp;
   cudaGetDeviceProperties(&deviceProp, 0);
+  const Config& config = a0->config;
   size_t shared_mem_capacity = deviceProp.sharedMemPerBlock;
-  // increase_memory_limits_solving();
-  increase_memory_limits_interpretation();
+  // increase_memory_limits_solving(config);
+  increase_memory_limits_interpretation(config);
 
   // We add 33% extra memory due to the alignment of the shared memory which is not taken into account in the statistics.
   size_t store_bytes = a0->store_allocator.total_bytes_allocated();
@@ -196,21 +203,27 @@ void run_gpu_kernel(shared_ptr<A0, managed_allocator> a0, shared_ptr<bool, manag
   size_t both_bytes = store_bytes + prop_bytes;
 
   if(shared_mem_capacity < store_bytes) {
-    printf("%%The store of variables (%zuKB) cannot be stored in the shared memory of the GPU (%zuKB), therefore we use the global memory.\n",
+    if(config.verbose_solving) {
+      printf("%%The store of variables (%zuKB) cannot be stored in the shared memory of the GPU (%zuKB), therefore we use the global memory.\n",
       store_bytes / 1000,
       shared_mem_capacity / 1000);
+    }
     gpu_solve_kernel<A1><<<a0->config.or_nodes, a0->config.and_nodes>>>(a0.get(), is_timeout.get(), 0);
   }
   else if(shared_mem_capacity > both_bytes) {
-    printf("%%The store of variables and the propagators (%zuKB) are stored in the shared memory of the GPU (%zuKB).\n",
+    if(config.verbose_solving) {
+      printf("%%The store of variables and the propagators (%zuKB) are stored in the shared memory of the GPU (%zuKB).\n",
       both_bytes / 1000,
       shared_mem_capacity / 1000);
+    }
     gpu_solve_kernel<A3><<<a0->config.or_nodes, a0->config.and_nodes, both_bytes>>>(a0.get(), is_timeout.get(), both_bytes);
   }
   else {
-    printf("%%The store of variables (%zuKB) is stored in the shared memory of the GPU (%zuKB).\n",
-      store_bytes / 1000,
-      shared_mem_capacity / 1000);
+    if(config.verbose_solving) {
+      printf("%%The store of variables (%zuKB) is stored in the shared memory of the GPU (%zuKB).\n",
+        store_bytes / 1000,
+        shared_mem_capacity / 1000);
+    }
     gpu_solve_kernel<A2><<<a0->config.or_nodes, a0->config.and_nodes, store_bytes>>>(a0.get(), is_timeout.get(), store_bytes);
   }
   CUDAEX(cudaDeviceSynchronize());
@@ -235,25 +248,47 @@ void gpu_solve(const Configuration<standard_allocator>& config) {
     std::cerr << "Could not parse FlatZinc model." << std::endl;
     exit(EXIT_FAILURE);
   }
-  printf("%%FlatZinc parsed\n");
-  f->print(false);
+  if(config.verbose_solving) {
+    printf("%%FlatZinc parsed\n");
+  }
+
+  if(config.print_ast) {
+    printf("Parsed AST:\n");
+    f->print(true);
+    printf("\n");
+  }
 
   auto failure = make_shared<bool, managed_allocator>(false);
   auto is_timeout = make_shared<bool, managed_allocator>(false);
-  // increase_memory_limits_interpretation();
+  // increase_memory_limits_interpretation(config);
   // initialize_abstract_domains<<<1,1>>>(f.get(), a0.get(), failure.get());
   // CUDAEX(cudaDeviceSynchronize());
+
   // I. Create the abstract domains.
   a0->allocate(num_quantified_vars(*f));
+
   // II. Interpret the formula in the abstract domain.
+  a0->typing(*f);
+  if(config.print_ast) {
+    printf("Typed AST:\n");
+    f->print(true);
+    printf("\n");
+  }
   if(!a0->interpret(*f)) {
     *failure = true;
   }
   if(!(*failure)) {
+    if(config.print_ast) {
+      printf("Interpreted AST:\n");
+      a.ipc->deinterpret(a.env).print(true);
+      printf("\n");
+    }
     auto interpretation_time = std::chrono::high_resolution_clock::now();
     a0->stats.interpretation_duration = std::chrono::duration_cast<std::chrono::milliseconds>(interpretation_time - start).count();
-    printf("%%Formula has been loaded, solving begins...\n");
-    print_allocation_statistics(*a0);
+    if(config.verbose_solving) {
+      printf("%%Formula has been loaded, solving begins...\n");
+      print_allocation_statistics(*a0);
+    }
     std::thread timeout_thread(guard_timeout, a0->config.timeout_ms, is_timeout.get());
     run_gpu_kernel(a0, is_timeout);
     *is_timeout = true;

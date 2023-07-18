@@ -9,14 +9,11 @@ using namespace battery;
 int main(int argc, char** argv) {
   try
   {
-    #ifdef __NVCC__
-      printf("nvcc\n");
-    #else
-      printf("gcc\n");
-    #endif
     Configuration<standard_allocator> config = parse_args(argc, argv);
-    printf("%%");
-    config.print_commandline(argv[0]);
+    if(config.verbose_solving) {
+      printf("%%");
+      config.print_commandline(argv[0]);
+    }
     if(config.arch == CPU) {
       cpu_solve(config);
     }

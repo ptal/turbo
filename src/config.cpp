@@ -17,6 +17,7 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-f: Instructs the solver to conduct a “free search”, i.e., ignore any search annotations. The solver is not required to ignore the annotations, but it is allowed to do so." << std::endl;
   std::cout << "\t-s: Print statistics during and after the search for solutions." << std::endl;
   std::cout << "\t-v: Print log messages (verbose solving) to the standard error stream." << std::endl;
+  std::cout << "\t-ast: Print the AST of the model (useful to debug)." << std::endl;
   std::cout << "\t-p 48: On CPU, run with 48 parallel threads. On GPU, equivalent to `-or 48`." << std::endl;
   std::cout << "\t-arch <cpu|gpu>: Choose the architecture on which the problem will be solved." << std::endl;
   std::cout << "\t-or 48: Run the subproblems on 48 streaming multiprocessors (SMs) (only for GPU architecture)." << std::endl;
@@ -109,6 +110,7 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
   input.read_bool("-i", config.print_intermediate_solutions);
   input.read_bool("-f", config.free_search);
   input.read_bool("-v", config.verbose_solving);
+  input.read_bool("-ast", config.print_ast);
   input.read_bool("-s", config.print_statistics);
 
   std::string architecture;

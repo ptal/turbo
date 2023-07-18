@@ -6,6 +6,8 @@
 #include <chrono>
 #include <algorithm>
 #include "battery/utility.hpp"
+#include "battery/allocator.hpp"
+#include "lala/logic/ast.hpp"
 
 struct Statistics {
   size_t variables;
@@ -73,11 +75,16 @@ public:
     print_stat("solutions", solutions);
   }
 
+  CUDA void print_mzn_end_stats() const {
+    printf("%%%%%%mzn-stat-end\n");
+  }
+
   template <class BAB>
   CUDA void print_mzn_objective(const BAB& bab) const {
     if(!bab.objective_var().is_untyped()) {
       printf("%%%%%%mzn-stat: objective=");
-      bab.optimum().project(bab.objective_var()).print();
+      auto obj = bab.optimum().project(bab.objective_var());
+      obj.template deinterpret<lala::TFormula<battery::standard_allocator>>().print(false);
       printf("\n");
     }
   }

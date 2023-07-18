@@ -24,20 +24,42 @@ void cpu_solve(const Configuration<standard_allocator>& config) {
     exit(EXIT_FAILURE);
   }
 
-  printf("%%FlatZinc parsed\n");
+  if(config.verbose_solving) {
+    printf("%%FlatZinc parsed\n");
+  }
+
+  if(config.print_ast) {
+    printf("Parsed AST:\n");
+    f->print(true);
+    printf("\n");
+  }
 
   // II. Create the abstract domain.
   a.allocate(num_quantified_vars(*f));
 
   // III. Interpret the formula in the abstract domain.
+  a.typing(*f);
+  if(config.print_ast) {
+    printf("Typed AST:\n");
+    f->print(true);
+    printf("\n");
+  }
   if(!a.interpret(*f)) {
     exit(EXIT_FAILURE);
+  }
+
+  if(config.print_ast) {
+    printf("Interpreted AST:\n");
+    a.ipc->deinterpret(a.env).print(true);
+    printf("\n");
   }
 
   auto interpretation_time = std::chrono::high_resolution_clock::now();
   a.stats.interpretation_duration = std::chrono::duration_cast<std::chrono::milliseconds>(interpretation_time - start).count();
 
-  printf("%%Formula has been loaded, solving begins...\n");
+  if(config.verbose_solving) {
+    printf("%%Formula has been loaded, solving begins...\n");
+  }
 
   // IV. Solve the problem.
   local::BInc has_changed = true;
