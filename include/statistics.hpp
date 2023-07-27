@@ -31,7 +31,7 @@ struct Statistics {
   Statistics(const Statistics&) = default;
   Statistics(Statistics&&) = default;
 
-  /** Reset the statistics of a subtree of the search tree, but keep the global statistics: max_depth, best_bound, variables, constraints, optimization, exhaustive. */
+  /** Reset the statistics of a subtree of the search tree, but keep the global statistics: max_depth, variables, constraints, optimization, exhaustive. */
   CUDA void reset_local_stats() {
     duration = 0;
     interpretation_duration = 0;
@@ -41,8 +41,8 @@ struct Statistics {
   }
 
   CUDA void join(const Statistics& other) {
-    duration += other.duration;
-    interpretation_duration += other.interpretation_duration;
+    duration = battery::max(other.duration, duration);
+    interpretation_duration = battery::max(other.interpretation_duration, interpretation_duration);
     nodes += other.nodes;
     fails += other.fails;
     solutions += other.solutions;
@@ -79,14 +79,15 @@ public:
     printf("%%%%%%mzn-stat-end\n");
   }
 
-  template <class BAB>
-  CUDA void print_mzn_objective(const BAB& bab) const {
-    if(!bab.objective_var().is_untyped()) {
-      printf("%%%%%%mzn-stat: objective=");
-      auto obj = bab.optimum().project(bab.objective_var());
-      obj.template deinterpret<lala::TFormula<battery::standard_allocator>>().print(false);
-      printf("\n");
+  CUDA void print_mzn_objective(const auto& obj, bool is_minimization) const {
+    printf("%%%%%%mzn-stat: objective=");
+    if(is_minimization) {
+      obj.lb().template deinterpret<lala::TFormula<battery::standard_allocator>>().print(false);
     }
+    else {
+      obj.ub().template deinterpret<lala::TFormula<battery::standard_allocator>>().print(false);
+    }
+    printf("\n");
   }
 
   CUDA void print_mzn_separator() const {

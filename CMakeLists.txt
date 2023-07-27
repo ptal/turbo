@@ -38,8 +38,8 @@ endif()
 add_executable(turbo src/turbo.cpp src/config.cpp)
 target_include_directories(turbo PRIVATE include)
 target_compile_options(turbo PRIVATE
-  "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xptxas -suppress-stack-size-warning>"
-  "$<$<COMPILE_LANGUAGE:CUDA>:$<$<CONFIG:Debug>:-ftemplate-backtrace-limit=0;--verbose>>"
+  "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:--ptxas-options --suppress-stack-size-warning,--allow-expensive-optimizations=true>"
+  "$<$<COMPILE_LANGUAGE:CUDA>:$<$<CONFIG:Debug>:-ftemplate-backtrace-limit=0;--verbose;-O3>;--verbose>"
+  # "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:--compiler-options -O0>"
 )
 target_link_libraries(turbo PRIVATE lala_parsing lala_search)
-# target_link_options(turbo PRIVATE "$<DEVICE_LINK:SHELL:-Xnvlink -suppress-stack-size-warning>")

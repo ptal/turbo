@@ -11,7 +11,7 @@ int main(int argc, char** argv) {
   {
     Configuration<standard_allocator> config = parse_args(argc, argv);
     if(config.verbose_solving) {
-      printf("%%");
+      printf("%% ");
       config.print_commandline(argv[0]);
     }
     if(config.arch == CPU) {

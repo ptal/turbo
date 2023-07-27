@@ -25,11 +25,11 @@ void cpu_solve(const Configuration<standard_allocator>& config) {
   }
 
   if(config.verbose_solving) {
-    printf("%%FlatZinc parsed\n");
+    printf("%% FlatZinc parsed\n");
   }
 
   if(config.print_ast) {
-    printf("Parsed AST:\n");
+    printf("%% Parsed AST:\n");
     f->print(true);
     printf("\n");
   }
@@ -40,7 +40,7 @@ void cpu_solve(const Configuration<standard_allocator>& config) {
   // III. Interpret the formula in the abstract domain.
   a.typing(*f);
   if(config.print_ast) {
-    printf("Typed AST:\n");
+    printf("%% Typed AST:\n");
     f->print(true);
     printf("\n");
   }
@@ -49,7 +49,7 @@ void cpu_solve(const Configuration<standard_allocator>& config) {
   }
 
   if(config.print_ast) {
-    printf("Interpreted AST:\n");
+    printf("%% Interpreted AST:\n");
     a.ipc->deinterpret(a.env).print(true);
     printf("\n");
   }
@@ -58,7 +58,7 @@ void cpu_solve(const Configuration<standard_allocator>& config) {
   a.stats.interpretation_duration = std::chrono::duration_cast<std::chrono::milliseconds>(interpretation_time - start).count();
 
   if(config.verbose_solving) {
-    printf("%%Formula has been loaded, solving begins...\n");
+    printf("%% Formula has been loaded, solving begins...\n");
   }
 
   // IV. Solve the problem.

@@ -84,8 +84,10 @@ template <class Universe,
   class PropAllocator,
   class StoreAllocator>
 struct AbstractDomains {
+  using universe_type = typename Universe::local_type;
+
   /** Version of the abstract domains with a simple allocator, to represent the best solutions. */
-  using LIStore = VStore<typename Universe::local_type, BasicAllocator>;
+  using LIStore = VStore<universe_type, BasicAllocator>;
 
   using IStore = VStore<Universe, StoreAllocator>;
   using IPC = PC<IStore, PropAllocator>; // Interval Propagators Completion
@@ -121,8 +123,8 @@ struct AbstractDomains {
     ipc = deps.template clone<IPC>(other.ipc);
     split = deps.template clone<Split>(other.split);
     search_tree = deps.template clone<IST>(other.search_tree);
-    best = deps.template clone<LIStore>(other.best);
     bab = deps.template clone<IBAB>(other.bab);
+    best = bab->optimum_ptr();
   }
 
   template <class Alloc>
@@ -175,7 +177,7 @@ struct AbstractDomains {
     best = allocate_shared<LIStore, BasicAllocator>(basic_allocator, store->aty(), num_vars, basic_allocator);
     bab = allocate_shared<IBAB, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), search_tree, best);
     if(config.verbose_solving) {
-      printf("%%Abstract domain allocated.\n");
+      printf("%% Abstract domain allocated.\n");
     }
   }
 
@@ -184,7 +186,6 @@ struct AbstractDomains {
     ipc = nullptr;
     split = nullptr;
     search_tree = nullptr;
-    best = nullptr;
     bab = nullptr;
     env = VarEnv<BasicAllocator>{basic_allocator}; // this is to release the memory used by `VarEnv`.
   }
@@ -213,7 +214,7 @@ struct AbstractDomains {
   template <class F>
   CUDA bool interpret(const F& f) {
     if(config.verbose_solving) {
-      printf("%%Interpreting the formula...\n");
+      printf("%% Interpreting the formula...\n");
     }
     auto r = bab->interpret_tell_in(f, env);
     if(!r.has_value()) {
@@ -234,7 +235,7 @@ private:
   template <class F>
   CUDA bool interpret_default_strategy() {
     if(config.verbose_solving) {
-      printf("%%No split strategy provided, using the default one (first_fail, indomain_split).\n");
+      printf("%% No split strategy provided, using the default one (first_fail, indomain_split).\n");
     }
     typename F::Sequence seq;
     seq.push_back(F::make_nary("first_fail", {}));
@@ -263,6 +264,7 @@ public:
 
   CUDA void on_node() {
     stats.nodes++;
+    stats.depth_max = battery::max(stats.depth_max, search_tree->depth());
   }
 
   CUDA bool is_optimization() {
@@ -270,10 +272,9 @@ public:
   }
 
   CUDA bool on_solution_node() {
-    fzn_output.print_solution(env, bab->optimum());
+    fzn_output.print_solution(env, *best);
     stats.print_mzn_separator();
     stats.solutions++;
-    stats.depth_max = battery::max(stats.depth_max, search_tree->depth());
     if(!is_optimization() && config.stop_after_n_solutions != 0 &&
        stats.solutions >= config.stop_after_n_solutions)
     {
@@ -285,21 +286,25 @@ public:
 
   CUDA void on_failed_node() {
     stats.fails += 1;
-    stats.depth_max = battery::max(stats.depth_max, search_tree->depth());
   }
 
   CUDA void on_finish() {
     stats.print_mzn_final_separator();
     if(config.print_statistics) {
       stats.print_mzn_statistics();
-      stats.print_mzn_objective(*bab);
+      if(!bab->objective_var().is_untyped() && !best->is_bot()) {
+        stats.print_mzn_objective(best->project(bab->objective_var()), bab->is_minimization());
+      }
       stats.print_mzn_end_stats();
     }
   }
 
+  /** Extract in `this` the content of `other`. */
   template <class U2, class BasicAlloc2, class PropAlloc2, class StoreAlloc2>
   CUDA void join(AbstractDomains<U2, BasicAlloc2, PropAlloc2, StoreAlloc2>& other) {
-    other.bab->extract(*bab);
+    if(!other.best->is_bot() && other.best->project(bab->objective_var()) > best->project(bab->objective_var())) {
+      other.best->extract(*best);
+    }
     stats.join(other.stats);
   }
 };

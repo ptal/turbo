@@ -73,7 +73,8 @@
       "description": "Build the project with CUDA NVCC compiler.",
       "inherits": [
         "default-gpu",
-        "release"
+        "release",
+        "verbose"
       ]
     },
     {
