@@ -5,6 +5,7 @@
 
 #include "common_solving.hpp"
 #include <thread>
+#include <algorithm>
 
 #ifdef __NVCC__
 
@@ -47,6 +48,7 @@ struct GridData;
 template <class A>
 struct BlockData {
   using snapshot_type = typename A::IST::snapshot_type<global_allocator>;
+  size_t subproblem_idx;
   shared_ptr<FPEngine, global_allocator> fp_engine;
   shared_ptr<AtomicBInc, pool_allocator> has_changed;
   shared_ptr<AtomicBInc, pool_allocator> stop;
@@ -59,6 +61,7 @@ struct BlockData {
   __device__ void allocate(GridData<A>& grid_data, unsigned char* shared_mem, size_t shared_mem_capacity) {
     auto block = cooperative_groups::this_thread_block();
     if(threadIdx.x == 0) {
+      subproblem_idx = blockIdx.x;
       pool_allocator shared_mem_pool{static_cast<unsigned char*>(shared_mem), shared_mem_capacity};
       fp_engine = make_shared<FPEngine, global_allocator>(block, shared_mem_pool);
       has_changed = allocate_shared<AtomicBInc, pool_allocator>(shared_mem_pool, true);
@@ -108,6 +111,7 @@ struct GridData {
   // Stop from a block on the GPU, for instance because we found a solution.
   shared_ptr<BInc<atomic_memory_grid>, global_allocator> gpu_stop;
   shared_ptr<cuda::binary_semaphore<cuda::thread_scope_device>, global_allocator> print_lock;
+  shared_ptr<ZInc<int, atomic_memory_grid>, global_allocator> next_subproblem;
 
   GridData(A0&& root)
     : root(std::move(root))
@@ -119,6 +123,7 @@ struct GridData {
     blocks = vector<BlockData<A>, global_allocator>(root.config.or_nodes);
     gpu_stop = make_shared<BInc<atomic_memory_grid>, global_allocator>(false);
     print_lock = make_shared<cuda::binary_semaphore<cuda::thread_scope_device>, global_allocator>(1);
+    next_subproblem = make_shared<ZInc<int, atomic_memory_grid>, global_allocator>(0);
   }
 
   __device__ void deallocate() {
@@ -126,6 +131,7 @@ struct GridData {
     blocks = vector<BlockData<A>, global_allocator>();
     gpu_stop.reset();
     print_lock.reset();
+    next_subproblem.reset();
   }
 };
 
@@ -137,6 +143,49 @@ __global__ void initialize_grid_data(GridData<A>* grid_data) {
 template <class A>
 __global__ void deallocate_grid_data(GridData<A>* grid_data) {
   grid_data->deallocate();
+}
+
+template <class A>
+__device__ size_t dive(BlockData<A>& block_data, GridData<A>& grid_data) {
+  A& a = *block_data.abstract_doms;
+  auto& fp_engine = *block_data.fp_engine;
+  auto& stop = *block_data.stop;
+  // Note that we use `block_has_changed` to stop the "diving", not really to indicate something has changed or not (since we do not need this information for this algorithm).
+  auto& stop_diving = *block_data.has_changed;
+  stop.dtell_bot();
+  stop_diving.dtell_bot();
+  fp_engine.barrier();
+  size_t depth = grid_data.root.config.subproblems_power + 1;
+  while(depth > 0 && !stop_diving && !stop) {
+    depth--;
+    local::BInc thread_has_changed;
+    printf("%% num_iterations=%lu\n", fp_engine.fixpoint(*a.ipc, thread_has_changed));
+    if(threadIdx.x == 0) {
+      a.on_node();
+      if(a.ipc->is_top()) {
+        a.on_failed_node();
+        stop_diving.tell_top();
+      }
+      else if(a.bab->template refine<AtomicExtraction>(thread_has_changed)) {
+        grid_data.print_lock->acquire();
+        bool do_not_stop = a.on_solution_node();
+        grid_data.print_lock->release();
+        if(!do_not_stop) {
+          grid_data.gpu_stop->tell_top();
+        }
+        stop_diving.tell_top();
+      }
+      else {
+        size_t branch_idx = (block_data.subproblem_idx & (1 << depth)) >> depth;
+        auto branches = a.split->split();
+        assert(branches.size() == 2);
+        a.ipc->tell(branches[branch_idx]);
+      }
+      stop.tell(local::BInc(grid_data.cpu_stop || *(grid_data.gpu_stop)));
+    }
+    fp_engine.barrier();
+  }
+  return depth;
 }
 
 template <class A>
@@ -185,12 +234,25 @@ __device__ void solve_problem(BlockData<A>& block_data, GridData<A>& grid_data) 
  * The worst that can happen is that a best bound is found twice, which does not prevent the correctness of the algorithm.
  */
 template <class A>
-__device__ void update_best_bound(BlockData<A>& block_data, GridData<A>& grid_data) {
+__device__ void update_grid_best_bound(BlockData<A>& block_data, GridData<A>& grid_data) {
   if(threadIdx.x == 0) {
-    local::BInc has_changed;
+    VarEnv<global_allocator> empty_env{};
+    auto best_formula = block_data.abstract_doms->bab->template deinterpret_best_bound<global_allocator>();
+    auto best_tell = grid_data.root.store->interpret_tell_in(best_formula, empty_env);
+    grid_data.root.store->tell(best_tell.value());
+  }
+  cooperative_groups::this_thread_block().sync();
+}
+
+template <class A>
+__device__ void update_block_best_bound(BlockData<A>& block_data, GridData<A>& grid_data) {
+  if(threadIdx.x == 0) {
+    VarEnv<global_allocator> empty_env{};
     auto objvar = grid_data.root.bab->objective_var();
-    const auto& new_bound = block_data.abstract_doms->best->project(objvar);
-    grid_data.root.bab->tell(new_bound, has_changed);
+    block_data.abstract_doms->store->tell(objvar, grid_data.root.store->project(objvar));
+    auto best_formula = block_data.abstract_doms->bab->template deinterpret_best_bound<global_allocator>();
+    auto best_tell = block_data.abstract_doms->store->interpret_tell_in(best_formula, empty_env);
+    block_data.abstract_doms->store->tell(best_tell.value());
   }
   cooperative_groups::this_thread_block().sync();
 }
@@ -201,10 +263,36 @@ __global__ void gpu_solve_kernel(GridData<A>* grid_data, size_t shared_mem_capac
   extern __shared__ unsigned char shared_mem[];
   BlockData<A>& block_data = grid_data->blocks[blockIdx.x];
   block_data.allocate(*grid_data, shared_mem, shared_mem_capacity);
-  for(int i = 0; i < 5; ++i) {
+  size_t num_subproblems = 1 << grid_data->root.config.subproblems_power;
+  if(threadIdx.x == 0 && blockIdx.x == 0) {
+    if(grid_data->root.config.verbose_solving) {
+      printf("%% subproblems=%lu\n", num_subproblems);
+    }
+    grid_data->next_subproblem->tell(local::ZInc(gridDim.x));
+  }
+  while(block_data.subproblem_idx < num_subproblems && !*(block_data.stop)) {
     block_data.restore();
-    solve_problem(block_data, *grid_data);
-    update_best_bound(block_data, *grid_data);
+    update_block_best_bound(block_data, *grid_data);
+    size_t remaining_depth = dive(block_data, *grid_data);
+    if(remaining_depth == 0) {
+      solve_problem(block_data, *grid_data);
+    }
+    else {
+      if(threadIdx.x == 0) {
+        size_t next_subproblem_idx = ((block_data.subproblem_idx >> remaining_depth) + 1) << remaining_depth;
+        // if(grid_data->root.config.verbose_solving) {
+        //   printf("%% Block %d skips %lu subproblems\n", blockIdx.x, next_subproblem_idx - block_data.subproblem_idx);
+        // }
+        grid_data->next_subproblem->tell(local::ZInc(next_subproblem_idx));
+      }
+    }
+    update_grid_best_bound(block_data, *grid_data);
+    // Load next problem.
+    if(threadIdx.x == 0) {
+      block_data.subproblem_idx = grid_data->next_subproblem->value();
+      grid_data->next_subproblem->tell(local::ZInc(block_data.subproblem_idx + 1));
+    }
+    cooperative_groups::this_thread_block().sync();
   }
   // We must destroy all objects allocated in the shared memory, trying to destroy them anywhere else will lead to segfault.
   block_data.deallocate();
@@ -225,11 +313,15 @@ void increase_memory_limits(const Configuration<Alloc>& config, const A0& root) 
     cudaDeviceGetLimit(&max_stack_size, cudaLimitStackSize);
     printf("%% GPU_max_stack_size=%zu (%zuKB)\n", max_stack_size, max_stack_size/1000);
   }
-  size_t max_heap_size;
-  cudaDeviceGetLimit(&max_heap_size, cudaLimitMallocHeapSize);
-  size_t estimated_max_heap_size = root.store_allocator.total_bytes_allocated() + (root.prop_allocator.total_bytes_allocated()/10) * config.or_nodes;
-  CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, estimated_max_heap_size));
+  // Always start with at least 10MB per block.
+  size_t per_block_mem = 10 * 1000 * 1000; // 10MB
+  size_t estimated_size = root.store_allocator.total_bytes_allocated() + root.prop_allocator.total_bytes_allocated()/10;
+  if(estimated_size > per_block_mem) {
+    per_block_mem = estimated_size;
+  }
+  CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, per_block_mem * config.or_nodes));
   if(config.verbose_solving) {
+    size_t max_heap_size;
     cudaDeviceGetLimit(&max_heap_size, cudaLimitMallocHeapSize);
     printf("%% GPU_max_heap_size=%zu (%zuMB)\n", max_heap_size, max_heap_size/1000/1000);
   }

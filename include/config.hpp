@@ -8,7 +8,7 @@
 
 #define OR_NODES 48
 #define AND_NODES 256
-#define SUBPROBLEMS_POWER 12 // 2^N
+#define SUBPROBLEMS_POWER 15 // 2^N
 
 enum Arch {
   CPU,
