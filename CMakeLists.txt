@@ -17,6 +17,12 @@ option(GPU "GPU" ON)
 include(FetchContent)
 
 FetchContent_Declare(
+  cuda_battery
+  GIT_REPOSITORY "https://github.com/lattice-land/cuda-battery.git"
+  GIT_TAG        bug
+)
+
+FetchContent_Declare(
   lala_parsing
   GIT_REPOSITORY "https://github.com/lattice-land/lala-parsing.git"
   GIT_TAG        main
@@ -27,7 +33,7 @@ FetchContent_Declare(
   GIT_REPOSITORY "https://github.com/lattice-land/lala-search.git"
   GIT_TAG        main
 )
-FetchContent_MakeAvailable(lala_parsing lala_search)
+FetchContent_MakeAvailable(cuda_battery lala_parsing lala_search)
 
 # Turbo executable
 
@@ -42,4 +48,4 @@ target_compile_options(turbo PRIVATE
   "$<$<COMPILE_LANGUAGE:CUDA>:$<$<CONFIG:Debug>:-ftemplate-backtrace-limit=0;--verbose>;--verbose;--keep>"
   # "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:--compiler-options -O0>"
 )
-target_link_libraries(turbo PRIVATE lala_parsing lala_search)
+target_link_libraries(turbo PRIVATE cuda_battery lala_parsing lala_search)
