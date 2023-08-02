@@ -159,7 +159,7 @@ __device__ size_t dive(BlockData<A>& block_data, GridData<A>& grid_data) {
   while(depth > 0 && !stop_diving && !stop) {
     depth--;
     local::BInc thread_has_changed;
-    printf("%% num_iterations=%lu\n", fp_engine.fixpoint(*a.ipc, thread_has_changed));
+    fp_engine.fixpoint(*a.ipc, thread_has_changed);
     if(threadIdx.x == 0) {
       a.on_node();
       if(a.ipc->is_top()) {
@@ -271,6 +271,9 @@ __global__ void gpu_solve_kernel(GridData<A>* grid_data, size_t shared_mem_capac
     grid_data->next_subproblem->tell(local::ZInc(gridDim.x));
   }
   while(block_data.subproblem_idx < num_subproblems && !*(block_data.stop)) {
+    if(threadIdx.x == 0 && grid_data->root.config.verbose_solving) {
+      printf("%% Block %d solves subproblem num %lu\n", blockIdx.x, block_data.subproblem_idx);
+    }
     block_data.restore();
     update_block_best_bound(block_data, *grid_data);
     size_t remaining_depth = dive(block_data, *grid_data);
@@ -280,9 +283,9 @@ __global__ void gpu_solve_kernel(GridData<A>* grid_data, size_t shared_mem_capac
     else {
       if(threadIdx.x == 0) {
         size_t next_subproblem_idx = ((block_data.subproblem_idx >> remaining_depth) + 1) << remaining_depth;
-        // if(grid_data->root.config.verbose_solving) {
-        //   printf("%% Block %d skips %lu subproblems\n", blockIdx.x, next_subproblem_idx - block_data.subproblem_idx);
-        // }
+        if(grid_data->root.config.verbose_solving) {
+          printf("%% Block %d skips %lu subproblems\n", blockIdx.x, next_subproblem_idx - block_data.subproblem_idx);
+        }
         grid_data->next_subproblem->tell(local::ZInc(next_subproblem_idx));
       }
     }
@@ -307,19 +310,20 @@ __global__ void reduce_blocks(GridData<A>* grid_data) {
 
 template <class Alloc>
 void increase_memory_limits(const Configuration<Alloc>& config, const A0& root) {
-  size_t max_stack_size = 1024;
-  CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, max_stack_size*100));
+  CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, config.stack_kb*1000));
   if(config.verbose_solving) {
+    size_t max_stack_size;
     cudaDeviceGetLimit(&max_stack_size, cudaLimitStackSize);
     printf("%% GPU_max_stack_size=%zu (%zuKB)\n", max_stack_size, max_stack_size/1000);
   }
-  // Always start with at least 10MB per block.
-  size_t per_block_mem = 10 * 1000 * 1000; // 10MB
-  size_t estimated_size = root.store_allocator.total_bytes_allocated() + root.prop_allocator.total_bytes_allocated()/10;
-  if(estimated_size > per_block_mem) {
-    per_block_mem = estimated_size;
+  if(config.heap_mb == 0) {
+    // 4 * (size of store + size of propagators).
+    size_t per_block_mem = 4 * (root.store_allocator.total_bytes_allocated() + root.prop_allocator.total_bytes_allocated());
+    CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, per_block_mem * config.or_nodes));
   }
-  CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, per_block_mem * config.or_nodes));
+  else {
+    CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, config.heap_mb*1000*1000));
+  }
   if(config.verbose_solving) {
     size_t max_heap_size;
     cudaDeviceGetLimit(&max_heap_size, cudaLimitMallocHeapSize);
@@ -365,16 +369,21 @@ CUDA tuple<size_t, size_t> configure_memory(A0& root) {
   cudaGetDeviceProperties(&deviceProp, 0);
   const auto& config = root.config;
   size_t shared_mem_capacity = deviceProp.sharedMemPerBlock;
-  increase_memory_limits(config, root);
+
+  // Copy A0 to know how large are the abstract domains.
+  A0 root2(root);
+  print_allocation_statistics(root2);
+
+  increase_memory_limits(config, root2);
 
   // Need a bit of shared memory for the fixpoint engine.
   size_t fixpoint_shared_mem = 100;
 
-  // We add 33% extra memory due to the alignment of the shared memory which is not taken into account in the statistics.
-  size_t store_bytes = root.store_allocator.total_bytes_allocated();
-  store_bytes += store_bytes / 3;
-  size_t prop_bytes = root.prop_allocator.total_bytes_allocated();
-  prop_bytes += prop_bytes / 3;
+  // We add 20% extra memory due to the alignment of the shared memory which is not taken into account in the statistics.
+  size_t store_bytes = root2.store_allocator.total_bytes_allocated();
+  store_bytes += fixpoint_shared_mem + store_bytes / 5;
+  size_t prop_bytes = root2.prop_allocator.total_bytes_allocated();
+  prop_bytes += prop_bytes / 5;
   size_t both_bytes = store_bytes + prop_bytes;
 
   if(shared_mem_capacity < store_bytes) {

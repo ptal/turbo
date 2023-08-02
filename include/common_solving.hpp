@@ -99,11 +99,16 @@ struct AbstractDomains {
   using prop_allocator_type = PropAllocator;
   using store_allocator_type = StoreAllocator;
 
+  using this_type = AbstractDomains<Universe, BasicAllocator, PropAllocator, StoreAllocator>;
+
+  struct tag_copy_cons{};
+
   template <class U2, class BasicAlloc2, class PropAllocator2, class StoreAllocator2>
   CUDA AbstractDomains(const AbstractDomains<U2, BasicAlloc2, PropAllocator2, StoreAllocator2>& other,
     const BasicAllocator& basic_allocator = BasicAllocator(),
     const PropAllocator& prop_allocator = PropAllocator(),
-    const StoreAllocator& store_allocator = StoreAllocator())
+    const StoreAllocator& store_allocator = StoreAllocator(),
+    const tag_copy_cons& tag = tag_copy_cons{})
    : basic_allocator(basic_allocator)
    , prop_allocator(prop_allocator)
    , store_allocator(store_allocator)
@@ -126,6 +131,13 @@ struct AbstractDomains {
     bab = deps.template clone<IBAB>(other.bab);
     best = bab->optimum_ptr();
   }
+
+  CUDA AbstractDomains(const this_type& other,
+    const BasicAllocator& basic_allocator = BasicAllocator(),
+    const PropAllocator& prop_allocator = PropAllocator(),
+    const StoreAllocator& store_allocator = StoreAllocator())
+   : this_type(other, basic_allocator, prop_allocator, store_allocator, tag_copy_cons{})
+  {}
 
   template <class Alloc>
   CUDA AbstractDomains(const Configuration<Alloc>& config,
