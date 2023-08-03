@@ -51,6 +51,7 @@ bool check_timeout(A& a, const Timepoint& start) {
 template <class Alloc, size_t n>
 struct UniqueAlloc {
   Alloc allocator;
+  UniqueAlloc() = default;
   CUDA UniqueAlloc(const Alloc& alloc): allocator(alloc) {}
   UniqueAlloc(const UniqueAlloc& alloc) = default;
   UniqueAlloc& operator=(const UniqueAlloc& alloc) = default;
@@ -123,13 +124,21 @@ struct AbstractDomains {
    , best(basic_allocator)
    , bab(basic_allocator)
   {
+    printf("a\n");
     AbstractDeps<BasicAllocator, PropAllocator, StoreAllocator> deps{basic_allocator, prop_allocator, store_allocator};
+    printf("b\n");
     store = deps.template clone<IStore>(other.store);
+    printf("c\n");
     ipc = deps.template clone<IPC>(other.ipc);
+    printf("d\n");
     split = deps.template clone<Split>(other.split);
+    printf("e\n");
     search_tree = deps.template clone<IST>(other.search_tree);
+    printf("f\n");
     bab = deps.template clone<IBAB>(other.bab);
+    printf("g\n");
     best = bab->optimum_ptr();
+    printf("h\n");
   }
 
   CUDA AbstractDomains(const this_type& other,

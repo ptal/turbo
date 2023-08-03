@@ -7,7 +7,7 @@
 #include <thread>
 #include <algorithm>
 
-#ifdef __NVCC__
+#ifdef __CUDACC__
 
 #include <cuda/semaphore>
 
@@ -47,7 +47,7 @@ struct GridData;
 
 template <class A>
 struct BlockData {
-  using snapshot_type = typename A::IST::snapshot_type<global_allocator>;
+  using snapshot_type = A::IST::template snapshot_type<global_allocator>;
   size_t subproblem_idx;
   shared_ptr<FPEngine, global_allocator> fp_engine;
   shared_ptr<AtomicBInc, pool_allocator> has_changed;
@@ -63,23 +63,32 @@ struct BlockData {
     if(threadIdx.x == 0) {
       subproblem_idx = blockIdx.x;
       pool_allocator shared_mem_pool{static_cast<unsigned char*>(shared_mem), shared_mem_capacity};
+      printf("1\n");
       fp_engine = make_shared<FPEngine, global_allocator>(block, shared_mem_pool);
+      printf("2\n");
       has_changed = allocate_shared<AtomicBInc, pool_allocator>(shared_mem_pool, true);
+      printf("3\n");
       stop = allocate_shared<AtomicBInc, pool_allocator>(shared_mem_pool, false);
+      printf("4\n");
       if constexpr(std::is_same_v<A, A1>) {
+        printf("4a\n");
         abstract_doms = make_shared<A1, global_allocator>(grid_data.root);
       }
       else if constexpr(std::is_same_v<A, A2>) {
+        printf("4b\n");
         abstract_doms = make_shared<A2, global_allocator>(grid_data.root, typename A::basic_allocator_type{}, typename A::prop_allocator_type{}, shared_mem_pool);
       }
       else if constexpr(std::is_same_v<A, A3>) {
+        printf("4c\n");
         abstract_doms = make_shared<A3, global_allocator>(grid_data.root, typename A::basic_allocator_type{}, typename A::prop_allocator_type{shared_mem_pool}, shared_mem_pool);
       }
       else {
         static_assert(std::is_same_v<A, A1>, "Unknown abstract domains.");
       }
+      printf("5\n");
       snapshot_root = make_shared<snapshot_type, global_allocator>(abstract_doms->search_tree->template snapshot<global_allocator>());
     }
+    printf("%d reaches sync barrier\n", threadIdx.x);
     block.sync();
   }
 
@@ -167,9 +176,9 @@ __device__ size_t dive(BlockData<A>& block_data, GridData<A>& grid_data) {
         stop_diving.tell_top();
       }
       else if(a.bab->template refine<AtomicExtraction>(thread_has_changed)) {
-        grid_data.print_lock->acquire();
+        // grid_data.print_lock->acquire();
         bool do_not_stop = a.on_solution_node();
-        grid_data.print_lock->release();
+        // grid_data.print_lock->release();
         if(!do_not_stop) {
           grid_data.gpu_stop->tell_top();
         }
@@ -211,9 +220,9 @@ __device__ void solve_problem(BlockData<A>& block_data, GridData<A>& grid_data) 
         a.on_failed_node();
       }
       else if(a.bab->template refine<AtomicExtraction>(thread_has_changed)) {
-        grid_data.print_lock->acquire();
+        // grid_data.print_lock->acquire();
         bool do_not_stop = a.on_solution_node();
-        grid_data.print_lock->release();
+        // grid_data.print_lock->release();
         if(!do_not_stop) {
           grid_data.gpu_stop->tell_top();
         }
@@ -260,6 +269,7 @@ __device__ void update_block_best_bound(BlockData<A>& block_data, GridData<A>& g
 template <class A>
 __global__ void gpu_solve_kernel(GridData<A>* grid_data, size_t shared_mem_capacity)
 {
+  printf("gpu_solve_kernel\n");
   extern __shared__ unsigned char shared_mem[];
   BlockData<A>& block_data = grid_data->blocks[blockIdx.x];
   block_data.allocate(*grid_data, shared_mem, shared_mem_capacity);
@@ -364,7 +374,7 @@ CUDA void print_allocation_statistics(A0& a) {
 
 /** \returns the size of the shared memory and the kind of memory used.
  * 1 for `A1`, 2 for `A2` and 3 for `A3`. */
-CUDA tuple<size_t, size_t> configure_memory(A0& root) {
+tuple<size_t, size_t> configure_memory(A0& root) {
   cudaDeviceProp deviceProp;
   cudaGetDeviceProperties(&deviceProp, 0);
   const auto& config = root.config;
@@ -454,11 +464,11 @@ void configure_and_run(A0& root, const Timepoint& start) {
   }
 }
 
-#endif // __NVCC__
+#endif // __CUDACC__
 
 void gpu_solve(const Configuration<standard_allocator>& config) {
-#ifndef __NVCC__
-  std::cout << "You must use the NVCC compiler to compile Turbo on GPU." << std::endl;
+#ifndef __CUDACC__
+  std::cout << "You must use a CUDA compiler (nvcc or Clang) to compile Turbo on GPU." << std::endl;
 #else
   auto start = std::chrono::high_resolution_clock::now();
 

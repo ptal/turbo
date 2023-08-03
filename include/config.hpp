@@ -48,7 +48,7 @@ struct Configuration {
     heap_mb(0),
     stack_kb(STACK_KB),
     arch(
-      #ifdef __NVCC__
+      #ifdef __CUDACC__
         GPU
       #else
         CPU

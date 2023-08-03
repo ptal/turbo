@@ -38,8 +38,9 @@ endif()
 add_executable(turbo src/turbo.cpp src/config.cpp)
 target_include_directories(turbo PRIVATE include)
 target_compile_options(turbo PRIVATE
-  "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:--ptxas-options --suppress-stack-size-warning>"
-  "$<$<COMPILE_LANGUAGE:CUDA>:$<$<CONFIG:Debug>:-ftemplate-backtrace-limit=0;--verbose>;--verbose;--keep>"
-  # "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:--compiler-options -O0>"
+  "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:SHELL:-Xptxas --suppress-stack-size-warning>"
+  "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:--verbose;--keep>"
+  # "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>,$<CONFIG:Debug>>:-ftemplate-backtrace-limit=0>"
+  "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:Clang>>:SHELL:-Xcuda-ptxas --suppress-stack-size-warning>"
 )
 target_link_libraries(turbo PRIVATE lala_parsing lala_search)
