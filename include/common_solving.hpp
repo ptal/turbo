@@ -51,6 +51,7 @@ bool check_timeout(A& a, const Timepoint& start) {
 template <class Alloc, size_t n>
 struct UniqueAlloc {
   Alloc allocator;
+  UniqueAlloc() = default;
   CUDA UniqueAlloc(const Alloc& alloc): allocator(alloc) {}
   UniqueAlloc(const UniqueAlloc& alloc) = default;
   UniqueAlloc& operator=(const UniqueAlloc& alloc) = default;
@@ -335,9 +336,16 @@ public:
   CUDA void join(AbstractDomains<U2, BasicAlloc2, PropAlloc2, StoreAlloc2>& other) {
     if(!other.best->is_bot() && compare(other.best)) {
       other.best->extract(*best);
+      printf("objective: "); best->project(bab->objective_var()).print(); printf("\n");
     }
     stats.join(other.stats);
   }
 };
+
+using Itv = Interval<ZInc<int, battery::local_memory>>;
+using A = AbstractDomains<Itv,
+  statistics_allocator<standard_allocator>,
+  statistics_allocator<UniqueLightAlloc<standard_allocator, 0>>,
+  statistics_allocator<UniqueLightAlloc<standard_allocator, 1>>>;
 
 #endif

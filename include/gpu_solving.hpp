@@ -15,7 +15,7 @@ using F = TFormula<managed_allocator>;
 using FormulaPtr = battery::shared_ptr<F, managed_allocator>;
 
 /** We first interpret the formula in an abstract domain with sequential managed memory, that we call `A0`. */
-using Itv0 = Interval<local::ZInc>;
+using Itv0 = Interval<ZInc<int, battery::local_memory>>;
 using A0 = AbstractDomains<Itv0,
   statistics_allocator<managed_allocator>,
   statistics_allocator<UniqueLightAlloc<managed_allocator, 0>>,
@@ -34,8 +34,8 @@ using A1 = AbstractDomains<Itv1,
 
 using A2 = AbstractDomains<Itv1,
   global_allocator,
-  UniqueLightAlloc<global_allocator, 0>,
-  pool_allocator>;
+  pool_allocator,
+  UniqueAlloc<pool_allocator, 0>>;
 
 using A3 = AbstractDomains<Itv1,
   global_allocator,
@@ -54,7 +54,11 @@ struct BlockData {
   shared_ptr<AtomicBInc, pool_allocator> stop;
   shared_ptr<A, global_allocator> abstract_doms;
   shared_ptr<snapshot_type, global_allocator> snapshot_root;
-  BlockData() = default;
+
+  __device__ BlockData():
+    has_changed(nullptr, pool_allocator(nullptr, 0)),
+    stop(nullptr, pool_allocator(nullptr, 0))
+  {}
 
   /** Initialize the block data.
   * Allocate the abstract domains in the best memory available depending on how large are the abstract domains. */
@@ -70,7 +74,14 @@ struct BlockData {
         abstract_doms = make_shared<A1, global_allocator>(grid_data.root);
       }
       else if constexpr(std::is_same_v<A, A2>) {
-        abstract_doms = make_shared<A2, global_allocator>(grid_data.root, typename A::basic_allocator_type{}, typename A::prop_allocator_type{}, shared_mem_pool);
+        size_t prop_bytes = grid_data.root.prop_allocator.total_bytes_allocated();
+        void* prop_mem_pool = global_allocator{}.allocate(prop_bytes);
+        pool_allocator prop_alloc(static_cast<unsigned char*>(prop_mem_pool), prop_bytes);
+        abstract_doms = make_shared<A2, global_allocator>(grid_data.root, typename A::basic_allocator_type{}, prop_alloc, typename A::store_allocator_type{shared_mem_pool});
+        if(blockIdx.x == 0 && grid_data.root.config.verbose_solving) {
+          printf("%% propagator memory usage:\n");
+          prop_alloc.print();
+        }
       }
       else if constexpr(std::is_same_v<A, A3>) {
         abstract_doms = make_shared<A3, global_allocator>(grid_data.root, typename A::basic_allocator_type{}, typename A::prop_allocator_type{shared_mem_pool}, shared_mem_pool);
@@ -102,52 +113,52 @@ struct BlockData {
   }
 };
 
-template <class A>
+template <class B>
 struct GridData {
   A0 root;
   // Stop from the CPU, for instance because of a timeout.
   bool cpu_stop;
-  vector<BlockData<A>, global_allocator> blocks;
+  vector<BlockData<B>, global_allocator> blocks;
   // Stop from a block on the GPU, for instance because we found a solution.
   shared_ptr<BInc<atomic_memory_grid>, global_allocator> gpu_stop;
   shared_ptr<cuda::binary_semaphore<cuda::thread_scope_device>, global_allocator> print_lock;
-  shared_ptr<ZInc<int, atomic_memory_grid>, global_allocator> next_subproblem;
+  shared_ptr<ZInc<size_t, atomic_memory_grid>, global_allocator> next_subproblem;
 
-  GridData(A0&& root)
-    : root(std::move(root))
+  GridData(const A& root)
+    : root(root)
     , cpu_stop(false)
   {}
 
   __device__ void allocate() {
     assert(threadIdx.x == 0 && blockIdx.x == 0);
-    blocks = vector<BlockData<A>, global_allocator>(root.config.or_nodes);
+    blocks = vector<BlockData<B>, global_allocator>(root.config.or_nodes);
     gpu_stop = make_shared<BInc<atomic_memory_grid>, global_allocator>(false);
     print_lock = make_shared<cuda::binary_semaphore<cuda::thread_scope_device>, global_allocator>(1);
-    next_subproblem = make_shared<ZInc<int, atomic_memory_grid>, global_allocator>(0);
+    next_subproblem = make_shared<ZInc<size_t, atomic_memory_grid>, global_allocator>(0);
   }
 
   __device__ void deallocate() {
     assert(threadIdx.x == 0 && blockIdx.x == 0);
-    blocks = vector<BlockData<A>, global_allocator>();
+    blocks = vector<BlockData<B>, global_allocator>();
     gpu_stop.reset();
     print_lock.reset();
     next_subproblem.reset();
   }
 };
 
-template <class A>
-__global__ void initialize_grid_data(GridData<A>* grid_data) {
+template <class B>
+__global__ void initialize_grid_data(GridData<B>* grid_data) {
   grid_data->allocate();
 }
 
-template <class A>
-__global__ void deallocate_grid_data(GridData<A>* grid_data) {
+template <class B>
+__global__ void deallocate_grid_data(GridData<B>* grid_data) {
   grid_data->deallocate();
 }
 
-template <class A>
-__device__ size_t dive(BlockData<A>& block_data, GridData<A>& grid_data) {
-  A& a = *block_data.abstract_doms;
+template <class B>
+__device__ size_t dive(BlockData<B>& block_data, GridData<B>& grid_data) {
+  B& a = *block_data.abstract_doms;
   auto& fp_engine = *block_data.fp_engine;
   auto& stop = *block_data.stop;
   // Note that we use `block_has_changed` to stop the "diving", not really to indicate something has changed or not (since we do not need this information for this algorithm).
@@ -188,9 +199,9 @@ __device__ size_t dive(BlockData<A>& block_data, GridData<A>& grid_data) {
   return depth;
 }
 
-template <class A>
-__device__ void solve_problem(BlockData<A>& block_data, GridData<A>& grid_data) {
-  A& a = *block_data.abstract_doms;
+template <class B>
+__device__ void solve_problem(BlockData<B>& block_data, GridData<B>& grid_data) {
+  B& a = *block_data.abstract_doms;
   auto& fp_engine = *block_data.fp_engine;
   auto& block_has_changed = *block_data.has_changed;
   auto& stop = *block_data.stop;
@@ -233,8 +244,8 @@ __device__ void solve_problem(BlockData<A>& block_data, GridData<A>& grid_data) 
  * Note that this operation might not always succeed, which is okay, the best bound is still preserved in `block_data` at then reduced at the end (in `reduce_blocks`).
  * The worst that can happen is that a best bound is found twice, which does not prevent the correctness of the algorithm.
  */
-template <class A>
-__device__ void update_grid_best_bound(BlockData<A>& block_data, GridData<A>& grid_data) {
+template <class B>
+__device__ void update_grid_best_bound(BlockData<B>& block_data, GridData<B>& grid_data) {
   if(threadIdx.x == 0) {
     VarEnv<global_allocator> empty_env{};
     auto best_formula = block_data.abstract_doms->bab->template deinterpret_best_bound<global_allocator>();
@@ -244,8 +255,8 @@ __device__ void update_grid_best_bound(BlockData<A>& block_data, GridData<A>& gr
   cooperative_groups::this_thread_block().sync();
 }
 
-template <class A>
-__device__ void update_block_best_bound(BlockData<A>& block_data, GridData<A>& grid_data) {
+template <class B>
+__device__ void update_block_best_bound(BlockData<B>& block_data, GridData<B>& grid_data) {
   if(threadIdx.x == 0) {
     VarEnv<global_allocator> empty_env{};
     auto objvar = grid_data.root.bab->objective_var();
@@ -257,43 +268,43 @@ __device__ void update_block_best_bound(BlockData<A>& block_data, GridData<A>& g
   cooperative_groups::this_thread_block().sync();
 }
 
-template <class A>
-__global__ void gpu_solve_kernel(GridData<A>* grid_data, size_t shared_mem_capacity)
+template <class B>
+__global__ void gpu_solve_kernel(GridData<B>* grid_data, size_t shared_mem_capacity)
 {
   extern __shared__ unsigned char shared_mem[];
-  BlockData<A>& block_data = grid_data->blocks[blockIdx.x];
+  BlockData<B>& block_data = grid_data->blocks[blockIdx.x];
   block_data.allocate(*grid_data, shared_mem, shared_mem_capacity);
-  size_t num_subproblems = 1 << grid_data->root.config.subproblems_power;
+  size_t num_subproblems = 1;
+  num_subproblems <<= grid_data->root.config.subproblems_power;
   if(threadIdx.x == 0 && blockIdx.x == 0) {
-    if(grid_data->root.config.verbose_solving) {
-      printf("%% subproblems=%lu\n", num_subproblems);
-    }
-    grid_data->next_subproblem->tell(local::ZInc(gridDim.x));
+    grid_data->next_subproblem->tell(ZInc<size_t, local_memory>(gridDim.x));
+    grid_data->root.stats.eps_num_subproblems = num_subproblems;
   }
   while(block_data.subproblem_idx < num_subproblems && !*(block_data.stop)) {
-    if(threadIdx.x == 0 && grid_data->root.config.verbose_solving) {
-      printf("%% Block %d solves subproblem num %lu\n", blockIdx.x, block_data.subproblem_idx);
-    }
+    // if(threadIdx.x == 0 && grid_data->root.config.verbose_solving) {
+    //   printf("%% Block %d solves subproblem num %lu\n", blockIdx.x, block_data.subproblem_idx);
+    // }
     block_data.restore();
     update_block_best_bound(block_data, *grid_data);
     size_t remaining_depth = dive(block_data, *grid_data);
     if(remaining_depth == 0) {
       solve_problem(block_data, *grid_data);
+      if(!*(block_data.stop)) {
+        block_data.abstract_doms->stats.eps_solved_subproblems += 1;
+      }
     }
     else {
-      if(threadIdx.x == 0) {
+      if(threadIdx.x == 0 && !*(block_data.stop)) {
         size_t next_subproblem_idx = ((block_data.subproblem_idx >> remaining_depth) + 1) << remaining_depth;
-        if(grid_data->root.config.verbose_solving) {
-          printf("%% Block %d skips %lu subproblems\n", blockIdx.x, next_subproblem_idx - block_data.subproblem_idx);
-        }
-        grid_data->next_subproblem->tell(local::ZInc(next_subproblem_idx));
+        block_data.abstract_doms->stats.eps_skipped_subproblems += next_subproblem_idx - block_data.subproblem_idx;
+        grid_data->next_subproblem->tell(ZInc<size_t, local_memory>(next_subproblem_idx));
       }
     }
     update_grid_best_bound(block_data, *grid_data);
     // Load next problem.
-    if(threadIdx.x == 0) {
+    if(threadIdx.x == 0 && !*(block_data.stop)) {
       block_data.subproblem_idx = grid_data->next_subproblem->value();
-      grid_data->next_subproblem->tell(local::ZInc(block_data.subproblem_idx + 1));
+      grid_data->next_subproblem->tell(ZInc<size_t, local_memory>(block_data.subproblem_idx + 1));
     }
     cooperative_groups::this_thread_block().sync();
   }
@@ -301,11 +312,25 @@ __global__ void gpu_solve_kernel(GridData<A>* grid_data, size_t shared_mem_capac
   block_data.deallocate();
 }
 
-template <class A>
-__global__ void reduce_blocks(GridData<A>* grid_data) {
+template <class B>
+__global__ void reduce_blocks(GridData<B>* grid_data) {
   for(int i = 0; i < grid_data->blocks.size(); ++i) {
     grid_data->root.join(*(grid_data->blocks[i].abstract_doms));
   }
+}
+
+template <class T> __global__ void gpu_sizeof_kernel(size_t* size) { *size = sizeof(T); }
+template <class T>
+size_t gpu_sizeof() {
+  auto s = make_unique<size_t, managed_allocator>();
+  gpu_sizeof_kernel<T><<<1, 1>>>(s.get());
+  CUDAEX(cudaDeviceSynchronize());
+  return *s;
+}
+
+size_t sizeof_store(const A& root) {
+  return gpu_sizeof<typename A2::IStore>()
+       + gpu_sizeof<typename A2::IStore::universe_type>() * root.store->vars();
 }
 
 template <class Alloc>
@@ -318,11 +343,11 @@ void increase_memory_limits(const Configuration<Alloc>& config, const A0& root) 
   }
   if(config.heap_mb == 0) {
     // 4 * (size of store + size of propagators).
-    size_t per_block_mem = 4 * (root.store_allocator.total_bytes_allocated() + root.prop_allocator.total_bytes_allocated());
+    size_t per_block_mem = 4 * (sizeof_store(root) + root.prop_allocator.total_bytes_allocated());
     CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, per_block_mem * config.or_nodes));
   }
   else {
-    CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, config.heap_mb*1000*1000));
+    CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, size_t(config.heap_mb) * 1000 * 1000));
   }
   if(config.verbose_solving) {
     size_t max_heap_size;
@@ -356,7 +381,7 @@ CUDA void print_allocation_statistics(const char* alloc_name, const statistics_a
     alloc.num_deallocations());
 }
 
-CUDA void print_allocation_statistics(A0& a) {
+CUDA void print_allocation_statistics(A& a) {
   print_allocation_statistics("basic_allocator", a.basic_allocator);
   print_allocation_statistics("prop_allocator", a.prop_allocator);
   print_allocation_statistics("store_allocator", a.store_allocator);
@@ -364,31 +389,34 @@ CUDA void print_allocation_statistics(A0& a) {
 
 /** \returns the size of the shared memory and the kind of memory used.
  * 1 for `A1`, 2 for `A2` and 3 for `A3`. */
-CUDA tuple<size_t, size_t> configure_memory(A0& root) {
+tuple<size_t, size_t> configure_memory(A& root) {
   cudaDeviceProp deviceProp;
   cudaGetDeviceProperties(&deviceProp, 0);
   const auto& config = root.config;
   size_t shared_mem_capacity = deviceProp.sharedMemPerBlock;
 
-  // Copy A0 to know how large are the abstract domains.
-  A0 root2(root);
+  // Copy the root to know how large are the abstract domains.
+  A root2(root);
   print_allocation_statistics(root2);
 
   increase_memory_limits(config, root2);
 
   // Need a bit of shared memory for the fixpoint engine.
   size_t fixpoint_shared_mem = 100;
+  size_t store_alignment = 200; // The store does not create much alignment overhead since it is almost only a single array.
 
+  size_t store_bytes = sizeof_store(root2);
+  store_bytes += fixpoint_shared_mem + store_alignment;
   // We add 20% extra memory due to the alignment of the shared memory which is not taken into account in the statistics.
-  size_t store_bytes = root2.store_allocator.total_bytes_allocated();
-  store_bytes += fixpoint_shared_mem + store_bytes / 5;
+  // From limited experiments, alignment overhead is usually around 10%.
   size_t prop_bytes = root2.prop_allocator.total_bytes_allocated();
   prop_bytes += prop_bytes / 5;
   size_t both_bytes = store_bytes + prop_bytes;
 
   if(shared_mem_capacity < store_bytes) {
     if(config.verbose_solving) {
-      printf("%% The store of variables (%zuKB) cannot be stored in the shared memory of the GPU (%zuKB), therefore we use the global memory.\n",
+      printf("%% The store of variables (%zu, %zuKB) cannot be stored in the shared memory of the GPU (%zuKB), therefore we use the global memory.\n",
+      store_bytes,
       store_bytes / 1000,
       shared_mem_capacity / 1000);
     }
@@ -404,7 +432,8 @@ CUDA tuple<size_t, size_t> configure_memory(A0& root) {
   }
   else {
     if(config.verbose_solving) {
-      printf("%% The store of variables (%zuKB) is stored in the shared memory of the GPU (%zuKB).\n",
+      printf("%% The store of variables (%zu, %zuKB) is stored in the shared memory of the GPU (%zuKB).\n",
+        store_bytes,
         store_bytes / 1000,
         shared_mem_capacity / 1000);
     }
@@ -412,9 +441,9 @@ CUDA tuple<size_t, size_t> configure_memory(A0& root) {
   }
 }
 
-template <class A, class Timepoint>
-void transfer_memory_and_run(A0& root, size_t shared_mem_capacity, const Timepoint& start) {
-  auto grid_data = make_shared<GridData<A>, managed_allocator>(std::move(root));
+template <class B, class Timepoint>
+void transfer_memory_and_run(A& root, size_t shared_mem_capacity, const Timepoint& start) {
+  auto grid_data = make_shared<GridData<B>, managed_allocator>(std::move(root));
   initialize_grid_data<<<1,1>>>(grid_data.get());
   CUDAEX(cudaDeviceSynchronize());
   std::thread timeout_thread(guard_timeout, grid_data->root.config.timeout_ms, &grid_data->cpu_stop);
@@ -435,7 +464,7 @@ void transfer_memory_and_run(A0& root, size_t shared_mem_capacity, const Timepoi
 }
 
 template <class Timepoint>
-void configure_and_run(A0& root, const Timepoint& start) {
+void configure_and_run(A& root, const Timepoint& start) {
   tuple<size_t, size_t> memory_config = configure_memory(root);
   size_t shared_mem_capacity = get<0>(memory_config);
   switch(get<1>(memory_config)) {
@@ -461,18 +490,16 @@ void gpu_solve(const Configuration<standard_allocator>& config) {
   std::cout << "You must use the NVCC compiler to compile Turbo on GPU." << std::endl;
 #else
   auto start = std::chrono::high_resolution_clock::now();
+  A root(config);
 
-  A0::basic_allocator_type basic_allocator{managed_allocator{}};
-  A0::prop_allocator_type prop_allocator{UniqueLightAlloc<managed_allocator, 0>{}};
-  A0::store_allocator_type store_allocator{UniqueLightAlloc<managed_allocator, 1>{}};
-  auto root = make_shared<A0, managed_allocator>(config, basic_allocator, prop_allocator, store_allocator);
   // I. Parse the FlatZinc model.
-  battery::shared_ptr<TFormula<A0::basic_allocator_type>, A0::basic_allocator_type> f =
-    parse_flatzinc<A0::basic_allocator_type>(root->config.problem_path.data(), root->fzn_output);
+  using FormulaPtr = battery::shared_ptr<TFormula<typename A::basic_allocator_type>, typename A::basic_allocator_type>;
+  FormulaPtr f = parse_flatzinc(config.problem_path.data(), root.fzn_output);
   if(!f) {
     std::cerr << "Could not parse FlatZinc model." << std::endl;
     exit(EXIT_FAILURE);
   }
+
   if(config.verbose_solving) {
     printf("%% FlatZinc parsed\n");
   }
@@ -483,30 +510,33 @@ void gpu_solve(const Configuration<standard_allocator>& config) {
     printf("\n");
   }
 
-  // I. Create the abstract domains.
-  root->allocate(num_quantified_vars(*f));
+  // II. Create the abstract domain.
+  root.allocate(num_quantified_vars(*f));
 
-  // II. Interpret the formula in the abstract domain.
-  root->typing(*f);
+  // III. Interpret the formula in the abstract domain.
+  root.typing(*f);
   if(config.print_ast) {
     printf("%% Typed AST:\n");
     f->print(true);
     printf("\n");
   }
-  if(root->interpret(*f)) {
-    if(config.print_ast) {
-      printf("%% Interpreted AST:\n");
-      root->ipc->deinterpret(root->env).print(true);
-      printf("\n");
-    }
-    auto interpretation_time = std::chrono::high_resolution_clock::now();
-    root->stats.interpretation_duration = std::chrono::duration_cast<std::chrono::milliseconds>(interpretation_time - start).count();
-    if(config.verbose_solving) {
-      printf("%% Formula has been loaded, solving begins...\n");
-      print_allocation_statistics(*root);
-    }
-    configure_and_run(*root, interpretation_time);
+  if(!root.interpret(*f)) {
+    exit(EXIT_FAILURE);
   }
+
+  if(config.print_ast) {
+    printf("%% Interpreted AST:\n");
+    root.ipc->deinterpret(root.env).print(true);
+    printf("\n");
+  }
+
+  auto interpretation_time = std::chrono::high_resolution_clock::now();
+  root.stats.interpretation_duration = std::chrono::duration_cast<std::chrono::milliseconds>(interpretation_time - start).count();
+  if(config.verbose_solving) {
+    printf("%% Formula has been loaded, solving begins...\n");
+    print_allocation_statistics(root);
+  }
+  configure_and_run(root, interpretation_time);
 #endif
 }
 

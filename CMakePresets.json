@@ -75,7 +75,13 @@
         "default-gpu",
         "release",
         "verbose"
-      ]
+      ],
+      "cacheVariables": {
+        "REDUCE_PTX_SIZE": {
+          "type": "BOOL",
+          "value": "ON"
+        }
+      }
     },
     {
       "name": "cpu-debug",

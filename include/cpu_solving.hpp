@@ -5,20 +5,14 @@
 
 #include "common_solving.hpp"
 
-using Itv = Interval<local::ZInc>;
-using A = AbstractDomains<Itv,
-  standard_allocator,
-  UniqueLightAlloc<standard_allocator, 0>,
-  UniqueLightAlloc<standard_allocator, 1>>;
-
 void cpu_solve(const Configuration<standard_allocator>& config) {
   auto start = std::chrono::high_resolution_clock::now();
 
   A a(config);
 
   // I. Parse the FlatZinc model.
-  using FormulaPtr = battery::shared_ptr<TFormula<standard_allocator>, standard_allocator>;
-  FormulaPtr f = parse_flatzinc<standard_allocator>(config.problem_path.data(), a.fzn_output);
+  using FormulaPtr = battery::shared_ptr<TFormula<typename A::basic_allocator_type>, typename A::basic_allocator_type>;
+  FormulaPtr f = parse_flatzinc(config.problem_path.data(), a.fzn_output);
   if(!f) {
     std::cerr << "Could not parse FlatZinc model." << std::endl;
     exit(EXIT_FAILURE);

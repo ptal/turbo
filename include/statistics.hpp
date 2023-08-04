@@ -20,25 +20,20 @@ struct Statistics {
   size_t solutions;
   size_t depth_max;
   size_t exhaustive;
+  size_t eps_num_subproblems;
+  size_t eps_solved_subproblems;
+  size_t eps_skipped_subproblems;
 
   CUDA Statistics(size_t variables, size_t constraints, bool optimization):
     variables(variables), constraints(constraints), optimization(optimization),
     duration(0), interpretation_duration(0),
     nodes(0), fails(0), solutions(0),
-    depth_max(0), exhaustive(true) {}
+    depth_max(0), exhaustive(true),
+    eps_solved_subproblems(0), eps_num_subproblems(1), eps_skipped_subproblems(0) {}
 
   CUDA Statistics(): Statistics(0,0,false) {}
   Statistics(const Statistics&) = default;
   Statistics(Statistics&&) = default;
-
-  /** Reset the statistics of a subtree of the search tree, but keep the global statistics: max_depth, variables, constraints, optimization, exhaustive. */
-  CUDA void reset_local_stats() {
-    duration = 0;
-    interpretation_duration = 0;
-    nodes = 0;
-    fails = 0;
-    solutions = 0;
-  }
 
   CUDA void join(const Statistics& other) {
     duration = battery::max(other.duration, duration);
@@ -48,6 +43,8 @@ struct Statistics {
     solutions += other.solutions;
     depth_max = battery::max(depth_max, other.depth_max);
     exhaustive = exhaustive && other.exhaustive;
+    eps_solved_subproblems += other.eps_solved_subproblems;
+    eps_skipped_subproblems += other.eps_skipped_subproblems;
   }
 
 private:
@@ -73,6 +70,9 @@ public:
     print_stat("initTime", to_sec(interpretation_duration));
     print_stat("solveTime", to_sec(duration));
     print_stat("solutions", solutions);
+    print_stat("eps_num_subproblems", eps_num_subproblems);
+    print_stat("eps_solved_subproblems", eps_solved_subproblems);
+    print_stat("eps_skipped_subproblems", eps_skipped_subproblems);
   }
 
   CUDA void print_mzn_end_stats() const {
