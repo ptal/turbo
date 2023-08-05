@@ -244,6 +244,73 @@ struct AbstractDomains {
     return true;
   }
 
+  template <class Alloc1, class Alloc2>
+  void print_allocation_statistics(const char* alloc_name, const statistics_allocator<Alloc1, Alloc2>& alloc) {
+    printf("%% %s.total_bytes_allocated=%zu (%zuKB %zuMB); %zu allocations; %zu deallocations\n",
+      alloc_name,
+      alloc.total_bytes_allocated(),
+      alloc.total_bytes_allocated() / 1000,
+      alloc.total_bytes_allocated() / 1000 / 1000,
+      alloc.num_allocations(),
+      alloc.num_deallocations());
+  }
+
+  void print_allocation_statistics() {
+    print_allocation_statistics("basic_allocator", basic_allocator);
+    print_allocation_statistics("prop_allocator", prop_allocator);
+    print_allocation_statistics("store_allocator", store_allocator);
+  }
+
+  void prepare_solver() {
+    auto start = std::chrono::high_resolution_clock::now();
+
+    // I. Parse the FlatZinc model.
+    using FormulaPtr = battery::shared_ptr<TFormula<basic_allocator_type>, basic_allocator_type>;
+    FormulaPtr f = parse_flatzinc(config.problem_path.data(), fzn_output);
+    if(!f) {
+      std::cerr << "Could not parse FlatZinc model." << std::endl;
+      exit(EXIT_FAILURE);
+    }
+
+    if(config.verbose_solving) {
+      printf("%% FlatZinc parsed\n");
+    }
+
+    if(config.print_ast) {
+      printf("%% Parsed AST:\n");
+      f->print(true);
+      printf("\n");
+    }
+
+    // II. Create the abstract domain.
+    allocate(num_quantified_vars(*f));
+
+    // III. Interpret the formula in the abstract domain.
+    typing(*f);
+    if(config.print_ast) {
+      printf("%% Typed AST:\n");
+      f->print(true);
+      printf("\n");
+    }
+    if(!interpret(*f)) {
+      exit(EXIT_FAILURE);
+    }
+
+    if(config.print_ast) {
+      printf("%% Interpreted AST:\n");
+      ipc->deinterpret(env).print(true);
+      printf("\n");
+    }
+
+    auto interpretation_time = std::chrono::high_resolution_clock::now();
+    stats.interpretation_duration = std::chrono::duration_cast<std::chrono::milliseconds>(interpretation_time - start).count();
+
+    if(config.verbose_solving) {
+      printf("%% Formula has been loaded, solving begins...\n");
+      print_allocation_statistics();
+    }
+  }
+
 private:
   template <class F>
   CUDA bool interpret_default_strategy() {
@@ -343,7 +410,7 @@ public:
 };
 
 using Itv = Interval<ZInc<int, battery::local_memory>>;
-using A = AbstractDomains<Itv,
+using CP = AbstractDomains<Itv,
   statistics_allocator<standard_allocator>,
   statistics_allocator<UniqueLightAlloc<standard_allocator, 0>>,
   statistics_allocator<UniqueLightAlloc<standard_allocator, 1>>>;

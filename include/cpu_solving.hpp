@@ -7,72 +7,25 @@
 
 void cpu_solve(const Configuration<standard_allocator>& config) {
   auto start = std::chrono::high_resolution_clock::now();
-
-  A a(config);
-
-  // I. Parse the FlatZinc model.
-  using FormulaPtr = battery::shared_ptr<TFormula<typename A::basic_allocator_type>, typename A::basic_allocator_type>;
-  FormulaPtr f = parse_flatzinc(config.problem_path.data(), a.fzn_output);
-  if(!f) {
-    std::cerr << "Could not parse FlatZinc model." << std::endl;
-    exit(EXIT_FAILURE);
-  }
-
-  if(config.verbose_solving) {
-    printf("%% FlatZinc parsed\n");
-  }
-
-  if(config.print_ast) {
-    printf("%% Parsed AST:\n");
-    f->print(true);
-    printf("\n");
-  }
-
-  // II. Create the abstract domain.
-  a.allocate(num_quantified_vars(*f));
-
-  // III. Interpret the formula in the abstract domain.
-  a.typing(*f);
-  if(config.print_ast) {
-    printf("%% Typed AST:\n");
-    f->print(true);
-    printf("\n");
-  }
-  if(!a.interpret(*f)) {
-    exit(EXIT_FAILURE);
-  }
-
-  if(config.print_ast) {
-    printf("%% Interpreted AST:\n");
-    a.ipc->deinterpret(a.env).print(true);
-    printf("\n");
-  }
-
-  auto interpretation_time = std::chrono::high_resolution_clock::now();
-  a.stats.interpretation_duration = std::chrono::duration_cast<std::chrono::milliseconds>(interpretation_time - start).count();
-
-  if(config.verbose_solving) {
-    printf("%% Formula has been loaded, solving begins...\n");
-  }
-
-  // IV. Solve the problem.
+  CP cp(config);
+  cp.prepare_solver();
   local::BInc has_changed = true;
   GaussSeidelIteration fp_engine;
-  while(check_timeout(a, interpretation_time) && has_changed) {
+  while(check_timeout(cp, start) && has_changed) {
     has_changed = false;
-    fp_engine.fixpoint(*a.ipc, has_changed);
-    a.on_node();
-    if(a.ipc->is_top()) {
-      a.on_failed_node();
+    fp_engine.fixpoint(*cp.ipc, has_changed);
+    cp.on_node();
+    if(cp.ipc->is_top()) {
+      cp.on_failed_node();
     }
-    else if(a.bab->template refine<AtomicExtraction>(has_changed)) {
-      if(!a.on_solution_node()) {
+    else if(cp.bab->template refine<AtomicExtraction>(has_changed)) {
+      if(!cp.on_solution_node()) {
         break;
       }
     }
-    a.search_tree->refine(has_changed);
+    cp.search_tree->refine(has_changed);
   }
-  a.on_finish();
+  cp.on_finish();
 }
 
 #endif
