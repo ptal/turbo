@@ -20,11 +20,10 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-ast: Print the AST of the model (useful to debug)." << std::endl;
   std::cout << "\t-p 48: On CPU, run with 48 parallel threads. On GPU, equivalent to `-or 48`." << std::endl;
   std::cout << "\t-arch <cpu|gpu>: Choose the architecture on which the problem will be solved." << std::endl;
-  std::cout << "\t-or 48: Run the subproblems on 48 streaming multiprocessors (SMs) (only for GPU architecture)." << std::endl;
-  std::cout << "\t-and 256: Run each subproblem in 256 threads within a SM (only for GPU architecture)." << std::endl;
-  std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the 'OR threads' (embarrasingly parallel search)." << std::endl;
-  std::cout << "\t-heap 100: Use a maximum of 100MB of global memory in the GPU for the heap for all blocks." << std::endl;
-  std::cout << "\t-stack 100: Use a maximum of 100KB of global memory in the GPU for the stack of each thread." << std::endl;
+  std::cout << "\t-or 48: Run the subproblems on 48 streaming multiprocessors (SMs) (only for GPU architecture). Default: -or 0 for automatic selection of the number of SMs." << std::endl;
+  std::cout << "\t-and 256: Run each subproblem with 256 threads per block (only for GPU architecture). Default: -and 0 for automatic selection of the number of threads per block." << std::endl;
+  std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the 'OR threads' (embarrasingly parallel search). Default: -sub 20." << std::endl;
+  std::cout << "\t-stack 100: Use a maximum of 100KB of stack size per thread stored in global memory (only for GPU architectures)." << std::endl;
   exit(EXIT_FAILURE);
 }
 
@@ -55,6 +54,16 @@ public:
   }
 
   bool read_int(const std::string& option, int& result) {
+    const std::string& value = getCmdOption(option);
+    if(!value.empty()) {
+      sscanf(value.c_str(), "%zu", &result);
+      tokens_read += 2;
+      return true;
+    }
+    return false;
+  }
+
+  bool read_size_t(const std::string& option, size_t& result) {
     const std::string& value = getCmdOption(option);
     if(!value.empty()) {
       result = std::stoi(value);
@@ -98,19 +107,18 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
     std::cerr << "The options -or and -p cannot be used at the same time" << std::endl;
     usage_and_exit(argv[0]);
   }
-  input.read_int("-p", config.or_nodes);
-  input.read_int("-or", config.or_nodes);
-  input.read_int("-and", config.and_nodes);
-  input.read_int("-sub", config.subproblems_power);
-  input.read_int("-t", config.timeout_ms);
-  input.read_int("-heap", config.heap_mb);
-  input.read_int("-stack", config.stack_kb);
+  input.read_size_t("-p", config.or_nodes);
+  input.read_size_t("-or", config.or_nodes);
+  input.read_size_t("-and", config.and_nodes);
+  input.read_size_t("-sub", config.subproblems_power);
+  input.read_size_t("-t", config.timeout_ms);
+  input.read_size_t("-stack", config.stack_kb);
   bool all_sols;
   input.read_bool("-a", all_sols);
   if(all_sols) {
     config.stop_after_n_solutions = 0;
   }
-  input.read_int("-n", config.stop_after_n_solutions);
+  input.read_size_t("-n", config.stop_after_n_solutions);
   input.read_bool("-i", config.print_intermediate_solutions);
   input.read_bool("-f", config.free_search);
   input.read_bool("-v", config.verbose_solving);

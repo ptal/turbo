@@ -341,29 +341,6 @@ size_t sizeof_store(const CP& root) {
        + gpu_sizeof<typename BlockCP::IStore::universe_type>() * root.store->vars();
 }
 
-template <class Alloc>
-void increase_memory_limits(const Configuration<Alloc>& config, const MemoryConfig& mem_config) {
-  CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, config.stack_kb*1000));
-  if(config.verbose_solving) {
-    size_t max_stack_size;
-    cudaDeviceGetLimit(&max_stack_size, cudaLimitStackSize);
-    printf("%% GPU_max_stack_size=%zu (%zuKB)\n", max_stack_size, max_stack_size/1000);
-  }
-  if(config.heap_mb == 0) {
-    // 4 * (size of store + size of propagators).
-    size_t per_block_mem = 4 * (mem_config.store_bytes + mem_config.pc_bytes);
-    CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, per_block_mem * config.or_nodes));
-  }
-  else {
-    CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, size_t(config.heap_mb) * 1000 * 1000));
-  }
-  if(config.verbose_solving) {
-    size_t max_heap_size;
-    cudaDeviceGetLimit(&max_heap_size, cudaLimitMallocHeapSize);
-    printf("%% GPU_max_heap_size=%zu (%zuMB)\n", max_heap_size, max_heap_size/1000/1000);
-  }
-}
-
 // Inspired by https://stackoverflow.com/questions/39513830/launch-cuda-kernel-with-a-timeout/39514902
 inline void guard_timeout(int timeout_ms, bool* is_timeout) {
   if(timeout_ms == 0) {
@@ -439,10 +416,17 @@ void transfer_memory_and_run(CP& root, MemoryConfig mem_config, const Timepoint&
   std::thread timeout_thread(guard_timeout, grid_data->root.config.timeout_ms, &grid_data->cpu_stop);
   gpu_solve_kernel
     <<<grid_data->root.config.or_nodes,
-       grid_data->root.config.and_nodes,
-       grid_data->mem_config.shared_bytes>>>
+      grid_data->root.config.and_nodes,
+      grid_data->mem_config.shared_bytes>>>
     (grid_data.get());
-  CUDAEX(cudaDeviceSynchronize());
+  cudaError error = cudaDeviceSynchronize();
+  if(error != cudaErrorIllegalAddress) {
+    CUDAEX(error);
+  }
+  else {
+    printf("%% ERROR: kernel failed due to an illegal memory access. This might be due to a stack or heap overflow because they are too small. Try increasing the stack and heap size with the options -stack and -heap.\n");
+    exit(EXIT_FAILURE);
+  }
   grid_data->cpu_stop = true;
   check_timeout(grid_data->root, start);
   timeout_thread.join();
@@ -453,10 +437,71 @@ void transfer_memory_and_run(CP& root, MemoryConfig mem_config, const Timepoint&
   CUDAEX(cudaDeviceSynchronize());
 }
 
+// From https://stackoverflow.com/a/32531982/2231159
+int threads_per_sm(cudaDeviceProp devProp) {
+  switch (devProp.major){
+    case 2: return (devProp.minor == 1) ? 48 : 32; // Fermi
+    case 3: return 192; // Kepler
+    case 5: return 128; // Maxwell
+    case 6: return (devProp.minor == 0) ? 64 : 128; // Pascal
+    case 7: return 64; // Volta and Turing
+    case 8: return (devProp.minor == 0) ? 64 : 128; // Ampere
+    case 9: return 128; // Hopper
+    default: return 64;
+  }
+}
+
+void configure_blocks_threads(CP& root, const MemoryConfig& mem_config) {
+  int hint_num_blocks;
+  int hint_num_threads;
+  CUDAE(cudaOccupancyMaxPotentialBlockSize(&hint_num_blocks, &hint_num_threads, (void*) gpu_solve_kernel, (int)mem_config.shared_bytes));
+
+  cudaDeviceProp deviceProp;
+  cudaGetDeviceProperties(&deviceProp, 0);
+
+  size_t total_global_mem = deviceProp.totalGlobalMem;
+  size_t num_sm = deviceProp.multiProcessorCount;
+  size_t num_threads_per_sm = threads_per_sm(deviceProp);
+
+  auto& config = root.config;
+  config.or_nodes = (config.or_nodes == 0) ? hint_num_blocks : config.or_nodes;
+  config.and_nodes = (config.and_nodes == 0) ? hint_num_threads : config.and_nodes;
+
+  if(config.and_nodes > deviceProp.maxThreadsPerBlock) {
+    if(config.verbose_solving) {
+      printf("%% WARNING: -and %lu too high for this GPU, we use the maximum %d instead.", config.and_nodes, deviceProp.maxThreadsPerBlock);
+    }
+    config.and_nodes = deviceProp.maxThreadsPerBlock;
+  }
+
+  // The stack allocated depends on the maximum number of threads per SM, not on the actual number of threads per block.
+  size_t total_stack_size = num_sm * deviceProp.maxThreadsPerMultiProcessor * config.stack_kb * 1000;
+  size_t remaining_global_mem = total_global_mem - total_stack_size;
+  remaining_global_mem -= remaining_global_mem / 50; // We leave 2% of global memory free for CUDA allocations, not sure if it is useful though.
+
+  // Basically the size of the store and propagator, and 100 bytes per variable.
+  size_t heap_usage_estimation = (config.or_nodes + 1) * (mem_config.pc_bytes + mem_config.store_bytes + 100 * root.store->vars());
+  // +1 for the root node in GridCP.
+  while(heap_usage_estimation > remaining_global_mem) {
+    config.or_nodes--;
+  }
+
+  CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, config.stack_kb*1000));
+  CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, remaining_global_mem));
+
+  if(config.verbose_solving) {
+    printf("%% stack_memory=%luMB (%luKB)\n", total_stack_size / 1000 / 1000, total_stack_size / 1000);
+    printf("%% heap_memory=%luGB (%luMB)\n", remaining_global_mem / 1000 / 1000 / 1000, remaining_global_mem / 1000 / 1000);
+    printf("%% heap_usage_estimation=%luGB (%luMB)\n", heap_usage_estimation / 1000 / 1000 / 1000, heap_usage_estimation / 1000 / 1000);
+    printf("%% and_nodes=%lu\n", config.and_nodes);
+    printf("%% or_nodes=%lu\n", config.or_nodes);
+  }
+}
+
 template <class Timepoint>
 void configure_and_run(CP& root, const Timepoint& start) {
   MemoryConfig mem_config = configure_memory(root);
-  increase_memory_limits(root.config, mem_config);
+  configure_blocks_threads(root, mem_config);
   transfer_memory_and_run(root, mem_config, start);
 }
 

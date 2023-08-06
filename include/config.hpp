@@ -6,10 +6,10 @@
 #include "battery/allocator.hpp"
 #include "battery/string.hpp"
 
-#define OR_NODES 48
-#define AND_NODES 256
-#define SUBPROBLEMS_POWER 15 // 2^N
-#define STACK_KB 100
+#define OR_NODES 0
+#define AND_NODES 0
+#define SUBPROBLEMS_POWER 20 // 2^N
+#define STACK_KB 32
 
 enum Arch {
   CPU,
@@ -20,17 +20,16 @@ template<class Allocator>
 struct Configuration {
   using allocator_type = Allocator;
   bool print_intermediate_solutions; // (only optimization problems).
-  int stop_after_n_solutions; // 0 for all solutions (satisfaction problems only).
+  size_t stop_after_n_solutions; // 0 for all solutions (satisfaction problems only).
   bool free_search;
   bool print_statistics;
   bool verbose_solving;
   bool print_ast;
-  int timeout_ms;
-  int or_nodes;
-  int and_nodes; // (only for GPU)
-  int subproblems_power;
-  int heap_mb;
-  int stack_kb;
+  size_t timeout_ms;
+  size_t or_nodes;
+  size_t and_nodes; // (only for GPU)
+  size_t subproblems_power;
+  size_t stack_kb;
   Arch arch;
   battery::string<allocator_type> problem_path;
 
@@ -45,7 +44,6 @@ struct Configuration {
     and_nodes(AND_NODES),
     or_nodes(OR_NODES),
     subproblems_power(SUBPROBLEMS_POWER),
-    heap_mb(0),
     stack_kb(STACK_KB),
     arch(
       #ifdef __NVCC__
@@ -71,14 +69,13 @@ struct Configuration {
     or_nodes(other.or_nodes),
     and_nodes(other.and_nodes),
     subproblems_power(other.subproblems_power),
-    heap_mb(other.heap_mb),
     stack_kb(other.stack_kb),
     arch(other.arch),
     problem_path(other.problem_path, alloc)
   {}
 
   CUDA void print_commandline(const char* program_name) {
-    printf("%s -t %d %s-n %d %s%s%s%s%s",
+    printf("%s -t %zu %s-n %zu %s%s%s%s%s",
       program_name,
       timeout_ms,
       (print_intermediate_solutions ? "-a ": ""),
@@ -90,10 +87,10 @@ struct Configuration {
       (print_ast ? "-ast " : "")
     );
     if(arch == GPU) {
-      printf("-arch gpu -or %d -and %d -sub %d -heap %d -stack %d ", or_nodes, and_nodes, subproblems_power, heap_mb, stack_kb);
+      printf("-arch gpu -or %zu -and %zu -sub %zu -stack %zu ", or_nodes, and_nodes, subproblems_power, stack_kb);
     }
     else {
-      printf("-arch cpu -p %d ", or_nodes);
+      printf("-arch cpu -p %zu ", or_nodes);
     }
     printf("%s\n", problem_path.data());
   }
