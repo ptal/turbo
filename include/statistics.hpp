@@ -23,13 +23,15 @@ struct Statistics {
   size_t eps_num_subproblems;
   size_t eps_solved_subproblems;
   size_t eps_skipped_subproblems;
+  size_t fixpoint_iterations;
 
   CUDA Statistics(size_t variables, size_t constraints, bool optimization):
     variables(variables), constraints(constraints), optimization(optimization),
     duration(0), interpretation_duration(0),
     nodes(0), fails(0), solutions(0),
     depth_max(0), exhaustive(true),
-    eps_solved_subproblems(0), eps_num_subproblems(1), eps_skipped_subproblems(0) {}
+    eps_solved_subproblems(0), eps_num_subproblems(1), eps_skipped_subproblems(0),
+    fixpoint_iterations(0) {}
 
   CUDA Statistics(): Statistics(0,0,false) {}
   Statistics(const Statistics&) = default;
@@ -45,6 +47,7 @@ struct Statistics {
     exhaustive = exhaustive && other.exhaustive;
     eps_solved_subproblems += other.eps_solved_subproblems;
     eps_skipped_subproblems += other.eps_skipped_subproblems;
+    fixpoint_iterations += other.fixpoint_iterations;
   }
 
 private:
@@ -73,6 +76,7 @@ public:
     print_stat("eps_num_subproblems", eps_num_subproblems);
     print_stat("eps_solved_subproblems", eps_solved_subproblems);
     print_stat("eps_skipped_subproblems", eps_skipped_subproblems);
+    print_stat("fixpoint_iterations", fixpoint_iterations);
   }
 
   CUDA void print_mzn_end_stats() const {

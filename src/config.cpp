@@ -53,7 +53,7 @@ public:
     return std::find(tokens.begin(), tokens.end(), option) != tokens.end();
   }
 
-  bool read_int(const std::string& option, int& result) {
+  bool read_size_t(const std::string& option, size_t& result) {
     const std::string& value = getCmdOption(option);
     if(!value.empty()) {
       sscanf(value.c_str(), "%zu", &result);
@@ -63,7 +63,7 @@ public:
     return false;
   }
 
-  bool read_size_t(const std::string& option, size_t& result) {
+  bool read_int(const std::string& option, int& result) {
     const std::string& value = getCmdOption(option);
     if(!value.empty()) {
       result = std::stoi(value);

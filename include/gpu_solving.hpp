@@ -23,6 +23,7 @@ using GridCP = AbstractDomains<Itv0,
 
 /** Then, once everything is initialized, we rely on a parallel abstract domain called `A1`, using atomic global memory. */
 using Itv1 = Interval<ZInc<int, atomic_memory_block>>;
+using Itv2 = Interval<ZInc<int, atomic_memory_grid>>;
 using AtomicBInc = BInc<atomic_memory_block>;
 using FPEngine = BlockAsynchronousIterationGPU<pool_allocator>;
 
@@ -83,6 +84,7 @@ struct GridData {
   shared_ptr<BInc<atomic_memory_grid>, global_allocator> gpu_stop;
   shared_ptr<cuda::binary_semaphore<cuda::thread_scope_device>, global_allocator> print_lock;
   shared_ptr<ZInc<size_t, atomic_memory_grid>, global_allocator> next_subproblem;
+  shared_ptr<Itv2, global_allocator> best_bound;
 
   GridData(const GridCP& root, const MemoryConfig& mem_config)
     : root(root)
@@ -96,6 +98,7 @@ struct GridData {
     gpu_stop = make_shared<BInc<atomic_memory_grid>, global_allocator>(false);
     print_lock = make_shared<cuda::binary_semaphore<cuda::thread_scope_device>, global_allocator>(1);
     next_subproblem = make_shared<ZInc<size_t, atomic_memory_grid>, global_allocator>(0);
+    best_bound = make_shared<Itv2, global_allocator>();
   }
 
   __device__ void deallocate() {
@@ -104,6 +107,7 @@ struct GridData {
     gpu_stop.reset();
     print_lock.reset();
     next_subproblem.reset();
+    best_bound.reset();
   }
 };
 
@@ -173,20 +177,28 @@ __global__ void deallocate_grid_data(GridData* grid_data) {
  * The worst that can happen is that a best bound is found twice, which does not prevent the correctness of the algorithm.
  */
 __device__ void update_grid_best_bound(BlockData& block_data, GridData& grid_data) {
-  if(threadIdx.x == 0 && !grid_data.root.bab->objective_var().is_untyped()) {
-    VarEnv<global_allocator> empty_env{};
-    auto best_formula = block_data.root->bab->template deinterpret_best_bound<global_allocator>();
-    auto best_tell = grid_data.root.store->interpret_tell_in(best_formula, empty_env);
-    grid_data.root.store->tell(best_tell.value());
+  if(threadIdx.x == 0 && !block_data.root->bab->objective_var().is_untyped()) {
+    const auto& bab = block_data.root->bab;
+    auto local_best = bab->optimum().project(bab->objective_var());
+    // printf("[new bound] %d: [%d..%d] (current best: [%d..%d])\n", blockIdx.x, local_best.lb().value(), local_best.ub().value(), grid_data.best_bound->lb().value(), grid_data.best_bound->ub().value());
+    if(bab->is_maximization()) {
+      grid_data.best_bound->tell_lb(dual<typename Itv0::LB>(local_best.ub()));
+    }
+    else {
+      grid_data.best_bound->tell_ub(dual<typename Itv0::UB>(local_best.lb()));
+    }
   }
 }
 
 __device__ void update_block_best_bound(BlockData& block_data, GridData& grid_data) {
-  if(threadIdx.x == 0 && !grid_data.root.bab->objective_var().is_untyped()) {
+  if(threadIdx.x == 0 && !block_data.root->bab->objective_var().is_untyped()) {
+    const auto& bab = block_data.root->bab;
+    // printf("[update] %d: [%d..%d] (current best: [%d..%d])\n", blockIdx.x, block_data.best_bound->lb().value(), block_data.best_bound->ub().value(), grid_data.best_bound->lb().value(), grid_data.best_bound->ub().value());
     VarEnv<global_allocator> empty_env{};
-    auto objvar = grid_data.root.bab->objective_var();
-    block_data.root->store->tell(objvar, grid_data.root.store->project(objvar));
-    auto best_formula = block_data.root->bab->template deinterpret_best_bound<global_allocator>();
+    auto best_formula = bab->template deinterpret_best_bound<global_allocator>(
+      bab->is_maximization()
+      ? Itv0(dual<typename Itv0::UB>(grid_data.best_bound->lb()))
+      : Itv0(dual<typename Itv0::LB>(grid_data.best_bound->ub())));
     auto best_tell = block_data.root->store->interpret_tell_in(best_formula, empty_env);
     block_data.root->store->tell(best_tell.value());
   }
@@ -205,23 +217,25 @@ __device__ size_t dive(BlockData& block_data, GridData& grid_data) {
   while(depth > 0 && !stop_diving && !stop) {
     depth--;
     local::BInc thread_has_changed;
-    fp_engine.fixpoint(*a.ipc, thread_has_changed);
+    update_block_best_bound(block_data, grid_data);
+    size_t iterations = fp_engine.fixpoint(*a.ipc, thread_has_changed);
     if(threadIdx.x == 0) {
+      a.stats.fixpoint_iterations += iterations;
       a.on_node();
       if(a.ipc->is_top()) {
         a.on_failed_node();
         stop_diving.tell_top();
       }
       else if(a.bab->template refine<AtomicExtraction>(thread_has_changed)) {
-        grid_data.print_lock->acquire();
+        if(a.is_printing_intermediate_sol()) { grid_data.print_lock->acquire(); }
         bool do_not_stop = a.on_solution_node();
-        grid_data.print_lock->release();
+        if(a.is_printing_intermediate_sol()) { grid_data.print_lock->release(); }
         if(!do_not_stop) {
           grid_data.gpu_stop->tell_top();
         }
         stop_diving.tell_top();
         update_grid_best_bound(block_data, grid_data);
-          }
+      }
       else {
         size_t branch_idx = (block_data.subproblem_idx & (1 << depth)) >> depth;
         auto branches = a.split->split();
@@ -248,28 +262,27 @@ __device__ void solve_problem(BlockData& block_data, GridData& grid_data) {
   while(block_has_changed && !stop) {
     // For correctness we need this local variable, we cannot use `block_has_changed`.
     local::BInc thread_has_changed;
-    fp_engine.fixpoint(*cp.ipc, thread_has_changed);
+    update_block_best_bound(block_data, grid_data);
+    size_t iterations = fp_engine.fixpoint(*cp.ipc, thread_has_changed);
     block_has_changed.dtell_bot();
     fp_engine.barrier();
     if(threadIdx.x == 0) {
+      cp.stats.fixpoint_iterations += iterations;
       cp.on_node();
       if(cp.ipc->is_top()) {
         cp.on_failed_node();
-        update_block_best_bound(block_data, grid_data);
       }
       else if(cp.bab->template refine<AtomicExtraction>(thread_has_changed)) {
-        grid_data.print_lock->acquire();
+        if(cp.is_printing_intermediate_sol()) { grid_data.print_lock->acquire(); }
         bool do_not_stop = cp.on_solution_node();
-        grid_data.print_lock->release();
+        if(cp.is_printing_intermediate_sol()) { grid_data.print_lock->release(); }
         if(!do_not_stop) {
           grid_data.gpu_stop->tell_top();
         }
         update_grid_best_bound(block_data, grid_data);
-          }
-      stop.tell(local::BInc(grid_data.cpu_stop || *(grid_data.gpu_stop)));
-      if(!stop) {
-        cp.search_tree->refine(thread_has_changed);
       }
+      stop.tell(local::BInc(grid_data.cpu_stop || *(grid_data.gpu_stop)));
+      cp.search_tree->refine(thread_has_changed);
     }
     block_has_changed.tell(thread_has_changed);
     fp_engine.barrier();
@@ -293,7 +306,6 @@ __global__ void gpu_solve_kernel(GridData* grid_data)
     //   printf("%% Block %d solves subproblem num %lu\n", blockIdx.x, block_data.subproblem_idx);
     // }
     block_data.restore();
-    update_block_best_bound(block_data, *grid_data);
     cooperative_groups::this_thread_block().sync();
     size_t remaining_depth = dive(block_data, *grid_data);
     if(remaining_depth == 0) {
@@ -317,12 +329,14 @@ __global__ void gpu_solve_kernel(GridData* grid_data)
     }
     cooperative_groups::this_thread_block().sync();
   }
+  cooperative_groups::this_thread_block().sync();
   // We must destroy all objects allocated in the shared memory, trying to destroy them anywhere else will lead to segfault.
   block_data.deallocate();
 }
 
 __global__ void reduce_blocks(GridData* grid_data) {
   for(int i = 0; i < grid_data->blocks.size(); ++i) {
+    // grid_data->blocks[i].root->stats.print_mzn_statistics();
     grid_data->root.join(*(grid_data->blocks[i].root));
   }
 }
@@ -424,7 +438,7 @@ void transfer_memory_and_run(CP& root, MemoryConfig mem_config, const Timepoint&
     CUDAEX(error);
   }
   else {
-    printf("%% ERROR: kernel failed due to an illegal memory access. This might be due to a stack or heap overflow because they are too small. Try increasing the stack and heap size with the options -stack and -heap.\n");
+    printf("%% ERROR: kernel failed due to an illegal memory access. This might be due to a stack overflow because it is too small. Try increasing the stack size with the options -stack.\n");
     exit(EXIT_FAILURE);
   }
   grid_data->cpu_stop = true;

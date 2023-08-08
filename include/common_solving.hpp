@@ -351,9 +351,15 @@ public:
     return !bab->objective_var().is_untyped();
   }
 
+  CUDA bool is_printing_intermediate_sol() {
+    return !is_optimization() || config.print_intermediate_solutions;
+  }
+
   CUDA bool on_solution_node() {
-    fzn_output.print_solution(env, *best);
-    stats.print_mzn_separator();
+    if(is_printing_intermediate_sol()) {
+      fzn_output.print_solution(env, *best);
+      stats.print_mzn_separator();
+    }
     stats.solutions++;
     if(!is_optimization() && config.stop_after_n_solutions != 0 &&
        stats.solutions >= config.stop_after_n_solutions)
@@ -369,6 +375,10 @@ public:
   }
 
   CUDA void on_finish() {
+    if(!is_printing_intermediate_sol()) {
+      fzn_output.print_solution(env, *best);
+      stats.print_mzn_separator();
+    }
     stats.print_mzn_final_separator();
     if(config.print_statistics) {
       stats.print_mzn_statistics();
@@ -403,7 +413,6 @@ public:
   CUDA void join(AbstractDomains<U2, BasicAlloc2, PropAlloc2, StoreAlloc2>& other) {
     if(!other.best->is_bot() && compare(other.best)) {
       other.best->extract(*best);
-      printf("objective: "); best->project(bab->objective_var()).print(); printf("\n");
     }
     stats.join(other.stats);
   }
