@@ -11,7 +11,8 @@ void cpu_solve(const Configuration<standard_allocator>& config) {
   cp.prepare_solver();
   local::BInc has_changed = true;
   GaussSeidelIteration fp_engine;
-  while(check_timeout(cp, start) && has_changed) {
+  block_signal_ctrlc();
+  while(!must_quit() && check_timeout(cp, start) && has_changed) {
     has_changed = false;
     fp_engine.fixpoint(*cp.ipc, has_changed);
     cp.on_node();
@@ -25,7 +26,8 @@ void cpu_solve(const Configuration<standard_allocator>& config) {
     }
     cp.search_tree->refine(has_changed);
   }
-  cp.on_finish();
+  cp.print_final_solution();
+  cp.print_mzn_statistics();
 }
 
 #endif

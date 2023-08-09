@@ -70,6 +70,15 @@ struct MemoryConfig {
       return make_global_pool(store_bytes);
     }
   }
+
+  CUDA void print_mzn_statistics() const {
+    printf("%%%%%%mzn-stat: memory_configuration=%s\n",
+      mem_kind == MemoryKind::GLOBAL ? "global" : (
+      mem_kind == MemoryKind::STORE_SHARED ? "store_shared" : "store_pc_shared"));
+    printf("%%%%%%mzn-stat: shared_mem=%lu\n", shared_bytes);
+    printf("%%%%%%mzn-stat: store_mem=%lu\n", store_bytes);
+    printf("%%%%%%mzn-stat: propagator_mem=%lu\n", pc_bytes);
+  }
 };
 
 struct BlockData;
@@ -77,7 +86,7 @@ struct BlockData;
 struct GridData {
   GridCP root;
   // Stop from the CPU, for instance because of a timeout.
-  bool cpu_stop;
+  volatile bool cpu_stop;
   MemoryConfig mem_config;
   vector<BlockData, global_allocator> blocks;
   // Stop from a block on the GPU, for instance because we found a solution.
@@ -355,19 +364,18 @@ size_t sizeof_store(const CP& root) {
        + gpu_sizeof<typename BlockCP::IStore::universe_type>() * root.store->vars();
 }
 
-// Inspired by https://stackoverflow.com/questions/39513830/launch-cuda-kernel-with-a-timeout/39514902
-inline void guard_timeout(int timeout_ms, bool* is_timeout) {
-  if(timeout_ms == 0) {
-    return;
+void print_memory_statistics(const char* key, size_t bytes) {
+  printf("%% %s=%zu [", key, bytes);
+  if(bytes < 1000 * 1000) {
+    printf("%.2fKB", static_cast<double>(bytes) / 1000);
   }
-  int progressed = 0;
-  while (!(*is_timeout)) {
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-    progressed += 1000;
-    if (progressed >= timeout_ms) {
-      *is_timeout = true;
-    }
+  else if(bytes < 1000 * 1000 * 1000) {
+    printf("%.2fMB", static_cast<double>(bytes) / (1000 * 1000));
   }
+  else {
+    printf("%.2fGB", static_cast<double>(bytes) / (1000 * 1000 * 1000));
+  }
+  printf("]\n");
 }
 
 /** \returns the size of the shared memory and the kind of memory used. */
@@ -379,7 +387,6 @@ MemoryConfig configure_memory(CP& root) {
 
   // Copy the root to know how large are the abstract domains.
   CP root2(root);
-  root2.print_allocation_statistics();
 
   size_t store_alignment = 200; // The store does not create much alignment overhead since it is almost only a single array.
 
@@ -393,8 +400,7 @@ MemoryConfig configure_memory(CP& root) {
   mem_config.pc_bytes += mem_config.pc_bytes / 5;
   if(shared_mem_capacity < mem_config.shared_bytes + mem_config.store_bytes) {
     if(config.verbose_solving) {
-      printf("%% The store of variables (%zu, %zuKB) cannot be stored in the shared memory of the GPU (%zuKB), therefore we use the global memory.\n",
-      mem_config.store_bytes,
+      printf("%% The store of variables (%zuKB) cannot be stored in the shared memory of the GPU (%zuKB), therefore we use the global memory.\n",
       mem_config.store_bytes / 1000,
       shared_mem_capacity / 1000);
     }
@@ -411,15 +417,48 @@ MemoryConfig configure_memory(CP& root) {
   }
   else {
     if(config.verbose_solving) {
-      printf("%% The store of variables (%zu, %zuKB) is stored in the shared memory of the GPU (%zuKB).\n",
-        mem_config.store_bytes,
+      printf("%% The store of variables (%zuKB) is stored in the shared memory of the GPU (%zuKB).\n",
         mem_config.store_bytes / 1000,
         shared_mem_capacity / 1000);
     }
     mem_config.shared_bytes += mem_config.store_bytes;
     mem_config.mem_kind = MemoryKind::STORE_SHARED;
   }
+  if(config.verbose_solving) {
+    print_memory_statistics("store_memory_real", root2.store_allocator.total_bytes_allocated());
+    print_memory_statistics("pc_memory_real", root2.prop_allocator.total_bytes_allocated());
+    print_memory_statistics("other_memory_real", root2.basic_allocator.total_bytes_allocated());
+    // print_memory_statistics("interpretation_cumulated_allocation",
+    //   root.basic_allocator.total_bytes_allocated() +
+    //   root.prop_allocator.total_bytes_allocated() +
+    //   root.store_allocator.total_bytes_allocated());
+  }
   return mem_config;
+}
+
+/** Wait the solving ends because of a timeout, CTRL-C or because the kernel finished. */
+template<class Timepoint>
+void wait_solving_ends(GridData& grid_data, const Timepoint& start) {
+  cudaEvent_t event;
+  cudaEventCreateWithFlags(&event,cudaEventDisableTiming);
+  cudaEventRecord(event);
+  while(!must_quit() && check_timeout(grid_data.root, start) && cudaEventQuery(event) == cudaErrorNotReady) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+  if(cudaEventQuery(event) == cudaErrorNotReady) {
+    grid_data.cpu_stop = true;
+    grid_data.root.stats.exhaustive = false;
+  }
+  else {
+    cudaError error = cudaDeviceSynchronize();
+    if(error != cudaErrorIllegalAddress) {
+      CUDAEX(error);
+    }
+    else {
+      printf("%% ERROR: CUDA kernel failed due to an illegal memory access. This might be due to a stack overflow because it is too small. Try increasing the stack size with the options -stack. If it does not work, please report it as a bug.\n");
+      exit(EXIT_FAILURE);
+    }
+  }
 }
 
 template <class Timepoint>
@@ -427,26 +466,20 @@ void transfer_memory_and_run(CP& root, MemoryConfig mem_config, const Timepoint&
   auto grid_data = make_shared<GridData, managed_allocator>(std::move(root), mem_config);
   initialize_grid_data<<<1,1>>>(grid_data.get());
   CUDAEX(cudaDeviceSynchronize());
-  std::thread timeout_thread(guard_timeout, grid_data->root.config.timeout_ms, &grid_data->cpu_stop);
   gpu_solve_kernel
     <<<grid_data->root.config.or_nodes,
       grid_data->root.config.and_nodes,
       grid_data->mem_config.shared_bytes>>>
     (grid_data.get());
-  cudaError error = cudaDeviceSynchronize();
-  if(error != cudaErrorIllegalAddress) {
-    CUDAEX(error);
-  }
-  else {
-    printf("%% ERROR: kernel failed due to an illegal memory access. This might be due to a stack overflow because it is too small. Try increasing the stack size with the options -stack.\n");
-    exit(EXIT_FAILURE);
-  }
-  grid_data->cpu_stop = true;
-  check_timeout(grid_data->root, start);
-  timeout_thread.join();
+  wait_solving_ends(*grid_data, start);
   reduce_blocks<<<1, 1>>>(grid_data.get());
   CUDAEX(cudaDeviceSynchronize());
-  grid_data->root.on_finish();
+  check_timeout(grid_data->root, start); // last update of the solving time.
+  grid_data->root.print_final_solution();
+  if(grid_data->root.config.print_statistics) {
+    mem_config.print_mzn_statistics();
+    grid_data->root.print_mzn_statistics();
+  }
   deallocate_grid_data<<<1,1>>>(grid_data.get());
   CUDAEX(cudaDeviceSynchronize());
 }
@@ -504,9 +537,9 @@ void configure_blocks_threads(CP& root, const MemoryConfig& mem_config) {
   CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, remaining_global_mem));
 
   if(config.verbose_solving) {
-    printf("%% stack_memory=%luMB (%luKB)\n", total_stack_size / 1000 / 1000, total_stack_size / 1000);
-    printf("%% heap_memory=%luGB (%luMB)\n", remaining_global_mem / 1000 / 1000 / 1000, remaining_global_mem / 1000 / 1000);
-    printf("%% heap_usage_estimation=%luGB (%luMB)\n", heap_usage_estimation / 1000 / 1000 / 1000, heap_usage_estimation / 1000 / 1000);
+    print_memory_statistics("stack_memory", total_stack_size);
+    print_memory_statistics("heap_memory", remaining_global_mem);
+    print_memory_statistics("heap_usage_estimation", heap_usage_estimation);
     printf("%% and_nodes=%lu\n", config.and_nodes);
     printf("%% or_nodes=%lu\n", config.or_nodes);
   }
@@ -521,13 +554,19 @@ void configure_and_run(CP& root, const Timepoint& start) {
 
 #endif // __NVCC__
 
-void gpu_solve(const Configuration<standard_allocator>& config) {
+void gpu_solve(Configuration<standard_allocator>& config) {
 #ifndef __NVCC__
   std::cout << "You must use the NVCC compiler to compile Turbo on GPU." << std::endl;
 #else
   auto start = std::chrono::high_resolution_clock::now();
+  size_t old_timeout = config.timeout_ms;
+  config.timeout_ms = std::max(config.timeout_ms - 5000, size_t(1000));
+  if(config.verbose_solving && config.timeout_ms != old_timeout) {
+    printf("%% Timeout decreased by 5 seconds to %lu ms because the GPU kernel needs up to 5 seconds to stop.\n", config.timeout_ms);
+  }
   CP root(config);
   root.prepare_solver();
+  block_signal_ctrlc();
   configure_and_run(root, start);
 #endif
 }

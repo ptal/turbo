@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <chrono>
 #include <thread>
+#include <csignal>
 
 #include "config.hpp"
 #include "statistics.hpp"
@@ -29,6 +30,24 @@
 
 using namespace lala;
 using namespace battery;
+
+void block_signal_ctrlc() {
+  sigset_t ctrlc;
+  sigemptyset(&ctrlc);
+  sigaddset(&ctrlc, SIGINT);
+  if(sigprocmask(SIG_BLOCK, &ctrlc, NULL) != 0) {
+    printf("%% ERROR: Unable to deal with CTRL-C. Therefore, we will not be able to print the latest solution before quitting.\n");
+    perror(NULL);
+    return;
+  }
+}
+
+bool must_quit() {
+  sigset_t pending_sigs;
+  sigemptyset(&pending_sigs);
+  sigpending(&pending_sigs);
+  return sigismember(&pending_sigs, SIGINT) == 1;
+}
 
 /** Check if the timeout of the current execution is exceeded and returns `false` otherwise.
  * It also update the statistics relevant to the solving duration and the exhaustive flag if we reach the timeout.
@@ -244,23 +263,6 @@ struct AbstractDomains {
     return true;
   }
 
-  template <class Alloc1, class Alloc2>
-  void print_allocation_statistics(const char* alloc_name, const statistics_allocator<Alloc1, Alloc2>& alloc) {
-    printf("%% %s.total_bytes_allocated=%zu (%zuKB %zuMB); %zu allocations; %zu deallocations\n",
-      alloc_name,
-      alloc.total_bytes_allocated(),
-      alloc.total_bytes_allocated() / 1000,
-      alloc.total_bytes_allocated() / 1000 / 1000,
-      alloc.num_allocations(),
-      alloc.num_deallocations());
-  }
-
-  void print_allocation_statistics() {
-    print_allocation_statistics("basic_allocator", basic_allocator);
-    print_allocation_statistics("prop_allocator", prop_allocator);
-    print_allocation_statistics("store_allocator", store_allocator);
-  }
-
   void prepare_solver() {
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -306,8 +308,7 @@ struct AbstractDomains {
     stats.interpretation_duration = std::chrono::duration_cast<std::chrono::milliseconds>(interpretation_time - start).count();
 
     if(config.verbose_solving) {
-      printf("%% Formula has been loaded, solving begins...\n");
-      print_allocation_statistics();
+      printf("%% Formula has been loaded, configuration and solving begin...\n");
     }
   }
 
@@ -317,6 +318,7 @@ private:
     if(config.verbose_solving) {
       printf("%% No split strategy provided, using the default one (first_fail, indomain_split).\n");
     }
+    config.free_search = true;
     typename F::Sequence seq;
     seq.push_back(F::make_nary("first_fail", {}));
     seq.push_back(F::make_nary("indomain_split", {}));
@@ -374,13 +376,17 @@ public:
     stats.fails += 1;
   }
 
-  CUDA void on_finish() {
-    if(!is_printing_intermediate_sol()) {
+  CUDA void print_final_solution() {
+    if(!is_printing_intermediate_sol() && stats.solutions > 0) {
       fzn_output.print_solution(env, *best);
       stats.print_mzn_separator();
     }
     stats.print_mzn_final_separator();
+  }
+
+  CUDA void print_mzn_statistics() {
     if(config.print_statistics) {
+      config.print_mzn_statistics();
       stats.print_mzn_statistics();
       if(!bab->objective_var().is_untyped() && !best->is_bot()) {
         stats.print_mzn_objective(best->project(bab->objective_var()), bab->is_minimization());

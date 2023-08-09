@@ -94,6 +94,17 @@ struct Configuration {
     }
     printf("%s\n", problem_path.data());
   }
+
+  CUDA void print_mzn_statistics() const {
+    printf("%%%%%%mzn-stat: arch=%s\n", arch == GPU ? "gpu" : "cpu");
+    printf("%%%%%%mzn-stat: free_search=%s\n", free_search ? "yes" : "no");
+    printf("%%%%%%mzn-stat: or_nodes=%lu\n", or_nodes);
+    if(arch == GPU) {
+      printf("%%%%%%mzn-stat: and_nodes=%lu\n", and_nodes);
+      printf("%%%%%%mzn-stat: stack_size=%lu\n", stack_kb * 1000);
+      printf("%%%%%%mzn-stat: timeout_ms=%lu\n", timeout_ms);
+    }
+  }
 };
 
 void usage_and_exit(const std::string& program_name);
