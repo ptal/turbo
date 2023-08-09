@@ -19,13 +19,13 @@ include(FetchContent)
 FetchContent_Declare(
   lala_parsing
   GIT_REPOSITORY "https://github.com/lattice-land/lala-parsing.git"
-  GIT_TAG        main
+  GIT_TAG        nvidia_bug4220100
 )
 
 FetchContent_Declare(
   lala_search
   GIT_REPOSITORY "https://github.com/lattice-land/lala-search.git"
-  GIT_TAG        main
+  GIT_TAG        nvidia_bug4220100
 )
 FetchContent_MakeAvailable(lala_parsing lala_search)
 
