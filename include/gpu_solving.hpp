@@ -7,7 +7,7 @@
 #include <thread>
 #include <algorithm>
 
-#ifdef __NVCC__
+#ifdef __CUDACC__
 
 #include <cuda/semaphore>
 
@@ -236,9 +236,9 @@ __device__ size_t dive(BlockData& block_data, GridData& grid_data) {
         stop_diving.tell_top();
       }
       else if(a.bab->template refine<AtomicExtraction>(thread_has_changed)) {
-        if(a.is_printing_intermediate_sol()) { grid_data.print_lock->acquire(); }
+        // if(a.is_printing_intermediate_sol()) { grid_data.print_lock->acquire(); }
         bool do_not_stop = a.on_solution_node();
-        if(a.is_printing_intermediate_sol()) { grid_data.print_lock->release(); }
+        // if(a.is_printing_intermediate_sol()) { grid_data.print_lock->release(); }
         if(!do_not_stop) {
           grid_data.gpu_stop->tell_top();
         }
@@ -282,9 +282,9 @@ __device__ void solve_problem(BlockData& block_data, GridData& grid_data) {
         cp.on_failed_node();
       }
       else if(cp.bab->template refine<AtomicExtraction>(thread_has_changed)) {
-        if(cp.is_printing_intermediate_sol()) { grid_data.print_lock->acquire(); }
+        // if(cp.is_printing_intermediate_sol()) { grid_data.print_lock->acquire(); }
         bool do_not_stop = cp.on_solution_node();
-        if(cp.is_printing_intermediate_sol()) { grid_data.print_lock->release(); }
+        // if(cp.is_printing_intermediate_sol()) { grid_data.print_lock->release(); }
         if(!do_not_stop) {
           grid_data.gpu_stop->tell_top();
         }
@@ -552,11 +552,11 @@ void configure_and_run(CP& root, const Timepoint& start) {
   transfer_memory_and_run(root, mem_config, start);
 }
 
-#endif // __NVCC__
+#endif // __CUDACC__
 
 void gpu_solve(Configuration<standard_allocator>& config) {
-#ifndef __NVCC__
-  std::cout << "You must use the NVCC compiler to compile Turbo on GPU." << std::endl;
+#ifndef __CUDACC__
+  std::cout << "You must use a CUDA compiler (nvcc or clang) to compile Turbo on GPU." << std::endl;
 #else
   auto start = std::chrono::high_resolution_clock::now();
   size_t old_timeout = config.timeout_ms;

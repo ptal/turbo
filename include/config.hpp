@@ -46,7 +46,7 @@ struct Configuration {
     subproblems_power(SUBPROBLEMS_POWER),
     stack_kb(STACK_KB),
     arch(
-      #ifdef __NVCC__
+      #ifdef __CUDACC__
         GPU
       #else
         CPU
