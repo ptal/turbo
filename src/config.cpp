@@ -128,10 +128,10 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
   std::string architecture;
   if(input.read_string("-arch", architecture)) {
     if(architecture == "cpu") {
-      config.arch = CPU;
+      config.arch = Arch::CPU;
     }
     else if(architecture == "gpu") {
-      config.arch = GPU;
+      config.arch = Arch::GPU;
     }
     else {
       std::cerr << "unknown architecture -arch " << architecture << std::endl;

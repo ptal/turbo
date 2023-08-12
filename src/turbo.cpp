@@ -14,10 +14,10 @@ int main(int argc, char** argv) {
       printf("%% ");
       config.print_commandline(argv[0]);
     }
-    if(config.arch == CPU) {
+    if(config.arch == Arch::CPU) {
       cpu_solve(config);
     }
-    else if(config.arch == GPU) {
+    else if(config.arch == Arch::GPU) {
       gpu_solve(config);
     }
   }

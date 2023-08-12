@@ -11,9 +11,14 @@
 #define SUBPROBLEMS_POWER 20 // 2^N
 #define STACK_KB 32
 
-enum Arch {
+enum class Arch {
   CPU,
   GPU
+};
+
+enum class InputFormat {
+  XCSP3,
+  FLATZINC
 };
 
 template<class Allocator>
@@ -47,9 +52,9 @@ struct Configuration {
     stack_kb(STACK_KB),
     arch(
       #ifdef __CUDACC__
-        GPU
+        Arch::GPU
       #else
-        CPU
+        Arch::CPU
       #endif
     )
   {}
@@ -86,7 +91,7 @@ struct Configuration {
       (verbose_solving ? "-v " : ""),
       (print_ast ? "-ast " : "")
     );
-    if(arch == GPU) {
+    if(arch == Arch::GPU) {
       printf("-arch gpu -or %zu -and %zu -sub %zu -stack %zu ", or_nodes, and_nodes, subproblems_power, stack_kb);
     }
     else {
@@ -96,13 +101,26 @@ struct Configuration {
   }
 
   CUDA void print_mzn_statistics() const {
-    printf("%%%%%%mzn-stat: arch=%s\n", arch == GPU ? "gpu" : "cpu");
+    printf("%%%%%%mzn-stat: arch=%s\n", arch == Arch::GPU ? "gpu" : "cpu");
     printf("%%%%%%mzn-stat: free_search=%s\n", free_search ? "yes" : "no");
     printf("%%%%%%mzn-stat: or_nodes=%lu\n", or_nodes);
-    if(arch == GPU) {
+    if(arch == Arch::GPU) {
       printf("%%%%%%mzn-stat: and_nodes=%lu\n", and_nodes);
       printf("%%%%%%mzn-stat: stack_size=%lu\n", stack_kb * 1000);
       printf("%%%%%%mzn-stat: timeout_ms=%lu\n", timeout_ms);
+    }
+  }
+
+  CUDA InputFormat input_format() const {
+    if(problem_path.ends_with(".fzn")) {
+      return InputFormat::FLATZINC;
+    }
+    else if(problem_path.ends_with(".xml")) {
+      return InputFormat::XCSP3;
+    }
+    else {
+      printf("ERROR: Unknown input format for the file %s [supported extension: .xml and .fzn].\n", problem_path.data());
+      exit(EXIT_FAILURE);
     }
   }
 };

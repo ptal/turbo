@@ -27,9 +27,9 @@
 #include "lala/split_strategy.hpp"
 
 #include "lala/flatzinc_parser.hpp"
+#include "lala/XCSP3_parser.hpp"
 
 using namespace lala;
-using namespace battery;
 
 void block_signal_ctrlc() {
   sigset_t ctrlc;
@@ -201,13 +201,13 @@ struct AbstractDomains {
   Statistics stats;
 
   CUDA void allocate(int num_vars) {
-    store = allocate_shared<IStore, StoreAllocator>(store_allocator, env.extends_abstract_dom(), num_vars, store_allocator);
-    ipc = allocate_shared<IPC, PropAllocator>(prop_allocator, env.extends_abstract_dom(), store, prop_allocator);
-    split = allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
-    search_tree = allocate_shared<IST, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, split, basic_allocator);
+    store = battery::allocate_shared<IStore, StoreAllocator>(store_allocator, env.extends_abstract_dom(), num_vars, store_allocator);
+    ipc = battery::allocate_shared<IPC, PropAllocator>(prop_allocator, env.extends_abstract_dom(), store, prop_allocator);
+    split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
+    search_tree = battery::allocate_shared<IST, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, split, basic_allocator);
     // Note that `best` must have the same abstract type then store (otherwise projection of the variables will fail).
-    best = allocate_shared<LIStore, BasicAllocator>(basic_allocator, store->aty(), num_vars, basic_allocator);
-    bab = allocate_shared<IBAB, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), search_tree, best);
+    best = battery::allocate_shared<LIStore, BasicAllocator>(basic_allocator, store->aty(), num_vars, basic_allocator);
+    bab = battery::allocate_shared<IBAB, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), search_tree, best);
     if(config.verbose_solving) {
       printf("%% Abstract domain allocated.\n");
     }
@@ -227,7 +227,7 @@ struct AbstractDomains {
   CUDA void typing(F& f) const {
     switch(f.index()) {
       case F::Seq:
-      if(f.sig() == IN && f.seq(1).is(F::S) && f.seq(1).s().size() > 1) {
+      if(f.sig() == ::lala::IN && f.seq(1).is(F::S) && f.seq(1).s().size() > 1) {
           f.type_as(ipc->aty());
           return;
         }
@@ -268,14 +268,20 @@ struct AbstractDomains {
 
     // I. Parse the FlatZinc model.
     using FormulaPtr = battery::shared_ptr<TFormula<basic_allocator_type>, basic_allocator_type>;
-    FormulaPtr f = parse_flatzinc(config.problem_path.data(), fzn_output);
+    FormulaPtr f;
+    if(config.input_format() == InputFormat::FLATZINC) {
+      f = parse_flatzinc(config.problem_path.data(), fzn_output);
+    }
+    else if(config.input_format() == InputFormat::XCSP3) {
+      f = parse_xcsp3(config.problem_path.data(), fzn_output);
+    }
     if(!f) {
-      std::cerr << "Could not parse FlatZinc model." << std::endl;
+      std::cerr << "Could not parse input file." << std::endl;
       exit(EXIT_FAILURE);
     }
 
     if(config.verbose_solving) {
-      printf("%% FlatZinc parsed\n");
+      printf("%% Input file parsed\n");
     }
 
     if(config.print_ast) {
@@ -426,8 +432,8 @@ public:
 
 using Itv = Interval<ZInc<int, battery::local_memory>>;
 using CP = AbstractDomains<Itv,
-  statistics_allocator<standard_allocator>,
-  statistics_allocator<UniqueLightAlloc<standard_allocator, 0>>,
-  statistics_allocator<UniqueLightAlloc<standard_allocator, 1>>>;
+  battery::statistics_allocator<battery::standard_allocator>,
+  battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 0>>,
+  battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 1>>>;
 
 #endif
