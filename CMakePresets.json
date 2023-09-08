@@ -58,6 +58,16 @@
       }
     },
     {
+      "name": "local",
+      "hidden": true,
+      "cacheVariables": {
+        "LOCAL_DEPS": {
+          "type": "BOOL",
+          "value": "ON"
+        }
+      }
+    },
+    {
       "name": "gpu-debug",
       "displayName": "GPU Debug configuration",
       "description": "Build the project with CUDA NVCC compiler.",
@@ -73,8 +83,7 @@
       "description": "Build the project with CUDA NVCC compiler.",
       "inherits": [
         "default-gpu",
-        "release",
-        "verbose"
+        "release"
       ],
       "cacheVariables": {
         "REDUCE_PTX_SIZE": {
@@ -89,8 +98,7 @@
       "description": "Build the project with a CPU compiler such as GCC.",
       "inherits": [
         "default-cpu",
-        "debug",
-        "verbose"
+        "debug"
       ]
     },
     {
@@ -100,6 +108,42 @@
       "inherits": [
         "default-cpu",
         "release"
+      ]
+    },
+    {
+      "name": "gpu-debug-local",
+      "displayName": "GPU Debug Local Configuration",
+      "description": "Build the project with CUDA NVCC compiler and local dependencies.",
+      "inherits": [
+        "gpu-debug",
+        "local"
+      ]
+    },
+    {
+      "name": "gpu-release-local",
+      "displayName": "GPU Release Local Configuration",
+      "description": "Build the project with CUDA NVCC compiler and local dependencies.",
+      "inherits": [
+        "gpu-release",
+        "local"
+      ]
+    },
+    {
+      "name": "cpu-debug-local",
+      "displayName": "CPU Debug Local Configuration",
+      "description": "Build the project with a CPU compiler such as GCC and local dependencies.",
+      "inherits": [
+        "cpu-debug",
+        "local"
+      ]
+    },
+    {
+      "name": "cpu-release-local",
+      "displayName": "CPU Release Local Configuration",
+      "description": "Build the project with a CPU compiler such as GCC and local dependencies.",
+      "inherits": [
+        "cpu-release",
+        "local"
       ]
     }
   ],
@@ -119,6 +163,22 @@
     {
       "name": "cpu-release",
       "configurePreset": "cpu-release"
+    },
+    {
+      "name": "gpu-debug-local",
+      "configurePreset": "gpu-debug-local"
+    },
+    {
+      "name": "gpu-release-local",
+      "configurePreset": "gpu-release-local"
+    },
+    {
+      "name": "cpu-debug-local",
+      "configurePreset": "cpu-debug-local"
+    },
+    {
+      "name": "cpu-release-local",
+      "configurePreset": "cpu-release-local"
     }
   ],
   "workflowPresets": [
@@ -171,6 +231,58 @@
         {
           "type": "build",
           "name": "gpu-release"
+        }
+      ]
+    },
+    {
+      "name": "cpu-debug-local",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "cpu-debug-local"
+        },
+        {
+          "type": "build",
+          "name": "cpu-debug-local"
+        }
+      ]
+    },
+    {
+      "name": "cpu-release-local",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "cpu-release-local"
+        },
+        {
+          "type": "build",
+          "name": "cpu-release-local"
+        }
+      ]
+    },
+    {
+      "name": "gpu-debug-local",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "gpu-debug-local"
+        },
+        {
+          "type": "build",
+          "name": "gpu-debug-local"
+        }
+      ]
+    },
+    {
+      "name": "gpu-release-local",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "gpu-release-local"
+        },
+        {
+          "type": "build",
+          "name": "gpu-release-local"
         }
       ]
     }

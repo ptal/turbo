@@ -7,27 +7,40 @@ if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
 endif()
 
 project(Turbo
-  VERSION 1.0.0
   HOMEPAGE_URL "https://github.com/ptal/turbo"
   LANGUAGES CUDA CXX)
 option(GPU "GPU" ON)
+option(LOCAL_DEPS "LOCAL_DEPS" ON)
 
 # Dependencies
 
 include(FetchContent)
 
-FetchContent_Declare(
-  lala_parsing
-  GIT_REPOSITORY "https://github.com/lattice-land/lala-parsing.git"
-  GIT_TAG        main
-)
+if(LOCAL_DEPS)
+  FetchContent_Declare(lala_pc SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../lala-pc/")
+  FetchContent_Declare(lala_parsing SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../lala-parsing/")
+  FetchContent_Declare(lala_power SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../lala-power/")
+else()
+  FetchContent_Declare(
+    lala_pc
+    GIT_REPOSITORY "https://github.com/lattice-land/lala-pc.git"
+    GIT_TAG        v1.0.0
+  )
 
-FetchContent_Declare(
-  lala_search
-  GIT_REPOSITORY "https://github.com/lattice-land/lala-search.git"
-  GIT_TAG        main
-)
-FetchContent_MakeAvailable(lala_parsing lala_search)
+  FetchContent_Declare(
+    lala_parsing
+    GIT_REPOSITORY "https://github.com/lattice-land/lala-parsing.git"
+    GIT_TAG        v1.0.0
+  )
+
+  FetchContent_Declare(
+    lala_power
+    GIT_REPOSITORY "https://github.com/lattice-land/lala-power.git"
+    GIT_TAG        v1.0.0
+  )
+endif()
+
+FetchContent_MakeAvailable(lala_parsing lala_pc lala_power)
 
 # Turbo executable
 
@@ -43,4 +56,4 @@ target_compile_options(turbo PRIVATE
   "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>,$<CONFIG:Debug>>:-ftemplate-backtrace-limit=0>"
   "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:Clang>>:SHELL:-Xcuda-ptxas --suppress-stack-size-warning>"
 )
-target_link_libraries(turbo PRIVATE lala_parsing lala_search)
+target_link_libraries(turbo PRIVATE lala_parsing lala_pc lala_power)

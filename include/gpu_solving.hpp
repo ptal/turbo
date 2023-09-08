@@ -275,7 +275,9 @@ __device__ void solve_problem(BlockData& block_data, GridData& grid_data) {
     // For correctness we need this local variable, we cannot use `block_has_changed` (because it might still need to be read by other threads to enter this loop).
     local::BInc thread_has_changed;
     update_block_best_bound(block_data, grid_data);
+    // auto start = cuda::std::chrono::system_clock::now();
     size_t iterations = fp_engine.fixpoint(*cp.ipc, thread_has_changed);
+    // auto end = cuda::std::chrono::system_clock::now();
     block_has_changed.dtell_bot();
     fp_engine.barrier();
     if(threadIdx.x == 0) {
