@@ -6,9 +6,7 @@
 #include "battery/allocator.hpp"
 #include "battery/string.hpp"
 
-#define OR_NODES 0
-#define AND_NODES 0
-#define SUBPROBLEMS_POWER 20 // 2^N
+#define SUBPROBLEMS_POWER 10 // 2^N
 #define STACK_KB 32
 
 enum class Arch {
@@ -37,6 +35,7 @@ struct Configuration {
   size_t stack_kb;
   Arch arch;
   battery::string<allocator_type> problem_path;
+  battery::string<allocator_type> version;
 
   CUDA Configuration():
     print_intermediate_solutions(false),
@@ -46,8 +45,8 @@ struct Configuration {
     print_ast(false),
     print_statistics(false),
     timeout_ms(0),
-    and_nodes(AND_NODES),
-    or_nodes(OR_NODES),
+    and_nodes(0),
+    or_nodes(0),
     subproblems_power(SUBPROBLEMS_POWER),
     stack_kb(STACK_KB),
     arch(
@@ -76,7 +75,8 @@ struct Configuration {
     subproblems_power(other.subproblems_power),
     stack_kb(other.stack_kb),
     arch(other.arch),
-    problem_path(other.problem_path, alloc)
+    problem_path(other.problem_path, alloc),
+    version(other.version, alloc)
   {}
 
   CUDA void print_commandline(const char* program_name) {
@@ -97,17 +97,23 @@ struct Configuration {
     else {
       printf("-arch cpu -p %zu ", or_nodes);
     }
+    if(version.size() != 0) {
+      printf("-version %s ", version.data());
+    }
     printf("%s\n", problem_path.data());
   }
 
   CUDA void print_mzn_statistics() const {
+    printf("%%%%%%mzn-stat: problem_path=%s\n", problem_path.data());
+    printf("%%%%%%mzn-stat: solver=Turbo\n");
+    printf("%%%%%%mzn-stat: version=%s\n", (version.size() == 0) ? "unknown" : version.data());
     printf("%%%%%%mzn-stat: arch=%s\n", arch == Arch::GPU ? "gpu" : "cpu");
     printf("%%%%%%mzn-stat: free_search=%s\n", free_search ? "yes" : "no");
     printf("%%%%%%mzn-stat: or_nodes=%lu\n", or_nodes);
+    printf("%%%%%%mzn-stat: timeout_ms=%lu\n", timeout_ms);
     if(arch == Arch::GPU) {
       printf("%%%%%%mzn-stat: and_nodes=%lu\n", and_nodes);
       printf("%%%%%%mzn-stat: stack_size=%lu\n", stack_kb * 1000);
-      printf("%%%%%%mzn-stat: timeout_ms=%lu\n", timeout_ms);
     }
   }
 

@@ -19,7 +19,8 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
     if(cp.ipc->is_top()) {
       cp.on_failed_node();
     }
-    else if(cp.bab->template refine<AtomicExtraction>(has_changed)) {
+    else if(cp.search_tree->template is_extractable<AtomicExtraction>()) {
+      cp.bab->refine(has_changed);
       if(!cp.on_solution_node()) {
         break;
       }

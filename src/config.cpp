@@ -9,7 +9,7 @@
 #include <algorithm>
 
 void usage_and_exit(const std::string& program_name) {
-  std::cout << "usage: " << program_name << " [-t 2000] [-a] [-n 10] [-i] [-f] [-s] [-v] [-p <i>] [-arch <cpu|gpu>] [-p 48] [-or 48] [-and 256] [-sub 12] [-heap 100] [-stack 100] [xcsp3instance.xml | fzninstance.fzn]" << std::endl;
+  std::cout << "usage: " << program_name << " [-t 2000] [-a] [-n 10] [-i] [-f] [-s] [-v] [-p <i>] [-arch <cpu|gpu>] [-p 48] [-or 48] [-and 256] [-sub 12] [-heap 100] [-stack 100] [-version 1.0.0] [xcsp3instance.xml | fzninstance.fzn]" << std::endl;
   std::cout << "\t-t 2000: Run the solver with a timeout of 2000 milliseconds." << std::endl;
   std::cout << "\t-a: Instructs the solver to report all solutions in the case of satisfaction problems, or print intermediate solutions of increasing quality in the case of optimisation problems." << std::endl;
   std::cout << "\t-n 10: Instructs the solver to stop after reporting 10 solutions (only used with satisfaction problems)." << std::endl;
@@ -22,8 +22,9 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-arch <cpu|gpu>: Choose the architecture on which the problem will be solved." << std::endl;
   std::cout << "\t-or 48: Run the subproblems on 48 streaming multiprocessors (SMs) (only for GPU architecture). Default: -or 0 for automatic selection of the number of SMs." << std::endl;
   std::cout << "\t-and 256: Run each subproblem with 256 threads per block (only for GPU architecture). Default: -and 0 for automatic selection of the number of threads per block." << std::endl;
-  std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the 'OR threads' (embarrasingly parallel search). Default: -sub 20." << std::endl;
+  std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the 'OR threads' (embarrasingly parallel search). Default: -sub 10." << std::endl;
   std::cout << "\t-stack 100: Use a maximum of 100KB of stack size per thread stored in global memory (only for GPU architectures)." << std::endl;
+  std::cout << "\t-version 1.0.0: A version identifier that is printed as statistics to know which version of Turbo was used to solve an instance. It is only for documentation and replicability purposes." << std::endl;
   exit(EXIT_FAILURE);
 }
 
@@ -31,6 +32,7 @@ void usage_and_exit(const std::string& program_name) {
 class InputParser {
 private:
   std::string program_name;
+  std::string version;
   std::vector <std::string> tokens;
   int tokens_read;
 public:
@@ -137,6 +139,10 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
       std::cerr << "unknown architecture -arch " << architecture << std::endl;
       exit(EXIT_FAILURE);
     }
+  }
+  std::string version;
+  if(input.read_string("-version", version)) {
+    config.version = battery::string<battery::standard_allocator>(version.data());
   }
   std::string problem_path;
   input.read_input_file(problem_path);

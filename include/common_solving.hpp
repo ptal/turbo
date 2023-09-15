@@ -401,29 +401,10 @@ public:
     }
   }
 
-private:
-  template <class StorePtr>
-  CUDA bool compare(const StorePtr& best2) const {
-    auto objvar = bab->objective_var();
-    const auto& bound1 = best->project(objvar);
-    const auto& bound2 = best2->project(objvar);
-    using LB = typename universe_type::LB;
-    using UB = typename universe_type::UB;
-    // When minimizing, the best bound is getting smaller and smaller, hence the order over LB is not suited, we must compare the bound in UB which represents this fact.
-    // And dually for maximization.
-    if(bab->is_minimization()) {
-      return dual<UB>(bound2.lb()) > dual<UB>(bound1.lb());
-    }
-    else {
-      return dual<LB>(bound2.ub()) > dual<LB>(bound1.ub());
-    }
-  }
-
-public:
   /** Extract in `this` the content of `other`. */
   template <class U2, class BasicAlloc2, class PropAlloc2, class StoreAlloc2>
   CUDA void join(AbstractDomains<U2, BasicAlloc2, PropAlloc2, StoreAlloc2>& other) {
-    if(!other.best->is_bot() && compare(other.best)) {
+    if(!other.best->is_bot() && bab->compare_bound(*other.best, *best)) {
       other.best->extract(*best);
     }
     stats.join(other.stats);

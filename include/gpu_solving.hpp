@@ -23,7 +23,7 @@ using GridCP = AbstractDomains<Itv0,
   bt::statistics_allocator<UniqueLightAlloc<bt::managed_allocator, 0>>,
   bt::statistics_allocator<UniqueLightAlloc<bt::managed_allocator, 1>>>;
 
-/** Then, once everything is initialized, we rely on a parallel abstract domain called `A1`, using atomic global memory. */
+/** Then, once everything is initialized, we rely on a parallel abstract domain called `BlockCP`, using atomic shared and global memory. */
 using Itv1 = Interval<ZInc<int, bt::atomic_memory_block>>;
 using Itv2 = Interval<ZInc<int, bt::atomic_memory_grid>>;
 using AtomicBInc = BInc<bt::atomic_memory_block>;
@@ -34,12 +34,20 @@ using BlockCP = AbstractDomains<Itv1,
   bt::pool_allocator,
   UniqueAlloc<bt::pool_allocator, 0>>;
 
+/** Depending on the problem, we can store the abstract elements in different memories.
+ * The "worst" is everything in global memory (GLOBAL) when the problem is too large for the shared memory.
+ * The "best" is when both the store of variables and the propagators (STORE_PC_SHARED) can be stored in shared memory.
+ * A third possibility is to store only the variables' domains in the shared memory (STORE_SHARED).
+*/
 enum class MemoryKind {
   GLOBAL,
   STORE_SHARED,
   STORE_PC_SHARED
 };
 
+/** The shared memory must be configured by hand before the kernel is launched.
+ * This class encapsulates information about the size of each relevant abstract elements, and help creating the allocators accordingly.
+*/
 struct MemoryConfig {
   MemoryKind mem_kind;
   size_t shared_bytes;
@@ -85,6 +93,8 @@ struct MemoryConfig {
 
 struct BlockData;
 
+/** `GridData` represents the problem to be solved (`root`), the data of each block when running EPS (`blocks`), the index of the subproblem that needs to be solved next (`next_subproblem`), an estimation of the best bound found across subproblems in case of optimisation problem and other global information.
+ */
 struct GridData {
   GridCP root;
   // Stop from the CPU, for instance because of a timeout.
@@ -122,6 +132,7 @@ struct GridData {
   }
 };
 
+/** `BlockData` contains all the structures required to solve a subproblem including the problem itself (`root`) and the fixpoint engine (`fp_engine`). */
 struct BlockData {
   using snapshot_type = typename BlockCP::IST::snapshot_type<bt::global_allocator>;
   size_t subproblem_idx;
@@ -184,7 +195,7 @@ __global__ void deallocate_grid_data(GridData* grid_data) {
 }
 
 /** We update the bound found by the current block so it is visible to all other blocks.
- * Note that this operation might not always succeed, which is okay, the best bound is still preserved in `block_data` at then reduced at the end (in `reduce_blocks`).
+ * Note that this operation might not always succeed, which is okay, the best bound is still preserved in `block_data` and then reduced at the end (in `reduce_blocks`).
  * The worst that can happen is that a best bound is found twice, which does not prevent the correctness of the algorithm.
  */
 __device__ void update_grid_best_bound(BlockData& block_data, GridData& grid_data) {
@@ -201,6 +212,10 @@ __device__ void update_grid_best_bound(BlockData& block_data, GridData& grid_dat
   }
 }
 
+/** This function updates the best bound of the current block according to the best bound found so far across blocks.
+ * We directly update the store with the best bound.
+ * This function should be called in each node, since the best bound is erased on backtracking (it is not included in the snapshot).
+ */
 __device__ void update_block_best_bound(BlockData& block_data, GridData& grid_data) {
   if(threadIdx.x == 0 && !block_data.root->bab->objective_var().is_untyped()) {
     const auto& bab = block_data.root->bab;
@@ -209,16 +224,51 @@ __device__ void update_block_best_bound(BlockData& block_data, GridData& grid_da
       bab->is_maximization()
       ? Itv0(dual<typename Itv0::UB>(grid_data.best_bound->lb()))
       : Itv0(dual<typename Itv0::LB>(grid_data.best_bound->ub())));
+    // printf("global best: "); grid_data.best_bound->ub().print(); printf("\n");
+    // best_formula.print();
+    // printf("\n");
     auto best_tell = block_data.root->store->interpret_tell_in(best_formula, empty_env);
     block_data.root->store->tell(best_tell.value());
   }
+}
+
+/** Propagate a node of the search tree and process the leaf nodes (failed or solution).
+ * Branching on unknown nodes is a task left to the caller.
+ */
+__device__ bool propagate(BlockData& block_data, GridData& grid_data, local::BInc& thread_has_changed) {
+  bool is_leaf_node = false;
+  BlockCP& cp = *block_data.root;
+  auto& fp_engine = *block_data.fp_engine;
+  size_t iterations = fp_engine.fixpoint(*cp.ipc, thread_has_changed);
+  if(threadIdx.x == 0) {
+    cp.stats.fixpoint_iterations += iterations;
+    cp.on_node();
+    if(cp.ipc->is_top()) {
+      is_leaf_node = true;
+      cp.on_failed_node();
+    }
+    else if(cp.search_tree->template is_extractable<AtomicExtraction>()) {
+      is_leaf_node = true;
+      if(cp.bab->compare_bound(*cp.store, cp.bab->optimum())) {
+        cp.bab->refine(thread_has_changed);
+        if(cp.is_printing_intermediate_sol()) { grid_data.print_lock->acquire(); }
+        bool do_not_stop = cp.on_solution_node();
+        if(cp.is_printing_intermediate_sol()) { grid_data.print_lock->release(); }
+        if(!do_not_stop) {
+          grid_data.gpu_stop->tell_top();
+        }
+        update_grid_best_bound(block_data, grid_data);
+      }
+    }
+  }
+  return is_leaf_node;
 }
 
 /** The initial problem tackled during the dive must always be the same.
  * Hence, don't be tempted to add the objective during diving because it might lead to ignoring some subproblems since the splitting decisions will differ.
  */
 __device__ size_t dive(BlockData& block_data, GridData& grid_data) {
-  BlockCP& a = *block_data.root;
+  BlockCP& cp = *block_data.root;
   auto& fp_engine = *block_data.fp_engine;
   auto& stop = *block_data.stop;
   // Note that we use `block_has_changed` to stop the "diving", not really to indicate something has changed or not (since we do not need this information for this algorithm).
@@ -230,29 +280,16 @@ __device__ size_t dive(BlockData& block_data, GridData& grid_data) {
   while(depth > 0 && !stop_diving && !stop) {
     depth--;
     local::BInc thread_has_changed;
-    size_t iterations = fp_engine.fixpoint(*a.ipc, thread_has_changed);
+    bool is_leaf_node = propagate(block_data, grid_data, thread_has_changed);
     if(threadIdx.x == 0) {
-      a.stats.fixpoint_iterations += iterations;
-      a.on_node();
-      if(a.ipc->is_top()) {
-        a.on_failed_node();
+      if(is_leaf_node) {
         stop_diving.tell_top();
-      }
-      else if(a.bab->template refine<AtomicExtraction>(thread_has_changed)) {
-        if(a.is_printing_intermediate_sol()) { grid_data.print_lock->acquire(); }
-        bool do_not_stop = a.on_solution_node();
-        if(a.is_printing_intermediate_sol()) { grid_data.print_lock->release(); }
-        if(!do_not_stop) {
-          grid_data.gpu_stop->tell_top();
-        }
-        stop_diving.tell_top();
-        update_grid_best_bound(block_data, grid_data);
       }
       else {
         size_t branch_idx = (block_data.subproblem_idx & (1 << depth)) >> depth;
-        auto branches = a.split->split();
+        auto branches = cp.split->split();
         assert(branches.size() == 2);
-        a.ipc->tell(branches[branch_idx]);
+        cp.ipc->tell(branches[branch_idx]);
       }
       stop.tell(local::BInc(grid_data.cpu_stop || *(grid_data.gpu_stop)));
     }
@@ -275,33 +312,16 @@ __device__ void solve_problem(BlockData& block_data, GridData& grid_data) {
     // For correctness we need this local variable, we cannot use `block_has_changed` (because it might still need to be read by other threads to enter this loop).
     local::BInc thread_has_changed;
     update_block_best_bound(block_data, grid_data);
-    // auto start = cuda::std::chrono::system_clock::now();
-    size_t iterations = fp_engine.fixpoint(*cp.ipc, thread_has_changed);
-    // auto end = cuda::std::chrono::system_clock::now();
-    block_has_changed.dtell_bot();
-    fp_engine.barrier();
+    propagate(block_data, grid_data, thread_has_changed);
     if(threadIdx.x == 0) {
-      cp.stats.fixpoint_iterations += iterations;
-      cp.on_node();
-      if(cp.ipc->is_top()) {
-        cp.on_failed_node();
-      }
-      else if(cp.bab->template refine<AtomicExtraction>(thread_has_changed)) {
-        if(cp.is_printing_intermediate_sol()) { grid_data.print_lock->acquire(); }
-        bool do_not_stop = cp.on_solution_node();
-        if(cp.is_printing_intermediate_sol()) { grid_data.print_lock->release(); }
-        if(!do_not_stop) {
-          grid_data.gpu_stop->tell_top();
-        }
-        update_grid_best_bound(block_data, grid_data);
-      }
       stop.tell(local::BInc(grid_data.cpu_stop || *(grid_data.gpu_stop)));
       cp.search_tree->refine(thread_has_changed);
     }
+    block_has_changed.dtell_bot();
+    fp_engine.barrier();
     block_has_changed.tell(thread_has_changed);
     fp_engine.barrier();
   }
-  fp_engine.barrier();
 }
 
 __global__ void gpu_solve_kernel(GridData* grid_data)
@@ -316,15 +336,15 @@ __global__ void gpu_solve_kernel(GridData* grid_data)
     grid_data->root.stats.eps_num_subproblems = num_subproblems;
   }
   while(block_data.subproblem_idx < num_subproblems && !*(block_data.stop)) {
-    // if(threadIdx.x == 0 && grid_data->root.config.verbose_solving) {
-    //   printf("%% Block %d solves subproblem num %lu\n", blockIdx.x, block_data.subproblem_idx);
-    // }
+    if(threadIdx.x == 0 && grid_data->root.config.verbose_solving) {
+      printf("%% Block %d solves subproblem num %lu\n", blockIdx.x, block_data.subproblem_idx);
+    }
     block_data.restore();
     cooperative_groups::this_thread_block().sync();
     size_t remaining_depth = dive(block_data, *grid_data);
     if(remaining_depth == 0) {
       solve_problem(block_data, *grid_data);
-      if(!*(block_data.stop)) {
+      if(threadIdx.x == 0 && !*(block_data.stop)) {
         block_data.root->stats.eps_solved_subproblems += 1;
       }
     }
@@ -349,7 +369,6 @@ __global__ void gpu_solve_kernel(GridData* grid_data)
 
 __global__ void reduce_blocks(GridData* grid_data) {
   for(int i = 0; i < grid_data->blocks.size(); ++i) {
-    // grid_data->blocks[i].root->stats.print_mzn_statistics();
     grid_data->root.join(*(grid_data->blocks[i].root));
   }
 }
