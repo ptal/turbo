@@ -104,11 +104,11 @@ struct Configuration {
   }
 
   CUDA void print_mzn_statistics() const {
-    printf("%%%%%%mzn-stat: problem_path=%s\n", problem_path.data());
-    printf("%%%%%%mzn-stat: solver=Turbo\n");
-    printf("%%%%%%mzn-stat: version=%s\n", (version.size() == 0) ? "unknown" : version.data());
-    printf("%%%%%%mzn-stat: arch=%s\n", arch == Arch::GPU ? "gpu" : "cpu");
-    printf("%%%%%%mzn-stat: free_search=%s\n", free_search ? "yes" : "no");
+    printf("%%%%%%mzn-stat: problem_path=\"%s\"\n", problem_path.data());
+    printf("%%%%%%mzn-stat: solver=\"Turbo\"\n");
+    printf("%%%%%%mzn-stat: version=\"%s\"\n", (version.size() == 0) ? "unknown" : version.data());
+    printf("%%%%%%mzn-stat: arch=\"%s\"\n", arch == Arch::GPU ? "gpu" : "cpu");
+    printf("%%%%%%mzn-stat: free_search=\"%s\"\n", free_search ? "yes" : "no");
     printf("%%%%%%mzn-stat: or_nodes=%lu\n", or_nodes);
     printf("%%%%%%mzn-stat: timeout_ms=%lu\n", timeout_ms);
     if(arch == Arch::GPU) {

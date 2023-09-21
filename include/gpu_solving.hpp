@@ -82,7 +82,7 @@ struct MemoryConfig {
   }
 
   CUDA void print_mzn_statistics() const {
-    printf("%%%%%%mzn-stat: memory_configuration=%s\n",
+    printf("%%%%%%mzn-stat: memory_configuration=\"%s\"\n",
       mem_kind == MemoryKind::GLOBAL ? "global" : (
       mem_kind == MemoryKind::STORE_SHARED ? "store_shared" : "store_pc_shared"));
     printf("%%%%%%mzn-stat: shared_mem=%lu\n", shared_bytes);
@@ -276,9 +276,9 @@ __device__ size_t dive(BlockData& block_data, GridData& grid_data) {
   stop.dtell_bot();
   stop_diving.dtell_bot();
   fp_engine.barrier();
-  size_t depth = grid_data.root.config.subproblems_power;
-  while(depth > 0 && !stop_diving && !stop) {
-    depth--;
+  size_t remaining_depth = grid_data.root.config.subproblems_power;
+  while(remaining_depth > 0 && !stop_diving && !stop) {
+    remaining_depth--;
     local::BInc thread_has_changed;
     bool is_leaf_node = propagate(block_data, grid_data, thread_has_changed);
     if(threadIdx.x == 0) {
@@ -286,8 +286,8 @@ __device__ size_t dive(BlockData& block_data, GridData& grid_data) {
         stop_diving.tell_top();
       }
       else {
-        size_t branch_idx = (block_data.subproblem_idx & (1 << depth)) >> depth;
-        auto branches = cp.split->split();
+        size_t branch_idx = (block_data.subproblem_idx & (1 << remaining_depth)) >> remaining_depth;
+        auto branches = cp.eps_split->split();
         assert(branches.size() == 2);
         cp.ipc->tell(branches[branch_idx]);
       }
@@ -295,7 +295,7 @@ __device__ size_t dive(BlockData& block_data, GridData& grid_data) {
     }
     fp_engine.barrier();
   }
-  return depth;
+  return remaining_depth;
 }
 
 __device__ void solve_problem(BlockData& block_data, GridData& grid_data) {
@@ -351,8 +351,11 @@ __global__ void gpu_solve_kernel(GridData* grid_data)
     else {
       if(threadIdx.x == 0 && !*(block_data.stop)) {
         size_t next_subproblem_idx = ((block_data.subproblem_idx >> remaining_depth) + 1) << remaining_depth;
-        block_data.root->stats.eps_skipped_subproblems += next_subproblem_idx - block_data.subproblem_idx;
         grid_data->next_subproblem->tell(ZInc<size_t, bt::local_memory>(next_subproblem_idx));
+        // It is possible that several blocks skip similar subproblems. Hence, we only count the subproblems skipped by the block solving the left most subproblem.
+        if((block_data.subproblem_idx & ((1 << remaining_depth)-1)) == 0) {
+          block_data.root->stats.eps_skipped_subproblems += next_subproblem_idx - block_data.subproblem_idx;
+        }
       }
     }
     // Load next problem.
@@ -364,6 +367,9 @@ __global__ void gpu_solve_kernel(GridData* grid_data)
   }
   cooperative_groups::this_thread_block().sync();
   // We must destroy all objects allocated in the shared memory, trying to destroy them anywhere else will lead to segfault.
+  if(threadIdx.x == 0 && !*(block_data.stop) && grid_data->root.config.verbose_solving) {
+    block_data.root->stats.num_blocks_done = 1;
+  }
   block_data.deallocate();
 }
 
@@ -557,8 +563,8 @@ void configure_blocks_threads(CP& root, const MemoryConfig& mem_config) {
   remaining_global_mem -= remaining_global_mem / 50; // We leave 2% of global memory free for CUDA allocations, not sure if it is useful though.
 
   // Basically the size of the store and propagator, and 100 bytes per variable.
-  size_t heap_usage_estimation = (config.or_nodes + 1) * (mem_config.pc_bytes + mem_config.store_bytes + 100 * root.store->vars());
   // +1 for the root node in GridCP.
+  size_t heap_usage_estimation = (config.or_nodes + 1) * (mem_config.pc_bytes + mem_config.store_bytes + 100 * root.store->vars());
   while(heap_usage_estimation > remaining_global_mem) {
     config.or_nodes--;
   }

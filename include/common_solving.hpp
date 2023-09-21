@@ -35,6 +35,7 @@ void block_signal_ctrlc() {
   sigset_t ctrlc;
   sigemptyset(&ctrlc);
   sigaddset(&ctrlc, SIGINT);
+  sigaddset(&ctrlc, SIGTERM);
   if(sigprocmask(SIG_BLOCK, &ctrlc, NULL) != 0) {
     printf("%% ERROR: Unable to deal with CTRL-C. Therefore, we will not be able to print the latest solution before quitting.\n");
     perror(NULL);
@@ -46,7 +47,7 @@ bool must_quit() {
   sigset_t pending_sigs;
   sigemptyset(&pending_sigs);
   sigpending(&pending_sigs);
-  return sigismember(&pending_sigs, SIGINT) == 1;
+  return sigismember(&pending_sigs, SIGINT) == 1 || sigismember(&pending_sigs, SIGTERM) == 1;
 }
 
 /** Check if the timeout of the current execution is exceeded and returns `false` otherwise.
@@ -139,6 +140,7 @@ struct AbstractDomains {
    , store(store_allocator)
    , ipc(prop_allocator)
    , split(basic_allocator)
+   , eps_split(basic_allocator)
    , search_tree(basic_allocator)
    , best(basic_allocator)
    , bab(basic_allocator)
@@ -147,6 +149,7 @@ struct AbstractDomains {
     store = deps.template clone<IStore>(other.store);
     ipc = deps.template clone<IPC>(other.ipc);
     split = deps.template clone<Split>(other.split);
+    eps_split = deps.template clone<Split>(other.eps_split);
     search_tree = deps.template clone<IST>(other.search_tree);
     bab = deps.template clone<IBAB>(other.bab);
     best = bab->optimum_ptr();
@@ -173,6 +176,7 @@ struct AbstractDomains {
   , store(store_allocator)
   , ipc(prop_allocator)
   , split(basic_allocator)
+  , eps_split(basic_allocator)
   , search_tree(basic_allocator)
   , best(basic_allocator)
   , bab(basic_allocator)
@@ -187,6 +191,7 @@ struct AbstractDomains {
   abstract_ptr<IStore> store;
   abstract_ptr<IPC> ipc;
   abstract_ptr<Split> split;
+  abstract_ptr<Split> eps_split;
   abstract_ptr<IST> search_tree;
   abstract_ptr<LIStore> best;
   abstract_ptr<IBAB> bab;
@@ -204,6 +209,7 @@ struct AbstractDomains {
     store = battery::allocate_shared<IStore, StoreAllocator>(store_allocator, env.extends_abstract_dom(), num_vars, store_allocator);
     ipc = battery::allocate_shared<IPC, PropAllocator>(prop_allocator, env.extends_abstract_dom(), store, prop_allocator);
     split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
+    eps_split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
     search_tree = battery::allocate_shared<IST, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, split, basic_allocator);
     // Note that `best` must have the same abstract type then store (otherwise projection of the variables will fail).
     best = battery::allocate_shared<LIStore, BasicAllocator>(basic_allocator, store->aty(), num_vars, basic_allocator);
@@ -217,6 +223,7 @@ struct AbstractDomains {
     store = nullptr;
     ipc = nullptr;
     split = nullptr;
+    eps_split = nullptr;
     search_tree = nullptr;
     bab = nullptr;
     env = VarEnv<BasicAllocator>{basic_allocator}; // this is to release the memory used by `VarEnv`.
@@ -257,10 +264,14 @@ struct AbstractDomains {
     bab->tell(std::move(r.value()), has_changed);
     stats.variables = store->vars();
     stats.constraints = ipc->num_refinements();
+    bool can_interpret = true;
     if(split->num_strategies() == 0) {
-      return interpret_default_strategy<F>();
+      can_interpret &= interpret_default_strategy<F>();
     }
-    return true;
+    if(eps_split->num_strategies() == 0) {
+      can_interpret &= interpret_default_eps_strategy<F>();
+    }
+    return can_interpret;
   }
 
   void prepare_solver() {
@@ -339,6 +350,24 @@ private:
     }
     local::BInc has_changed;
     bab->tell(std::move(r.value()), has_changed);
+    return true;
+  }
+
+  template <class F>
+  CUDA bool interpret_default_eps_strategy() {
+    typename F::Sequence seq;
+    seq.push_back(F::make_nary("first_fail", {}));
+    seq.push_back(F::make_nary("indomain_split", {}));
+    for(int i = 0; i < env.num_vars(); ++i) {
+      seq.push_back(F::make_avar(env[i].avars[0]));
+    }
+    F search_strat = F::make_nary("search", std::move(seq));
+    auto r = eps_split->interpret_tell_in(search_strat, env);
+    if(!r.has_value()) {
+      r.print_diagnostics();
+      return false;
+    }
+    eps_split->tell(r.value());
     return true;
   }
 
