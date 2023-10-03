@@ -32,3 +32,7 @@
 *.app
 
 build/
+
+# Python
+
+venv
