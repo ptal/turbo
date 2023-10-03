@@ -36,3 +36,7 @@ build/
 # Python
 
 venv
+benchmarks/.ipynb_checkpoints
+
+# Libre office
+benchmarks/.~*
