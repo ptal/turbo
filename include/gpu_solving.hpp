@@ -7,11 +7,11 @@
 #include <thread>
 #include <algorithm>
 
+namespace bt = ::battery;
+
 #ifdef __CUDACC__
 
 #include <cuda/semaphore>
-
-namespace bt = ::battery;
 
 using F = TFormula<bt::managed_allocator>;
 using FormulaPtr = bt::shared_ptr<F, bt::managed_allocator>;
@@ -99,6 +99,7 @@ struct GridData {
   GridCP root;
   // Stop from the CPU, for instance because of a timeout.
   volatile bool cpu_stop;
+  volatile bool stat_printed;
   MemoryConfig mem_config;
   bt::vector<BlockData, bt::global_allocator> blocks;
   // Stop from a block on the GPU, for instance because we found a solution.
@@ -111,6 +112,7 @@ struct GridData {
     : root(root)
     , mem_config(mem_config)
     , cpu_stop(false)
+    , stat_printed(false)
   {}
 
   __device__ void allocate() {
@@ -324,6 +326,18 @@ __device__ void solve_problem(BlockData& block_data, GridData& grid_data) {
   }
 }
 
+CUDA void reduce_blocks(GridData* grid_data) {
+  for(int i = 0; i < grid_data->blocks.size(); ++i) {
+    if(grid_data->blocks[i].root) { // `nullptr` could happen if we try to terminate the program before all blocks are even cretaed.
+      grid_data->root.join(*(grid_data->blocks[i].root));
+    }
+  }
+  grid_data->root.print_final_solution();
+  if(grid_data->root.config.print_statistics) {
+    grid_data->root.print_mzn_statistics();
+  }
+}
+
 __global__ void gpu_solve_kernel(GridData* grid_data)
 {
   extern __shared__ unsigned char shared_mem[];
@@ -337,7 +351,9 @@ __global__ void gpu_solve_kernel(GridData* grid_data)
   }
   while(block_data.subproblem_idx < num_subproblems && !*(block_data.stop)) {
     if(threadIdx.x == 0 && grid_data->root.config.verbose_solving) {
+      grid_data->print_lock->acquire();
       printf("%% Block %d solves subproblem num %lu\n", blockIdx.x, block_data.subproblem_idx);
+      grid_data->print_lock->release();
     }
     block_data.restore();
     cooperative_groups::this_thread_block().sync();
@@ -366,17 +382,27 @@ __global__ void gpu_solve_kernel(GridData* grid_data)
     cooperative_groups::this_thread_block().sync();
   }
   cooperative_groups::this_thread_block().sync();
-  // We must destroy all objects allocated in the shared memory, trying to destroy them anywhere else will lead to segfault.
-  if(threadIdx.x == 0 && !*(block_data.stop) && grid_data->root.config.verbose_solving) {
+  if(threadIdx.x == 0 && !*(block_data.stop)) {
     block_data.root->stats.num_blocks_done = 1;
   }
-  block_data.deallocate();
-}
-
-__global__ void reduce_blocks(GridData* grid_data) {
-  for(int i = 0; i < grid_data->blocks.size(); ++i) {
-    grid_data->root.join(*(grid_data->blocks[i].root));
+  if(threadIdx.x == 0) {
+    grid_data->print_lock->acquire();
+    if(!grid_data->stat_printed) {
+      int n = 0;
+      for(int i = 0; i < grid_data->blocks.size(); ++i) {
+        if(grid_data->blocks[i].root) { // `nullptr` could happen if we try to terminate the program before all blocks are even cretaed.
+          n += grid_data->blocks[i].root->stats.num_blocks_done;
+        }
+      }
+      if(*(block_data.stop) || n == grid_data->blocks.size()) {
+        reduce_blocks(grid_data);
+        grid_data->stat_printed = true;
+      }
+    }
+    grid_data->print_lock->release();
   }
+  // We must destroy all objects allocated in the shared memory, trying to destroy them anywhere else will lead to segfault.
+  block_data.deallocate();
 }
 
 template <class T> __global__ void gpu_sizeof_kernel(size_t* size) { *size = sizeof(T); }
@@ -457,10 +483,6 @@ MemoryConfig configure_memory(CP& root) {
     print_memory_statistics("store_memory_real", root2.store_allocator.total_bytes_allocated());
     print_memory_statistics("pc_memory_real", root2.prop_allocator.total_bytes_allocated());
     print_memory_statistics("other_memory_real", root2.basic_allocator.total_bytes_allocated());
-    // print_memory_statistics("interpretation_cumulated_allocation",
-    //   root.basic_allocator.total_bytes_allocated() +
-    //   root.prop_allocator.total_bytes_allocated() +
-    //   root.store_allocator.total_bytes_allocated());
   }
   return mem_config;
 }
@@ -497,27 +519,33 @@ void transfer_memory_and_run(CP& root, MemoryConfig mem_config, const Timepoint&
   auto grid_data = bt::make_shared<GridData, bt::managed_allocator>(std::move(root), mem_config);
   initialize_grid_data<<<1,1>>>(grid_data.get());
   CUDAEX(cudaDeviceSynchronize());
+  if(grid_data->root.config.print_statistics) {
+    mem_config.print_mzn_statistics();
+  }
   gpu_solve_kernel
     <<<grid_data->root.config.or_nodes,
       grid_data->root.config.and_nodes,
       grid_data->mem_config.shared_bytes>>>
     (grid_data.get());
   bool interrupted = wait_solving_ends(*grid_data, start);
-  reduce_blocks<<<1, 1>>>(grid_data.get());
-  CUDAEX(cudaDeviceSynchronize());
-  check_timeout(grid_data->root, start); // last update of the solving time.
-  grid_data->root.print_final_solution();
-  if(grid_data->root.config.print_statistics) {
-    mem_config.print_mzn_statistics();
-    grid_data->root.print_mzn_statistics();
-  }
-  if(!interrupted) {
-    deallocate_grid_data<<<1,1>>>(grid_data.get());
-    CUDAEX(cudaDeviceSynchronize());
-  }
-  else {
-    exit(EXIT_SUCCESS);
-  }
+  // We wait to let the kernel prints the statistics.
+  std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+
+  // CUDAEX(cudaDeviceSynchronize());
+  // cudaStream_t stream;
+  // cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
+  // reduce_blocks<<<1, 1, 0, stream>>>(grid_data.get());
+  // CUDAEX(cudaStreamSynchronize(stream));
+  // cudaStreamDestroy(stream);
+
+  // For now commented because synchronization and deallocation is quite slow and we quit anyway the program afterwards.
+  // if(!interrupted) {
+  //   deallocate_grid_data<<<1,1>>>(grid_data.get());
+  //   CUDAEX(cudaDeviceSynchronize());
+  // }
+  // else {
+  exit(EXIT_SUCCESS);
+  // }
 }
 
 // From https://stackoverflow.com/a/32531982/2231159
@@ -595,17 +623,8 @@ void gpu_solve(Configuration<bt::standard_allocator>& config) {
   std::cout << "You must use a CUDA compiler (nvcc or clang) to compile Turbo on GPU." << std::endl;
 #else
   auto start = std::chrono::high_resolution_clock::now();
-  size_t old_timeout = config.timeout_ms;
-  if(config.timeout_ms > 0) {
-    if(config.timeout_ms < 6000) {
-      config.timeout_ms = 1000;
-    }
-    else {
-      config.timeout_ms -= 5000;
-    }
-  }
-  if(config.verbose_solving && config.timeout_ms != old_timeout) {
-    printf("%% Timeout decreased by 5 seconds to %lu ms because the GPU kernel needs around 5 seconds to stop.\n", config.timeout_ms);
+  if(config.timeout_ms > 5000) {
+    config.timeout_ms -= 5000; // We reserve 5 seconds for the kernel termination.
   }
   CP root(config);
   root.prepare_solver();

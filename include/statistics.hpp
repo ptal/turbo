@@ -83,7 +83,7 @@ public:
   }
 
   CUDA void print_mzn_end_stats() const {
-    // printf("%%%%%%mzn-stat-end\n");
+    printf("%%%%%%mzn-stat-end\n");
   }
 
   CUDA void print_mzn_objective(const auto& obj, bool is_minimization) const {

@@ -28,3 +28,14 @@ Other compilation builds are also available:
 * GPU Debug version: `cmake --workflow --preset gpu-debug --fresh`
 * CPU Debug version: `cmake --workflow --preset cpu-debug --fresh`
 * CPU Release version: `cmake --workflow --preset cpu-release --fresh`
+
+Alternatively, you can use these commands without presets and workflow (it is useful compilation scenario falling outside what is provided by the presets):
+
+```
+cmake -DCMAKE_BUILD_TYPE=Release -DGPU=ON -DREDUCE_PTX_SIZE=ON -DCMAKE_VERBOSE_MAKEFILE=ON -Bbuild/gpu-release
+cmake --build build/gpu-release
+```
+
+### Developers
+
+Please see [lattice-land](https://github.com/lattice-land/.github).
