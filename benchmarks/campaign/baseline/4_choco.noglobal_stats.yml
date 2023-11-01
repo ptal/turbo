@@ -1,0 +1,6 @@
+{configuration: choco.noglobal, constraints: 33331, data_file: ../mzn-challenge/2022/gfd-schedule/n55f2d50m30k3_10124.dzn,
+  evaluatedReifiedConstraints: 11641, flatBoolConstraints: 7659, flatBoolVars: 16973,
+  flatIntConstraints: 25585, flatIntVars: 13356, flatTime: 0.406303, initTime: 0.826,
+  method: minimize, model: ../mzn-challenge/2022/gfd-schedule/gfd-schedule2.mzn, nSolutions: 5,
+  nodes: 2877236, objective: 7505, paths: 0, problem: gfd-schedule, solutions: 5,
+  solveTime: 299.595, status: SATISFIED, time: 301.2761634560002, variables: 37282}

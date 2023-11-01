@@ -1,0 +1,11 @@
+{and_nodes: 256, arch: gpu, configuration: TurboGPU, data_file: ../mzn-challenge/2022/wordpress/Wordpress7_Offers500.dzn,
+  eps_num_subproblems: 1024, eps_skipped_subproblems: 0, eps_solved_subproblems: 0,
+  evaluatedReifiedConstraints: 36, failures: 13252, fixpoint_iterations: 883685, flatBoolConstraints: 20,
+  flatBoolVars: 36, flatIntConstraints: 300, flatIntVars: 182, flatTime: 0.071356,
+  free_search: no, initTime: 7.063, memory_configuration: store_shared, method: minimize,
+  model: ../mzn-challenge/2022/wordpress/wordpress.mzn, nSolutions: 1, nodes: 31815,
+  num_blocks_done: 0, num_solutions: 1077, objective: 74050, or_nodes: 64, paths: 0,
+  peakDepth: 70, problem: wordpress, problem_path: /tmp/mznfilepPTvFj.fzn, propagator_mem: 45294120,
+  propagators: 30665, shared_mem: 5332, solveTime: 294.991, solver: Turbo, stack_size: 32000,
+  status: SATISFIED, store_mem: 5232, time: 300.25461866700016, timeout_ms: 294924.0,
+  variables: 623, version: 1.0.1}

@@ -1,0 +1,6 @@
+{boolVariables: 11310, configuration: or-tools, data_file: ../mzn-challenge/2022/team-assignment/data3_5_31.dzn,
+  evaluatedHalfReifiedConstraints: 3844, evaluatedReifiedConstraints: 3920, failures: 1794,
+  flatBoolVars: 7764, flatIntConstraints: 15601, flatIntVars: 7924, flatTime: 0.249107,
+  method: maximize, model: ../mzn-challenge/2022/team-assignment/model.mzn, nSolutions: 267,
+  objective: 12289, objectiveBound: 81665, paths: 0, problem: team-assignment, propagations: 9679260,
+  solveTime: 298.954, status: SATISFIED, time: 300.1993249110019}

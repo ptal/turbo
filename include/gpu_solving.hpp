@@ -190,6 +190,10 @@ public:
 
 __global__ void initialize_grid_data(GridData* grid_data) {
   grid_data->allocate();
+  size_t num_subproblems = 1;
+  num_subproblems <<= grid_data->root.config.subproblems_power;
+  grid_data->next_subproblem->tell(ZInc<size_t, bt::local_memory>(grid_data->root.config.or_nodes));
+  grid_data->root.stats.eps_num_subproblems = num_subproblems;
 }
 
 __global__ void deallocate_grid_data(GridData* grid_data) {
@@ -341,14 +345,9 @@ CUDA void reduce_blocks(GridData* grid_data) {
 __global__ void gpu_solve_kernel(GridData* grid_data)
 {
   extern __shared__ unsigned char shared_mem[];
+  size_t num_subproblems = grid_data->root.stats.eps_num_subproblems;
   BlockData& block_data = grid_data->blocks[blockIdx.x];
   block_data.allocate(*grid_data, shared_mem);
-  size_t num_subproblems = 1;
-  num_subproblems <<= grid_data->root.config.subproblems_power;
-  if(threadIdx.x == 0 && blockIdx.x == 0) {
-    grid_data->next_subproblem->tell(ZInc<size_t, bt::local_memory>(gridDim.x));
-    grid_data->root.stats.eps_num_subproblems = num_subproblems;
-  }
   while(block_data.subproblem_idx < num_subproblems && !*(block_data.stop)) {
     if(threadIdx.x == 0 && grid_data->root.config.verbose_solving) {
       grid_data->print_lock->acquire();
@@ -529,7 +528,7 @@ void transfer_memory_and_run(CP& root, MemoryConfig mem_config, const Timepoint&
     (grid_data.get());
   bool interrupted = wait_solving_ends(*grid_data, start);
   // We wait to let the kernel prints the statistics.
-  std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+  std::this_thread::sleep_for(std::chrono::milliseconds(60000));
 
   // CUDAEX(cudaDeviceSynchronize());
   // cudaStream_t stream;
@@ -623,8 +622,8 @@ void gpu_solve(Configuration<bt::standard_allocator>& config) {
   std::cout << "You must use a CUDA compiler (nvcc or clang) to compile Turbo on GPU." << std::endl;
 #else
   auto start = std::chrono::high_resolution_clock::now();
-  if(config.timeout_ms > 5000) {
-    config.timeout_ms -= 5000; // We reserve 5 seconds for the kernel termination.
+  if(config.timeout_ms > 60000) {
+    config.timeout_ms -= 60000; // We reserve 5 seconds for the kernel termination.
   }
   CP root(config);
   root.prepare_solver();

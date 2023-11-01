@@ -1,0 +1,7 @@
+{configuration: choco, constraints: 5637, data_file: ../mzn-challenge/2022/diameterc-mst/c_v20_a190_d4.dzn,
+  evaluatedHalfReifiedConstraints: 1199, evaluatedReifiedConstraints: 372, failures: 793704,
+  flatBoolConstraints: 3852, flatBoolVars: 2141, flatIntConstraints: 1785, flatIntVars: 252,
+  flatTime: 0.145638, initTime: 0.265, method: minimize, model: ../mzn-challenge/2022/diameterc-mst/dcmst.mzn,
+  nSolutions: 70, nodes: 793843, objective: 349, paths: 0, problem: diameterc-mst,
+  restarts: 0, solutions: 70, solveTime: 35.947, status: OPTIMAL_SOLUTION, time: 36.61077590900095,
+  variables: 2957}

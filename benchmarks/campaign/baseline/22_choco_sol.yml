@@ -1,0 +1,132 @@
+- configuration: choco
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_13_9.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 94
+    s: [0, 0, 10, 10, 2, 15, 18, 19, 22, 23, 23, 32, 33, 10, 33, 39, 40, 42, 40, 51,
+      49, 56, 64, 66, 72, 82, 72, 91, 74, 42]
+  status: SATISFIED
+  time: 0.531
+- configuration: choco
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_13_9.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 88
+    s: [0, 0, 10, 10, 2, 15, 18, 19, 22, 23, 23, 32, 33, 10, 33, 39, 40, 42, 40, 51,
+      49, 56, 64, 76, 66, 76, 82, 85, 84, 42]
+  status: SATISFIED
+  time: 0.533
+- configuration: choco
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_13_9.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 82
+    s: [0, 0, 10, 10, 2, 15, 18, 19, 22, 23, 23, 32, 33, 10, 33, 39, 40, 44, 40, 53,
+      42, 44, 58, 70, 60, 70, 76, 79, 78, 49]
+  status: SATISFIED
+  time: 0.58
+- configuration: choco
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_13_9.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 81
+    s: [0, 0, 10, 10, 2, 15, 18, 19, 22, 23, 23, 32, 33, 10, 33, 39, 44, 40, 57, 52,
+      42, 44, 57, 69, 59, 69, 75, 78, 77, 59]
+  status: SATISFIED
+  time: 0.583
+- configuration: choco
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_13_9.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 80
+    s: [0, 0, 10, 10, 2, 15, 18, 19, 22, 23, 23, 32, 33, 10, 33, 39, 42, 42, 50, 53,
+      40, 42, 51, 68, 58, 68, 74, 77, 76, 58]
+  status: SATISFIED
+  time: 0.586
+- configuration: choco
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_13_9.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 79
+    s: [0, 0, 10, 10, 2, 15, 18, 19, 22, 23, 23, 32, 33, 10, 33, 51, 42, 39, 55, 50,
+      40, 42, 55, 67, 57, 67, 73, 76, 75, 57]
+  status: SATISFIED
+  time: 0.589
+- configuration: choco
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_13_9.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 78
+    s: [0, 0, 10, 10, 2, 15, 18, 19, 22, 23, 23, 32, 33, 10, 41, 33, 45, 36, 36, 49,
+      39, 41, 54, 66, 56, 66, 72, 75, 74, 54]
+  status: SATISFIED
+  time: 0.593
+- configuration: choco
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_13_9.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 76
+    s: [0, 0, 10, 10, 2, 15, 18, 19, 22, 23, 23, 32, 52, 10, 42, 33, 33, 38, 33, 47,
+      36, 38, 52, 64, 54, 64, 70, 73, 72, 58]
+  status: SATISFIED
+  time: 0.917
+- configuration: choco
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_13_9.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 75
+    s: [0, 0, 10, 10, 2, 15, 18, 19, 22, 23, 23, 32, 51, 10, 38, 33, 42, 33, 57, 46,
+      36, 38, 51, 63, 53, 63, 69, 72, 71, 59]
+  status: SATISFIED
+  time: 0.918
+- configuration: choco
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_13_9.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 74
+    s: [0, 0, 10, 10, 2, 15, 18, 19, 22, 23, 23, 32, 53, 10, 37, 33, 44, 36, 33, 45,
+      35, 37, 50, 62, 52, 62, 68, 71, 70, 59]
+  status: SATISFIED
+  time: 0.92
+- configuration: choco
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_13_9.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 73
+    s: [0, 0, 10, 10, 2, 15, 18, 19, 22, 23, 23, 32, 52, 10, 36, 33, 43, 35, 58, 44,
+      33, 36, 49, 61, 51, 61, 67, 70, 69, 60]
+  status: SATISFIED
+  time: 0.921
+- configuration: choco
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_13_9.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 72
+    s: [0, 0, 10, 10, 2, 15, 18, 19, 22, 23, 23, 32, 51, 10, 35, 48, 42, 33, 57, 43,
+      33, 35, 58, 60, 48, 59, 66, 68, 68, 60]
+  status: SATISFIED
+  time: 0.923
+- configuration: choco
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_13_9.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 71
+    s: [0, 0, 10, 10, 2, 15, 18, 52, 19, 39, 29, 48, 23, 10, 52, 49, 49, 20, 20, 35,
+      40, 55, 63, 29, 42, 59, 65, 68, 67, 59]
+  status: SATISFIED
+  time: 2.346
+- {configuration: choco, data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_13_9.dzn,
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn, problem: rcpsp, status: SATISFIED}

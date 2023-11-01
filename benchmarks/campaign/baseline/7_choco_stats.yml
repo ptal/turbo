@@ -1,0 +1,6 @@
+{configuration: choco, constraints: 811, data_file: ../mzn-challenge/2022/spot5/404.dzn,
+  evaluatedReifiedConstraints: 100, failures: 41141001, flatBoolVars: 100, flatIntConstraints: 811,
+  flatIntVars: 201, flatTime: 0.047607, initTime: 0.192, method: minimize, model: ../mzn-challenge/2022/spot5/spot5.mzn,
+  nSolutions: 23, nodes: 41141131, objective: 141, paths: 0, problem: spot5, restarts: 0,
+  solutions: 23, solveTime: 299.953, status: SATISFIED, time: 300.42880426600095,
+  variables: 302}

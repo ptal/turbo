@@ -1,0 +1,6 @@
+{configuration: choco, constraints: 164, data_file: ../mzn-challenge/2022/team-assignment/data3_5_31.dzn,
+  evaluatedReifiedConstraints: 76, failures: 22271868, flatBoolVars: 76, flatIntConstraints: 164,
+  flatIntVars: 236, flatTime: 0.088998, initTime: 0.222, method: maximize, model: ../mzn-challenge/2022/team-assignment/model.mzn,
+  nSolutions: 60, nodes: 22272101, objective: 6275, paths: 0, problem: team-assignment,
+  restarts: 0, solutions: 60, solveTime: 299.908, status: SATISFIED, time: 300.5395597019997,
+  variables: 377}

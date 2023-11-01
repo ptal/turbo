@@ -1,0 +1,5 @@
+{boolVariables: 7456, configuration: or-tools.noglobal, data_file: ../mzn-challenge/2022/roster-sickness/large-2.dzn,
+  failures: 15, flatBoolVars: 578, flatIntConstraints: 3317, flatIntVars: 627, flatTime: 20.4696,
+  method: maximize, model: ../mzn-challenge/2022/roster-sickness/bool-model-sickness.mzn,
+  nSolutions: 4, objective: 247896, objectiveBound: 247896, paths: 0, problem: roster-sickness,
+  propagations: 12354, solveTime: 0.074778, status: OPTIMAL_SOLUTION, time: 22.161388550000993}

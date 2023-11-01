@@ -1,0 +1,6 @@
+{configuration: choco, constraints: 72, data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_43_6.dzn,
+  evaluatedHalfReifiedConstraints: 2, failures: 104, flatBoolConstraints: 1, flatBoolVars: 2,
+  flatIntConstraints: 71, flatIntVars: 31, flatTime: 0.088334, initTime: 0.184, method: minimize,
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn, nSolutions: 6, nodes: 115, objective: 58,
+  paths: 0, problem: rcpsp, restarts: 0, solutions: 6, solveTime: 0.08, status: OPTIMAL_SOLUTION,
+  time: 0.665348331000132, variables: 148}

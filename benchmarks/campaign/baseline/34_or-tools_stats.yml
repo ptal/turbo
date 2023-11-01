@@ -1,0 +1,6 @@
+{boolVariables: 1189, configuration: or-tools, data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_41_10.dzn,
+  evaluatedHalfReifiedConstraints: 412, failures: 5605, flatBoolConstraints: 206,
+  flatBoolVars: 412, flatIntConstraints: 481, flatIntVars: 31, flatTime: 0.08069,
+  method: minimize, model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn, nSolutions: 15,
+  objective: 99, objectiveBound: 99, paths: 0, problem: rcpsp, propagations: 1498933,
+  solveTime: 0.959758, status: OPTIMAL_SOLUTION, time: 1.1858680799996364}

@@ -1,0 +1,52 @@
+- configuration: choco.noglobal
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_45_3.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 100
+    s: [0, 3, 0, 8, 9, 14, 19, 8, 28, 15, 31, 33, 33, 47, 14, 39, 37, 47, 19, 55,
+      65, 27, 43, 66, 75, 75, 79, 89, 91, 54]
+  status: SATISFIED
+  time: 1.613
+- configuration: choco.noglobal
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_45_3.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 98
+    s: [0, 3, 0, 8, 9, 14, 19, 8, 28, 15, 31, 33, 33, 47, 14, 39, 37, 47, 19, 55,
+      65, 27, 43, 70, 66, 79, 70, 87, 89, 54]
+  status: SATISFIED
+  time: 1.63
+- configuration: choco.noglobal
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_45_3.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 96
+    s: [0, 3, 0, 8, 9, 14, 19, 8, 28, 15, 31, 33, 45, 55, 14, 37, 37, 55, 19, 45,
+      63, 27, 43, 68, 64, 77, 68, 85, 87, 64]
+  status: SATISFIED
+  time: 11.737
+- configuration: choco.noglobal
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_45_3.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 94
+    s: [0, 3, 0, 8, 9, 14, 19, 8, 28, 15, 31, 53, 41, 53, 14, 33, 37, 62, 19, 43,
+      61, 27, 57, 66, 62, 75, 69, 83, 85, 79]
+  status: SATISFIED
+  time: 15.13
+- configuration: choco.noglobal
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_45_3.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 92
+    s: [0, 3, 0, 8, 9, 14, 19, 8, 28, 15, 31, 51, 41, 51, 14, 33, 33, 60, 19, 41,
+      59, 47, 57, 64, 60, 73, 67, 81, 83, 77]
+  status: SATISFIED
+  time: 84.504
+- {configuration: choco.noglobal, data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_45_3.dzn,
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn, problem: rcpsp, status: SATISFIED}

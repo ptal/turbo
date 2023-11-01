@@ -1,0 +1,5 @@
+{boolVariables: 100, configuration: or-tools.noglobal, data_file: ../mzn-challenge/2022/triangular/n10.dzn,
+  failures: 579906, flatIntConstraints: 496, flatIntVars: 56, flatTime: 0.036555,
+  method: maximize, model: ../mzn-challenge/2022/triangular/triangular.mzn, nSolutions: 4,
+  objective: 20, objectiveBound: 55, paths: 0, problem: triangular, propagations: 13898610,
+  solveTime: 7.50931, status: SATISFIED, time: 300.18610570499914}

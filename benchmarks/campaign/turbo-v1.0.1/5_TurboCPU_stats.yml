@@ -1,0 +1,8 @@
+{arch: cpu, configuration: TurboCPU, data_file: ../mzn-challenge/2022/triangular/n10.dzn,
+  eps_num_subproblems: 1, eps_skipped_subproblems: 0, eps_solved_subproblems: 0, failures: 398249,
+  fixpoint_iterations: 0, flatIntConstraints: 496, flatIntVars: 56, flatTime: 0.07019,
+  free_search: no, initTime: 0.047, method: maximize, model: ../mzn-challenge/2022/triangular/triangular.mzn,
+  nSolutions: 1, nodes: 796514, num_blocks_done: 0, num_solutions: 3, objective: 19,
+  or_nodes: 0, paths: 0, peakDepth: 38, problem: triangular, problem_path: /tmp/mznfilegRAcf7.fzn,
+  propagators: 662, solveTime: 299.925, solver: Turbo, status: SATISFIED, time: 300.08971510899937,
+  timeout_ms: 299925.0, variables: 267, version: 1.0.1}

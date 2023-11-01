@@ -1,0 +1,292 @@
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 163
+    p: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  status: SATISFIED
+  time: 5.081
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 161
+    p: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0]
+  status: SATISFIED
+  time: 5.857
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 159
+    p: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0]
+  status: SATISFIED
+  time: 6.314
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 157
+    p: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 13, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0]
+  status: SATISFIED
+  time: 6.821
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 155
+    p: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 13, 13, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0]
+  status: SATISFIED
+  time: 7.367
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 153
+    p: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13,
+      0, 0, 13, 13, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0]
+  status: SATISFIED
+  time: 7.884
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 151
+    p: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0,
+      13, 0, 0, 13, 13, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0]
+  status: SATISFIED
+  time: 8.522
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 149
+    p: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 13, 0, 0,
+      13, 0, 0, 13, 13, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0]
+  status: SATISFIED
+  time: 9.018
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 147
+    p: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 13, 0, 13, 0, 0,
+      13, 0, 0, 13, 13, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0]
+  status: SATISFIED
+  time: 9.703
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 145
+    p: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 13, 13, 0, 13, 0,
+      0, 13, 0, 0, 13, 13, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0,
+      0]
+  status: SATISFIED
+  time: 10.188
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 143
+    p: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 13, 13, 0, 13, 0,
+      0, 13, 0, 0, 13, 13, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0,
+      0]
+  status: SATISFIED
+  time: 10.721
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 141
+    p: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 13, 13, 0, 13,
+      0, 0, 13, 0, 0, 13, 13, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0,
+      0, 0]
+  status: SATISFIED
+  time: 11.244
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 139
+    p: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 13, 13, 0, 13,
+      0, 0, 13, 0, 0, 13, 13, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0,
+      0, 0]
+  status: SATISFIED
+  time: 12.067
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 137
+    p: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 13, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 13, 13, 0, 13,
+      0, 0, 13, 0, 0, 13, 13, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0,
+      0, 0]
+  status: SATISFIED
+  time: 13.105
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 135
+    p: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 13, 0, 0, 0, 13, 0, 0, 13, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 13, 13, 0,
+      13, 0, 0, 13, 0, 0, 13, 13, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13,
+      0, 0, 0]
+  status: SATISFIED
+  time: 14.389
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 133
+    p: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 13, 0, 0, 0, 13, 0, 0, 0, 13, 0, 0, 13, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 13, 13, 0,
+      13, 0, 0, 13, 0, 0, 13, 13, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13,
+      0, 0, 0]
+  status: SATISFIED
+  time: 16.372
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 131
+    p: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0,
+      13, 0, 0, 0, 0, 13, 0, 0, 0, 13, 0, 0, 13, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 13, 13, 0,
+      13, 0, 0, 13, 0, 0, 13, 13, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13,
+      0, 0, 0]
+  status: SATISFIED
+  time: 18.498
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 129
+    p: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 13, 0,
+      0, 13, 0, 0, 0, 0, 13, 0, 0, 0, 13, 0, 0, 13, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 13, 13,
+      0, 13, 0, 0, 13, 0, 0, 13, 13, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      13, 0, 0, 0]
+  status: SATISFIED
+  time: 22.395
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 127
+    p: [0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 13, 0,
+      0, 13, 0, 0, 0, 0, 13, 0, 0, 0, 13, 0, 0, 13, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 13, 13,
+      0, 13, 0, 0, 13, 0, 0, 13, 13, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      13, 0, 0, 0]
+  status: SATISFIED
+  time: 26.484
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 126
+    p: [0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 13, 0,
+      0, 13, 0, 0, 0, 0, 13, 0, 0, 0, 13, 0, 0, 13, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 13, 13,
+      0, 13, 0, 0, 13, 0, 0, 13, 13, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      13, 0, 0, 2]
+  status: SATISFIED
+  time: 27.827
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 125
+    p: [0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 13, 0,
+      0, 13, 0, 0, 0, 0, 13, 0, 0, 0, 13, 0, 0, 13, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 13, 13,
+      0, 13, 0, 0, 13, 0, 0, 13, 13, 0, 0, 0, 0, 0, 13, 2, 0, 0, 0, 0, 0, 0, 0, 0,
+      13, 2, 0, 0]
+  status: SATISFIED
+  time: 30.453
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 124
+    p: [0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 13, 0,
+      0, 13, 0, 0, 0, 0, 13, 0, 0, 0, 13, 0, 0, 13, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 13, 13,
+      0, 13, 0, 0, 13, 0, 0, 13, 13, 2, 0, 0, 0, 0, 13, 2, 0, 0, 0, 0, 0, 0, 0, 0,
+      13, 2, 0, 0]
+  status: SATISFIED
+  time: 74.506
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/spot5/404.dzn
+  model: ../mzn-challenge/2022/spot5/spot5.mzn
+  problem: spot5
+  solution:
+    objective: 123
+    p: [0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 13, 0,
+      0, 13, 0, 0, 0, 0, 13, 0, 0, 0, 13, 0, 0, 13, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 13, 0, 13, 13,
+      0, 13, 0, 0, 13, 0, 0, 13, 13, 2, 0, 0, 0, 0, 13, 2, 0, 0, 0, 0, 0, 0, 0, 0,
+      13, 2, 0, 0]
+  status: SATISFIED
+  time: 131.798
+- {configuration: or-tools.noglobal, data_file: ../mzn-challenge/2022/spot5/404.dzn,
+  model: ../mzn-challenge/2022/spot5/spot5.mzn, problem: spot5, status: SATISFIED}

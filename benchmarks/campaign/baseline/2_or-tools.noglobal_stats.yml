@@ -1,0 +1,5 @@
+{configuration: or-tools.noglobal, data_file: ../mzn-challenge/2022/stripboard/common-emitter-simple.dzn,
+  eliminatedImplications: 6, evaluatedReifiedConstraints: 1676, flatBoolConstraints: 665,
+  flatBoolVars: 1664, flatIntConstraints: 2234, flatIntVars: 306, flatTime: 0.122523,
+  method: minimize, model: ../mzn-challenge/2022/stripboard/stripboard.mzn, nSolutions: 0,
+  paths: 0, problem: stripboard, status: UNKNOWN, time: 300.25961647499935}

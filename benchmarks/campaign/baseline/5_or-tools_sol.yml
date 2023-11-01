@@ -1,0 +1,78 @@
+- configuration: or-tools
+  data_file: ../mzn-challenge/2022/triangular/n10.dzn
+  model: ../mzn-challenge/2022/triangular/triangular.mzn
+  problem: triangular
+  solution:
+    heart:
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    objective: 10
+  status: SATISFIED
+  time: 0.059
+- configuration: or-tools
+  data_file: ../mzn-challenge/2022/triangular/n10.dzn
+  model: ../mzn-challenge/2022/triangular/triangular.mzn
+  problem: triangular
+  solution:
+    heart:
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [0, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    objective: 18
+  status: SATISFIED
+  time: 0.06
+- configuration: or-tools
+  data_file: ../mzn-challenge/2022/triangular/n10.dzn
+  model: ../mzn-challenge/2022/triangular/triangular.mzn
+  problem: triangular
+  solution:
+    heart:
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [0, 1, 1, 0, 1, 1, 0, 1, 1, 0]
+    - [0, 0, 0, 1, 1, 0, 1, 1, 0, 1]
+    objective: 19
+  status: SATISFIED
+  time: 0.062
+- configuration: or-tools
+  data_file: ../mzn-challenge/2022/triangular/n10.dzn
+  model: ../mzn-challenge/2022/triangular/triangular.mzn
+  problem: triangular
+  solution:
+    heart:
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [0, 0, 0, 1, 0, 0, 0, 0, 0, 0]
+    - [0, 0, 0, 1, 0, 0, 0, 0, 0, 0]
+    - [0, 0, 0, 1, 0, 0, 0, 0, 0, 0]
+    - [0, 1, 1, 0, 1, 1, 1, 0, 0, 0]
+    - [1, 0, 0, 1, 0, 0, 0, 0, 0, 0]
+    - [1, 0, 0, 1, 0, 0, 0, 0, 0, 0]
+    - [0, 1, 1, 0, 0, 0, 0, 1, 1, 1]
+    objective: 20
+  status: SATISFIED
+  time: 7.524
+- {configuration: or-tools, data_file: ../mzn-challenge/2022/triangular/n10.dzn, model: ../mzn-challenge/2022/triangular/triangular.mzn,
+  problem: triangular, status: SATISFIED}

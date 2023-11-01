@@ -1,0 +1,6 @@
+{configuration: choco, constraints: 496, data_file: ../mzn-challenge/2022/triangular/n10.dzn,
+  failures: 34536298, flatIntConstraints: 496, flatIntVars: 56, flatTime: 0.037079,
+  initTime: 0.16, method: maximize, model: ../mzn-challenge/2022/triangular/triangular.mzn,
+  nSolutions: 4, nodes: 34536305, objective: 20, paths: 0, problem: triangular, restarts: 0,
+  solutions: 4, solveTime: 105.746, status: OPTIMAL_SOLUTION, time: 106.19775014699917,
+  variables: 58}

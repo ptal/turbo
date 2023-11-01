@@ -1,0 +1,6 @@
+{boolVariables: 5491, configuration: or-tools, data_file: ../mzn-challenge/2022/gfd-schedule/n55f2d50m30k3_10124.dzn,
+  eliminatedImplications: 138, evaluatedHalfReifiedConstraints: 279, evaluatedReifiedConstraints: 3118,
+  failures: 138, flatBoolConstraints: 2186, flatBoolVars: 3256, flatIntConstraints: 6192,
+  flatIntVars: 2256, flatTime: 0.16597, method: minimize, model: ../mzn-challenge/2022/gfd-schedule/gfd-schedule2.mzn,
+  nSolutions: 39, objective: 9, objectiveBound: 9, paths: 0, problem: gfd-schedule,
+  propagations: 1280790, solveTime: 1.65726, status: OPTIMAL_SOLUTION, time: 2.0481481169999824}

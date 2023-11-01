@@ -1,0 +1,8 @@
+{arch: cpu, configuration: TurboCPU, data_file: ../mzn-challenge/2022/roster-sickness/small-4.dzn,
+  eps_num_subproblems: 1, eps_skipped_subproblems: 0, eps_solved_subproblems: 0, failures: 151855,
+  fixpoint_iterations: 0, flatBoolVars: 309, flatIntConstraints: 1378, flatIntVars: 344,
+  flatTime: 0.947247, free_search: no, initTime: 0.177, method: maximize, model: ../mzn-challenge/2022/roster-sickness/bool-model-sickness.mzn,
+  nSolutions: 1, nodes: 303731, num_blocks_done: 0, num_solutions: 8, objective: 14457,
+  or_nodes: 0, paths: 0, peakDepth: 46, problem: roster-sickness, problem_path: /tmp/mznfileceMNEg.fzn,
+  propagators: 1991, solveTime: 299.052, solver: Turbo, status: SATISFIED, time: 300.13444659200104,
+  timeout_ms: 299052.0, variables: 2401, version: 1.0.1}

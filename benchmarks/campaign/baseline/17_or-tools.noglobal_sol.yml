@@ -1,0 +1,152 @@
+- configuration: or-tools.noglobal
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_25_3.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 95
+    s: [0, 0, 7, 8, 16, 8, 14, 25, 25, 30, 10, 33, 42, 49, 59, 36, 66, 10, 39, 31,
+      69, 77, 49, 56, 83, 86, 83, 85, 89, 86]
+  status: SATISFIED
+  time: 11.403
+- configuration: or-tools.noglobal
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_25_3.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 92
+    s: [0, 0, 7, 8, 16, 8, 14, 25, 25, 30, 10, 33, 42, 49, 59, 36, 74, 10, 39, 31,
+      66, 77, 49, 56, 74, 83, 86, 88, 88, 83]
+  status: SATISFIED
+  time: 11.673
+- configuration: or-tools.noglobal
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_25_3.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 89
+    s: [0, 0, 7, 8, 16, 8, 14, 25, 25, 30, 10, 33, 42, 42, 52, 36, 71, 10, 51, 31,
+      63, 74, 39, 53, 71, 80, 83, 85, 85, 80]
+  status: SATISFIED
+  time: 12.567
+- configuration: or-tools.noglobal
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_25_3.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 88
+    s: [0, 0, 7, 8, 16, 8, 14, 25, 25, 30, 10, 33, 42, 42, 61, 36, 70, 10, 51, 31,
+      62, 73, 39, 52, 70, 79, 82, 84, 84, 79]
+  status: SATISFIED
+  time: 12.808
+- configuration: or-tools.noglobal
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_25_3.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 87
+    s: [0, 0, 7, 8, 16, 8, 14, 25, 28, 25, 10, 33, 42, 48, 58, 35, 69, 10, 38, 48,
+      61, 72, 28, 51, 69, 78, 81, 83, 83, 78]
+  status: SATISFIED
+  time: 17.63
+- configuration: or-tools.noglobal
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_25_3.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 86
+    s: [0, 0, 7, 8, 16, 8, 14, 25, 28, 25, 10, 33, 42, 56, 66, 35, 67, 10, 38, 51,
+      48, 71, 28, 56, 66, 77, 69, 77, 80, 77]
+  status: SATISFIED
+  time: 18.008
+- configuration: or-tools.noglobal
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_25_3.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 85
+    s: [0, 0, 7, 8, 16, 8, 14, 25, 28, 25, 10, 33, 42, 56, 66, 35, 67, 10, 38, 51,
+      48, 70, 28, 56, 66, 76, 79, 81, 81, 76]
+  status: SATISFIED
+  time: 18.255
+- configuration: or-tools.noglobal
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_25_3.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 84
+    s: [0, 0, 7, 8, 16, 8, 14, 25, 31, 25, 10, 36, 45, 49, 59, 38, 66, 10, 28, 54,
+      41, 69, 49, 56, 66, 75, 60, 75, 78, 75]
+  status: SATISFIED
+  time: 23.233
+- configuration: or-tools.noglobal
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_25_3.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 83
+    s: [0, 0, 7, 8, 23, 8, 14, 16, 32, 20, 10, 37, 55, 46, 64, 42, 65, 10, 32, 45,
+      56, 68, 23, 45, 64, 74, 77, 79, 79, 74]
+  status: SATISFIED
+  time: 33.503
+- configuration: or-tools.noglobal
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_25_3.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 82
+    s: [0, 0, 7, 8, 22, 8, 20, 16, 31, 17, 10, 36, 54, 45, 63, 41, 64, 10, 31, 44,
+      55, 67, 20, 44, 63, 73, 76, 78, 78, 73]
+  status: SATISFIED
+  time: 39.692
+- configuration: or-tools.noglobal
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_25_3.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 81
+    s: [0, 0, 7, 8, 17, 8, 16, 26, 26, 14, 17, 32, 41, 52, 62, 41, 63, 10, 31, 50,
+      44, 66, 24, 52, 62, 72, 75, 77, 77, 72]
+  status: SATISFIED
+  time: 49.063
+- configuration: or-tools.noglobal
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_25_3.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 80
+    s: [0, 0, 7, 8, 16, 13, 19, 25, 25, 10, 13, 31, 40, 51, 61, 40, 62, 13, 30, 49,
+      43, 65, 20, 51, 61, 71, 74, 76, 76, 71]
+  status: SATISFIED
+  time: 63.579
+- configuration: or-tools.noglobal
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_25_3.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 79
+    s: [0, 0, 7, 16, 16, 11, 18, 25, 31, 8, 11, 36, 54, 45, 63, 55, 58, 25, 26, 44,
+      36, 64, 18, 44, 61, 70, 73, 75, 75, 70]
+  status: SATISFIED
+  time: 77.866
+- configuration: or-tools.noglobal
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_25_3.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 77
+    s: [0, 0, 16, 7, 7, 8, 9, 29, 25, 16, 57, 30, 39, 47, 58, 36, 65, 15, 19, 47,
+      39, 59, 29, 48, 65, 68, 71, 73, 73, 68]
+  status: SATISFIED
+  time: 100.373
+- configuration: or-tools.noglobal
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_25_3.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 76
+    s: [0, 0, 16, 7, 7, 29, 9, 30, 25, 16, 8, 30, 39, 47, 57, 36, 58, 15, 19, 47,
+      39, 61, 29, 48, 58, 67, 70, 72, 72, 67]
+  status: SATISFIED
+  time: 111.348
+- {configuration: or-tools.noglobal, data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_25_3.dzn,
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn, problem: rcpsp, status: OPTIMAL_SOLUTION}

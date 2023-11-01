@@ -1,0 +1,5 @@
+{boolVariables: 5114, configuration: or-tools.noglobal, data_file: ../mzn-challenge/2022/spot5/404.dzn,
+  evaluatedReifiedConstraints: 100, failures: 21356, flatBoolVars: 100, flatIntConstraints: 1439,
+  flatIntVars: 811, flatTime: 0.088817, method: minimize, model: ../mzn-challenge/2022/spot5/spot5.mzn,
+  nSolutions: 23, objective: 123, objectiveBound: 96, paths: 0, problem: spot5, propagations: 24722451,
+  solveTime: 131.687999, status: SATISFIED, time: 300.1782869689996}

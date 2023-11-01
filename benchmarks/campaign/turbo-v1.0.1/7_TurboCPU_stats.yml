@@ -1,0 +1,9 @@
+{arch: cpu, configuration: TurboCPU, data_file: ../mzn-challenge/2022/spot5/404.dzn,
+  eps_num_subproblems: 1, eps_skipped_subproblems: 0, eps_solved_subproblems: 0, evaluatedReifiedConstraints: 100,
+  failures: 78087, fixpoint_iterations: 0, flatBoolVars: 100, flatIntConstraints: 1439,
+  flatIntVars: 811, flatTime: 0.11942, free_search: no, initTime: 0.586, method: minimize,
+  model: ../mzn-challenge/2022/spot5/spot5.mzn, nSolutions: 1, nodes: 156272, num_blocks_done: 0,
+  num_solutions: 12, objective: 141, or_nodes: 0, paths: 0, peakDepth: 100, problem: spot5,
+  problem_path: /tmp/mznfilewiodeW.fzn, propagators: 7381, solveTime: 299.879, solver: Turbo,
+  status: SATISFIED, time: 300.1114400409988, timeout_ms: 299879.0, variables: 1112,
+  version: 1.0.1}

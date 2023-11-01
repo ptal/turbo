@@ -49,7 +49,7 @@ if(GPU)
 endif()
 
 add_executable(turbo src/turbo.cpp src/config.cpp)
-target_include_directories(turbo PRIVATE include)
+target_include_directories(turbo PRIVATE /usr/local/cuda/include include)
 target_compile_options(turbo PRIVATE
   "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:SHELL:-Xptxas --suppress-stack-size-warning>"
   "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:--verbose;--keep>"

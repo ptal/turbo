@@ -1,0 +1,6 @@
+{configuration: choco.noglobal, constraints: 2900, data_file: ../mzn-challenge/2022/stripboard/common-emitter-simple.dzn,
+  eliminatedImplications: 6, evaluatedReifiedConstraints: 1676, failures: 5108252,
+  flatBoolConstraints: 665, flatBoolVars: 1664, flatIntConstraints: 2234, flatIntVars: 306,
+  flatTime: 0.123945, initTime: 0.407, method: minimize, model: ../mzn-challenge/2022/stripboard/stripboard.mzn,
+  nSolutions: 0, nodes: 5108279, paths: 0, problem: stripboard, restarts: 0, solutions: 0,
+  solveTime: 299.878, status: UNKNOWN, time: 300.74354591799965, variables: 3272}

@@ -1,0 +1,623 @@
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 0
+    power: [3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+  status: SATISFIED
+  time: 0.944
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 2
+    power: [8, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+  status: SATISFIED
+  time: 0.953
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 3
+    power: [7, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+  status: SATISFIED
+  time: 0.956
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 4
+    power: [7, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+  status: SATISFIED
+  time: 0.963
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 5
+    power: [6, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+  status: SATISFIED
+  time: 0.969
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 6
+    power: [6, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+  status: SATISFIED
+  time: 0.973
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 8
+    power: [10, 1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+  status: SATISFIED
+  time: 0.983
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 9
+    power: [10, 1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 1, 1, 1, 1, 1, 1, 1, 2, 1]
+  status: SATISFIED
+  time: 0.991
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 10
+    power: [9, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 2]
+  status: SATISFIED
+  time: 0.995
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 12
+    power: [9, 2, 1, 1, 1, 1, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 2]
+  status: SATISFIED
+  time: 0.999
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 13
+    power: [8, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2]
+  status: SATISFIED
+  time: 1.049
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 14
+    power: [8, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2]
+  status: SATISFIED
+  time: 1.05
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 15
+    power: [10, 3, 1, 1, 1, 1, 1, 1, 1, 4, 4, 1, 1, 1, 1, 1, 1, 1, 3, 3]
+  status: SATISFIED
+  time: 1.055
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 16
+    power: [9, 2, 1, 2, 1, 1, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 2]
+  status: SATISFIED
+  time: 1.064
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 17
+    power: [8, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1]
+  status: SATISFIED
+  time: 1.066
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 19
+    power: [8, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2]
+  status: SATISFIED
+  time: 1.067
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 20
+    power: [8, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2]
+  status: SATISFIED
+  time: 1.068
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 21
+    power: [10, 3, 1, 3, 1, 1, 1, 1, 1, 4, 4, 1, 1, 1, 1, 1, 1, 1, 3, 3]
+  status: SATISFIED
+  time: 1.073
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 22
+    power: [10, 3, 1, 3, 1, 1, 2, 1, 1, 4, 4, 1, 1, 1, 1, 1, 1, 1, 3, 3]
+  status: SATISFIED
+  time: 1.076
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 23
+    power: [10, 3, 1, 3, 1, 1, 1, 1, 1, 3, 4, 1, 1, 1, 2, 1, 1, 1, 3, 1]
+  status: SATISFIED
+  time: 1.081
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 24
+    power: [10, 3, 1, 3, 1, 1, 1, 1, 1, 4, 4, 1, 1, 1, 2, 1, 1, 1, 3, 3]
+  status: SATISFIED
+  time: 1.082
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 25
+    power: [10, 3, 1, 3, 1, 1, 2, 1, 1, 4, 4, 1, 1, 1, 2, 1, 1, 1, 3, 3]
+  status: SATISFIED
+  time: 1.083
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 26
+    power: [10, 3, 1, 3, 1, 1, 3, 1, 1, 3, 4, 1, 1, 1, 2, 1, 1, 1, 3, 1]
+  status: SATISFIED
+  time: 1.096
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 27
+    power: [10, 3, 1, 3, 1, 1, 3, 1, 1, 4, 4, 1, 1, 1, 2, 1, 1, 1, 3, 3]
+  status: SATISFIED
+  time: 1.097
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 28
+    power: [10, 3, 1, 3, 1, 1, 1, 1, 1, 4, 4, 1, 1, 3, 2, 1, 1, 1, 3, 3]
+  status: SATISFIED
+  time: 1.146
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 29
+    power: [10, 3, 1, 3, 1, 1, 2, 1, 1, 4, 4, 1, 1, 3, 2, 1, 1, 1, 3, 3]
+  status: SATISFIED
+  time: 1.147
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 30
+    power: [6, 2, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 1, 2, 2, 1, 1, 2, 1, 1]
+  status: SATISFIED
+  time: 1.177
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 31
+    power: [10, 3, 1, 3, 1, 1, 2, 1, 1, 4, 4, 1, 1, 3, 4, 1, 1, 1, 3, 3]
+  status: SATISFIED
+  time: 1.221
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 32
+    power: [10, 3, 1, 3, 1, 1, 2, 1, 1, 4, 4, 1, 1, 3, 4, 1, 3, 1, 3, 3]
+  status: SATISFIED
+  time: 1.231
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 33
+    power: [10, 3, 1, 3, 1, 1, 2, 1, 1, 4, 4, 1, 1, 3, 3, 1, 3, 1, 3, 3]
+  status: SATISFIED
+  time: 1.312
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 34
+    power: [9, 3, 1, 2, 1, 1, 2, 1, 1, 4, 4, 1, 1, 3, 3, 1, 3, 1, 3, 3]
+  status: SATISFIED
+  time: 1.503
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 35
+    power: [9, 3, 1, 3, 1, 1, 2, 1, 1, 4, 4, 1, 1, 3, 3, 1, 3, 1, 3, 3]
+  status: SATISFIED
+  time: 1.504
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 36
+    power: [10, 3, 1, 3, 1, 1, 2, 1, 1, 4, 4, 3, 1, 2, 5, 1, 4, 1, 3, 3]
+  status: SATISFIED
+  time: 1.693
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 37
+    power: [10, 3, 1, 3, 1, 1, 2, 1, 1, 3, 4, 3, 1, 3, 5, 1, 4, 1, 3, 1]
+  status: SATISFIED
+  time: 1.695
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 38
+    power: [10, 3, 1, 3, 1, 1, 2, 1, 1, 4, 4, 3, 1, 3, 5, 1, 4, 1, 3, 3]
+  status: SATISFIED
+  time: 1.696
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 39
+    power: [10, 3, 1, 3, 1, 1, 2, 3, 1, 4, 4, 3, 1, 2, 5, 1, 4, 3, 1, 3]
+  status: SATISFIED
+  time: 1.892
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 40
+    power: [10, 3, 1, 3, 1, 1, 2, 3, 1, 3, 4, 3, 1, 3, 5, 1, 4, 3, 1, 1]
+  status: SATISFIED
+  time: 1.894
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 41
+    power: [10, 3, 1, 3, 1, 1, 2, 3, 1, 4, 4, 3, 1, 3, 5, 1, 4, 3, 1, 3]
+  status: SATISFIED
+  time: 1.894
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 42
+    power: [10, 3, 1, 3, 1, 1, 2, 3, 1, 4, 4, 3, 1, 3, 4, 1, 6, 3, 1, 3]
+  status: SATISFIED
+  time: 1.971
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 43
+    power: [10, 3, 1, 3, 3, 1, 2, 1, 1, 4, 4, 3, 1, 3, 4, 1, 6, 1, 3, 3]
+  status: SATISFIED
+  time: 2.002
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 44
+    power: [10, 3, 1, 3, 3, 1, 2, 3, 1, 4, 4, 3, 1, 3, 3, 1, 5, 3, 1, 3]
+  status: SATISFIED
+  time: 2.053
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 45
+    power: [10, 3, 1, 3, 3, 1, 2, 3, 1, 3, 4, 3, 1, 3, 4, 1, 6, 3, 1, 1]
+  status: SATISFIED
+  time: 2.055
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 46
+    power: [10, 3, 1, 3, 3, 1, 2, 3, 1, 4, 4, 3, 1, 3, 4, 1, 6, 3, 1, 3]
+  status: SATISFIED
+  time: 2.056
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 48
+    power: [10, 3, 1, 3, 3, 1, 2, 3, 1, 4, 4, 4, 1, 3, 4, 1, 6, 3, 1, 3]
+  status: SATISFIED
+  time: 2.321
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 49
+    power: [10, 3, 1, 3, 3, 1, 2, 3, 1, 4, 4, 4, 1, 3, 5, 3, 4, 3, 1, 3]
+  status: SATISFIED
+  time: 3.047
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 50
+    power: [10, 3, 1, 3, 6, 1, 2, 3, 1, 4, 4, 4, 1, 3, 5, 1, 5, 3, 1, 3]
+  status: SATISFIED
+  time: 4.064
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 51
+    power: [10, 3, 1, 3, 6, 1, 2, 3, 1, 4, 4, 4, 1, 3, 4, 4, 5, 3, 1, 3]
+  status: SATISFIED
+  time: 4.797
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 52
+    power: [10, 3, 1, 3, 6, 1, 2, 3, 1, 4, 4, 4, 1, 3, 5, 4, 5, 3, 1, 3]
+  status: SATISFIED
+  time: 4.798
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 53
+    power: [10, 3, 1, 3, 7, 1, 2, 3, 1, 4, 4, 4, 1, 3, 5, 6, 5, 3, 1, 3]
+  status: SATISFIED
+  time: 5.228
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 54
+    power: [10, 3, 1, 3, 6, 1, 2, 3, 1, 4, 4, 4, 1, 3, 5, 5, 5, 3, 1, 3]
+  status: SATISFIED
+  time: 5.341
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 55
+    power: [10, 3, 1, 3, 7, 1, 2, 3, 1, 4, 4, 4, 1, 3, 5, 6, 6, 3, 1, 3]
+  status: SATISFIED
+  time: 5.345
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 56
+    power: [10, 3, 1, 3, 6, 1, 2, 3, 1, 4, 4, 4, 1, 3, 5, 6, 5, 3, 1, 3]
+  status: SATISFIED
+  time: 5.56
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 57
+    power: [10, 3, 1, 3, 6, 1, 2, 3, 4, 4, 4, 4, 1, 3, 4, 4, 5, 3, 1, 3]
+  status: SATISFIED
+  time: 7.5
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 58
+    power: [10, 3, 1, 3, 6, 1, 2, 3, 4, 4, 4, 4, 1, 3, 5, 4, 5, 3, 1, 3]
+  status: SATISFIED
+  time: 7.501
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 59
+    power: [10, 3, 1, 3, 7, 1, 2, 3, 4, 4, 4, 4, 1, 3, 5, 6, 5, 3, 1, 3]
+  status: SATISFIED
+  time: 7.8
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 60
+    power: [10, 3, 1, 3, 6, 1, 2, 3, 4, 4, 4, 4, 1, 3, 5, 5, 5, 3, 1, 3]
+  status: SATISFIED
+  time: 7.805
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 61
+    power: [10, 3, 1, 3, 7, 1, 2, 3, 4, 4, 4, 4, 1, 3, 5, 6, 6, 3, 1, 3]
+  status: SATISFIED
+  time: 7.807
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 62
+    power: [10, 3, 1, 3, 6, 1, 2, 3, 4, 4, 4, 4, 1, 3, 5, 6, 5, 3, 1, 3]
+  status: SATISFIED
+  time: 7.849
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 63
+    power: [10, 3, 3, 3, 6, 1, 2, 3, 4, 4, 4, 4, 1, 3, 5, 6, 5, 3, 1, 3]
+  status: SATISFIED
+  time: 10.503
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 64
+    power: [10, 3, 5, 3, 6, 1, 2, 3, 4, 4, 4, 4, 1, 3, 5, 6, 5, 3, 1, 3]
+  status: SATISFIED
+  time: 12.352
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 65
+    power: [10, 3, 3, 3, 6, 4, 2, 3, 4, 4, 4, 4, 1, 3, 5, 6, 5, 3, 1, 3]
+  status: SATISFIED
+  time: 15.201
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 66
+    power: [10, 3, 5, 3, 6, 4, 2, 3, 4, 4, 4, 4, 1, 3, 5, 6, 5, 3, 1, 3]
+  status: SATISFIED
+  time: 15.653
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 67
+    power: [10, 3, 5, 3, 6, 5, 2, 3, 4, 4, 4, 4, 1, 3, 5, 6, 5, 3, 1, 3]
+  status: SATISFIED
+  time: 27.102
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 69
+    power: [10, 3, 5, 3, 4, 5, 2, 4, 7, 4, 4, 5, 1, 3, 5, 7, 5, 3, 1, 3]
+  status: SATISFIED
+  time: 28.981
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 71
+    power: [10, 3, 5, 3, 7, 7, 2, 4, 7, 4, 4, 5, 1, 3, 5, 6, 6, 3, 1, 3]
+  status: SATISFIED
+  time: 37.439
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 72
+    power: [10, 3, 6, 3, 3, 10, 2, 3, 4, 4, 4, 4, 1, 3, 4, 5, 4, 3, 1, 3]
+  status: SATISFIED
+  time: 45.848
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 74
+    power: [10, 3, 7, 3, 6, 4, 2, 4, 7, 4, 4, 5, 1, 3, 4, 6, 5, 3, 1, 3]
+  status: SATISFIED
+  time: 52.442
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 75
+    power: [10, 3, 7, 3, 3, 9, 2, 3, 4, 4, 4, 4, 1, 3, 3, 5, 4, 3, 1, 3]
+  status: SATISFIED
+  time: 60.863
+- configuration: choco
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 77
+    power: [10, 3, 7, 3, 3, 9, 2, 3, 4, 4, 4, 4, 1, 3, 4, 5, 4, 3, 1, 3]
+  status: SATISFIED
+  time: 60.867
+- {configuration: choco, data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn,
+  model: ../mzn-challenge/2022/tower/tower.mzn, problem: tower, status: SATISFIED}

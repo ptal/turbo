@@ -1,0 +1,6 @@
+{configuration: choco, constraints: 262, data_file: ../mzn-challenge/2022/generalized-peacable-queens/n8_q3.json,
+  failures: 3537581, flatIntConstraints: 52, flatIntVars: 67, flatTime: 0.099361,
+  initTime: 0.276, method: maximize, model: ../mzn-challenge/2022/generalized-peacable-queens/peaceable_queens.mzn,
+  nSolutions: 5, nodes: 3537590, objective: 4, paths: 0, problem: generalized-peacable-queens,
+  restarts: 0, solutions: 5, solveTime: 63.246, status: OPTIMAL_SOLUTION, time: 63.909147177000705,
+  variables: 362}

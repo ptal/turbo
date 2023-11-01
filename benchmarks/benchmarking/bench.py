@@ -14,8 +14,8 @@ schedule(
         Configuration(name="or-tools.noglobal", solver=minizinc.Solver.lookup("com.google.or-tools.noglobal")),
         Configuration(name="choco", solver=minizinc.Solver.lookup("org.choco.choco")),
         Configuration(name="choco.noglobal", solver=minizinc.Solver.lookup("org.choco.choco.noglobal")),
-        # Configuration(name="TurboCPU", solver=minizinc.Solver.lookup("turbo.cpu.release")),
-        # Configuration(name="TurboGPU", solver=minizinc.Solver.lookup("turbo.gpu.release"))
+        Configuration(name="TurboCPU", solver=minizinc.Solver.lookup("turbo.cpu.release")),
+        Configuration(name="TurboGPU", solver=minizinc.Solver.lookup("turbo.gpu.release"))
     ],
     nodelist=None
 )

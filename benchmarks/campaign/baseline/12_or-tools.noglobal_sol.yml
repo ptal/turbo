@@ -1,0 +1,272 @@
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/generalized-peacable-queens/n8_q3.json
+  model: ../mzn-challenge/2022/generalized-peacable-queens/peaceable_queens.mzn
+  problem: generalized-peacable-queens
+  solution:
+    counts: [0, 0, 0]
+    objective: 0
+    x:
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+  status: SATISFIED
+  time: 1.416
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/generalized-peacable-queens/n8_q3.json
+  model: ../mzn-challenge/2022/generalized-peacable-queens/peaceable_queens.mzn
+  problem: generalized-peacable-queens
+  solution:
+    counts: [1, 1, 1]
+    objective: 1
+    x:
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 1, constructor: Army}
+        constructor: Q
+    - - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 2, constructor: Army}
+        constructor: Q
+      - EMPTY
+      - EMPTY
+    - - EMPTY
+      - EMPTY
+      - EMPTY
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 3, constructor: Army}
+        constructor: Q
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+  status: SATISFIED
+  time: 2.723
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/generalized-peacable-queens/n8_q3.json
+  model: ../mzn-challenge/2022/generalized-peacable-queens/peaceable_queens.mzn
+  problem: generalized-peacable-queens
+  solution:
+    counts: [2, 2, 2]
+    objective: 2
+    x:
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 1, constructor: Army}
+        constructor: Q
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 1, constructor: Army}
+        constructor: Q
+    - - EMPTY
+      - EMPTY
+      - EMPTY
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 2, constructor: Army}
+        constructor: Q
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 2, constructor: Army}
+        constructor: Q
+      - EMPTY
+      - EMPTY
+      - EMPTY
+    - - !ConstrEnum
+        argument: !ConstrEnum {argument: 3, constructor: Army}
+        constructor: Q
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 3, constructor: Army}
+        constructor: Q
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+  status: SATISFIED
+  time: 3.744
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/generalized-peacable-queens/n8_q3.json
+  model: ../mzn-challenge/2022/generalized-peacable-queens/peaceable_queens.mzn
+  problem: generalized-peacable-queens
+  solution:
+    counts: [3, 3, 3]
+    objective: 3
+    x:
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 1, constructor: Army}
+        constructor: Q
+      - EMPTY
+    - - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 1, constructor: Army}
+        constructor: Q
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 1, constructor: Army}
+        constructor: Q
+      - EMPTY
+    - - EMPTY
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 2, constructor: Army}
+        constructor: Q
+      - EMPTY
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 2, constructor: Army}
+        constructor: Q
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+    - - EMPTY
+      - EMPTY
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 2, constructor: Army}
+        constructor: Q
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+    - - !ConstrEnum
+        argument: !ConstrEnum {argument: 3, constructor: Army}
+        constructor: Q
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 3, constructor: Army}
+        constructor: Q
+      - EMPTY
+      - EMPTY
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 3, constructor: Army}
+        constructor: Q
+  status: SATISFIED
+  time: 11.205
+- configuration: or-tools.noglobal
+  data_file: ../mzn-challenge/2022/generalized-peacable-queens/n8_q3.json
+  model: ../mzn-challenge/2022/generalized-peacable-queens/peaceable_queens.mzn
+  problem: generalized-peacable-queens
+  solution:
+    counts: [4, 4, 4]
+    objective: 4
+    x:
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - - EMPTY
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 1, constructor: Army}
+        constructor: Q
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 1, constructor: Army}
+        constructor: Q
+      - EMPTY
+    - - EMPTY
+      - EMPTY
+      - EMPTY
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 2, constructor: Army}
+        constructor: Q
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 2, constructor: Army}
+        constructor: Q
+      - EMPTY
+      - EMPTY
+      - EMPTY
+    - - !ConstrEnum
+        argument: !ConstrEnum {argument: 3, constructor: Army}
+        constructor: Q
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 3, constructor: Army}
+        constructor: Q
+    - - !ConstrEnum
+        argument: !ConstrEnum {argument: 3, constructor: Army}
+        constructor: Q
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 3, constructor: Army}
+        constructor: Q
+    - - EMPTY
+      - EMPTY
+      - EMPTY
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 2, constructor: Army}
+        constructor: Q
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 2, constructor: Army}
+        constructor: Q
+      - EMPTY
+      - EMPTY
+      - EMPTY
+    - - EMPTY
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 1, constructor: Army}
+        constructor: Q
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - EMPTY
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 1, constructor: Army}
+        constructor: Q
+      - EMPTY
+  status: SATISFIED
+  time: 81.746
+- {configuration: or-tools.noglobal, data_file: ../mzn-challenge/2022/generalized-peacable-queens/n8_q3.json,
+  model: ../mzn-challenge/2022/generalized-peacable-queens/peaceable_queens.mzn, problem: generalized-peacable-queens,
+  status: SATISFIED}
