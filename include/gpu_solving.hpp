@@ -527,24 +527,18 @@ void transfer_memory_and_run(CP& root, MemoryConfig mem_config, const Timepoint&
       grid_data->mem_config.shared_bytes>>>
     (grid_data.get());
   bool interrupted = wait_solving_ends(*grid_data, start);
+
   // We wait to let the kernel prints the statistics.
-  std::this_thread::sleep_for(std::chrono::milliseconds(60000));
+  if(grid_data->root.config.kernel_shutdown_timeout_ms != 0) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(grid_data->root.config.kernel_shutdown_timeout_ms));
+    exit(EXIT_SUCCESS);
+  }
 
-  // CUDAEX(cudaDeviceSynchronize());
-  // cudaStream_t stream;
-  // cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
-  // reduce_blocks<<<1, 1, 0, stream>>>(grid_data.get());
-  // CUDAEX(cudaStreamSynchronize(stream));
-  // cudaStreamDestroy(stream);
-
-  // For now commented because synchronization and deallocation is quite slow and we quit anyway the program afterwards.
-  // if(!interrupted) {
-  //   deallocate_grid_data<<<1,1>>>(grid_data.get());
-  //   CUDAEX(cudaDeviceSynchronize());
-  // }
-  // else {
-  exit(EXIT_SUCCESS);
-  // }
+  CUDAEX(cudaDeviceSynchronize());
+  if(!interrupted) {
+    deallocate_grid_data<<<1,1>>>(grid_data.get());
+    CUDAEX(cudaDeviceSynchronize());
+  }
 }
 
 // From https://stackoverflow.com/a/32531982/2231159
@@ -619,11 +613,19 @@ void configure_and_run(CP& root, const Timepoint& start) {
 
 void gpu_solve(Configuration<bt::standard_allocator>& config) {
 #ifndef __CUDACC__
-  std::cout << "You must use a CUDA compiler (nvcc or clang) to compile Turbo on GPU." << std::endl;
+  std::cerr << "You must use a CUDA compiler (nvcc or clang) to compile Turbo on GPU." << std::endl;
 #else
   auto start = std::chrono::high_resolution_clock::now();
-  if(config.timeout_ms > 60000) {
-    config.timeout_ms -= 60000; // We reserve 5 seconds for the kernel termination.
+  if(config.kernel_shutdown_timeout_ms != 0) {
+    if(config.timeout_ms != 0) {
+      if(config.kernel_shutdown_timeout_ms > config.timeout_ms) {
+        std::cerr << "The kernel shutdown timeout must be smaller than the timeout." << std::endl;
+        exit(EXIT_FAILURE);
+      }
+      else {
+        config.timeout_ms -= config.kernel_shutdown_timeout_ms;
+      }
+    }
   }
   CP root(config);
   root.prepare_solver();
