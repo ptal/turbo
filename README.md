@@ -38,7 +38,7 @@ cmake --build build/gpu-release
 
 ### MiniZinc
 
-The file [turbo.gpu.msc](https://github.com/ptal/turbo/blob/v1.0.1/benchmarks/minizinc/turbo.gpu.msc) can be copied in your Minizinc configuration directory (on Linux: `~/.minizinc/solvers`).
+The file [turbo.gpu.release.msc](https://github.com/ptal/turbo/blob/v1.0.1/benchmarks/minizinc/turbo.gpu.release.msc) can be copied in your Minizinc configuration directory (on Linux: `~/.minizinc/solvers`).
 You should edit the file and update the paths of `executable` and `mznlib` to match the location of Turbo on your system.
 
 You should be able to run Turbo directly from the [MiniZinc IDE](https://www.minizinc.org/) and from the command line:
