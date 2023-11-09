@@ -1,0 +1,25 @@
+{
+    "executable": "/home/ptalbot/repositories/lattice-land/turbo/build/cpu-release/turbo",
+    "id": "turbo.cpu.release",
+    "isGUIApplication": false,
+    "mznlib": "/home/ptalbot/repositories/lattice-land/turbo/benchmarks/minizinc/mzn-lib",
+    "mznlibVersion": 1,
+    "name": "Turbo (cpu,release)",
+    "needsMznExecutable": false,
+    "needsPathsFile": false,
+    "needsSolns2Out": true,
+    "needsStdlibDir": false,
+    "stdFlags": [
+        "-a",
+        "-n",
+        "-p",
+        "-s",
+        "-v",
+        "-f",
+        "-t"
+    ],
+    "supportsFzn": true,
+    "supportsMzn": false,
+    "supportsNL": false,
+    "version": "1.0"
+}

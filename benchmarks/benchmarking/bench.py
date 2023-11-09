@@ -7,7 +7,7 @@ from mzn_bench import Configuration, schedule
 
 schedule(
     instances=Path("short.csv"),
-    output_dir=Path("../campaign/baseline/"),
+    output_dir=Path("../campaign/new/"),
     timeout=timedelta(seconds=300),
     configurations=[
         Configuration(name="or-tools", solver=minizinc.Solver.lookup("com.google.or-tools")),

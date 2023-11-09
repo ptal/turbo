@@ -46,7 +46,7 @@ struct Configuration {
     print_ast(false),
     print_statistics(false),
     timeout_ms(0),
-    kernel_shutdown_timeout_ms(0),
+    kernel_shutdown_timeout_ms(5000),
     and_nodes(0),
     or_nodes(0),
     subproblems_power(SUBPROBLEMS_POWER),
@@ -83,7 +83,7 @@ struct Configuration {
   {}
 
   CUDA void print_commandline(const char* program_name) {
-    printf("%s -t %zu -kt %zu %s-n %zu %s%s%s%s%s",
+    printf("%s -t %lu %s-n %lu %s%s%s%s%s",
       program_name,
       timeout_ms,
       (print_intermediate_solutions ? "-a ": ""),
@@ -95,7 +95,7 @@ struct Configuration {
       (print_ast ? "-ast " : "")
     );
     if(arch == Arch::GPU) {
-      printf("-kt %zu -arch gpu -or %zu -and %zu -sub %zu -stack %zu ", kernel_shutdown_timeout_ms, or_nodes, and_nodes, subproblems_power, stack_kb);
+      printf("-kt %lu -arch gpu -or %lu -and %lu -sub %lu -stack %lu ", kernel_shutdown_timeout_ms, or_nodes, and_nodes, subproblems_power, stack_kb);
     }
     else {
       printf("-arch cpu -p %zu ", or_nodes);
@@ -115,7 +115,7 @@ struct Configuration {
     printf("%%%%%%mzn-stat: or_nodes=%lu\n", or_nodes);
     printf("%%%%%%mzn-stat: timeout_ms=%lu\n", timeout_ms);
     if(arch == Arch::GPU) {
-      printf("%%%%%%mzn-stat: kernel_shutdown_timeout_ms=%zu\n", kernel_shutdown_timeout_ms);
+      printf("%%%%%%mzn-stat: kernel_shutdown_timeout_ms=%lu\n", kernel_shutdown_timeout_ms);
       printf("%%%%%%mzn-stat: and_nodes=%lu\n", and_nodes);
       printf("%%%%%%mzn-stat: stack_size=%lu\n", stack_kb * 1000);
     }

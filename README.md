@@ -20,7 +20,7 @@ The following command will configure and compile Turbo for GPU for the GPU archi
 
 ```
 cmake --workflow --preset gpu-release --fresh
-./build/gpu-release/turbo -v -s benchmarks/data/patterson.task-rd.fzn/pat2.fzn
+./build/gpu-release/turbo -s -v -i -t 20000 -kt 1000 benchmarks/example_wordpress7_500.fzn
 ```
 
 Other compilation builds are also available:
@@ -34,6 +34,17 @@ Alternatively, you can use these commands without presets and workflow (it is us
 ```
 cmake -DCMAKE_BUILD_TYPE=Release -DGPU=ON -DREDUCE_PTX_SIZE=ON -DCMAKE_VERBOSE_MAKEFILE=ON -Bbuild/gpu-release
 cmake --build build/gpu-release
+```
+
+### MiniZinc
+
+The file [turbo.gpu.msc](https://github.com/ptal/turbo/blob/v1.0.1/benchmarks/minizinc/turbo.gpu.msc) can be copied in your Minizinc configuration directory (on Linux: `~/.minizinc/solvers`).
+You should edit the file and update the paths of `executable` and `mznlib` to match the location of Turbo on your system.
+
+You should be able to run Turbo directly from the [MiniZinc IDE](https://www.minizinc.org/) and from the command line:
+
+```
+minizinc -s -t 60000 --solver turbo.gpu.release benchmarks/mzn-challenge/2022/wordpress/Wordpress7_Offers500.dzn benchmarks/mzn-challenge/2022/wordpress/wordpress.mzn
 ```
 
 ### Developers

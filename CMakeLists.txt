@@ -24,19 +24,19 @@ else()
   FetchContent_Declare(
     lala_pc
     GIT_REPOSITORY "https://github.com/lattice-land/lala-pc.git"
-    GIT_TAG        v1.0.2
+    GIT_TAG        v1.0.3
   )
 
   FetchContent_Declare(
     lala_parsing
     GIT_REPOSITORY "https://github.com/lattice-land/lala-parsing.git"
-    GIT_TAG        v1.0.1
+    GIT_TAG        v1.0.2
   )
 
   FetchContent_Declare(
     lala_power
     GIT_REPOSITORY "https://github.com/lattice-land/lala-power.git"
-    GIT_TAG        v1.0.1
+    GIT_TAG        v1.0.2
   )
 endif()
 
@@ -49,7 +49,7 @@ if(GPU)
 endif()
 
 add_executable(turbo src/turbo.cpp src/config.cpp)
-target_include_directories(turbo PRIVATE /usr/local/cuda/include include)
+target_include_directories(turbo PRIVATE include)
 target_compile_options(turbo PRIVATE
   "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:SHELL:-Xptxas --suppress-stack-size-warning>"
   "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:--verbose;--keep>"
