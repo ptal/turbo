@@ -16,6 +16,7 @@
 #include "battery/vector.hpp"
 #include "battery/shared_ptr.hpp"
 
+#include "lala/simplifier.hpp"
 #include "lala/vstore.hpp"
 #include "lala/cartesian_product.hpp"
 #include "lala/interval.hpp"
@@ -112,6 +113,7 @@ struct AbstractDomains {
 
   using IStore = VStore<Universe, StoreAllocator>;
   using IPC = PC<IStore, PropAllocator>; // Interval Propagators Completion
+  using ISimplifier = Simplifier<IPC, BasicAllocator>;
   using Split = SplitStrategy<IPC, BasicAllocator>;
   using IST = SearchTree<IPC, Split, BasicAllocator>;
   using IBAB = BAB<IST, LIStore>;
@@ -139,6 +141,7 @@ struct AbstractDomains {
    , env(other.env, basic_allocator)
    , store(store_allocator)
    , ipc(prop_allocator)
+   , simplifier(basic_allocator)
    , split(basic_allocator)
    , eps_split(basic_allocator)
    , search_tree(basic_allocator)
@@ -148,6 +151,7 @@ struct AbstractDomains {
     AbstractDeps<BasicAllocator, PropAllocator, StoreAllocator> deps{basic_allocator, prop_allocator, store_allocator};
     store = deps.template clone<IStore>(other.store);
     ipc = deps.template clone<IPC>(other.ipc);
+    simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, *other.simplifier, typename ISimplifier::light_copy_tag{}, ipc, basic_allocator);
     split = deps.template clone<Split>(other.split);
     eps_split = deps.template clone<Split>(other.eps_split);
     search_tree = deps.template clone<IST>(other.search_tree);
@@ -175,6 +179,7 @@ struct AbstractDomains {
   , fzn_output(basic_allocator)
   , store(store_allocator)
   , ipc(prop_allocator)
+  , simplifier(basic_allocator)
   , split(basic_allocator)
   , eps_split(basic_allocator)
   , search_tree(basic_allocator)
@@ -190,6 +195,7 @@ struct AbstractDomains {
 
   abstract_ptr<IStore> store;
   abstract_ptr<IPC> ipc;
+  abstract_ptr<ISimplifier> simplifier;
   abstract_ptr<Split> split;
   abstract_ptr<Split> eps_split;
   abstract_ptr<IST> search_tree;
@@ -206,8 +212,13 @@ struct AbstractDomains {
   Statistics stats;
 
   CUDA void allocate(int num_vars) {
+    env = VarEnv<basic_allocator_type>{basic_allocator};
     store = battery::allocate_shared<IStore, StoreAllocator>(store_allocator, env.extends_abstract_dom(), num_vars, store_allocator);
     ipc = battery::allocate_shared<IPC, PropAllocator>(prop_allocator, env.extends_abstract_dom(), store, prop_allocator);
+    // If the simplifier is already allocated, it means we copied it from another AbstractDomains instance.
+    if(!simplifier) {
+      simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
+    }
     split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
     eps_split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
     search_tree = battery::allocate_shared<IST, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, split, basic_allocator);
@@ -222,6 +233,7 @@ struct AbstractDomains {
   CUDA void deallocate() {
     store = nullptr;
     ipc = nullptr;
+    simplifier = nullptr;
     split = nullptr;
     eps_split = nullptr;
     search_tree = nullptr;
@@ -274,11 +286,50 @@ struct AbstractDomains {
     return can_interpret;
   }
 
-  void prepare_solver() {
+  template <class F>
+  CUDA void prepare_simplifier(F& f) {
+    if(config.verbose_solving) {
+      printf("%% Simplifying the formula...\n");
+    }
+    auto r = simplifier->interpret_tell_in(f, env);
+    if(!r.has_value()) {
+      if(config.verbose_solving) {
+        printf("WARNING: Could not simplify the formula because:\n");
+        r.print_diagnostics();
+        return;
+      }
+    }
+    simplifier->tell(std::move(r.value()));
+  }
+
+  template <class F>
+  void type_and_interpret(F& f) {
+    typing(f);
+    if(config.print_ast) {
+      printf("%% Typed AST:\n");
+      f.print(true);
+      printf("\n");
+    }
+    if(!interpret(f)) {
+      exit(EXIT_FAILURE);
+    }
+
+    if(config.print_ast) {
+      printf("%% Interpreted AST:\n");
+      ipc->deinterpret(env).print(true);
+      printf("\n");
+    }
+    if(config.verbose_solving) {
+      printf("%% Formula has been intepreted.\n");
+    }
+  }
+
+  using FormulaPtr = battery::shared_ptr<TFormula<basic_allocator_type>, basic_allocator_type>;
+
+  FormulaPtr prepare_solver() {
     auto start = std::chrono::high_resolution_clock::now();
 
     // I. Parse the FlatZinc model.
-    using FormulaPtr = battery::shared_ptr<TFormula<basic_allocator_type>, basic_allocator_type>;
     FormulaPtr f;
     if(config.input_format() == InputFormat::FLATZINC) {
       f = parse_flatzinc(config.problem_path.data(), fzn_output);
@@ -301,32 +352,25 @@ struct AbstractDomains {
       printf("\n");
     }
 
-    // II. Create the abstract domain.
     allocate(num_quantified_vars(*f));
-
-    // III. Interpret the formula in the abstract domain.
-    typing(*f);
-    if(config.print_ast) {
-      printf("%% Typed AST:\n");
-      f->print(true);
-      printf("\n");
-    }
-    if(!interpret(*f)) {
-      exit(EXIT_FAILURE);
-    }
-
-    if(config.print_ast) {
-      printf("%% Interpreted AST:\n");
-      ipc->deinterpret(env).print(true);
-      printf("\n");
-    }
+    type_and_interpret(*f);
 
     auto interpretation_time = std::chrono::high_resolution_clock::now();
-    stats.interpretation_duration = std::chrono::duration_cast<std::chrono::milliseconds>(interpretation_time - start).count();
+    stats.interpretation_duration += std::chrono::duration_cast<std::chrono::milliseconds>(interpretation_time - start).count();
+    return f;
+  }
 
-    if(config.verbose_solving) {
-      printf("%% Formula has been loaded, configuration and solving begin...\n");
-    }
+  void preprocess() {
+    auto raw_formula = prepare_solver();
+    prepare_simplifier(*raw_formula);
+    GaussSeidelIteration fp_engine;
+    fp_engine.fixpoint(*ipc);
+    fp_engine.fixpoint(*simplifier);
+    auto f = simplifier->deinterpret();
+    stats.eliminated_variables = simplifier->num_eliminated_variables();
+    stats.eliminated_formulas = simplifier->num_eliminated_formulas();
+    allocate(num_quantified_vars(f));
+    type_and_interpret(f);
   }
 
 private:
@@ -394,7 +438,7 @@ public:
 
   CUDA bool on_solution_node() {
     if(is_printing_intermediate_sol()) {
-      fzn_output.print_solution(env, *best);
+      fzn_output.print_solution(env, *best, *simplifier);
       stats.print_mzn_separator();
     }
     stats.solutions++;
@@ -413,7 +457,7 @@ public:
 
   CUDA void print_final_solution() {
     if(!is_printing_intermediate_sol() && stats.solutions > 0) {
-      fzn_output.print_solution(env, *best);
+      fzn_output.print_solution(env, *best, *simplifier);
       stats.print_mzn_separator();
     }
     stats.print_mzn_final_separator();

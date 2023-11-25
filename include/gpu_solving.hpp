@@ -344,6 +344,9 @@ CUDA void reduce_blocks(GridData* grid_data) {
 
 __global__ void gpu_solve_kernel(GridData* grid_data)
 {
+  if(threadIdx.x == 0 && blockIdx.x == 0 && grid_data->root.config.verbose_solving) {
+    printf("%% GPU kernel started, starting solving...\n");
+  }
   extern __shared__ unsigned char shared_mem[];
   size_t num_subproblems = grid_data->root.stats.eps_num_subproblems;
   BlockData& block_data = grid_data->blocks[blockIdx.x];
@@ -581,7 +584,7 @@ void configure_blocks_threads(CP& root, const MemoryConfig& mem_config) {
   // The stack allocated depends on the maximum number of threads per SM, not on the actual number of threads per block.
   size_t total_stack_size = num_sm * deviceProp.maxThreadsPerMultiProcessor * config.stack_kb * 1000;
   size_t remaining_global_mem = total_global_mem - total_stack_size;
-  remaining_global_mem -= remaining_global_mem / 50; // We leave 2% of global memory free for CUDA allocations, not sure if it is useful though.
+  remaining_global_mem -= remaining_global_mem / 10; // We leave 10% of global memory free for CUDA allocations, not sure if it is useful though.
 
   // Basically the size of the store and propagator, and 100 bytes per variable.
   // +1 for the root node in GridCP.
@@ -628,7 +631,7 @@ void gpu_solve(Configuration<bt::standard_allocator>& config) {
     }
   }
   CP root(config);
-  root.prepare_solver();
+  root.preprocess();
   block_signal_ctrlc();
   configure_and_run(root, start);
 #endif

@@ -7,10 +7,12 @@
 
 void cpu_solve(const Configuration<battery::standard_allocator>& config) {
   auto start = std::chrono::high_resolution_clock::now();
+
   CP cp(config);
-  cp.prepare_solver();
-  local::BInc has_changed = true;
+  cp.preprocess();
+
   GaussSeidelIteration fp_engine;
+  local::BInc has_changed = true;
   block_signal_ctrlc();
   while(!must_quit() && check_timeout(cp, start) && has_changed) {
     has_changed = false;

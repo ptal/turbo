@@ -6,6 +6,10 @@
 #include "battery/allocator.hpp"
 #include "battery/string.hpp"
 
+#ifdef __CUDACC__
+  #include <cuda.h>
+#endif
+
 #define SUBPROBLEMS_POWER 10 // 2^N
 #define STACK_KB 32
 
@@ -37,6 +41,7 @@ struct Configuration {
   Arch arch;
   battery::string<allocator_type> problem_path;
   battery::string<allocator_type> version;
+  battery::string<allocator_type> hardware;
 
   CUDA Configuration():
     print_intermediate_solutions(false),
@@ -46,7 +51,7 @@ struct Configuration {
     print_ast(false),
     print_statistics(false),
     timeout_ms(0),
-    kernel_shutdown_timeout_ms(5000),
+    kernel_shutdown_timeout_ms(0),
     and_nodes(0),
     or_nodes(0),
     subproblems_power(SUBPROBLEMS_POWER),
@@ -79,7 +84,8 @@ struct Configuration {
     stack_kb(other.stack_kb),
     arch(other.arch),
     problem_path(other.problem_path, alloc),
-    version(other.version, alloc)
+    version(other.version, alloc),
+    hardware(other.hardware, alloc)
   {}
 
   CUDA void print_commandline(const char* program_name) {
@@ -103,13 +109,17 @@ struct Configuration {
     if(version.size() != 0) {
       printf("-version %s ", version.data());
     }
+    if(hardware.size() != 0) {
+      printf("-hardware \"%s\" ", hardware.data());
+    }
     printf("%s\n", problem_path.data());
   }
 
   CUDA void print_mzn_statistics() const {
     printf("%%%%%%mzn-stat: problem_path=\"%s\"\n", problem_path.data());
     printf("%%%%%%mzn-stat: solver=\"Turbo\"\n");
-    printf("%%%%%%mzn-stat: version=\"%s\"\n", (version.size() == 0) ? "1.0.1" : version.data());
+    printf("%%%%%%mzn-stat: version=\"%s\"\n", (version.size() == 0) ? "1.1.0" : version.data());
+    printf("%%%%%%mzn-stat: hardware=\"%s\"\n", (hardware.size() == 0) ? "unspecified" : hardware.data());
     printf("%%%%%%mzn-stat: arch=\"%s\"\n", arch == Arch::GPU ? "gpu" : "cpu");
     printf("%%%%%%mzn-stat: free_search=\"%s\"\n", free_search ? "yes" : "no");
     printf("%%%%%%mzn-stat: or_nodes=%lu\n", or_nodes);
@@ -118,6 +128,12 @@ struct Configuration {
       printf("%%%%%%mzn-stat: kernel_shutdown_timeout_ms=%lu\n", kernel_shutdown_timeout_ms);
       printf("%%%%%%mzn-stat: and_nodes=%lu\n", and_nodes);
       printf("%%%%%%mzn-stat: stack_size=%lu\n", stack_kb * 1000);
+      #ifdef CUDA_VERSION
+        printf("%%%%%%mzn-stat: cuda_version=%d\n", CUDA_VERSION);
+      #endif
+      #ifdef __CUDA_ARCH__
+        printf("%%%%%%mzn-stat: cuda_architecture=%d\n", __CUDA_ARCH__);
+      #endif
     }
   }
 

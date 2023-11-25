@@ -25,6 +25,8 @@ struct Statistics {
   size_t eps_skipped_subproblems;
   size_t num_blocks_done;
   size_t fixpoint_iterations;
+  size_t eliminated_variables;
+  size_t eliminated_formulas;
 
   CUDA Statistics(size_t variables, size_t constraints, bool optimization):
     variables(variables), constraints(constraints), optimization(optimization),
@@ -32,7 +34,9 @@ struct Statistics {
     nodes(0), fails(0), solutions(0),
     depth_max(0), exhaustive(true),
     eps_solved_subproblems(0), eps_num_subproblems(1), eps_skipped_subproblems(0),
-    num_blocks_done(0), fixpoint_iterations(0) {}
+    num_blocks_done(0), fixpoint_iterations(0),
+    eliminated_variables(0), eliminated_formulas(0)
+    {}
 
   CUDA Statistics(): Statistics(0,0,false) {}
   Statistics(const Statistics&) = default;
@@ -80,6 +84,8 @@ public:
     print_stat("eps_skipped_subproblems", eps_skipped_subproblems);
     print_stat("num_blocks_done", num_blocks_done);
     print_stat("fixpoint_iterations", fixpoint_iterations);
+    print_stat("eliminated_variables", eliminated_variables);
+    print_stat("eliminated_formulas", eliminated_formulas);
   }
 
   CUDA void print_mzn_end_stats() const {

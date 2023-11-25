@@ -11,7 +11,7 @@
 void usage_and_exit(const std::string& program_name) {
   std::cout << "usage: " << program_name << " [-t 2000] [-a] [-n 10] [-i] [-f] [-s] [-v] [-p <i>] [-arch <cpu|gpu>] [-p 48] [-or 48] [-and 256] [-sub 12] [-heap 100] [-stack 100] [-version 1.0.0] [xcsp3instance.xml | fzninstance.fzn]" << std::endl;
   std::cout << "\t-t 2000: Run the solver with a timeout of 2000 milliseconds." << std::endl;
-  std::cout << "\t-kt 5000: On GPU architectures, wait 5s for the shutdown of the kernel to let it print some statistics before exiting. This time is subtracted from the global timeout. Default: -kt 5000." << std::endl;
+  std::cout << "\t-kt 5000: On GPU architectures, wait 5s for the shutdown of the kernel to let it print some statistics before exiting. This time is subtracted from the global timeout. Default: -kt 0." << std::endl;
   std::cout << "\t-a: Instructs the solver to report all solutions in the case of satisfaction problems, or print intermediate solutions of increasing quality in the case of optimisation problems." << std::endl;
   std::cout << "\t-n 10: Instructs the solver to stop after reporting 10 solutions (only used with satisfaction problems)." << std::endl;
   std::cout << "\t-i: Instructs the solver to print intermediate solutions of increasing quality (only used with optimisation problems)." << std::endl;
@@ -26,6 +26,7 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the 'OR threads' (embarrasingly parallel search). Default: -sub 10." << std::endl;
   std::cout << "\t-stack 100: Use a maximum of 100KB of stack size per thread stored in global memory (only for GPU architectures)." << std::endl;
   std::cout << "\t-version 1.0.0: A version identifier that is printed as statistics to know which version of Turbo was used to solve an instance. It is only for documentation and replicability purposes." << std::endl;
+  std::cout << "\t-hardware \"Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000\": The description of the hardware on which the solver is executed (\"CPU;RAM;GPU\"). It is only for documentation and replicability purposes." << std::endl;
   exit(EXIT_FAILURE);
 }
 
@@ -145,6 +146,10 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
   std::string version;
   if(input.read_string("-version", version)) {
     config.version = battery::string<battery::standard_allocator>(version.data());
+  }
+  std::string hardware;
+  if(input.read_string("-hardware", hardware)) {
+    config.hardware = battery::string<battery::standard_allocator>(hardware.data());
   }
   std::string problem_path;
   input.read_input_file(problem_path);
