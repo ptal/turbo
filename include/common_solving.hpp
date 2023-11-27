@@ -215,7 +215,7 @@ struct AbstractDomains {
     env = VarEnv<basic_allocator_type>{basic_allocator};
     store = battery::allocate_shared<IStore, StoreAllocator>(store_allocator, env.extends_abstract_dom(), num_vars, store_allocator);
     ipc = battery::allocate_shared<IPC, PropAllocator>(prop_allocator, env.extends_abstract_dom(), store, prop_allocator);
-    // If the simplifier is already allocated, it means we copied it from another AbstractDomains instance.
+    // If the simplifier is already allocated, it means we are currently reallocating the abstract domains after preprocessing.
     if(!simplifier) {
       simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
     }

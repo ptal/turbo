@@ -51,7 +51,7 @@ struct Configuration {
     print_ast(false),
     print_statistics(false),
     timeout_ms(0),
-    kernel_shutdown_timeout_ms(0),
+    kernel_shutdown_timeout_ms(60000),
     and_nodes(0),
     or_nodes(0),
     subproblems_power(SUBPROBLEMS_POWER),
@@ -119,7 +119,7 @@ struct Configuration {
     printf("%%%%%%mzn-stat: problem_path=\"%s\"\n", problem_path.data());
     printf("%%%%%%mzn-stat: solver=\"Turbo\"\n");
     printf("%%%%%%mzn-stat: version=\"%s\"\n", (version.size() == 0) ? "1.1.0" : version.data());
-    printf("%%%%%%mzn-stat: hardware=\"%s\"\n", (hardware.size() == 0) ? "unspecified" : hardware.data());
+    printf("%%%%%%mzn-stat: hardware=\"%s\"\n", (hardware.size() == 0) ? "Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000" : hardware.data());
     printf("%%%%%%mzn-stat: arch=\"%s\"\n", arch == Arch::GPU ? "gpu" : "cpu");
     printf("%%%%%%mzn-stat: free_search=\"%s\"\n", free_search ? "yes" : "no");
     printf("%%%%%%mzn-stat: or_nodes=%lu\n", or_nodes);

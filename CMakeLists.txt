@@ -10,7 +10,7 @@ project(Turbo
   HOMEPAGE_URL "https://github.com/ptal/turbo"
   LANGUAGES CUDA CXX)
 option(GPU "GPU" ON)
-option(LOCAL_DEPS "LOCAL_DEPS" ON)
+option(LOCAL_DEPS "LOCAL_DEPS" OFF)
 
 # Dependencies
 
