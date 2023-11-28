@@ -16,7 +16,7 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
   block_signal_ctrlc();
   while(!must_quit() && check_timeout(cp, start) && has_changed) {
     has_changed = false;
-    fp_engine.fixpoint(*cp.ipc, has_changed);
+    cp.stats.fixpoint_iterations += fp_engine.fixpoint(*cp.ipc, has_changed);
     cp.on_node();
     if(cp.ipc->is_top()) {
       cp.on_failed_node();

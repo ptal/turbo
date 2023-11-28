@@ -169,7 +169,7 @@ public:
     block.sync();
   }
 
-  __device__ void deallocate() {
+  __device__ void deallocate_shared() {
     if(threadIdx.x == 0) {
       fp_engine.reset();
       has_changed.reset();
@@ -332,7 +332,7 @@ __device__ void solve_problem(BlockData& block_data, GridData& grid_data) {
 
 CUDA void reduce_blocks(GridData* grid_data) {
   for(int i = 0; i < grid_data->blocks.size(); ++i) {
-    if(grid_data->blocks[i].root) { // `nullptr` could happen if we try to terminate the program before all blocks are even cretaed.
+    if(grid_data->blocks[i].root) { // `nullptr` could happen if we try to terminate the program before all blocks are even created.
       grid_data->root.join(*(grid_data->blocks[i].root));
     }
   }
@@ -360,6 +360,11 @@ __global__ void gpu_solve_kernel(GridData* grid_data)
     block_data.restore();
     cooperative_groups::this_thread_block().sync();
     size_t remaining_depth = dive(block_data, *grid_data);
+    if(threadIdx.x == 0 && grid_data->root.config.verbose_solving) {
+      grid_data->print_lock->acquire();
+      printf("%% Block %d finished diving subproblem num %lu\n", blockIdx.x, block_data.subproblem_idx);
+      grid_data->print_lock->release();
+    }
     if(remaining_depth == 0) {
       solve_problem(block_data, *grid_data);
       if(threadIdx.x == 0 && !*(block_data.stop)) {
@@ -396,7 +401,7 @@ __global__ void gpu_solve_kernel(GridData* grid_data)
           n += grid_data->blocks[i].root->stats.num_blocks_done;
         }
       }
-      if(*(block_data.stop) || n == grid_data->blocks.size()) {
+      if(block_data.stop->value() || n == grid_data->blocks.size()) {
         reduce_blocks(grid_data);
         grid_data->stat_printed = true;
       }
@@ -404,7 +409,7 @@ __global__ void gpu_solve_kernel(GridData* grid_data)
     grid_data->print_lock->release();
   }
   // We must destroy all objects allocated in the shared memory, trying to destroy them anywhere else will lead to segfault.
-  block_data.deallocate();
+  block_data.deallocate_shared();
 }
 
 template <class T> __global__ void gpu_sizeof_kernel(size_t* size) { *size = sizeof(T); }

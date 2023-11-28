@@ -62,6 +62,9 @@ bool check_timeout(A& a, const Timepoint& start) {
     return true;
   }
   if(a.stats.duration >= a.config.timeout_ms) {
+    if(a.config.verbose_solving) {
+      printf("%% Timeout reached.\n");
+    }
     a.stats.exhaustive = false;
     return false;
   }
@@ -230,6 +233,7 @@ struct AbstractDomains {
     }
   }
 
+  // This force the deallocation of shared memory inside a kernel.
   CUDA void deallocate() {
     store = nullptr;
     ipc = nullptr;
@@ -362,6 +366,7 @@ struct AbstractDomains {
 
   void preprocess() {
     auto raw_formula = prepare_solver();
+    auto start = std::chrono::high_resolution_clock::now();
     prepare_simplifier(*raw_formula);
     GaussSeidelIteration fp_engine;
     fp_engine.fixpoint(*ipc);
@@ -371,6 +376,8 @@ struct AbstractDomains {
     stats.eliminated_formulas = simplifier->num_eliminated_formulas();
     allocate(num_quantified_vars(f));
     type_and_interpret(f);
+    auto interpretation_time = std::chrono::high_resolution_clock::now();
+    stats.interpretation_duration += std::chrono::duration_cast<std::chrono::milliseconds>(interpretation_time - start).count();
   }
 
 private:
