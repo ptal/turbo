@@ -255,7 +255,7 @@ __device__ bool propagate(BlockData& block_data, GridData& grid_data, local::BIn
     }
     else if(cp.search_tree->template is_extractable<AtomicExtraction>()) {
       is_leaf_node = true;
-      if(cp.bab->compare_bound(*cp.store, cp.bab->optimum())) {
+      if(cp.bab->is_satisfaction() || cp.bab->compare_bound(*cp.store, cp.bab->optimum())) {
         cp.bab->refine(thread_has_changed);
         if(cp.is_printing_intermediate_sol()) { grid_data.print_lock->acquire(); }
         bool do_not_stop = cp.on_solution_node();
@@ -360,11 +360,6 @@ __global__ void gpu_solve_kernel(GridData* grid_data)
     block_data.restore();
     cooperative_groups::this_thread_block().sync();
     size_t remaining_depth = dive(block_data, *grid_data);
-    if(threadIdx.x == 0 && grid_data->root.config.verbose_solving) {
-      grid_data->print_lock->acquire();
-      printf("%% Block %d finished diving subproblem num %lu\n", blockIdx.x, block_data.subproblem_idx);
-      grid_data->print_lock->release();
-    }
     if(remaining_depth == 0) {
       solve_problem(block_data, *grid_data);
       if(threadIdx.x == 0 && !*(block_data.stop)) {

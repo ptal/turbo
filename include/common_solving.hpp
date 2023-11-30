@@ -435,12 +435,8 @@ public:
     stats.depth_max = battery::max(stats.depth_max, search_tree->depth());
   }
 
-  CUDA bool is_optimization() {
-    return !bab->objective_var().is_untyped();
-  }
-
   CUDA bool is_printing_intermediate_sol() {
-    return !is_optimization() || config.print_intermediate_solutions;
+    return bab->is_satisfaction() || config.print_intermediate_solutions;
   }
 
   CUDA bool on_solution_node() {
@@ -449,7 +445,7 @@ public:
       stats.print_mzn_separator();
     }
     stats.solutions++;
-    if(!is_optimization() && config.stop_after_n_solutions != 0 &&
+    if(bab->is_satisfaction() && config.stop_after_n_solutions != 0 &&
        stats.solutions >= config.stop_after_n_solutions)
     {
       stats.exhaustive = false;
@@ -484,7 +480,7 @@ public:
   /** Extract in `this` the content of `other`. */
   template <class U2, class BasicAlloc2, class PropAlloc2, class StoreAlloc2>
   CUDA void join(AbstractDomains<U2, BasicAlloc2, PropAlloc2, StoreAlloc2>& other) {
-    if(!other.best->is_bot() && bab->compare_bound(*other.best, *best)) {
+    if(bab->is_optimization() && !other.best->is_bot() && bab->compare_bound(*other.best, *best)) {
       other.best->extract(*best);
     }
     stats.join(other.stats);
