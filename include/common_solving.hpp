@@ -439,11 +439,12 @@ public:
     return bab->is_satisfaction() || config.print_intermediate_solutions;
   }
 
-  CUDA bool on_solution_node() {
-    if(is_printing_intermediate_sol()) {
-      fzn_output.print_solution(env, *best, *simplifier);
-      stats.print_mzn_separator();
-    }
+  CUDA void print_solution() {
+    fzn_output.print_solution(env, *best, *simplifier);
+    stats.print_mzn_separator();
+  }
+
+  CUDA bool update_solution_stats() {
     stats.solutions++;
     if(bab->is_satisfaction() && config.stop_after_n_solutions != 0 &&
        stats.solutions >= config.stop_after_n_solutions)
@@ -454,14 +455,20 @@ public:
     return true;
   }
 
+  CUDA bool on_solution_node() {
+    if(is_printing_intermediate_sol()) {
+      print_solution();
+    }
+    return update_solution_stats();
+  }
+
   CUDA void on_failed_node() {
     stats.fails += 1;
   }
 
   CUDA void print_final_solution() {
     if(!is_printing_intermediate_sol() && stats.solutions > 0) {
-      fzn_output.print_solution(env, *best, *simplifier);
-      stats.print_mzn_separator();
+      print_solution();
     }
     stats.print_mzn_final_separator();
   }

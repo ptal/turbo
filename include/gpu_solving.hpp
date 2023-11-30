@@ -104,16 +104,46 @@ struct GridData {
   bt::vector<BlockData, bt::global_allocator> blocks;
   // Stop from a block on the GPU, for instance because we found a solution.
   bt::shared_ptr<BInc<bt::atomic_memory_grid>, bt::global_allocator> gpu_stop;
-  bt::shared_ptr<cuda::binary_semaphore<cuda::thread_scope_device>, bt::global_allocator> print_lock;
   bt::shared_ptr<ZInc<size_t, bt::atomic_memory_grid>, bt::global_allocator> next_subproblem;
   bt::shared_ptr<Itv2, bt::global_allocator> best_bound;
+
+  // All of what follows is only to support printing while the kernel is running.
+  // In particular, we transfer the solution to the CPU where it is printed, because printing on the GPU can be very slow when the problem is large.
+  bt::shared_ptr<cuda::binary_semaphore<cuda::thread_scope_device>, bt::global_allocator> print_lock;
+  cuda::std::atomic_flag ready_to_produce;
+  cuda::std::atomic_flag ready_to_consume;
 
   GridData(const GridCP& root, const MemoryConfig& mem_config)
     : root(root)
     , mem_config(mem_config)
     , cpu_stop(false)
     , stat_printed(false)
-  {}
+  {
+    ready_to_consume.clear();
+    ready_to_produce.test_and_set();
+    cuda::atomic_thread_fence(cuda::memory_order_seq_cst, cuda::thread_scope_system);
+  }
+
+  template <class BlockBAB>
+  __device__ void produce_solution(const BlockBAB& bab) {
+    print_lock->acquire();
+    ready_to_produce.wait(false, cuda::std::memory_order_seq_cst);
+    ready_to_produce.clear();
+    bab.extract(*(root.bab));
+    cuda::atomic_thread_fence(cuda::memory_order_seq_cst, cuda::thread_scope_system);
+    ready_to_consume.test_and_set(cuda::std::memory_order_seq_cst);
+    ready_to_consume.notify_one();
+    print_lock->release();
+  }
+
+  __host__ void consume_solution() {
+    ready_to_consume.wait(false, cuda::std::memory_order_seq_cst);
+    ready_to_consume.clear();
+    root.print_solution();
+    cuda::atomic_thread_fence(cuda::memory_order_seq_cst, cuda::thread_scope_system);
+    ready_to_produce.test_and_set(cuda::std::memory_order_seq_cst);
+    ready_to_produce.notify_one();
+  }
 
   __device__ void allocate() {
     assert(threadIdx.x == 0 && blockIdx.x == 0);
@@ -205,7 +235,7 @@ __global__ void deallocate_grid_data(GridData* grid_data) {
  * The worst that can happen is that a best bound is found twice, which does not prevent the correctness of the algorithm.
  */
 __device__ void update_grid_best_bound(BlockData& block_data, GridData& grid_data) {
-  if(threadIdx.x == 0 && !block_data.root->bab->objective_var().is_untyped()) {
+  if(threadIdx.x == 0 && block_data.root->bab->is_optimization()) {
     const auto& bab = block_data.root->bab;
     auto local_best = bab->optimum().project(bab->objective_var());
     // printf("[new bound] %d: [%d..%d] (current best: [%d..%d])\n", blockIdx.x, local_best.lb().value(), local_best.ub().value(), grid_data.best_bound->lb().value(), grid_data.best_bound->ub().value());
@@ -223,7 +253,7 @@ __device__ void update_grid_best_bound(BlockData& block_data, GridData& grid_dat
  * This function should be called in each node, since the best bound is erased on backtracking (it is not included in the snapshot).
  */
 __device__ void update_block_best_bound(BlockData& block_data, GridData& grid_data) {
-  if(threadIdx.x == 0 && !block_data.root->bab->objective_var().is_untyped()) {
+  if(threadIdx.x == 0 && block_data.root->bab->is_optimization()) {
     const auto& bab = block_data.root->bab;
     VarEnv<bt::global_allocator> empty_env{};
     auto best_formula = bab->template deinterpret_best_bound<bt::global_allocator>(
@@ -257,9 +287,10 @@ __device__ bool propagate(BlockData& block_data, GridData& grid_data, local::BIn
       is_leaf_node = true;
       if(cp.bab->is_satisfaction() || cp.bab->compare_bound(*cp.store, cp.bab->optimum())) {
         cp.bab->refine(thread_has_changed);
-        if(cp.is_printing_intermediate_sol()) { grid_data.print_lock->acquire(); }
-        bool do_not_stop = cp.on_solution_node();
-        if(cp.is_printing_intermediate_sol()) { grid_data.print_lock->release(); }
+        bool do_not_stop = cp.update_solution_stats();
+        if(cp.is_printing_intermediate_sol()) {
+          grid_data.produce_solution(*cp.bab);
+        }
         if(!do_not_stop) {
           grid_data.gpu_stop->tell_top();
         }
@@ -505,14 +536,18 @@ bool wait_solving_ends(GridData& grid_data, const Timepoint& start) {
   }
   else {
     cudaError error = cudaDeviceSynchronize();
-    if(error != cudaErrorIllegalAddress) {
-      CUDAEX(error);
-    }
-    else {
+    if(error == cudaErrorIllegalAddress) {
       printf("%% ERROR: CUDA kernel failed due to an illegal memory access. This might be due to a stack overflow because it is too small. Try increasing the stack size with the options -stack. If it does not work, please report it as a bug.\n");
       exit(EXIT_FAILURE);
     }
+    CUDAEX(error);
     return false;
+  }
+}
+
+void consume_kernel_solutions(GridData& grid_data) {
+  while(!grid_data.cpu_stop) {
+    grid_data.consume_solution();
   }
 }
 
@@ -524,6 +559,7 @@ void transfer_memory_and_run(CP& root, MemoryConfig mem_config, const Timepoint&
   if(grid_data->root.config.print_statistics) {
     mem_config.print_mzn_statistics();
   }
+  std::thread consumer_thread(consume_kernel_solutions, std::ref(*grid_data));
   gpu_solve_kernel
     <<<grid_data->root.config.or_nodes,
       grid_data->root.config.and_nodes,
