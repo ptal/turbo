@@ -308,6 +308,9 @@ struct AbstractDomains {
 
   template <class F>
   void type_and_interpret(F& f) {
+    if(config.verbose_solving) {
+      printf("%% Typing the formula...\n");
+    }
     typing(f);
     if(config.print_ast) {
       printf("%% Typed AST:\n");

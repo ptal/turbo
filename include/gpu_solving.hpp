@@ -234,16 +234,16 @@ __global__ void deallocate_grid_data(GridData* grid_data) {
  * Note that this operation might not always succeed, which is okay, the best bound is still preserved in `block_data` and then reduced at the end (in `reduce_blocks`).
  * The worst that can happen is that a best bound is found twice, which does not prevent the correctness of the algorithm.
  */
-__device__ void update_grid_best_bound(BlockData& block_data, GridData& grid_data) {
+__device__ void update_grid_best_bound(BlockData& block_data, GridData& grid_data, local::BInc& best_has_changed) {
   if(threadIdx.x == 0 && block_data.root->bab->is_optimization()) {
     const auto& bab = block_data.root->bab;
     auto local_best = bab->optimum().project(bab->objective_var());
     // printf("[new bound] %d: [%d..%d] (current best: [%d..%d])\n", blockIdx.x, local_best.lb().value(), local_best.ub().value(), grid_data.best_bound->lb().value(), grid_data.best_bound->ub().value());
     if(bab->is_maximization()) {
-      grid_data.best_bound->tell_lb(dual<typename Itv0::LB>(local_best.ub()));
+      grid_data.best_bound->tell_lb(dual<typename Itv0::LB>(local_best.ub()), best_has_changed);
     }
     else {
-      grid_data.best_bound->tell_ub(dual<typename Itv0::UB>(local_best.lb()));
+      grid_data.best_bound->tell_ub(dual<typename Itv0::UB>(local_best.lb()), best_has_changed);
     }
   }
 }
@@ -288,13 +288,14 @@ __device__ bool propagate(BlockData& block_data, GridData& grid_data, local::BIn
       if(cp.bab->is_satisfaction() || cp.bab->compare_bound(*cp.store, cp.bab->optimum())) {
         cp.bab->refine(thread_has_changed);
         bool do_not_stop = cp.update_solution_stats();
-        if(cp.is_printing_intermediate_sol()) {
-          grid_data.produce_solution(*cp.bab);
-        }
         if(!do_not_stop) {
           grid_data.gpu_stop->tell_top();
         }
-        update_grid_best_bound(block_data, grid_data);
+        local::BInc best_has_changed;
+        update_grid_best_bound(block_data, grid_data, best_has_changed);
+        if(best_has_changed && cp.is_printing_intermediate_sol()) {
+          grid_data.produce_solution(*cp.bab);
+        }
       }
     }
   }
