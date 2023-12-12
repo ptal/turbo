@@ -263,8 +263,8 @@ __device__ void update_block_best_bound(BlockData& block_data, GridData& grid_da
     // printf("global best: "); grid_data.best_bound->ub().print(); printf("\n");
     // best_formula.print();
     // printf("\n");
-    auto best_tell = block_data.root->store->interpret_tell_in(best_formula, empty_env);
-    block_data.root->store->tell(best_tell.value());
+    IDiagnostics diagnostics;
+    interpret_and_tell(best_formula, empty_env, *block_data.root->store, diagnostics);
   }
 }
 

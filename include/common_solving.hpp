@@ -26,6 +26,7 @@
 #include "lala/search_tree.hpp"
 #include "lala/bab.hpp"
 #include "lala/split_strategy.hpp"
+#include "lala/interpretation.hpp"
 
 #include "lala/flatzinc_parser.hpp"
 #include "lala/XCSP3_parser.hpp"
@@ -250,7 +251,7 @@ struct AbstractDomains {
   CUDA void typing(F& f) const {
     switch(f.index()) {
       case F::Seq:
-      if(f.sig() == ::lala::IN && f.seq(1).is(F::S) && f.seq(1).s().size() > 1) {
+        if(f.sig() == ::lala::IN && f.seq(1).is(F::S) && f.seq(1).s().size() > 1) {
           f.type_as(ipc->aty());
           return;
         }
@@ -266,18 +267,31 @@ struct AbstractDomains {
     }
   }
 
+private:
+
+  // We first try to interpret, and if it does not work, we interpret again with the diagnostics mode turned on.
+  template <class F, class Env, class A>
+  CUDA bool interpret_and_diagnose_and_tell(const F& f, Env& env, A& a) {
+    IDiagnostics diagnostics;
+    if(!interpret_and_tell(f, env, a, diagnostics)) {
+      IDiagnostics diagnostics2;
+      interpret_and_tell<true>(f, env, a, diagnostics2);
+      diagnostics2.print();
+      return false;
+    }
+    return true;
+  }
+
+public:
   template <class F>
   CUDA bool interpret(const F& f) {
     if(config.verbose_solving) {
       printf("%% Interpreting the formula...\n");
     }
-    auto r = bab->interpret_tell_in(f, env);
-    if(!r.has_value()) {
-      r.print_diagnostics();
+    if(!interpret_and_diagnose_and_tell(f, env, *bab)) {
       return false;
     }
-    local::BInc has_changed;
-    bab->tell(std::move(r.value()), has_changed);
+    printf("%% Formula has been interpreted.\n");
     stats.variables = store->vars();
     stats.constraints = ipc->num_refinements();
     bool can_interpret = true;
@@ -291,19 +305,23 @@ struct AbstractDomains {
   }
 
   template <class F>
-  CUDA void prepare_simplifier(F& f) {
+  CUDA bool prepare_simplifier(F& f) {
     if(config.verbose_solving) {
       printf("%% Simplifying the formula...\n");
     }
-    auto r = simplifier->interpret_tell_in(f, env);
-    if(!r.has_value()) {
-      if(config.verbose_solving) {
-        printf("WARNING: Could not simplify the formula because:\n");
-        r.print_diagnostics();
-        return;
-      }
+    IDiagnostics diagnostics;
+    typename ISimplifier::template tell_type<basic_allocator_type> tell{basic_allocator};
+    if(top_level_ginterpret_in<IKind::TELL>(*simplifier, f, env, tell, diagnostics)) {
+      simplifier->tell(std::move(tell));
+      return true;
     }
-    simplifier->tell(std::move(r.value()));
+    else if(config.verbose_solving) {
+      printf("WARNING: Could not simplify the formula because:\n");
+      IDiagnostics diagnostics2;
+      top_level_ginterpret_in<IKind::TELL, true>(*simplifier, f, env, tell, diagnostics2);
+      diagnostics2.print();
+    }
+    return false;
   }
 
   template <class F>
@@ -370,15 +388,16 @@ struct AbstractDomains {
   void preprocess() {
     auto raw_formula = prepare_solver();
     auto start = std::chrono::high_resolution_clock::now();
-    prepare_simplifier(*raw_formula);
-    GaussSeidelIteration fp_engine;
-    fp_engine.fixpoint(*ipc);
-    fp_engine.fixpoint(*simplifier);
-    auto f = simplifier->deinterpret();
-    stats.eliminated_variables = simplifier->num_eliminated_variables();
-    stats.eliminated_formulas = simplifier->num_eliminated_formulas();
-    allocate(num_quantified_vars(f));
-    type_and_interpret(f);
+    if(prepare_simplifier(*raw_formula)) {
+      GaussSeidelIteration fp_engine;
+      fp_engine.fixpoint(*ipc);
+      fp_engine.fixpoint(*simplifier);
+      auto f = simplifier->deinterpret();
+      stats.eliminated_variables = simplifier->num_eliminated_variables();
+      stats.eliminated_formulas = simplifier->num_eliminated_formulas();
+      allocate(num_quantified_vars(f));
+      type_and_interpret(f);
+    }
     auto interpretation_time = std::chrono::high_resolution_clock::now();
     stats.interpretation_duration += std::chrono::duration_cast<std::chrono::milliseconds>(interpretation_time - start).count();
   }
@@ -397,13 +416,9 @@ private:
       seq.push_back(F::make_avar(env[i].avars[0]));
     }
     F search_strat = F::make_nary("search", std::move(seq));
-    auto r = bab->interpret_tell_in(search_strat, env);
-    if(!r.has_value()) {
-      r.print_diagnostics();
+    if(!interpret_and_diagnose_and_tell(search_strat, env, *bab)) {
       return false;
     }
-    local::BInc has_changed;
-    bab->tell(std::move(r.value()), has_changed);
     return true;
   }
 
@@ -416,23 +431,13 @@ private:
       seq.push_back(F::make_avar(env[i].avars[0]));
     }
     F search_strat = F::make_nary("search", std::move(seq));
-    auto r = eps_split->interpret_tell_in(search_strat, env);
-    if(!r.has_value()) {
-      r.print_diagnostics();
+    if(!interpret_and_diagnose_and_tell(search_strat, env, *eps_split)) {
       return false;
     }
-    eps_split->tell(r.value());
     return true;
   }
 
 public:
-  CUDA void print_store() const {
-    for(int i = 0; i < store->vars(); ++i) {
-      (*store)[i].print();
-      printf("%s", (i+1 == store->vars() ? "\n" : ", "));
-    }
-  }
-
   CUDA void on_node() {
     stats.nodes++;
     stats.depth_max = battery::max(stats.depth_max, search_tree->depth());
