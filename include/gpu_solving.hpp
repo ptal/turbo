@@ -213,6 +213,7 @@ public:
   __device__ void restore() {
     if(threadIdx.x == 0) {
       root->search_tree->restore(*snapshot_root);
+      root->eps_split->reset();
     }
     cooperative_groups::this_thread_block().sync();
   }
@@ -261,8 +262,7 @@ __device__ void update_block_best_bound(BlockData& block_data, GridData& grid_da
       ? Itv0(dual<typename Itv0::UB>(grid_data.best_bound->lb()))
       : Itv0(dual<typename Itv0::LB>(grid_data.best_bound->ub())));
     // printf("global best: "); grid_data.best_bound->ub().print(); printf("\n");
-    // best_formula.print();
-    // printf("\n");
+    // best_formula.print(); printf("\n");
     IDiagnostics diagnostics;
     interpret_and_tell(best_formula, empty_env, *block_data.root->store, diagnostics);
   }

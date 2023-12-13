@@ -291,7 +291,6 @@ public:
     if(!interpret_and_diagnose_and_tell(f, env, *bab)) {
       return false;
     }
-    printf("%% Formula has been interpreted.\n");
     stats.variables = store->vars();
     stats.constraints = ipc->num_refinements();
     bool can_interpret = true;
@@ -345,7 +344,7 @@ public:
       printf("\n");
     }
     if(config.verbose_solving) {
-      printf("%% Formula has been intepreted.\n");
+      printf("%% Formula has been interpreted.\n");
     }
   }
 
