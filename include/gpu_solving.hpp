@@ -99,7 +99,8 @@ struct GridData {
   GridCP root;
   // Stop from the CPU, for instance because of a timeout.
   volatile bool cpu_stop;
-  volatile bool stat_printed;
+  // Boolean indicating that the blocks have been reduced, and the CPU can now print the statistics.
+  volatile bool blocks_reduced;
   MemoryConfig mem_config;
   bt::vector<BlockData, bt::global_allocator> blocks;
   // Stop from a block on the GPU, for instance because we found a solution.
@@ -117,7 +118,7 @@ struct GridData {
     : root(root)
     , mem_config(mem_config)
     , cpu_stop(false)
-    , stat_printed(false)
+    , blocks_reduced(false)
   {
     ready_to_consume.clear();
     ready_to_produce.test_and_set();
@@ -127,22 +128,34 @@ struct GridData {
   template <class BlockBAB>
   __device__ void produce_solution(const BlockBAB& bab) {
     print_lock->acquire();
-    ready_to_produce.wait(false, cuda::std::memory_order_seq_cst);
-    ready_to_produce.clear();
-    bab.extract(*(root.bab));
-    cuda::atomic_thread_fence(cuda::memory_order_seq_cst, cuda::thread_scope_system);
-    ready_to_consume.test_and_set(cuda::std::memory_order_seq_cst);
-    ready_to_consume.notify_one();
+    if(!cpu_stop) {
+      ready_to_produce.wait(false, cuda::std::memory_order_seq_cst);
+      ready_to_produce.clear();
+      bab.extract(*(root.bab));
+      cuda::atomic_thread_fence(cuda::memory_order_seq_cst, cuda::thread_scope_system);
+      ready_to_consume.test_and_set(cuda::std::memory_order_seq_cst);
+      ready_to_consume.notify_one();
+    }
     print_lock->release();
   }
 
-  __host__ void consume_solution() {
+  __host__ bool consume_solution() {
     ready_to_consume.wait(false, cuda::std::memory_order_seq_cst);
     ready_to_consume.clear();
-    root.print_solution();
+    if(blocks_reduced) {
+      root.print_final_solution();
+      if(root.config.print_statistics) {
+        root.print_mzn_statistics();
+      }
+      return true;
+    }
+    else {
+      root.print_solution();
+    }
     cuda::atomic_thread_fence(cuda::memory_order_seq_cst, cuda::thread_scope_system);
     ready_to_produce.test_and_set(cuda::std::memory_order_seq_cst);
     ready_to_produce.notify_one();
+    return false;
   }
 
   __device__ void allocate() {
@@ -367,10 +380,6 @@ CUDA void reduce_blocks(GridData* grid_data) {
       grid_data->root.join(*(grid_data->blocks[i].root));
     }
   }
-  grid_data->root.print_final_solution();
-  if(grid_data->root.config.print_statistics) {
-    grid_data->root.print_mzn_statistics();
-  }
 }
 
 __global__ void gpu_solve_kernel(GridData* grid_data)
@@ -420,7 +429,7 @@ __global__ void gpu_solve_kernel(GridData* grid_data)
   }
   if(threadIdx.x == 0) {
     grid_data->print_lock->acquire();
-    if(!grid_data->stat_printed) {
+    if(!grid_data->blocks_reduced) {
       int n = 0;
       for(int i = 0; i < grid_data->blocks.size(); ++i) {
         if(grid_data->blocks[i].root) { // `nullptr` could happen if we try to terminate the program before all blocks are even cretaed.
@@ -429,7 +438,10 @@ __global__ void gpu_solve_kernel(GridData* grid_data)
       }
       if(block_data.stop->value() || n == grid_data->blocks.size()) {
         reduce_blocks(grid_data);
-        grid_data->stat_printed = true;
+        grid_data->blocks_reduced = true;
+        cuda::atomic_thread_fence(cuda::memory_order_seq_cst, cuda::thread_scope_system);
+        grid_data->ready_to_consume.test_and_set(cuda::std::memory_order_seq_cst);
+        grid_data->ready_to_consume.notify_one();
       }
     }
     grid_data->print_lock->release();
@@ -531,7 +543,6 @@ bool wait_solving_ends(GridData& grid_data, const Timepoint& start) {
   }
   if(cudaEventQuery(event) == cudaErrorNotReady) {
     grid_data.cpu_stop = true;
-    printf("%% CPU: Timeout reached\n");
     grid_data.root.stats.exhaustive = false;
     return true;
   }
@@ -547,9 +558,7 @@ bool wait_solving_ends(GridData& grid_data, const Timepoint& start) {
 }
 
 void consume_kernel_solutions(GridData& grid_data) {
-  while(!grid_data.cpu_stop) {
-    grid_data.consume_solution();
-  }
+  while(!grid_data.consume_solution()) {}
 }
 
 template <class Timepoint>
@@ -567,13 +576,7 @@ void transfer_memory_and_run(CP& root, MemoryConfig mem_config, const Timepoint&
       grid_data->mem_config.shared_bytes>>>
     (grid_data.get());
   bool interrupted = wait_solving_ends(*grid_data, start);
-
-  // We wait to let the kernel prints the statistics.
-  if(grid_data->root.config.kernel_shutdown_timeout_ms != 0) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(grid_data->root.config.kernel_shutdown_timeout_ms));
-    exit(EXIT_SUCCESS);
-  }
-
+  consumer_thread.join();
   CUDAEX(cudaDeviceSynchronize());
   if(!interrupted) {
     deallocate_grid_data<<<1,1>>>(grid_data.get());
@@ -656,17 +659,6 @@ void gpu_solve(Configuration<bt::standard_allocator>& config) {
   std::cerr << "You must use a CUDA compiler (nvcc or clang) to compile Turbo on GPU." << std::endl;
 #else
   auto start = std::chrono::high_resolution_clock::now();
-  if(config.kernel_shutdown_timeout_ms != 0) {
-    if(config.timeout_ms != 0) {
-      if(config.kernel_shutdown_timeout_ms > config.timeout_ms) {
-        std::cerr << "The kernel shutdown timeout must be smaller than the timeout." << std::endl;
-        exit(EXIT_FAILURE);
-      }
-      else {
-        config.timeout_ms -= config.kernel_shutdown_timeout_ms;
-      }
-    }
-  }
   CP root(config);
   root.preprocess();
   block_signal_ctrlc();

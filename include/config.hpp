@@ -33,7 +33,6 @@ struct Configuration {
   bool verbose_solving;
   bool print_ast;
   size_t timeout_ms;
-  size_t kernel_shutdown_timeout_ms;
   size_t or_nodes;
   size_t and_nodes; // (only for GPU)
   size_t subproblems_power;
@@ -51,7 +50,6 @@ struct Configuration {
     print_ast(false),
     print_statistics(false),
     timeout_ms(0),
-    kernel_shutdown_timeout_ms(60000),
     and_nodes(0),
     or_nodes(0),
     subproblems_power(SUBPROBLEMS_POWER),
@@ -80,7 +78,6 @@ struct Configuration {
     verbose_solving(other.verbose_solving),
     print_ast(other.print_ast),
     timeout_ms(other.timeout_ms),
-    kernel_shutdown_timeout_ms(other.kernel_shutdown_timeout_ms),
     or_nodes(other.or_nodes),
     and_nodes(other.and_nodes),
     subproblems_power(other.subproblems_power),
@@ -100,7 +97,6 @@ struct Configuration {
     print_ast = other.print_ast;
     print_statistics = other.print_statistics;
     timeout_ms = other.timeout_ms;
-    kernel_shutdown_timeout_ms = other.kernel_shutdown_timeout_ms;
     and_nodes = other.and_nodes;
     or_nodes = other.or_nodes;
     subproblems_power = other.subproblems_power;
@@ -124,7 +120,7 @@ struct Configuration {
       (print_ast ? "-ast " : "")
     );
     if(arch == Arch::GPU) {
-      printf("-kt %lu -arch gpu -or %lu -and %lu -sub %lu -stack %lu ", kernel_shutdown_timeout_ms, or_nodes, and_nodes, subproblems_power, stack_kb);
+      printf("-arch gpu -or %lu -and %lu -sub %lu -stack %lu ", or_nodes, and_nodes, subproblems_power, stack_kb);
     }
     else {
       printf("-arch cpu -p %zu ", or_nodes);
@@ -148,7 +144,6 @@ struct Configuration {
     printf("%%%%%%mzn-stat: or_nodes=%lu\n", or_nodes);
     printf("%%%%%%mzn-stat: timeout_ms=%lu\n", timeout_ms);
     if(arch == Arch::GPU) {
-      printf("%%%%%%mzn-stat: kernel_shutdown_timeout_ms=%lu\n", kernel_shutdown_timeout_ms);
       printf("%%%%%%mzn-stat: and_nodes=%lu\n", and_nodes);
       printf("%%%%%%mzn-stat: stack_size=%lu\n", stack_kb * 1000);
       #ifdef CUDA_VERSION

@@ -64,13 +64,14 @@ bool check_timeout(A& a, const Timepoint& start) {
   }
   if(a.stats.duration >= a.config.timeout_ms) {
     if(a.config.verbose_solving) {
-      printf("%% Timeout reached.\n");
+      printf("%% CPU: Timeout reached.\n");
     }
     a.stats.exhaustive = false;
     return false;
   }
   return true;
 }
+
 
 /** This is a simple wrapper aimed at giving a unique type to the allocator, to use them in AbstractDeps. */
 template <class Alloc, size_t n>
