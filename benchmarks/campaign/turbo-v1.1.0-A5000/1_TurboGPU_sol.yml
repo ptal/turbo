@@ -1,0 +1,19 @@
+- configuration: TurboGPU
+  data_file: ../mzn-challenge/2022/wordpress/Wordpress7_Offers500.dzn
+  model: ../mzn-challenge/2022/wordpress/wordpress.mzn
+  problem: wordpress
+  solution:
+    AssignmentMatrix:
+    - [0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1]
+    - [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1]
+    - [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0]
+    - [0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0]
+    OccupancyVector: [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    Price: [0, 0, 0, 0, 0, 8403, 919, 9152, 210, 9152, 9152, 9152, 9152, 9152, 9152]
+    VMType: [1, 1, 1, 1, 1, 1, 104, 2, 341, 2, 2, 2, 2, 2, 2]
+    objective: 73596
+  status: SATISFIED
+  time: 300.119
+- {configuration: TurboGPU, data_file: ../mzn-challenge/2022/wordpress/Wordpress7_Offers500.dzn,
+  model: ../mzn-challenge/2022/wordpress/wordpress.mzn, problem: wordpress, status: SATISFIED}

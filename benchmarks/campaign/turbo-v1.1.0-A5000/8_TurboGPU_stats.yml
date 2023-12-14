@@ -1,0 +1,12 @@
+{and_nodes: 256, arch: gpu, configuration: TurboGPU, cuda_version: 12030, data_file: ../mzn-challenge/2022/accap/accap_a40_f800_t180.json,
+  eliminated_formulas: 1724, eliminated_variables: 882, eps_num_subproblems: 1024,
+  eps_skipped_subproblems: 176, eps_solved_subproblems: 33, evaluatedReifiedConstraints: 26770,
+  failures: 18758, fixpoint_iterations: 488769, flatBoolConstraints: 13385, flatBoolVars: 26770,
+  flatIntConstraints: 43503, flatIntVars: 842, flatTime: 7.55318, free_search: no,
+  hardware: Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000, initTime: 3.483,
+  kernel_shutdown_timeout_ms: 60000.0, memory_configuration: global, method: minimize,
+  model: ../mzn-challenge/2022/accap/accap.mzn, nSolutions: 0, nodes: 71724, num_blocks_done: 0,
+  num_solutions: 0, or_nodes: 64, paths: 0, peakDepth: 802, problem: accap, problem_path: /tmp/mznfileZv4xQU.fzn,
+  propagator_mem: 50443243, propagators: 56888, shared_mem: 100, solveTime: 292.465,
+  solver: Turbo, stack_size: 32000, status: UNKNOWN, store_mem: 221144, time: 301.2820528560005,
+  timeout_ms: 292442.0, variables: 27612, version: 1.1.0}

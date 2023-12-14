@@ -1,0 +1,11 @@
+{and_nodes: 256, arch: gpu, configuration: TurboGPU, cuda_version: 12030, data_file: ../mzn-challenge/2022/triangular/n10.dzn,
+  eliminated_formulas: 212, eliminated_variables: 156, eps_num_subproblems: 1024,
+  eps_skipped_subproblems: 0, eps_solved_subproblems: 76, failures: 4175855, fixpoint_iterations: 15408368,
+  flatIntConstraints: 496, flatIntVars: 56, flatTime: 0.049913, free_search: no, hardware: Intel
+    Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000, initTime: 0.062, kernel_shutdown_timeout_ms: 60000.0,
+  memory_configuration: store_shared, method: maximize, model: ../mzn-challenge/2022/triangular/triangular.mzn,
+  nSolutions: 1, nodes: 8353392, num_blocks_done: 0, num_solutions: 40, objective: 20,
+  or_nodes: 64, paths: 0, peakDepth: 29, problem: triangular, problem_path: /tmp/mznfileXSmU6R.fzn,
+  propagator_mem: 367905, propagators: 496, shared_mem: 796, solveTime: 299.986, solver: Turbo,
+  stack_size: 32000, status: SATISFIED, store_mem: 696, time: 300.1689206930005, timeout_ms: 299949.0,
+  variables: 56, version: 1.1.0}

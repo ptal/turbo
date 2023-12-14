@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: TurboGPU, cuda_version: 12030, data_file: ../mzn-challenge/2022/gfd-schedule/n55f2d50m30k3_10124.dzn,
+  eliminated_formulas: 26613, eliminated_variables: 10754, eps_num_subproblems: 1024,
+  eps_skipped_subproblems: 8, eps_solved_subproblems: 9, evaluatedReifiedConstraints: 11641,
+  failures: 20154, fixpoint_iterations: 506503, flatBoolConstraints: 7659, flatBoolVars: 16973,
+  flatIntConstraints: 25585, flatIntVars: 13350, flatTime: 0.565126, free_search: no,
+  hardware: Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000, initTime: 2.35,
+  kernel_shutdown_timeout_ms: 60000.0, memory_configuration: global, method: minimize,
+  model: ../mzn-challenge/2022/gfd-schedule/gfd-schedule2.mzn, nSolutions: 1, nodes: 42482,
+  num_blocks_done: 0, num_solutions: 20, objective: 6805, or_nodes: 64, paths: 0,
+  peakDepth: 49, problem: gfd-schedule, problem_path: /tmp/mznfileCFwKTG.fzn, propagator_mem: 24056596,
+  propagators: 27959, shared_mem: 100, solveTime: 299.477, solver: Turbo, stack_size: 32000,
+  status: SATISFIED, store_mem: 175048, time: 300.7486170529992, timeout_ms: 299433.0,
+  variables: 21850, version: 1.1.0}
