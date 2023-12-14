@@ -43,7 +43,7 @@ struct Configuration {
   battery::string<allocator_type> version;
   battery::string<allocator_type> hardware;
 
-  CUDA Configuration():
+  CUDA Configuration(const allocator_type& alloc = allocator_type{}):
     print_intermediate_solutions(false),
     stop_after_n_solutions(1),
     free_search(false),
@@ -62,14 +62,17 @@ struct Configuration {
       #else
         Arch::CPU
       #endif
-    )
+    ),
+    problem_path(alloc),
+    version(alloc),
+    hardware(alloc)
   {}
 
-  Configuration(Configuration&&) = default;
-  Configuration(const Configuration&) = default;
+  Configuration(Configuration<allocator_type>&&) = default;
+  Configuration(const Configuration<allocator_type>&) = default;
 
   template<class Alloc>
-  CUDA Configuration(const Configuration<Alloc>& other, const allocator_type& alloc = allocator_type()) :
+  CUDA Configuration(const Configuration<Alloc>& other, const allocator_type& alloc = allocator_type{}) :
     print_intermediate_solutions(other.print_intermediate_solutions),
     stop_after_n_solutions(other.stop_after_n_solutions),
     free_search(other.free_search),
@@ -87,6 +90,26 @@ struct Configuration {
     version(other.version, alloc),
     hardware(other.hardware, alloc)
   {}
+
+  template <class Alloc2>
+  CUDA Configuration<allocator_type>& operator=(const Configuration<Alloc2>& other) {
+    print_intermediate_solutions = other.print_intermediate_solutions;
+    stop_after_n_solutions = other.stop_after_n_solutions;
+    free_search = other.free_search;
+    verbose_solving = other.verbose_solving;
+    print_ast = other.print_ast;
+    print_statistics = other.print_statistics;
+    timeout_ms = other.timeout_ms;
+    kernel_shutdown_timeout_ms = other.kernel_shutdown_timeout_ms;
+    and_nodes = other.and_nodes;
+    or_nodes = other.or_nodes;
+    subproblems_power = other.subproblems_power;
+    stack_kb = other.stack_kb;
+    arch = other.arch;
+    problem_path = other.problem_path;
+    version = other.version;
+    hardware = other.hardware;
+  }
 
   CUDA void print_commandline(const char* program_name) {
     printf("%s -t %lu %s-n %lu %s%s%s%s%s",

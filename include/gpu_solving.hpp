@@ -180,7 +180,6 @@ struct BlockData {
   {}
 
 public:
-
   /** Initialize the block data.
   * Allocate the abstract domains in the best memory available depending on how large are the abstract domains. */
   __device__ void allocate(GridData& grid_data, unsigned char* shared_mem) {
@@ -193,7 +192,7 @@ public:
       has_changed = bt::allocate_shared<AtomicBInc, bt::pool_allocator>(shared_mem_pool, true);
       stop = bt::allocate_shared<AtomicBInc, bt::pool_allocator>(shared_mem_pool, false);
       bt::pool_allocator pc_pool{mem_config.make_pc_pool(shared_mem_pool)};
-      root = bt::make_shared<BlockCP, bt::global_allocator>(grid_data.root, bt::global_allocator{}, pc_pool, mem_config.make_store_pool(shared_mem_pool));
+      root = bt::make_shared<BlockCP, bt::global_allocator>(BlockCP::tag_gpu_block_copy{}, grid_data.root, bt::global_allocator{}, pc_pool, mem_config.make_store_pool(shared_mem_pool));
       snapshot_root = bt::make_shared<snapshot_type, bt::global_allocator>(root->search_tree->template snapshot<bt::global_allocator>());
     }
     block.sync();
@@ -532,6 +531,7 @@ bool wait_solving_ends(GridData& grid_data, const Timepoint& start) {
   }
   if(cudaEventQuery(event) == cudaErrorNotReady) {
     grid_data.cpu_stop = true;
+    printf("%% CPU: Timeout reached\n");
     grid_data.root.stats.exhaustive = false;
     return true;
   }

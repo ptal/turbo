@@ -130,19 +130,26 @@ struct AbstractDomains {
 
   struct tag_copy_cons{};
 
+  struct tag_gpu_block_copy{};
+
+  /** We copy `other` in a new element, and ignore every variable not used in a GPU block.
+   * This is because copying everything in each block is very slow.
+   *
+   * NOTE: It is not the allocation itself that is slow, I think it calling many copy constructors for atomic variables (note that in simplifier we have an atomic memory if the underlying domain has one).
+  */
   template <class U2, class BasicAlloc2, class PropAllocator2, class StoreAllocator2>
-  CUDA AbstractDomains(const AbstractDomains<U2, BasicAlloc2, PropAllocator2, StoreAllocator2>& other,
+  CUDA AbstractDomains(const tag_gpu_block_copy&,
+    const AbstractDomains<U2, BasicAlloc2, PropAllocator2, StoreAllocator2>& other,
     const BasicAllocator& basic_allocator = BasicAllocator(),
     const PropAllocator& prop_allocator = PropAllocator(),
-    const StoreAllocator& store_allocator = StoreAllocator(),
-    const tag_copy_cons& tag = tag_copy_cons{})
+    const StoreAllocator& store_allocator = StoreAllocator())
    : basic_allocator(basic_allocator)
    , prop_allocator(prop_allocator)
    , store_allocator(store_allocator)
-   , fzn_output(other.fzn_output, basic_allocator)
+   , fzn_output(basic_allocator)
    , config(other.config, basic_allocator)
    , stats(other.stats)
-   , env(other.env, basic_allocator)
+   , env(basic_allocator)
    , store(store_allocator)
    , ipc(prop_allocator)
    , simplifier(basic_allocator)
@@ -155,12 +162,24 @@ struct AbstractDomains {
     AbstractDeps<BasicAllocator, PropAllocator, StoreAllocator> deps{basic_allocator, prop_allocator, store_allocator};
     store = deps.template clone<IStore>(other.store);
     ipc = deps.template clone<IPC>(other.ipc);
-    simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, *other.simplifier, typename ISimplifier::light_copy_tag{}, ipc, basic_allocator);
     split = deps.template clone<Split>(other.split);
     eps_split = deps.template clone<Split>(other.eps_split);
     search_tree = deps.template clone<IST>(other.search_tree);
     bab = deps.template clone<IBAB>(other.bab);
     best = bab->optimum_ptr();
+  }
+
+  template <class U2, class BasicAlloc2, class PropAllocator2, class StoreAllocator2>
+  CUDA AbstractDomains(const AbstractDomains<U2, BasicAlloc2, PropAllocator2, StoreAllocator2>& other,
+    const BasicAllocator& basic_allocator = BasicAllocator(),
+    const PropAllocator& prop_allocator = PropAllocator(),
+    const StoreAllocator& store_allocator = StoreAllocator(),
+    const tag_copy_cons& tag = tag_copy_cons{})
+   : AbstractDomains(tag_gpu_block_copy{}, other, basic_allocator, prop_allocator, store_allocator)
+  {
+    fzn_output = other.fzn_output;
+    env = other.env;
+    simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, *other.simplifier, typename ISimplifier::light_copy_tag{}, ipc, basic_allocator);
   }
 
   CUDA AbstractDomains(const this_type& other,
