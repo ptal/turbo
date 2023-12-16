@@ -3,7 +3,7 @@
 Turbo aims to be a constraint solver entirely on GPUs.
 Its theoretical parallel model is described in this paper [AAAI 2022](http://hyc.io/papers/aaai2022.pdf).
 Turbo is part of a larger project called [Lattice Land](https://github.com/lattice-land).
-I have started to write about Turbo in a [technical journal](https://lattice-land.github.io/1-turbo.html) where you can learn details about this solver.
+I write about Turbo in a [technical journal](https://lattice-land.github.io/1-turbo.html) where you can learn about the specifics of this solver.
 
 ### Dependencies
 
@@ -20,7 +20,7 @@ The following command will configure and compile Turbo for GPU for the GPU archi
 
 ```
 cmake --workflow --preset gpu-release --fresh
-./build/gpu-release/turbo -s -v -i -t 20000 -kt 1000 benchmarks/example_wordpress7_500.fzn
+./build/gpu-release/turbo -s -v -i -t 20000 benchmarks/example_wordpress7_500.fzn
 ```
 
 Other compilation builds are also available:
@@ -38,7 +38,7 @@ cmake --build build/gpu-release
 
 ### MiniZinc
 
-The file [turbo.gpu.release.msc](https://github.com/ptal/turbo/blob/v1.0.1/benchmarks/minizinc/turbo.gpu.release.msc) can be copied in your Minizinc configuration directory (on Linux: `~/.minizinc/solvers`).
+The file [turbo.gpu.release.msc](https://github.com/ptal/turbo/blob/v1.1.0/benchmarks/minizinc/turbo.gpu.release.msc) can be copied in your Minizinc configuration directory (on Linux: `~/.minizinc/solvers`).
 You should edit the file and update the paths of `executable` and `mznlib` to match the location of Turbo on your system.
 
 You should be able to run Turbo directly from the [MiniZinc IDE](https://www.minizinc.org/) and from the command line:

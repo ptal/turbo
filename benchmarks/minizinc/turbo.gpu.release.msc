@@ -23,8 +23,10 @@
     "supportsNL": false,
     "version": "1.1.0",
     "extraFlags": [
-        ["-kt", "shutdown timeout of the GPU kernel", "int", "0"],
         ["-sub", "number of EPS subproblems (value of 10 generates 2^10 subproblems)", "int", "10"],
-        ["-version", "version of the solver to be printed as statistics", "string", "1.1.0"]
+        ["-or", "number of OR threads", "int", "0"],
+        ["-and", "number of AND threads", "int", "0"],
+        ["-version", "version of the solver to be printed as statistics", "string", "1.1.0"],
+        ["-hardware", "description of the hardware on which the solver is executed (CPU;RAM;GPU)", "string", "unspecified"]
     ]
 }

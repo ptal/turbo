@@ -578,10 +578,9 @@ void transfer_memory_and_run(CP& root, MemoryConfig mem_config, const Timepoint&
   bool interrupted = wait_solving_ends(*grid_data, start);
   consumer_thread.join();
   CUDAEX(cudaDeviceSynchronize());
-  if(!interrupted) {
-    deallocate_grid_data<<<1,1>>>(grid_data.get());
-    CUDAEX(cudaDeviceSynchronize());
-  }
+  printf("Starting deallocating grid_data...\n");
+  deallocate_grid_data<<<1,1>>>(grid_data.get());
+  CUDAEX(cudaDeviceSynchronize());
 }
 
 // From https://stackoverflow.com/a/32531982/2231159
