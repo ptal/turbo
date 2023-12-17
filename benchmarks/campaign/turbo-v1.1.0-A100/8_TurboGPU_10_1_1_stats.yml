@@ -1,0 +1,6 @@
+{configuration: TurboGPU_10_1_1, data_file: ../mzn-challenge/2022/accap/accap_a40_f800_t180.json,
+  evaluatedReifiedConstraints: 26770, flatBoolConstraints: 13385, flatBoolVars: 26770,
+  flatIntConstraints: 43503, flatIntVars: 842, flatTime: 10.4462, memory_configuration: global,
+  method: minimize, model: ../mzn-challenge/2022/accap/accap.mzn, nSolutions: 0, paths: 0,
+  problem: accap, propagator_mem: 50443243, shared_mem: 100, status: UNKNOWN, store_mem: 221144,
+  time: 302.53278286900604}

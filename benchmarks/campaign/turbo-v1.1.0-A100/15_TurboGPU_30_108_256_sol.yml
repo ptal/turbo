@@ -1,0 +1,30 @@
+- configuration: TurboGPU_30_108_256
+  data_file: ../mzn-challenge/2022/diameterc-mst/c_v20_a190_d4.dzn
+  model: ../mzn-challenge/2022/diameterc-mst/dcmst.mzn
+  problem: diameterc-mst
+  solution:
+    es: [false, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, true, false, false, false, false,
+      false, false, false, true, false, false, false, false, false, false, false,
+      false, false, false, false, true, true, false, false, false, true, false, false,
+      true, false, false, false, false, false, true, true, false, false, false, false,
+      false, false, false, false, false, false, false, false, false, false, false,
+      false, true, false, false, false, false, false, false, false, false, false,
+      false, true, false, false, false, false, false, false, true, false, false, false,
+      false, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false, true, false, false,
+      false, false, false, false, false, false, false, false, true, false, false,
+      true, true, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, true, false, true, false, false,
+      false, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, true, false, false, false, false, false, false, false,
+      false, false, false, false, true, false, false, false, false]
+    h: [2, 2, 0, 1, 1, 2, 2, 2, 1, 2, 2, 1, 2, 2, 2, 2, 2, 1, 1, 2]
+    objective: 367
+    p: [19, 9, 3, 3, 3, 9, 19, 18, 3, 9, 9, 3, 12, 19, 12, 5, 19, 3, 3, 4]
+    root: 3
+  status: SATISFIED
+  time: 300.235
+- {configuration: TurboGPU_30_108_256, data_file: ../mzn-challenge/2022/diameterc-mst/c_v20_a190_d4.dzn,
+  model: ../mzn-challenge/2022/diameterc-mst/dcmst.mzn, problem: diameterc-mst, status: SATISFIED}

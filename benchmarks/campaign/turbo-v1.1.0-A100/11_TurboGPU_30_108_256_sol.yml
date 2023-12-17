@@ -1,0 +1,14 @@
+- configuration: TurboGPU_30_108_256
+  data_file: ../mzn-challenge/2022/nfc/24_4_2.dzn
+  model: ../mzn-challenge/2022/nfc/nfc.mzn
+  problem: nfc
+  solution:
+    f: [0, 25, 31, 59, 0, 24, 3, 74, 0, 12, 3, 57, 1, 12, 0, 6, 34, 49, 0, 37, 28,
+      0, 4, 0]
+    objective: 1836
+    w: [115, 114, 86, 101, 101, 89, 89, 72, 73, 73, 70, 19, 52, 89, 89, 120, 114,
+      65, 69, 32, 4, 29, 56, 115]
+  status: SATISFIED
+  time: 300.327
+- {configuration: TurboGPU_30_108_256, data_file: ../mzn-challenge/2022/nfc/24_4_2.dzn,
+  model: ../mzn-challenge/2022/nfc/nfc.mzn, problem: nfc, status: SATISFIED}

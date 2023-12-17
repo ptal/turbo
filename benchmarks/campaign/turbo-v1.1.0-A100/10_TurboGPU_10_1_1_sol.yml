@@ -1,0 +1,2 @@
+- {configuration: TurboGPU_10_1_1, data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn,
+  model: ../mzn-challenge/2022/tower/tower.mzn, problem: tower, status: UNKNOWN}
