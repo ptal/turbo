@@ -6,8 +6,8 @@ import minizinc
 from mzn_bench import Configuration, schedule
 
 subproblems = [10, 11, 12, 13, 14, 15, 20, 25, 30, 40, 50]
-or_nodes = [1, 2, 4, 8, 27, 54, 108]
-and_nodes = [64, 128, 256]
+or_nodes = [1, 2, 4, 8, 27, 54, 81]
+and_nodes = [64, 128]
 
 sub = 10
 or_node = 1
