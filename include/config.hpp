@@ -10,7 +10,7 @@
   #include <cuda.h>
 #endif
 
-#define SUBPROBLEMS_POWER 10 // 2^N
+#define SUBPROBLEMS_POWER 12 // 2^N
 #define STACK_KB 32
 
 enum class Arch {
