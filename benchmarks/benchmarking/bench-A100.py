@@ -12,33 +12,33 @@ c
 sub = 10
 or_node = 1
 and_node = 1
-configs = [Configuration(name=f"TurboGPU_{sub}_{or_node}_{and_node}", solver=minizinc.Solver.lookup("turbo.gpu.release"), other_flags={"-sub": sub, "-and": and_node, "-or": or_node, "-version": "1.1.0", "-hardware" : "AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM"})]
+configs = [Configuration(name=f"TurboGPU_{sub}_{or_node}_{and_node}", solver=minizinc.Solver.lookup("turbo.gpu.release"), other_flags={"-sub": sub, "-and": and_node, "-p": or_node, "-version": "1.1.0", "-hardware" : "AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM"})]
 
 or_node = 108
 and_node = 256
 for sub in subproblems:
   configs.append(
-    Configuration(name=f"TurboGPU_{sub}_{or_node}_{and_node}", solver=minizinc.Solver.lookup("turbo.gpu.release"), other_flags={"-sub": sub, "-and": and_node, "-or": or_node, "-version": "1.1.0", "-hardware" : "AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM"}))
+    Configuration(name=f"TurboGPU_{sub}_{or_node}_{and_node}", solver=minizinc.Solver.lookup("turbo.gpu.release"), other_flags={"-sub": sub, "-and": and_node, "-p": or_node, "-version": "1.1.0", "-hardware" : "AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM"}))
 
 sub = 10
 and_node = 256
 for or_node in or_nodes:
   configs.append(
-    Configuration(name=f"TurboGPU_{sub}_{or_node}_{and_node}", solver=minizinc.Solver.lookup("turbo.gpu.release"), other_flags={"-sub": sub, "-and": and_node, "-or": or_node, "-version": "1.1.0", "-hardware" : "AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM"}))
+    Configuration(name=f"TurboGPU_{sub}_{or_node}_{and_node}", solver=minizinc.Solver.lookup("turbo.gpu.release"), other_flags={"-sub": sub, "-and": and_node, "-p": or_node, "-version": "1.1.0", "-hardware" : "AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM"}))
 
 sub = 10
 or_node = 108
 for and_node in and_nodes:
   configs.append(
-    Configuration(name=f"TurboGPU_{sub}_{or_node}_{and_node}", solver=minizinc.Solver.lookup("turbo.gpu.release"), other_flags={"-sub": sub, "-and": and_node, "-or": or_node, "-version": "1.1.0", "-hardware" : "AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM"}))
+    Configuration(name=f"TurboGPU_{sub}_{or_node}_{and_node}", solver=minizinc.Solver.lookup("turbo.gpu.release"), other_flags={"-sub": sub, "-and": and_node, "-p": or_node, "-version": "1.1.0", "-hardware" : "AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM"}))
 
-print("Scheduling ", len(configs), " configurations...")
+print("Scheduling ", len(configs[10:]), " configurations...")
 
 schedule(
     instances=Path("short.csv"),
-    output_dir=Path("../campaign/turbo-v1.1.0-A100/"),
+    output_dir=Path("../campaign/turbo-v1.1.0-A100-2/"),
     timeout=timedelta(seconds=300),
     debug=False,
-    configurations=configs,
+    configurations=configs[10:],
     sbatch_config="slurm_config.sh"
 )

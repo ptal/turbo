@@ -1,0 +1,14 @@
+- configuration: TurboGPU_10_8_256
+  data_file: ../mzn-challenge/2022/accap/accap_a4_f30_t15.json
+  model: ../mzn-challenge/2022/accap/accap.mzn
+  problem: accap
+  solution:
+    D: 50
+    S: [9, 19, 37, 39]
+    objective: 154
+    yCoor: [24, 11, 7, 1, 21, 1, 1, 16, 15, 6, 6, 19, 25, 24, 4, 22, 11, 41, 11, 7,
+      37, 23, 10, 17, 49, 6, 27, 44, 32, 15]
+  status: SATISFIED
+  time: 300.218
+- {configuration: TurboGPU_10_8_256, data_file: ../mzn-challenge/2022/accap/accap_a4_f30_t15.json,
+  model: ../mzn-challenge/2022/accap/accap.mzn, problem: accap, status: SATISFIED}

@@ -1,0 +1,25 @@
+- configuration: TurboGPU_20_108_256
+  data_file: ../mzn-challenge/2022/gfd-schedule/n55f2d50m30k3_10124.dzn
+  model: ../mzn-challenge/2022/gfd-schedule/gfd-schedule2.mzn
+  problem: gfd-schedule
+  solution:
+    assignedGroup: [1, 1, 35, 36, 1, 20, 1, 1, 20, 35, 20, 35, 35, 1, 36, 36, 1, 20,
+      1, 1, 35, 35, 20, 35, 36, 36, 36, 1, 36, 35, 1, 1, 20, 20, 20, 20, 20, 35, 20,
+      20, 1, 1, 1, 20, 35, 20, 2, 1, 1, 1, 36, 20, 36, 35, 35]
+    deadLinePenalty: 84
+    groupFacility: [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0]
+    groupProcessDay: [26, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 27,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 27, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    itemProcessDay: [26, 26, 26, 27, 26, 27, 26, 26, 27, 26, 27, 26, 26, 26, 27, 27,
+      26, 27, 26, 26, 26, 26, 27, 26, 27, 27, 27, 26, 27, 26, 26, 26, 27, 27, 27,
+      27, 27, 26, 27, 27, 26, 26, 26, 27, 26, 27, 2, 26, 26, 26, 27, 27, 27, 26, 26]
+    nGroups: 5
+    objective: 8405
+  status: SATISFIED
+  time: 300.542
+- {configuration: TurboGPU_20_108_256, data_file: ../mzn-challenge/2022/gfd-schedule/n55f2d50m30k3_10124.dzn,
+  model: ../mzn-challenge/2022/gfd-schedule/gfd-schedule2.mzn, problem: gfd-schedule,
+  status: SATISFIED}

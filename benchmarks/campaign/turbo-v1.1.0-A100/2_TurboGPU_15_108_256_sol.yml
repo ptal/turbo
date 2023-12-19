@@ -1,0 +1,2 @@
+- {configuration: TurboGPU_15_108_256, data_file: ../mzn-challenge/2022/stripboard/common-emitter-simple.dzn,
+  model: ../mzn-challenge/2022/stripboard/stripboard.mzn, problem: stripboard, status: UNKNOWN}

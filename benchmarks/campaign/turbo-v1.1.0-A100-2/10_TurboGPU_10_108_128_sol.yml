@@ -1,0 +1,11 @@
+- configuration: TurboGPU_10_108_128
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  problem: tower
+  solution:
+    objective: 38
+    power: [10, 6, 1, 1, 1, 1, 2, 5, 4, 7, 7, 5, 2, 5, 2, 3, 1, 6, 1, 5]
+  status: SATISFIED
+  time: 300.313
+- {configuration: TurboGPU_10_108_128, data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn,
+  model: ../mzn-challenge/2022/tower/tower.mzn, problem: tower, status: SATISFIED}

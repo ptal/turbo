@@ -1,0 +1,12 @@
+- configuration: TurboGPU_10_8_256
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_37_4.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  problem: rcpsp
+  solution:
+    objective: 85
+    s: [50, 0, 6, 1, 1, 9, 16, 9, 6, 12, 26, 16, 19, 20, 26, 34, 31, 31, 50, 63, 27,
+      68, 31, 58, 68, 70, 63, 41, 77, 77]
+  status: SATISFIED
+  time: 300.263
+- {configuration: TurboGPU_10_8_256, data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_37_4.dzn,
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn, problem: rcpsp, status: SATISFIED}

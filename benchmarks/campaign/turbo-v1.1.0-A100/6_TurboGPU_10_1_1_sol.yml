@@ -1,0 +1,2 @@
+- {configuration: TurboGPU_10_1_1, data_file: ../mzn-challenge/2022/triangular/n39.dzn,
+  model: ../mzn-challenge/2022/triangular/triangular.mzn, problem: triangular, status: UNKNOWN}

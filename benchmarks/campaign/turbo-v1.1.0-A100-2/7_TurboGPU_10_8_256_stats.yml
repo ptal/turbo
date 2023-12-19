@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: TurboGPU_10_8_256, cuda_version: 12020,
+  data_file: ../mzn-challenge/2022/spot5/404.dzn, eliminated_formulas: 1041, eliminated_variables: 301,
+  eps_num_subproblems: 1024, eps_skipped_subproblems: 16, eps_solved_subproblems: 2,
+  evaluatedReifiedConstraints: 100, failures: 48448, fixpoint_iterations: 401761,
+  flatBoolVars: 100, flatIntConstraints: 1439, flatIntVars: 811, flatTime: 0.335988,
+  free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100
+    40GB HBM, initTime: 0.403, memory_configuration: store_shared, method: minimize,
+  model: ../mzn-challenge/2022/spot5/spot5.mzn, nSolutions: 1, nodes: 97617, num_blocks_done: 0,
+  num_solutions: 36, objective: 135, or_nodes: 8, paths: 0, peakDepth: 80, problem: spot5,
+  problem_path: /tmp/mznfileFLTSJt.fzn, propagator_mem: 10564488, propagators: 7080,
+  shared_mem: 6836, solveTime: 299.697, solver: Turbo, stack_size: 32000, status: SATISFIED,
+  store_mem: 6736, time: 302.2468268100056, timeout_ms: 299661.0, variables: 811,
+  version: 1.1.0}

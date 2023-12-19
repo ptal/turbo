@@ -1,0 +1,2 @@
+- {configuration: TurboGPU_10_108_256, data_file: ../mzn-challenge/2022/blocks-world/16-4-5.dzn,
+  model: ../mzn-challenge/2022/blocks-world/blocks.mzn, problem: blocks-world, status: UNKNOWN}
