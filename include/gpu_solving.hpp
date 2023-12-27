@@ -287,7 +287,7 @@ __device__ bool propagate(BlockData& block_data, GridData& grid_data, local::BIn
   bool is_leaf_node = false;
   BlockCP& cp = *block_data.root;
   auto& fp_engine = *block_data.fp_engine;
-  size_t iterations = fp_engine.fixpoint(*cp.ipc, thread_has_changed);
+  size_t iterations = fp_engine.fixpoint(*cp.ipc, thread_has_changed, &grid_data.cpu_stop);
   if(threadIdx.x == 0) {
     cp.stats.fixpoint_iterations += iterations;
     cp.on_node();
