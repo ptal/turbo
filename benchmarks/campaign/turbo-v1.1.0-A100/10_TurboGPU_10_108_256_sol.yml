@@ -6,6 +6,6 @@
     objective: 39
     power: [10, 3, 1, 1, 1, 1, 1, 3, 4, 4, 4, 4, 1, 3, 2, 3, 1, 3, 1, 3]
   status: SATISFIED
-  time: 300.315
+  time: 300.331
 - {configuration: TurboGPU_10_108_256, data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn,
   model: ../mzn-challenge/2022/tower/tower.mzn, problem: tower, status: SATISFIED}

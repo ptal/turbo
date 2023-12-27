@@ -3,11 +3,11 @@
   eliminated_variables: 18510, eps_num_subproblems: 1024, eps_skipped_subproblems: 880,
   eps_solved_subproblems: 144, evaluatedReifiedConstraints: 9546, failures: 602, fixpoint_iterations: 6789,
   flatBoolConstraints: 4613, flatBoolVars: 14156, flatIntConstraints: 15217, flatIntVars: 4961,
-  flatTime: 1.29562, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM
-    512GO;NVIDIA A100 40GB HBM, initTime: 1.481, memory_configuration: global, method: minimize,
+  flatTime: 0.95337, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM
+    512GO;NVIDIA A100 40GB HBM, initTime: 1.48, memory_configuration: global, method: minimize,
   model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn, nSolutions: 1, nodes: 2482, num_blocks_done: 4,
   num_solutions: 12, objective: 57, or_nodes: 4, paths: 0, peakDepth: 31, problem: rcpsp,
-  problem_path: /tmp/mznfileiNlqdq.fzn, propagator_mem: 7034212, propagators: 11077,
-  shared_mem: 100, solveTime: 16.699, solver: Turbo, stack_size: 32000, status: OPTIMAL_SOLUTION,
-  store_mem: 84096, time: 21.646244999952614, timeout_ms: 298700.0, variables: 10481,
+  problem_path: /tmp/mznfileOUTuuU.fzn, propagator_mem: 7034212, propagators: 11077,
+  shared_mem: 100, solveTime: 16.577, solver: Turbo, stack_size: 32000, status: OPTIMAL_SOLUTION,
+  store_mem: 84096, time: 20.561952569987625, timeout_ms: 299042.0, variables: 10481,
   version: 1.1.0}

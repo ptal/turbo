@@ -3,12 +3,12 @@
   model: ../mzn-challenge/2022/nfc/nfc.mzn
   problem: nfc
   solution:
-    f: [0, 13, 43, 0, 59, 12, 12, 0, 77, 1, 3, 0, 69, 1, 0, 17, 34, 49, 0, 37, 28,
+    f: [0, 13, 43, 0, 59, 12, 11, 0, 78, 0, 3, 0, 70, 0, 0, 18, 34, 49, 0, 37, 28,
       0, 4, 0]
     objective: 1836
-    w: [115, 114, 83, 83, 101, 90, 81, 81, 73, 73, 70, 87, 52, 100, 100, 120, 114,
+    w: [115, 114, 82, 82, 101, 89, 81, 81, 73, 73, 70, 88, 52, 101, 101, 120, 114,
       65, 69, 32, 4, 17, 56, 56]
   status: SATISFIED
-  time: 300.141
+  time: 300.191
 - {configuration: TurboGPU_25_108_256, data_file: ../mzn-challenge/2022/nfc/24_4_2.dzn,
   model: ../mzn-challenge/2022/nfc/nfc.mzn, problem: nfc, status: SATISFIED}

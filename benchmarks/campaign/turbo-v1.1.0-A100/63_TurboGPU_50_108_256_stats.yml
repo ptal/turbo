@@ -1,13 +1,13 @@
 {and_nodes: 256, arch: gpu, configuration: TurboGPU_50_108_256, cuda_version: 12020,
   data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_43_6.dzn, eliminated_formulas: 29952,
-  eliminated_variables: 24716, eps_num_subproblems: 1125899906842624, eps_skipped_subproblems: 562949953421312,
-  eps_solved_subproblems: 11431, evaluatedReifiedConstraints: 9902, failures: 26061,
-  fixpoint_iterations: 3688681, flatBoolConstraints: 4785, flatBoolVars: 14686, flatIntConstraints: 15783,
-  flatIntVars: 5147, flatTime: 1.439, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz;
-    RAM 512GO;NVIDIA A100 40GB HBM, initTime: 1.675, memory_configuration: global,
+  eliminated_variables: 24716, eps_num_subproblems: 1125899906842624, eps_skipped_subproblems: 844424930131968,
+  eps_solved_subproblems: 11425, evaluatedReifiedConstraints: 9902, failures: 26056,
+  fixpoint_iterations: 3687858, flatBoolConstraints: 4785, flatBoolVars: 14686, flatIntConstraints: 15783,
+  flatIntVars: 5147, flatTime: 1.24215, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz;
+    RAM 512GO;NVIDIA A100 40GB HBM, initTime: 1.661, memory_configuration: global,
   method: minimize, model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn, nSolutions: 1,
-  nodes: 603585, num_blocks_done: 0, num_solutions: 16, objective: 70, or_nodes: 108,
-  paths: 0, peakDepth: 30, problem: rcpsp, problem_path: /tmp/mznfileC8Xjpn.fzn, propagator_mem: 8181000,
-  propagators: 11232, shared_mem: 100, solveTime: 298.63, solver: Turbo, stack_size: 32000,
-  status: SATISFIED, store_mem: 84936, time: 303.1674357900629, timeout_ms: 298558.0,
+  nodes: 603459, num_blocks_done: 0, num_solutions: 23, objective: 70, or_nodes: 108,
+  paths: 0, peakDepth: 30, problem: rcpsp, problem_path: /tmp/mznfileV0d7UC.fzn, propagator_mem: 8181000,
+  propagators: 11232, shared_mem: 100, solveTime: 298.773, solver: Turbo, stack_size: 32000,
+  status: SATISFIED, store_mem: 84936, time: 302.6256891619414, timeout_ms: 298755.0,
   variables: 10586, version: 1.1.0}

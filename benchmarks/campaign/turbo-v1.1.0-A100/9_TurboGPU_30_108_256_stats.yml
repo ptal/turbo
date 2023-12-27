@@ -1,13 +1,13 @@
 {and_nodes: 256, arch: gpu, configuration: TurboGPU_30_108_256, cuda_version: 12020,
   data_file: ../mzn-challenge/2022/accap/accap_a4_f30_t15.json, eliminated_formulas: 70,
   eliminated_variables: 34, eps_num_subproblems: 1073741824, eps_skipped_subproblems: 388,
-  eps_solved_subproblems: 55, evaluatedReifiedConstraints: 460, failures: 3059333,
-  fixpoint_iterations: 30094134, flatBoolConstraints: 230, flatBoolVars: 460, flatIntConstraints: 689,
-  flatIntVars: 36, flatTime: 0.194101, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz;
+  eps_solved_subproblems: 55, evaluatedReifiedConstraints: 460, failures: 3082504,
+  fixpoint_iterations: 30313016, flatBoolConstraints: 230, flatBoolVars: 460, flatIntConstraints: 689,
+  flatIntVars: 36, flatTime: 0.259253, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz;
     RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.072, memory_configuration: store_shared,
-  method: minimize, model: ../mzn-challenge/2022/accap/accap.mzn, nSolutions: 0, nodes: 6130856,
+  method: minimize, model: ../mzn-challenge/2022/accap/accap.mzn, nSolutions: 0, nodes: 6177318,
   num_blocks_done: 0, num_solutions: 0, or_nodes: 108, paths: 0, peakDepth: 100, problem: accap,
-  problem_path: /tmp/mznfileCX57S2.fzn, propagator_mem: 821937, propagators: 919,
-  shared_mem: 4316, solveTime: 299.845, solver: Turbo, stack_size: 32000, status: UNKNOWN,
-  store_mem: 4216, time: 301.4736367230071, timeout_ms: 299801.0, variables: 496,
+  problem_path: /tmp/mznfileZvdauN.fzn, propagator_mem: 821937, propagators: 919,
+  shared_mem: 4316, solveTime: 299.822, solver: Turbo, stack_size: 32000, status: UNKNOWN,
+  store_mem: 4216, time: 301.45697115012445, timeout_ms: 299736.0, variables: 496,
   version: 1.1.0}

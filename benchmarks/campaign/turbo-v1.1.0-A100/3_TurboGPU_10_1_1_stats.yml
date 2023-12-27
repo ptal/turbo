@@ -1,12 +1,6 @@
-{and_nodes: 1, arch: gpu, configuration: TurboGPU_10_1_1, cuda_version: 12020, data_file: ../mzn-challenge/2022/blocks-world/16-4-5.dzn,
-  eliminatedImplications: 249, eliminated_formulas: 44635, eliminated_variables: 24563,
-  eps_num_subproblems: 1024, eps_skipped_subproblems: 0, eps_solved_subproblems: 2,
-  evaluatedReifiedConstraints: 21436, failures: 30, fixpoint_iterations: 568, flatBoolConstraints: 5228,
-  flatBoolVars: 23139, flatIntConstraints: 39757, flatIntVars: 20179, flatTime: 1.48156,
-  free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100
-    40GB HBM, initTime: 3.812, memory_configuration: global, method: minimize, model: ../mzn-challenge/2022/blocks-world/blocks.mzn,
-  nSolutions: 0, nodes: 88, num_blocks_done: 0, num_solutions: 0, or_nodes: 1, paths: 0,
-  peakDepth: 5, problem: blocks-world, problem_path: /tmp/mznfileiGITKI.fzn, propagator_mem: 35044603,
-  propagators: 28867, shared_mem: 100, solveTime: 298.565, solver: Turbo, stack_size: 32000,
-  status: UNKNOWN, store_mem: 199976, time: 303.957939975895, timeout_ms: 298515.0,
-  variables: 24966, version: 1.1.0}
+{configuration: TurboGPU_10_1_1, data_file: ../mzn-challenge/2022/blocks-world/16-4-5.dzn,
+  eliminatedImplications: 249, evaluatedReifiedConstraints: 21436, flatBoolConstraints: 5228,
+  flatBoolVars: 23139, flatIntConstraints: 39757, flatIntVars: 20179, flatTime: 1.70567,
+  memory_configuration: global, method: minimize, model: ../mzn-challenge/2022/blocks-world/blocks.mzn,
+  nSolutions: 0, paths: 0, problem: blocks-world, propagator_mem: 35044603, shared_mem: 100,
+  status: UNKNOWN, store_mem: 199976, time: 304.21478320495225}

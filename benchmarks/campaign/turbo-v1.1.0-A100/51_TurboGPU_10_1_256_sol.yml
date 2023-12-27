@@ -13,7 +13,7 @@
       23, 24, 26, 31, 27, 28, 25, 29, 30]
     objective: 5249
   status: SATISFIED
-  time: 300.175
+  time: 300.187
 - {configuration: TurboGPU_10_1_256, data_file: ../mzn-challenge/2022/team-assignment/data3_5_31.dzn,
   model: ../mzn-challenge/2022/team-assignment/model.mzn, problem: team-assignment,
   status: SATISFIED}

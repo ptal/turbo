@@ -6,8 +6,11 @@
     counts: [2, 2, 2]
     objective: 2
     x:
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
     - - EMPTY
-      - EMPTY
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 1, constructor: Army}
+        constructor: Q
       - EMPTY
       - EMPTY
       - EMPTY
@@ -16,46 +19,36 @@
       - !ConstrEnum
         argument: !ConstrEnum {argument: 1, constructor: Army}
         constructor: Q
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
     - - EMPTY
       - EMPTY
       - EMPTY
       - EMPTY
-      - EMPTY
-      - EMPTY
       - !ConstrEnum
-        argument: !ConstrEnum {argument: 1, constructor: Army}
+        argument: !ConstrEnum {argument: 2, constructor: Army}
+        constructor: Q
+      - !ConstrEnum
+        argument: !ConstrEnum {argument: 2, constructor: Army}
         constructor: Q
       - EMPTY
-    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
-    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
-    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
-    - [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY]
+      - EMPTY
     - - !ConstrEnum
-        argument: !ConstrEnum {argument: 2, constructor: Army}
+        argument: !ConstrEnum {argument: 3, constructor: Army}
         constructor: Q
-      - EMPTY
-      - EMPTY
-      - EMPTY
-      - EMPTY
-      - !ConstrEnum
-        argument: !ConstrEnum {argument: 2, constructor: Army}
-        constructor: Q
-      - EMPTY
-      - EMPTY
-    - - EMPTY
       - EMPTY
       - !ConstrEnum
         argument: !ConstrEnum {argument: 3, constructor: Army}
         constructor: Q
-      - !ConstrEnum
-        argument: !ConstrEnum {argument: 3, constructor: Army}
-        constructor: Q
+      - EMPTY
       - EMPTY
       - EMPTY
       - EMPTY
       - EMPTY
   status: SATISFIED
-  time: 300.2
+  time: 300.197
 - {configuration: TurboGPU_10_108_256, data_file: ../mzn-challenge/2022/generalized-peacable-queens/n8_q3.json,
   model: ../mzn-challenge/2022/generalized-peacable-queens/peaceable_queens.mzn, problem: generalized-peacable-queens,
   status: SATISFIED}

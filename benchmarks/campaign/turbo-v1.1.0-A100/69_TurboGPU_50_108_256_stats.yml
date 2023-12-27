@@ -1,13 +1,13 @@
 {and_nodes: 256, arch: gpu, configuration: TurboGPU_50_108_256, cuda_version: 12020,
   data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_41_10.dzn, eliminated_formulas: 32552,
-  eliminated_variables: 26813, eps_num_subproblems: 1125899906842624, eps_skipped_subproblems: 656775739783380,
-  eps_solved_subproblems: 33, evaluatedReifiedConstraints: 11332, failures: 55174,
-  fixpoint_iterations: 2612566, flatBoolConstraints: 5483, flatBoolVars: 16609, flatIntConstraints: 17808,
-  flatIntVars: 5674, flatTime: 1.39289, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz;
-    RAM 512GO;NVIDIA A100 40GB HBM, initTime: 1.93, memory_configuration: global,
+  eliminated_variables: 26813, eps_num_subproblems: 1125899906842624, eps_skipped_subproblems: 658972615555028,
+  eps_solved_subproblems: 33, evaluatedReifiedConstraints: 11332, failures: 54803,
+  fixpoint_iterations: 2602612, flatBoolConstraints: 5483, flatBoolVars: 16609, flatIntConstraints: 17808,
+  flatIntVars: 5674, flatTime: 1.97388, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz;
+    RAM 512GO;NVIDIA A100 40GB HBM, initTime: 1.914, memory_configuration: global,
   method: minimize, model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn, nSolutions: 1,
-  nodes: 1312125, num_blocks_done: 0, num_solutions: 3, objective: 108, or_nodes: 108,
-  paths: 0, peakDepth: 60, problem: rcpsp, problem_path: /tmp/mznfileH6XLW1.fzn, propagator_mem: 9981057,
-  propagators: 13479, shared_mem: 100, solveTime: 298.694, solver: Turbo, stack_size: 32000,
-  status: SATISFIED, store_mem: 100536, time: 302.96229976799805, timeout_ms: 298604.0,
+  nodes: 1307680, num_blocks_done: 0, num_solutions: 3, objective: 108, or_nodes: 108,
+  paths: 0, peakDepth: 60, problem: rcpsp, problem_path: /tmp/mznfileNJEowF.fzn, propagator_mem: 9981057,
+  propagators: 13479, shared_mem: 100, solveTime: 298.084, solver: Turbo, stack_size: 32000,
+  status: SATISFIED, store_mem: 100536, time: 303.1548308748752, timeout_ms: 298022.0,
   variables: 12536, version: 1.1.0}

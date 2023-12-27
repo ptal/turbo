@@ -1,12 +1,12 @@
 {and_nodes: 256, arch: gpu, configuration: TurboGPU_10_81_256, cuda_version: 12020,
   data_file: ../mzn-challenge/2022/triangular/n10.dzn, eliminated_formulas: 212, eliminated_variables: 156,
-  eps_num_subproblems: 1024, eps_skipped_subproblems: 0, eps_solved_subproblems: 66,
-  failures: 3731241, fixpoint_iterations: 13756026, flatIntConstraints: 496, flatIntVars: 56,
-  flatTime: 0.204196, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM
+  eps_num_subproblems: 1024, eps_skipped_subproblems: 0, eps_solved_subproblems: 65,
+  failures: 3679042, fixpoint_iterations: 13566178, flatIntConstraints: 496, flatIntVars: 56,
+  flatTime: 0.110497, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM
     512GO;NVIDIA A100 40GB HBM, initTime: 0.04, memory_configuration: store_shared,
   method: maximize, model: ../mzn-challenge/2022/triangular/triangular.mzn, nSolutions: 1,
-  nodes: 7464389, num_blocks_done: 0, num_solutions: 46, objective: 20, or_nodes: 81,
-  paths: 0, peakDepth: 29, problem: triangular, problem_path: /tmp/mznfilerdAwAO.fzn,
-  propagator_mem: 367905, propagators: 496, shared_mem: 796, solveTime: 299.848, solver: Turbo,
-  stack_size: 32000, status: SATISFIED, store_mem: 696, time: 301.0105861519696, timeout_ms: 299792.0,
+  nodes: 7359978, num_blocks_done: 0, num_solutions: 62, objective: 20, or_nodes: 81,
+  paths: 0, peakDepth: 29, problem: triangular, problem_path: /tmp/mznfilesoR7WR.fzn,
+  propagator_mem: 367905, propagators: 496, shared_mem: 796, solveTime: 299.922, solver: Turbo,
+  stack_size: 32000, status: SATISFIED, store_mem: 696, time: 301.0129536659224, timeout_ms: 299886.0,
   variables: 56, version: 1.1.0}

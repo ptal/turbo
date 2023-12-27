@@ -48,7 +48,7 @@
       - EMPTY
       - EMPTY
   status: SATISFIED
-  time: 300.19
+  time: 300.215
 - {configuration: TurboGPU_10_1_256, data_file: ../mzn-challenge/2022/generalized-peacable-queens/n8_q3.json,
   model: ../mzn-challenge/2022/generalized-peacable-queens/peaceable_queens.mzn, problem: generalized-peacable-queens,
   status: SATISFIED}

@@ -16,6 +16,6 @@
     - [1, 1, 0, 0, 0, 0, 0, 0, 1, 1]
     objective: 20
   status: SATISFIED
-  time: 300.161
+  time: 300.088
 - {configuration: TurboGPU_12_108_256, data_file: ../mzn-challenge/2022/triangular/n10.dzn,
   model: ../mzn-challenge/2022/triangular/triangular.mzn, problem: triangular, status: SATISFIED}

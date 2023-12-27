@@ -84,6 +84,6 @@
       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1]
     objective: 94
   status: SATISFIED
-  time: 300.444
+  time: 300.381
 - {configuration: TurboGPU_10_108_64, data_file: ../mzn-challenge/2022/triangular/n39.dzn,
   model: ../mzn-challenge/2022/triangular/triangular.mzn, problem: triangular, status: SATISFIED}

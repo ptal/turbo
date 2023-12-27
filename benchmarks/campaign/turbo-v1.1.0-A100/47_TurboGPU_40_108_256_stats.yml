@@ -1,13 +1,13 @@
 {and_nodes: 256, arch: gpu, configuration: TurboGPU_40_108_256, cuda_version: 12020,
   data_file: ../mzn-challenge/2022/generalized-peacable-queens/n8_q3.json, eliminated_formulas: 1363,
   eliminated_variables: 525, eps_num_subproblems: 1099511627776, eps_skipped_subproblems: 0,
-  eps_solved_subproblems: 500, evaluatedReifiedConstraints: 1384, failures: 179825,
-  fixpoint_iterations: 3991499, flatBoolConstraints: 1679, flatBoolVars: 1795, flatIntConstraints: 1795,
-  flatIntVars: 838, flatTime: 0.443978, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz;
-    RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.463, memory_configuration: store_shared,
+  eps_solved_subproblems: 499, evaluatedReifiedConstraints: 1384, failures: 179499,
+  fixpoint_iterations: 3984372, flatBoolConstraints: 1679, flatBoolVars: 1795, flatIntConstraints: 1795,
+  flatIntVars: 838, flatTime: 0.422678, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz;
+    RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.466, memory_configuration: store_shared,
   method: maximize, model: ../mzn-challenge/2022/generalized-peacable-queens/peaceable_queens.mzn,
-  nSolutions: 1, nodes: 384232, num_blocks_done: 0, num_solutions: 2, objective: 2,
-  or_nodes: 108, paths: 0, peakDepth: 64, problem: generalized-peacable-queens, problem_path: /tmp/mznfileDLEpZ3.fzn,
-  propagator_mem: 8463912, propagators: 7119, shared_mem: 19820, solveTime: 299.638,
-  solver: Turbo, stack_size: 32000, status: SATISFIED, store_mem: 19720, time: 301.926237495034,
-  timeout_ms: 299550.0, variables: 2434, version: 1.1.0}
+  nSolutions: 1, nodes: 383605, num_blocks_done: 0, num_solutions: 2, objective: 2,
+  or_nodes: 108, paths: 0, peakDepth: 64, problem: generalized-peacable-queens, problem_path: /tmp/mznfileSYXnWq.fzn,
+  propagator_mem: 8463912, propagators: 7119, shared_mem: 19820, solveTime: 299.664,
+  solver: Turbo, stack_size: 32000, status: SATISFIED, store_mem: 19720, time: 302.0348635101691,
+  timeout_ms: 299573.0, variables: 2434, version: 1.1.0}

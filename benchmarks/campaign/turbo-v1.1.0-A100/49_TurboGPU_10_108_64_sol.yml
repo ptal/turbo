@@ -51,10 +51,10 @@
       false, false, false, false, false, false, false, false, false, false, false,
       true, false, false, false, false, false, true, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
-      false, false, false, false, false, false, false, false, false, false, false,
-      false, false, false, false, false, false, true, false, false]
-    - [false, false, false, false, true, false, false, false, false, false, false,
-      false, false, false, false, false, false, false, false, false, false, false,
+      true, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false, false]
+    - [false, false, false, false, false, false, false, false, false, false, false,
+      true, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
@@ -72,7 +72,7 @@
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
-      false, true, false, false, false, false, false, false, false, false, false,
+      false, false, false, true, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false]
     - [false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
@@ -107,8 +107,8 @@
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, true, true, false, false, false, false, false, false, false, false, false,
-      false, false, true, false, false, false, false, false, false, false, false,
-      false, false, false, false, false, false, false, false, false]
+      false, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, true, false, false]
     - [false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
@@ -139,7 +139,7 @@
       false, false, false, false, false, false, false, false, false, false]
     objective: 14457
   status: SATISFIED
-  time: 300.144
+  time: 300.128
 - {configuration: TurboGPU_10_108_64, data_file: ../mzn-challenge/2022/roster-sickness/small-4.dzn,
   model: ../mzn-challenge/2022/roster-sickness/bool-model-sickness.mzn, problem: roster-sickness,
   status: SATISFIED}

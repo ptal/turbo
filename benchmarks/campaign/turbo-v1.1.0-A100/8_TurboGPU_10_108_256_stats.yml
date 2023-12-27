@@ -1,13 +1,13 @@
 {and_nodes: 256, arch: gpu, configuration: TurboGPU_10_108_256, cuda_version: 12020,
   data_file: ../mzn-challenge/2022/accap/accap_a40_f800_t180.json, eliminated_formulas: 1724,
   eliminated_variables: 882, eps_num_subproblems: 1024, eps_skipped_subproblems: 388,
-  eps_solved_subproblems: 57, evaluatedReifiedConstraints: 26770, failures: 28351,
-  fixpoint_iterations: 865216, flatBoolConstraints: 13385, flatBoolVars: 26770, flatIntConstraints: 43503,
-  flatIntVars: 842, flatTime: 10.5354, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz;
-    RAM 512GO;NVIDIA A100 40GB HBM, initTime: 4.447, memory_configuration: global,
-  method: minimize, model: ../mzn-challenge/2022/accap/accap.mzn, nSolutions: 1, nodes: 126983,
-  num_blocks_done: 0, num_solutions: 63, objective: 3646, or_nodes: 108, paths: 0,
-  peakDepth: 848, problem: accap, problem_path: /tmp/mznfileQFHDZJ.fzn, propagator_mem: 50443243,
-  propagators: 56888, shared_mem: 100, solveTime: 289.515, solver: Turbo, stack_size: 32000,
-  status: SATISFIED, store_mem: 221144, time: 302.5180459789699, timeout_ms: 289460.0,
+  eps_solved_subproblems: 57, evaluatedReifiedConstraints: 26770, failures: 28191,
+  fixpoint_iterations: 865419, flatBoolConstraints: 13385, flatBoolVars: 26770, flatIntConstraints: 43503,
+  flatIntVars: 842, flatTime: 10.4716, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz;
+    RAM 512GO;NVIDIA A100 40GB HBM, initTime: 4.502, memory_configuration: global,
+  method: minimize, model: ../mzn-challenge/2022/accap/accap.mzn, nSolutions: 1, nodes: 126696,
+  num_blocks_done: 0, num_solutions: 55, objective: 3646, or_nodes: 108, paths: 0,
+  peakDepth: 847, problem: accap, problem_path: /tmp/mznfileAebTQu.fzn, propagator_mem: 50443243,
+  propagators: 56888, shared_mem: 100, solveTime: 289.536, solver: Turbo, stack_size: 32000,
+  status: SATISFIED, store_mem: 221144, time: 302.4497375040082, timeout_ms: 289525.0,
   variables: 27612, version: 1.1.0}

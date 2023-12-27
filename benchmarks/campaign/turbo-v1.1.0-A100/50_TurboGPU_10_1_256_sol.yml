@@ -25,6 +25,6 @@
     p: [1, 13, 20, 20, 20, 13, 19, 13, 13, 13, 13, 13, 1, 17, 13, 20, 1, 13, 1, 1]
     root: 1
   status: SATISFIED
-  time: 300.492
+  time: 300.166
 - {configuration: TurboGPU_10_1_256, data_file: ../mzn-challenge/2022/diameterc-mst/c_v20_a190_d4.dzn,
   model: ../mzn-challenge/2022/diameterc-mst/dcmst.mzn, problem: diameterc-mst, status: SATISFIED}

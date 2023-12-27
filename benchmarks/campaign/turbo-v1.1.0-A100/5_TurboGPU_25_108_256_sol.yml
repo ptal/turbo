@@ -12,10 +12,10 @@
     - [1, 0, 1, 1, 0, 1, 0, 0, 0, 0]
     - [1, 0, 0, 0, 0, 0, 1, 0, 0, 0]
     - [0, 1, 0, 0, 0, 0, 1, 0, 0, 0]
-    - [0, 1, 0, 0, 0, 0, 1, 0, 0, 0]
-    - [1, 1, 0, 0, 0, 0, 0, 1, 1, 1]
+    - [1, 1, 0, 0, 0, 0, 1, 0, 0, 0]
+    - [1, 0, 0, 0, 0, 0, 0, 1, 1, 1]
     objective: 19
   status: SATISFIED
-  time: 300.207
+  time: 300.16
 - {configuration: TurboGPU_25_108_256, data_file: ../mzn-challenge/2022/triangular/n10.dzn,
   model: ../mzn-challenge/2022/triangular/triangular.mzn, problem: triangular, status: SATISFIED}

@@ -681,7 +681,7 @@
       false, false, false, false, false, false, false, false, false, false]
     objective: 246060
   status: SATISFIED
-  time: 300.332
+  time: 300.157
 - {configuration: TurboGPU_40_108_256, data_file: ../mzn-challenge/2022/roster-sickness/large-2.dzn,
   model: ../mzn-challenge/2022/roster-sickness/bool-model-sickness.mzn, problem: roster-sickness,
   status: SATISFIED}

@@ -509,7 +509,7 @@
       false, true, true, false, true, true, true, true, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
-      false, false, false, true, false, false, false, false, false, false, false,
+      false, false, false, false, true, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
@@ -644,7 +644,7 @@
       true, false, false, true, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, true, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
-      false, false, false, false, true, false, false, false, false, false, false,
+      false, false, false, true, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
@@ -681,7 +681,7 @@
       false, false, false, false, false, false, false, false, false, false]
     objective: 245151
   status: SATISFIED
-  time: 300.331
+  time: 300.312
 - {configuration: TurboGPU_50_108_256, data_file: ../mzn-challenge/2022/roster-sickness/large-2.dzn,
   model: ../mzn-challenge/2022/roster-sickness/bool-model-sickness.mzn, problem: roster-sickness,
   status: SATISFIED}

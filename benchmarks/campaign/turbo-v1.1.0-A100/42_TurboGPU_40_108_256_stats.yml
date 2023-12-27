@@ -1,13 +1,12 @@
 {and_nodes: 256, arch: gpu, configuration: TurboGPU_40_108_256, cuda_version: 12020,
   data_file: ../mzn-challenge/2022/spot5/404.dzn, eliminated_formulas: 1041, eliminated_variables: 301,
-  eps_num_subproblems: 1099511627776, eps_skipped_subproblems: 25769930752, eps_solved_subproblems: 346,
-  evaluatedReifiedConstraints: 100, failures: 459523, fixpoint_iterations: 5535026,
-  flatBoolVars: 100, flatIntConstraints: 1439, flatIntVars: 811, flatTime: 0.198679,
+  eps_num_subproblems: 1099511627776, eps_skipped_subproblems: 17179996160, eps_solved_subproblems: 348,
+  evaluatedReifiedConstraints: 100, failures: 460375, fixpoint_iterations: 5544883,
+  flatBoolVars: 100, flatIntConstraints: 1439, flatIntVars: 811, flatTime: 0.211957,
   free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100
-    40GB HBM, initTime: 0.399, memory_configuration: store_shared, method: minimize,
-  model: ../mzn-challenge/2022/spot5/spot5.mzn, nSolutions: 1, nodes: 970942, num_blocks_done: 0,
-  num_solutions: 18, objective: 119, or_nodes: 108, paths: 0, peakDepth: 26, problem: spot5,
-  problem_path: /tmp/mznfileabQsbi.fzn, propagator_mem: 10564488, propagators: 7080,
-  shared_mem: 6836, solveTime: 299.895, solver: Turbo, stack_size: 32000, status: SATISFIED,
-  store_mem: 6736, time: 301.7267647050321, timeout_ms: 299799.0, variables: 811,
-  version: 1.1.0}
+    40GB HBM, initTime: 0.401, memory_configuration: store_shared, method: minimize,
+  model: ../mzn-challenge/2022/spot5/spot5.mzn, nSolutions: 1, nodes: 972706, num_blocks_done: 0,
+  num_solutions: 19, objective: 119, or_nodes: 108, paths: 0, peakDepth: 26, problem: spot5,
+  problem_path: /tmp/mznfileUIWlnF.fzn, propagator_mem: 10564488, propagators: 7080,
+  shared_mem: 6836, solveTime: 299.83, solver: Turbo, stack_size: 32000, status: SATISFIED,
+  store_mem: 6736, time: 301.738446831936, timeout_ms: 299785.0, variables: 811, version: 1.1.0}

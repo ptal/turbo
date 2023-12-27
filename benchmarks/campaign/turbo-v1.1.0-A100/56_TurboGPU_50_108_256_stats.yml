@@ -1,13 +1,13 @@
 {and_nodes: 256, arch: gpu, configuration: TurboGPU_50_108_256, cuda_version: 12020,
   data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_33_10.dzn, eliminated_formulas: 14047,
-  eliminated_variables: 8713, eps_num_subproblems: 1125899906842624, eps_skipped_subproblems: 750594211270940,
-  eps_solved_subproblems: 292, evaluatedReifiedConstraints: 10141, failures: 55698,
-  fixpoint_iterations: 3786244, flatBoolConstraints: 4903, flatBoolVars: 15012, flatIntConstraints: 16119,
-  flatIntVars: 5237, flatTime: 1.08238, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz;
-    RAM 512GO;NVIDIA A100 40GB HBM, initTime: 1.32, memory_configuration: global,
+  eliminated_variables: 8713, eps_num_subproblems: 1125899906842624, eps_skipped_subproblems: 891881455441236,
+  eps_solved_subproblems: 300, evaluatedReifiedConstraints: 10141, failures: 56002,
+  fixpoint_iterations: 3815650, flatBoolConstraints: 4903, flatBoolVars: 15012, flatIntConstraints: 16119,
+  flatIntVars: 5237, flatTime: 0.752778, free_search: no, hardware: AMD EPYC 7452
+    32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 1.291, memory_configuration: global,
   method: minimize, model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn, nSolutions: 1,
-  nodes: 2053714, num_blocks_done: 0, num_solutions: 15, objective: 55, or_nodes: 108,
-  paths: 0, peakDepth: 45, problem: rcpsp, problem_path: /tmp/mznfilehsfnog.fzn, propagator_mem: 6865012,
-  propagators: 12273, shared_mem: 100, solveTime: 299.01, solver: Turbo, stack_size: 32000,
-  status: SATISFIED, store_mem: 93024, time: 302.9146300359862, timeout_ms: 298914.0,
+  nodes: 2069032, num_blocks_done: 0, num_solutions: 15, objective: 55, or_nodes: 108,
+  paths: 0, peakDepth: 45, problem: rcpsp, problem_path: /tmp/mznfileio8uct.fzn, propagator_mem: 6865012,
+  propagators: 12273, shared_mem: 100, solveTime: 299.291, solver: Turbo, stack_size: 32000,
+  status: SATISFIED, store_mem: 93024, time: 302.58641486801207, timeout_ms: 299245.0,
   variables: 11597, version: 1.1.0}

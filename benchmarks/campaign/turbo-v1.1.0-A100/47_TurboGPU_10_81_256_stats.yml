@@ -1,13 +1,13 @@
 {and_nodes: 256, arch: gpu, configuration: TurboGPU_10_81_256, cuda_version: 12020,
   data_file: ../mzn-challenge/2022/generalized-peacable-queens/n8_q3.json, eliminated_formulas: 1363,
   eliminated_variables: 525, eps_num_subproblems: 1024, eps_skipped_subproblems: 0,
-  eps_solved_subproblems: 0, evaluatedReifiedConstraints: 1384, failures: 146693,
-  fixpoint_iterations: 3417607, flatBoolConstraints: 1679, flatBoolVars: 1795, flatIntConstraints: 1795,
-  flatIntVars: 838, flatTime: 0.314321, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz;
-    RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.479, memory_configuration: store_shared,
+  eps_solved_subproblems: 0, evaluatedReifiedConstraints: 1384, failures: 146957,
+  fixpoint_iterations: 3423295, flatBoolConstraints: 1679, flatBoolVars: 1795, flatIntConstraints: 1795,
+  flatIntVars: 838, flatTime: 0.332942, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz;
+    RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.471, memory_configuration: store_shared,
   method: maximize, model: ../mzn-challenge/2022/generalized-peacable-queens/peaceable_queens.mzn,
-  nSolutions: 1, nodes: 296737, num_blocks_done: 0, num_solutions: 3, objective: 2,
-  or_nodes: 81, paths: 0, peakDepth: 64, problem: generalized-peacable-queens, problem_path: /tmp/mznfile9zE9zl.fzn,
-  propagator_mem: 8463912, propagators: 7119, shared_mem: 19820, solveTime: 299.738,
-  solver: Turbo, stack_size: 32000, status: SATISFIED, store_mem: 19720, time: 302.1890398109099,
-  timeout_ms: 299683.0, variables: 2434, version: 1.1.0}
+  nSolutions: 1, nodes: 297237, num_blocks_done: 0, num_solutions: 2, objective: 2,
+  or_nodes: 81, paths: 0, peakDepth: 64, problem: generalized-peacable-queens, problem_path: /tmp/mznfileboqw4G.fzn,
+  propagator_mem: 8463912, propagators: 7119, shared_mem: 19820, solveTime: 299.735,
+  solver: Turbo, stack_size: 32000, status: SATISFIED, store_mem: 19720, time: 302.2578268270008,
+  timeout_ms: 299664.0, variables: 2434, version: 1.1.0}

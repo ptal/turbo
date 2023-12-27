@@ -50,6 +50,6 @@
       16, 105, 38, 17, 97, 6, 67, 47, 65, 62, 6, 56, 23, 49, 39, 67, 21, 56, 21, 45,
       43, 68, 35, 34, 21, 30]
   status: SATISFIED
-  time: 300.499
+  time: 300.548
 - {configuration: TurboGPU_10_8_256, data_file: ../mzn-challenge/2022/accap/accap_a40_f800_t180.json,
   model: ../mzn-challenge/2022/accap/accap.mzn, problem: accap, status: SATISFIED}

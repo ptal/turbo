@@ -14,6 +14,6 @@
     VMType: [1, 1, 1, 1, 1, 28, 174, 341, 173, 6, 2, 2, 2, 2, 3]
     objective: 51198
   status: SATISFIED
-  time: 300.219
+  time: 300.264
 - {configuration: TurboGPU_50_108_256, data_file: ../mzn-challenge/2022/wordpress/Wordpress7_Offers500.dzn,
   model: ../mzn-challenge/2022/wordpress/wordpress.mzn, problem: wordpress, status: SATISFIED}

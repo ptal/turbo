@@ -19,7 +19,7 @@
     nGroups: 5
     objective: 6805
   status: SATISFIED
-  time: 300.499
+  time: 300.403
 - {configuration: TurboGPU_10_54_256, data_file: ../mzn-challenge/2022/gfd-schedule/n55f2d50m30k3_10124.dzn,
   model: ../mzn-challenge/2022/gfd-schedule/gfd-schedule2.mzn, problem: gfd-schedule,
   status: SATISFIED}

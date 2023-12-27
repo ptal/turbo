@@ -3,9 +3,9 @@
   model: ../mzn-challenge/2022/tower/tower.mzn
   problem: tower
   solution:
-    objective: 47
-    power: [10, 3, 1, 3, 2, 4, 2, 3, 4, 4, 4, 4, 1, 3, 5, 3, 6, 3, 1, 3]
+    objective: 48
+    power: [10, 3, 1, 3, 2, 1, 2, 3, 4, 3, 4, 3, 1, 3, 4, 1, 6, 3, 1, 1]
   status: SATISFIED
-  time: 300.305
+  time: 300.266
 - {configuration: TurboGPU_13_108_256, data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn,
   model: ../mzn-challenge/2022/tower/tower.mzn, problem: tower, status: SATISFIED}
