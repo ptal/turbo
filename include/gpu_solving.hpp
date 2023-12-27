@@ -336,7 +336,7 @@ __device__ size_t dive(BlockData& block_data, GridData& grid_data) {
         stop_diving.tell_top();
       }
       else {
-        size_t branch_idx = (block_data.subproblem_idx & (1 << remaining_depth)) >> remaining_depth;
+        size_t branch_idx = (block_data.subproblem_idx & (size_t{1} << remaining_depth)) >> remaining_depth;
         auto branches = cp.eps_split->split();
         assert(branches.size() == 2);
         cp.ipc->tell(branches[branch_idx]);
@@ -408,10 +408,10 @@ __global__ void gpu_solve_kernel(GridData* grid_data)
     }
     else {
       if(threadIdx.x == 0 && !*(block_data.stop)) {
-        size_t next_subproblem_idx = ((block_data.subproblem_idx >> remaining_depth) + 1) << remaining_depth;
+        size_t next_subproblem_idx = ((block_data.subproblem_idx >> remaining_depth) + size_t{1}) << remaining_depth;
         grid_data->next_subproblem->tell(ZInc<size_t, bt::local_memory>(next_subproblem_idx));
         // It is possible that several blocks skip similar subproblems. Hence, we only count the subproblems skipped by the block solving the left most subproblem.
-        if((block_data.subproblem_idx & ((1 << remaining_depth)-1)) == 0) {
+        if((block_data.subproblem_idx & ((size_t{1} << remaining_depth) - size_t{1})) == size_t{0}) {
           block_data.root->stats.eps_skipped_subproblems += next_subproblem_idx - block_data.subproblem_idx;
         }
       }
@@ -419,7 +419,7 @@ __global__ void gpu_solve_kernel(GridData* grid_data)
     // Load next problem.
     if(threadIdx.x == 0 && !*(block_data.stop)) {
       block_data.subproblem_idx = grid_data->next_subproblem->value();
-      grid_data->next_subproblem->tell(ZInc<size_t, bt::local_memory>(block_data.subproblem_idx + 1));
+      grid_data->next_subproblem->tell(ZInc<size_t, bt::local_memory>(block_data.subproblem_idx + size_t{1}));
     }
     cooperative_groups::this_thread_block().sync();
   }
