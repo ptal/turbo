@@ -1,13 +1,13 @@
 {and_nodes: 256, arch: gpu, configuration: TurboGPU_12_108_256, cuda_version: 12020,
   data_file: ../mzn-challenge/2022/wordpress/Wordpress7_Offers500.dzn, eliminated_formulas: 647,
   eliminated_variables: 465, eps_num_subproblems: 4096, eps_skipped_subproblems: 0,
-  eps_solved_subproblems: 0, evaluatedReifiedConstraints: 36, failures: 28781, fixpoint_iterations: 2130398,
+  eps_solved_subproblems: 0, evaluatedReifiedConstraints: 36, failures: 28668, fixpoint_iterations: 2099973,
   flatBoolConstraints: 20, flatBoolVars: 36, flatIntConstraints: 300, flatIntVars: 182,
-  flatTime: 0.130981, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM
-    512GO;NVIDIA A100 40GB HBM, initTime: 1.348, memory_configuration: store_shared,
+  flatTime: 0.178336, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM
+    512GO;NVIDIA A100 40GB HBM, initTime: 1.346, memory_configuration: store_shared,
   method: minimize, model: ../mzn-challenge/2022/wordpress/wordpress.mzn, nSolutions: 1,
-  nodes: 67031, num_blocks_done: 0, num_solutions: 2082, objective: 73097, or_nodes: 108,
-  paths: 0, peakDepth: 76, problem: wordpress, problem_path: /tmp/mznfileKn9jvZ.fzn,
-  propagator_mem: 45192801, propagators: 30260, shared_mem: 2092, solveTime: 299.909,
-  solver: Turbo, stack_size: 32000, status: SATISFIED, store_mem: 1992, time: 302.10101063596085,
-  timeout_ms: 299866.0, variables: 218, version: 1.1.0}
+  nodes: 66882, num_blocks_done: 0, num_solutions: 2072, objective: 73097, or_nodes: 108,
+  paths: 0, peakDepth: 74, problem: wordpress, problem_path: /tmp/mznfile7kArJe.fzn,
+  propagator_mem: 45192801, propagators: 30260, shared_mem: 2092, solveTime: 299.837,
+  solver: Turbo, stack_size: 32000, status: SATISFIED, store_mem: 1992, time: 302.1398076219484,
+  timeout_ms: 299819.0, variables: 218, version: 1.1.0}

@@ -3,12 +3,12 @@
   model: ../mzn-challenge/2022/accap/accap.mzn
   problem: accap
   solution:
-    D: 50
-    S: [9, 23, 29, 34]
+    D: 48
+    S: [10, 20, 42, 25]
     objective: 145
-    yCoor: [28, 16, 27, 1, 26, 1, 1, 40, 20, 6, 6, 24, 41, 43, 4, 27, 23, 6, 11, 7,
-      36, 40, 10, 21, 49, 9, 11, 44, 31, 20]
+    yCoor: [27, 11, 26, 1, 25, 1, 1, 17, 15, 6, 6, 30, 33, 35, 4, 26, 19, 46, 12,
+      7, 19, 32, 11, 15, 23, 36, 36, 6, 41, 18]
   status: SATISFIED
-  time: 300.184
+  time: 300.153
 - {configuration: TurboGPU_15_108_256, data_file: ../mzn-challenge/2022/accap/accap_a4_f30_t15.json,
   model: ../mzn-challenge/2022/accap/accap.mzn, problem: accap, status: SATISFIED}

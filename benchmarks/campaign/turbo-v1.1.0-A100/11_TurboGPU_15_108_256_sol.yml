@@ -9,6 +9,6 @@
     w: [115, 114, 96, 101, 101, 105, 81, 72, 73, 73, 70, 19, 52, 87, 87, 120, 114,
       65, 69, 32, 4, 15, 56, 115]
   status: SATISFIED
-  time: 300.155
+  time: 300.168
 - {configuration: TurboGPU_15_108_256, data_file: ../mzn-challenge/2022/nfc/24_4_2.dzn,
   model: ../mzn-challenge/2022/nfc/nfc.mzn, problem: nfc, status: SATISFIED}

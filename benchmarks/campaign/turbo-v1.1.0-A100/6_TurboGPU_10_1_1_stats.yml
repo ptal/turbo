@@ -1,5 +1,5 @@
 {configuration: TurboGPU_10_1_1, data_file: ../mzn-challenge/2022/triangular/n39.dzn,
-  flatIntConstraints: 101271, flatIntVars: 781, flatTime: 3.42154, memory_configuration: store_shared,
+  flatIntConstraints: 101271, flatIntVars: 781, flatTime: 3.53219, memory_configuration: store_shared,
   method: maximize, model: ../mzn-challenge/2022/triangular/triangular.mzn, nSolutions: 0,
   paths: 0, problem: triangular, propagator_mem: 73072065, shared_mem: 6596, status: UNKNOWN,
-  store_mem: 6496, time: 302.37064035004005}
+  store_mem: 6496, time: 302.4837336039636}

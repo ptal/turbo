@@ -36,6 +36,6 @@ schedule(
     output_dir=Path("../campaign/turbo-v1.1.0-A100/"),
     timeout=timedelta(seconds=300),
     debug=False,
-    configurations=configs[:10],
+    configurations=configs[10:],
     sbatch_config="slurm_config.sh"
 )

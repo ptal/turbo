@@ -45,16 +45,16 @@
       false, false, true, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
-      false, false, false, false, false, false, false, true, false, false]
+      false, false, false, false, false, false, true, false, false, false]
     - [false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       true, false, false, false, false, false, true, false, false, false, false, false,
+      false, false, false, false, false, false, false, false, false, false, true,
       false, false, false, false, false, false, false, false, false, false, false,
-      true, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false]
-    - [false, false, false, false, true, false, false, false, false, false, false,
-      false, false, false, false, false, false, false, false, false, false, false,
+    - [false, false, false, false, false, false, false, false, false, false, false,
+      true, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
@@ -66,13 +66,13 @@
       false, false, false, false, false, false, false, false, true, true, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
-      false, false, false, false, false, true, false, false, false]
+      false, false, false, false, false, false, true, false, false]
     - [false, true, false, false, false, false, false, false, true, false, false,
       false, false, false, false, false, false, true, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
-      true, false, false, false, false, false, false, false, false, false, false,
+      false, true, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false]
     - [false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
@@ -139,7 +139,7 @@
       false, false, false, false, false, false, false, false, false, false]
     objective: 14417
   status: SATISFIED
-  time: 300.103
+  time: 300.136
 - {configuration: TurboGPU_20_108_256, data_file: ../mzn-challenge/2022/roster-sickness/small-4.dzn,
   model: ../mzn-challenge/2022/roster-sickness/bool-model-sickness.mzn, problem: roster-sickness,
   status: SATISFIED}

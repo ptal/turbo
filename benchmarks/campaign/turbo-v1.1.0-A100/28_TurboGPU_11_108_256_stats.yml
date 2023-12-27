@@ -1,13 +1,13 @@
 {and_nodes: 256, arch: gpu, configuration: TurboGPU_11_108_256, cuda_version: 12020,
   data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_43_6.dzn, eliminated_formulas: 29952,
   eliminated_variables: 24716, eps_num_subproblems: 2048, eps_skipped_subproblems: 1536,
-  eps_solved_subproblems: 524, evaluatedReifiedConstraints: 9902, failures: 4345,
-  fixpoint_iterations: 50908, flatBoolConstraints: 4785, flatBoolVars: 14686, flatIntConstraints: 15783,
-  flatIntVars: 5147, flatTime: 1.74998, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz;
-    RAM 512GO;NVIDIA A100 40GB HBM, initTime: 1.687, memory_configuration: global,
+  eps_solved_subproblems: 519, evaluatedReifiedConstraints: 9902, failures: 4300,
+  fixpoint_iterations: 50488, flatBoolConstraints: 4785, flatBoolVars: 14686, flatIntConstraints: 15783,
+  flatIntVars: 5147, flatTime: 1.28694, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz;
+    RAM 512GO;NVIDIA A100 40GB HBM, initTime: 1.682, memory_configuration: global,
   method: minimize, model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn, nSolutions: 1,
-  nodes: 13542, num_blocks_done: 108, num_solutions: 28, objective: 58, or_nodes: 108,
-  paths: 0, peakDepth: 31, problem: rcpsp, problem_path: /tmp/mznfileyKleOC.fzn, propagator_mem: 8181000,
-  propagators: 11232, shared_mem: 100, solveTime: 12.569, solver: Turbo, stack_size: 32000,
-  status: OPTIMAL_SOLUTION, store_mem: 84936, time: 19.078691239003092, timeout_ms: 298245.0,
+  nodes: 13394, num_blocks_done: 108, num_solutions: 21, objective: 58, or_nodes: 108,
+  paths: 0, peakDepth: 30, problem: rcpsp, problem_path: /tmp/mznfileaq4HbP.fzn, propagator_mem: 8181000,
+  propagators: 11232, shared_mem: 100, solveTime: 12.497, solver: Turbo, stack_size: 32000,
+  status: OPTIMAL_SOLUTION, store_mem: 84936, time: 18.195133822970092, timeout_ms: 298710.0,
   variables: 10586, version: 1.1.0}

@@ -1,2 +1,0 @@
-- {configuration: TurboGPU_10_1_256, data_file: ../mzn-challenge/2022/accap/accap_a4_f30_t15.json,
-  model: ../mzn-challenge/2022/accap/accap.mzn, problem: accap, status: UNKNOWN}
