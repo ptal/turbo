@@ -10,6 +10,6 @@
       13, 0, 0, 13, 0, 0, 13, 13, 0, 0, 0, 0, 0, 13, 2, 0, 0, 0, 0, 0, 0, 0, 0, 13,
       2, 0, 0]
   status: SATISFIED
-  time: 300.297
+  time: 300.251
 - {configuration: TurboGPU_30_108_256, data_file: ../mzn-challenge/2022/spot5/404.dzn,
   model: ../mzn-challenge/2022/spot5/spot5.mzn, problem: spot5, status: SATISFIED}

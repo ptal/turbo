@@ -4,27 +4,27 @@
   problem: diameterc-mst
   solution:
     es: [false, false, false, false, false, true, false, false, false, false, false,
-      false, true, true, false, true, false, true, false, false, false, false, false,
-      false, false, true, false, false, false, false, false, false, false, false,
-      false, false, false, false, false, false, false, false, false, false, false,
-      false, false, false, true, false, false, false, false, false, false, false,
-      false, false, false, false, false, false, false, false, true, false, false,
-      false, false, true, false, false, false, false, false, false, false, false,
-      false, true, true, false, false, false, false, false, false, true, false, false,
-      false, false, false, false, false, false, false, false, false, false, false,
-      false, false, false, false, false, false, false, false, false, false, false,
-      false, false, false, false, false, false, false, false, false, true, false,
-      false, true, true, false, false, false, true, false, false, false, false, false,
-      false, false, false, false, false, false, false, false, false, false, false,
+      true, true, false, false, true, false, true, false, false, false, false, false,
+      false, false, false, false, true, false, true, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, true,
-      false, false, false, false, false, false, true, false, false, false, false,
+      false, false, false, false, false, false, false, false, true, false, false,
+      false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, true, false,
-      false, false, false, false, false, false, false, false, false, false, false]
-    h: [1, 2, 1, 1, 1, 2, 2, 2, 1, 2, 2, 1, 1, 2, 0, 2, 2, 1, 2, 2]
-    objective: 391
-    p: [15, 9, 15, 15, 15, 9, 1, 18, 15, 9, 9, 15, 15, 1, 15, 5, 1, 15, 1, 4]
-    root: 15
+      false, true, false, false, false, true, false, false, true, false, false, false,
+      false, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false, true, false, false,
+      true, false, false, true, false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, true, false, true, false, false,
+      false, false, false, false, false, false, false, true, false, false, false,
+      false, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false, false]
+    h: [1, 1, 2, 2, 1, 2, 2, 2, 1, 2, 2, 1, 0, 2, 2, 2, 2, 1, 2, 2]
+    objective: 394
+    p: [13, 13, 12, 5, 13, 9, 1, 18, 13, 9, 2, 13, 13, 1, 12, 5, 1, 13, 1, 5]
+    root: 13
   status: SATISFIED
-  time: 300.208
+  time: 300.215
 - {configuration: TurboGPU_15_108_256, data_file: ../mzn-challenge/2022/diameterc-mst/c_v20_a190_d4.dzn,
   model: ../mzn-challenge/2022/diameterc-mst/dcmst.mzn, problem: diameterc-mst, status: SATISFIED}

@@ -1,13 +1,13 @@
 {and_nodes: 256, arch: gpu, configuration: TurboGPU_14_108_256, cuda_version: 12020,
   data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_15_5.dzn, eliminated_formulas: 31651,
   eliminated_variables: 25535, eps_num_subproblems: 16384, eps_skipped_subproblems: 0,
-  eps_solved_subproblems: 9230, evaluatedReifiedConstraints: 11640, failures: 205246,
-  fixpoint_iterations: 3077457, flatBoolConstraints: 5625, flatBoolVars: 17265, flatIntConstraints: 18516,
-  flatIntVars: 6046, flatTime: 2.03118, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz;
-    RAM 512GO;NVIDIA A100 40GB HBM, initTime: 1.949, memory_configuration: global,
+  eps_solved_subproblems: 9230, evaluatedReifiedConstraints: 11640, failures: 204382,
+  fixpoint_iterations: 3065113, flatBoolConstraints: 5625, flatBoolVars: 17265, flatIntConstraints: 18516,
+  flatIntVars: 6046, flatTime: 1.7411, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz;
+    RAM 512GO;NVIDIA A100 40GB HBM, initTime: 1.996, memory_configuration: global,
   method: minimize, model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn, nSolutions: 1,
-  nodes: 523178, num_blocks_done: 0, num_solutions: 64, objective: 59, or_nodes: 108,
-  paths: 0, peakDepth: 38, problem: rcpsp, problem_path: /tmp/mznfiledUOZAm.fzn, propagator_mem: 11372126,
-  propagators: 14289, shared_mem: 100, solveTime: 298.026, solver: Turbo, stack_size: 32000,
-  status: SATISFIED, store_mem: 108480, time: 302.79252354300115, timeout_ms: 297964.0,
+  nodes: 521439, num_blocks_done: 0, num_solutions: 60, objective: 59, or_nodes: 108,
+  paths: 0, peakDepth: 38, problem: rcpsp, problem_path: /tmp/mznfileFyEY3Q.fzn, propagator_mem: 11372126,
+  propagators: 14289, shared_mem: 100, solveTime: 298.281, solver: Turbo, stack_size: 32000,
+  status: SATISFIED, store_mem: 108480, time: 303.38604879705235, timeout_ms: 298256.0,
   variables: 13529, version: 1.1.0}

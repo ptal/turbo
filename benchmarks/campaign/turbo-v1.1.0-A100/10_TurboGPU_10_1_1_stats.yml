@@ -1,6 +1,6 @@
 {configuration: TurboGPU_10_1_1, data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn,
   evaluatedReifiedConstraints: 8060, flatBoolConstraints: 100, flatBoolVars: 4260,
-  flatIntConstraints: 10887, flatIntVars: 4747, flatTime: 0.84229, memory_configuration: global,
+  flatIntConstraints: 10887, flatIntVars: 4747, flatTime: 0.690839, memory_configuration: global,
   method: maximize, model: ../mzn-challenge/2022/tower/tower.mzn, nSolutions: 0, paths: 0,
   problem: tower, propagator_mem: 14635656, shared_mem: 100, status: UNKNOWN, store_mem: 55504,
-  time: 303.0558721210109}
+  time: 302.9479207210243}

@@ -1,12 +1,12 @@
 {and_nodes: 256, arch: gpu, configuration: TurboGPU_13_108_256, cuda_version: 12020,
   data_file: ../mzn-challenge/2022/roster-sickness/large-2.dzn, eliminated_formulas: 11049,
   eliminated_variables: 8592, eps_num_subproblems: 8192, eps_skipped_subproblems: 8,
-  eps_solved_subproblems: 744, failures: 824230, fixpoint_iterations: 3947142, flatBoolVars: 578,
-  flatIntConstraints: 3317, flatIntVars: 627, flatTime: 32.314, free_search: no, hardware: AMD
-    EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.305, memory_configuration: store_shared,
-  method: maximize, model: ../mzn-challenge/2022/roster-sickness/bool-model-sickness.mzn,
-  nSolutions: 1, nodes: 1658527, num_blocks_done: 0, num_solutions: 43, objective: 247896,
-  or_nodes: 108, paths: 0, peakDepth: 36, problem: roster-sickness, problem_path: /tmp/mznfileT4lVBZ.fzn,
-  propagator_mem: 471326, propagators: 370, shared_mem: 1052, solveTime: 267.771,
-  solver: Turbo, stack_size: 32000, status: SATISFIED, store_mem: 952, time: 303.4648383659951,
-  timeout_ms: 267683.0, variables: 88, version: 1.1.0}
+  eps_solved_subproblems: 738, failures: 821538, fixpoint_iterations: 3934369, flatBoolVars: 578,
+  flatIntConstraints: 3317, flatIntVars: 627, flatTime: 32.2481, free_search: no,
+  hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.305,
+  memory_configuration: store_shared, method: maximize, model: ../mzn-challenge/2022/roster-sickness/bool-model-sickness.mzn,
+  nSolutions: 1, nodes: 1653072, num_blocks_done: 0, num_solutions: 48, objective: 247896,
+  or_nodes: 108, paths: 0, peakDepth: 36, problem: roster-sickness, problem_path: /tmp/mznfileF4Ol9T.fzn,
+  propagator_mem: 471326, propagators: 370, shared_mem: 1052, solveTime: 267.767,
+  solver: Turbo, stack_size: 32000, status: SATISFIED, store_mem: 952, time: 302.9754799780203,
+  timeout_ms: 267748.0, variables: 88, version: 1.1.0}

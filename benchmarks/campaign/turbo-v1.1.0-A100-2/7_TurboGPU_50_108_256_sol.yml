@@ -1,2 +1,0 @@
-- {configuration: TurboGPU_50_108_256, data_file: ../mzn-challenge/2022/spot5/404.dzn,
-  model: ../mzn-challenge/2022/spot5/spot5.mzn, problem: spot5, status: UNSATISFIABLE}

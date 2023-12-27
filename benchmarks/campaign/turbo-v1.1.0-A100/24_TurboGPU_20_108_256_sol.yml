@@ -4,9 +4,9 @@
   problem: rcpsp
   solution:
     objective: 60
-    s: [5, 0, 4, 7, 7, 13, 7, 8, 17, 9, 13, 17, 10, 24, 13, 24, 19, 29, 22, 29, 24,
-      24, 34, 27, 51, 41, 41, 58, 30, 51]
+    s: [5, 0, 5, 6, 7, 14, 7, 7, 17, 9, 14, 17, 10, 24, 14, 24, 20, 30, 23, 30, 24,
+      24, 34, 27, 51, 41, 41, 58, 31, 51]
   status: SATISFIED
-  time: 300.271
+  time: 300.354
 - {configuration: TurboGPU_20_108_256, data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_40_3.dzn,
   model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn, problem: rcpsp, status: SATISFIED}

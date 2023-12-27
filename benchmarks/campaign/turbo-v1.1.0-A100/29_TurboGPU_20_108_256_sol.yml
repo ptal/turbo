@@ -7,6 +7,6 @@
     s: [14, 0, 0, 21, 10, 11, 23, 11, 15, 21, 25, 15, 27, 24, 27, 50, 32, 31, 32,
       11, 30, 10, 32, 41, 42, 41, 47, 50, 57, 41]
   status: SATISFIED
-  time: 33.721
+  time: 33.526
 - {configuration: TurboGPU_20_108_256, data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_23_7.dzn,
   model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn, problem: rcpsp, status: OPTIMAL_SOLUTION}

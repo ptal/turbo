@@ -1,13 +1,13 @@
 {and_nodes: 256, arch: gpu, configuration: TurboGPU_12_108_256, cuda_version: 12020,
   data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn, eliminated_formulas: 10387,
   eliminated_variables: 5640, eps_num_subproblems: 4096, eps_skipped_subproblems: 2196,
-  eps_solved_subproblems: 91, evaluatedReifiedConstraints: 8060, failures: 42076,
-  fixpoint_iterations: 2054477, flatBoolConstraints: 100, flatBoolVars: 4260, flatIntConstraints: 10887,
-  flatIntVars: 4747, flatTime: 0.848851, free_search: no, hardware: AMD EPYC 7452
-    32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 1.147, memory_configuration: global,
-  method: maximize, model: ../mzn-challenge/2022/tower/tower.mzn, nSolutions: 1, nodes: 94732,
-  num_blocks_done: 0, num_solutions: 47, objective: 45, or_nodes: 108, paths: 0, peakDepth: 302,
-  problem: tower, problem_path: /tmp/mznfilezsRvJz.fzn, propagator_mem: 14635656,
-  propagators: 12867, shared_mem: 100, solveTime: 299.16, solver: Turbo, stack_size: 32000,
-  status: SATISFIED, store_mem: 55504, time: 303.0524290979956, timeout_ms: 299149.0,
+  eps_solved_subproblems: 91, evaluatedReifiedConstraints: 8060, failures: 41611,
+  fixpoint_iterations: 2038812, flatBoolConstraints: 100, flatBoolVars: 4260, flatIntConstraints: 10887,
+  flatIntVars: 4747, flatTime: 0.89984, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz;
+    RAM 512GO;NVIDIA A100 40GB HBM, initTime: 1.156, memory_configuration: global,
+  method: maximize, model: ../mzn-challenge/2022/tower/tower.mzn, nSolutions: 1, nodes: 93718,
+  num_blocks_done: 0, num_solutions: 43, objective: 45, or_nodes: 108, paths: 0, peakDepth: 302,
+  problem: tower, problem_path: /tmp/mznfileaPkFnN.fzn, propagator_mem: 14635656,
+  propagators: 12867, shared_mem: 100, solveTime: 299.111, solver: Turbo, stack_size: 32000,
+  status: SATISFIED, store_mem: 55504, time: 303.249964546063, timeout_ms: 299097.0,
   variables: 6907, version: 1.1.0}

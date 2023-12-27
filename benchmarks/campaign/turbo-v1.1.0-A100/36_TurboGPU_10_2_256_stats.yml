@@ -1,0 +1,5 @@
+{configuration: TurboGPU_10_2_256, data_file: ../mzn-challenge/2022/wordpress/Wordpress7_Offers500.dzn,
+  evaluatedReifiedConstraints: 36, flatBoolConstraints: 20, flatBoolVars: 36, flatIntConstraints: 300,
+  flatIntVars: 182, flatTime: 0.19621, memory_configuration: store_shared, method: minimize,
+  model: ../mzn-challenge/2022/wordpress/wordpress.mzn, nSolutions: 0, paths: 0, problem: wordpress,
+  propagator_mem: 45192801, shared_mem: 2092, status: UNKNOWN, store_mem: 1992, time: 302.171481886995}

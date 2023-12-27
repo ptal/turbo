@@ -9,6 +9,6 @@
     yCoor: [40, 11, 44, 1, 10, 1, 1, 21, 6, 15, 15, 34, 48, 40, 5, 38, 7, 41, 15,
       8, 30, 39, 4, 22, 36, 20, 20, 15, 25, 6]
   status: SATISFIED
-  time: 300.19
+  time: 300.171
 - {configuration: TurboGPU_20_108_256, data_file: ../mzn-challenge/2022/accap/accap_a4_f30_t15.json,
   model: ../mzn-challenge/2022/accap/accap.mzn, problem: accap, status: SATISFIED}

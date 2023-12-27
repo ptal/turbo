@@ -1,6 +1,6 @@
 {configuration: TurboGPU_10_1_1, data_file: ../mzn-challenge/2022/generalized-peacable-queens/n8_q3.json,
   evaluatedReifiedConstraints: 1384, flatBoolConstraints: 1679, flatBoolVars: 1795,
-  flatIntConstraints: 1795, flatIntVars: 838, flatTime: 0.308674, memory_configuration: store_shared,
+  flatIntConstraints: 1795, flatIntVars: 838, flatTime: 0.340946, memory_configuration: store_shared,
   method: maximize, model: ../mzn-challenge/2022/generalized-peacable-queens/peaceable_queens.mzn,
   nSolutions: 0, paths: 0, problem: generalized-peacable-queens, propagator_mem: 8463912,
-  shared_mem: 19820, status: UNKNOWN, store_mem: 19720, time: 301.8502263860137}
+  shared_mem: 19820, status: UNKNOWN, store_mem: 19720, time: 301.91102414403576}
