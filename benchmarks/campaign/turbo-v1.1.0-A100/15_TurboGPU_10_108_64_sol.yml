@@ -1,0 +1,30 @@
+- configuration: TurboGPU_10_108_64
+  data_file: ../mzn-challenge/2022/diameterc-mst/c_v20_a190_d4.dzn
+  model: ../mzn-challenge/2022/diameterc-mst/dcmst.mzn
+  problem: diameterc-mst
+  solution:
+    es: [false, false, false, false, true, false, false, false, false, false, true,
+      false, false, false, false, true, false, true, false, false, false, false, true,
+      false, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false, false, false, false,
+      true, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, false, false, true, false, false, false, false, false,
+      false, false, false, false, false, false, false, false, false, true, false,
+      false, false, false, false, false, false, false, false, false, true, true, true,
+      false, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false, false, true, false,
+      false, false, false, true, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false, false, true, false,
+      true, true, false, true, false, true, false, false, false, false, false, false,
+      false, false, false, true, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false, false, false, false]
+    h: [0, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 1, 2, 1, 2]
+    objective: 431
+    p: [1, 6, 12, 12, 12, 1, 19, 12, 6, 6, 6, 1, 12, 17, 12, 12, 1, 12, 1, 12]
+    root: 1
+  status: SATISFIED
+  time: 300.206
+- {configuration: TurboGPU_10_108_64, data_file: ../mzn-challenge/2022/diameterc-mst/c_v20_a190_d4.dzn,
+  model: ../mzn-challenge/2022/diameterc-mst/dcmst.mzn, problem: diameterc-mst, status: SATISFIED}

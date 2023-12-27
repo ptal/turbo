@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: TurboGPU_10_8_256, cuda_version: 12020,
+  data_file: ../mzn-challenge/2022/diameterc-mst/c_v20_a190_d4.dzn, eliminated_formulas: 1094,
+  eliminated_variables: 842, eps_num_subproblems: 1024, eps_skipped_subproblems: 0,
+  eps_solved_subproblems: 15, evaluatedReifiedConstraints: 1571, failures: 21230,
+  fixpoint_iterations: 459190, flatBoolConstraints: 3852, flatBoolVars: 2141, flatIntConstraints: 1785,
+  flatIntVars: 252, flatTime: 0.371907, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz;
+    RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.376, memory_configuration: store_shared,
+  method: minimize, model: ../mzn-challenge/2022/diameterc-mst/dcmst.mzn, nSolutions: 1,
+  nodes: 42794, num_blocks_done: 0, num_solutions: 39, objective: 435, or_nodes: 8,
+  paths: 0, peakDepth: 35, problem: diameterc-mst, problem_path: /tmp/mznfileLaAdU3.fzn,
+  propagator_mem: 4810363, propagators: 5865, shared_mem: 17972, solveTime: 299.693,
+  solver: Turbo, stack_size: 32000, status: SATISFIED, store_mem: 17872, time: 301.45988069311716,
+  timeout_ms: 299625.0, variables: 2203, version: 1.1.0}
