@@ -27,6 +27,7 @@
 #include "lala/bab.hpp"
 #include "lala/split_strategy.hpp"
 #include "lala/interpretation.hpp"
+#include "lala/tables.hpp"
 
 #include "lala/flatzinc_parser.hpp"
 #include "lala/XCSP3_parser.hpp"
@@ -118,9 +119,10 @@ struct AbstractDomains {
 
   using IStore = VStore<Universe, StoreAllocator>;
   using IPC = PC<IStore, PropAllocator>; // Interval Propagators Completion
-  using ISimplifier = Simplifier<IPC, BasicAllocator>;
-  using Split = SplitStrategy<IPC, BasicAllocator>;
-  using IST = SearchTree<IPC, Split, BasicAllocator>;
+  using ITables = Tables<IPC>;
+  using ISimplifier = Simplifier<ITables, BasicAllocator>;
+  using Split = SplitStrategy<ITables, BasicAllocator>;
+  using IST = SearchTree<ITables, Split, BasicAllocator>;
   using IBAB = BAB<IST, LIStore>;
 
   using basic_allocator_type = BasicAllocator;
@@ -153,6 +155,7 @@ struct AbstractDomains {
    , env(basic_allocator)
    , store(store_allocator)
    , ipc(prop_allocator)
+   , tables(prop_allocator)
    , simplifier(basic_allocator)
    , split(basic_allocator)
    , eps_split(basic_allocator)
@@ -163,6 +166,7 @@ struct AbstractDomains {
     AbstractDeps<BasicAllocator, PropAllocator, StoreAllocator> deps{basic_allocator, prop_allocator, store_allocator};
     store = deps.template clone<IStore>(other.store);
     ipc = deps.template clone<IPC>(other.ipc);
+    tables = deps.template clone<ITables>(other.tables);
     split = deps.template clone<Split>(other.split);
     eps_split = deps.template clone<Split>(other.eps_split);
     search_tree = deps.template clone<IST>(other.search_tree);
@@ -180,7 +184,7 @@ struct AbstractDomains {
   {
     fzn_output = other.fzn_output;
     env = other.env;
-    simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, *other.simplifier, typename ISimplifier::light_copy_tag{}, ipc, basic_allocator);
+    simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, *other.simplifier, typename ISimplifier::light_copy_tag{}, tables, basic_allocator);
   }
 
   CUDA AbstractDomains(const this_type& other,
@@ -203,6 +207,7 @@ struct AbstractDomains {
   , fzn_output(basic_allocator)
   , store(store_allocator)
   , ipc(prop_allocator)
+  , tables(prop_allocator)
   , simplifier(basic_allocator)
   , split(basic_allocator)
   , eps_split(basic_allocator)
@@ -219,6 +224,7 @@ struct AbstractDomains {
 
   abstract_ptr<IStore> store;
   abstract_ptr<IPC> ipc;
+  abstract_ptr<ITables> tables;
   abstract_ptr<ISimplifier> simplifier;
   abstract_ptr<Split> split;
   abstract_ptr<Split> eps_split;
@@ -239,13 +245,14 @@ struct AbstractDomains {
     env = VarEnv<basic_allocator_type>{basic_allocator};
     store = battery::allocate_shared<IStore, StoreAllocator>(store_allocator, env.extends_abstract_dom(), num_vars, store_allocator);
     ipc = battery::allocate_shared<IPC, PropAllocator>(prop_allocator, env.extends_abstract_dom(), store, prop_allocator);
+    tables = battery::allocate_shared<ITables, PropAllocator>(prop_allocator, env.extends_abstract_dom(), store->aty(), ipc, prop_allocator);
     // If the simplifier is already allocated, it means we are currently reallocating the abstract domains after preprocessing.
     if(!simplifier) {
-      simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
+      simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), tables, basic_allocator);
     }
-    split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
-    eps_split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
-    search_tree = battery::allocate_shared<IST, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, split, basic_allocator);
+    split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), tables, basic_allocator);
+    eps_split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), tables, basic_allocator);
+    search_tree = battery::allocate_shared<IST, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), tables, split, basic_allocator);
     // Note that `best` must have the same abstract type then store (otherwise projection of the variables will fail).
     best = battery::allocate_shared<LIStore, BasicAllocator>(basic_allocator, store->aty(), num_vars, basic_allocator);
     bab = battery::allocate_shared<IBAB, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), search_tree, best);
@@ -258,6 +265,7 @@ struct AbstractDomains {
   CUDA void deallocate() {
     store = nullptr;
     ipc = nullptr;
+    tables = nullptr;
     simplifier = nullptr;
     split = nullptr;
     eps_split = nullptr;
@@ -312,7 +320,7 @@ public:
       return false;
     }
     stats.variables = store->vars();
-    stats.constraints = ipc->num_refinements();
+    stats.constraints = tables->num_refinements();
     bool can_interpret = true;
     if(split->num_strategies() == 0) {
       can_interpret &= interpret_default_strategy<F>();
@@ -360,7 +368,7 @@ public:
 
     if(config.print_ast) {
       printf("%% Interpreted AST:\n");
-      ipc->deinterpret(env).print(true);
+      tables->deinterpret(env).print(true);
       printf("\n");
     }
     if(config.verbose_solving) {
@@ -409,7 +417,7 @@ public:
     auto start = std::chrono::high_resolution_clock::now();
     if(prepare_simplifier(*raw_formula)) {
       GaussSeidelIteration fp_engine;
-      fp_engine.fixpoint(*ipc);
+      fp_engine.fixpoint(*tables);
       fp_engine.fixpoint(*simplifier);
       auto f = simplifier->deinterpret();
       stats.eliminated_variables = simplifier->num_eliminated_variables();

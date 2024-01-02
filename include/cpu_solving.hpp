@@ -14,7 +14,11 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
   GaussSeidelIteration fp_engine;
   local::BInc has_changed = true;
   block_signal_ctrlc();
-  while(!must_quit() && check_timeout(cp, start) && has_changed) {
+  while(has_changed) {
+    if(must_quit() || !check_timeout(cp, start)) {
+      cp.stats.exhaustive = false;
+      break;
+    }
     has_changed = false;
     cp.stats.fixpoint_iterations += fp_engine.fixpoint(*cp.ipc, has_changed);
     cp.on_node();

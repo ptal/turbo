@@ -287,11 +287,11 @@ __device__ bool propagate(BlockData& block_data, GridData& grid_data, local::BIn
   bool is_leaf_node = false;
   BlockCP& cp = *block_data.root;
   auto& fp_engine = *block_data.fp_engine;
-  size_t iterations = fp_engine.fixpoint(*cp.ipc, thread_has_changed, &grid_data.cpu_stop);
+  size_t iterations = fp_engine.fixpoint(*cp.tables, thread_has_changed, &grid_data.cpu_stop);
   if(threadIdx.x == 0) {
     cp.stats.fixpoint_iterations += iterations;
     cp.on_node();
-    if(cp.ipc->is_top()) {
+    if(cp.tables->is_top()) {
       is_leaf_node = true;
       cp.on_failed_node();
     }
@@ -303,10 +303,15 @@ __device__ bool propagate(BlockData& block_data, GridData& grid_data, local::BIn
         if(!do_not_stop) {
           grid_data.gpu_stop->tell_top();
         }
-        local::BInc best_has_changed;
-        update_grid_best_bound(block_data, grid_data, best_has_changed);
-        if(best_has_changed && cp.is_printing_intermediate_sol()) {
+        if(cp.bab->is_satisfaction() && cp.is_printing_intermediate_sol()) {
           grid_data.produce_solution(*cp.bab);
+        }
+        else {
+          local::BInc best_has_changed;
+          update_grid_best_bound(block_data, grid_data, best_has_changed);
+          if(best_has_changed && cp.is_printing_intermediate_sol()) {
+            grid_data.produce_solution(*cp.bab);
+          }
         }
       }
     }
@@ -339,7 +344,7 @@ __device__ size_t dive(BlockData& block_data, GridData& grid_data) {
         size_t branch_idx = (block_data.subproblem_idx & (size_t{1} << remaining_depth)) >> remaining_depth;
         auto branches = cp.eps_split->split();
         assert(branches.size() == 2);
-        cp.ipc->tell(branches[branch_idx]);
+        cp.tables->tell(branches[branch_idx]);
       }
       stop.tell(local::BInc(grid_data.cpu_stop || *(grid_data.gpu_stop)));
     }
