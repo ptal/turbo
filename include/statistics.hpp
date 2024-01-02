@@ -12,6 +12,7 @@
 struct Statistics {
   size_t variables;
   size_t constraints;
+  size_t num_tables;
   bool optimization;
   int64_t duration;
   int64_t interpretation_duration;
@@ -28,8 +29,8 @@ struct Statistics {
   size_t eliminated_variables;
   size_t eliminated_formulas;
 
-  CUDA Statistics(size_t variables, size_t constraints, bool optimization):
-    variables(variables), constraints(constraints), optimization(optimization),
+  CUDA Statistics(size_t variables, size_t constraints, size_t num_tables, bool optimization):
+    variables(variables), constraints(constraints), num_tables(num_tables), optimization(optimization),
     duration(0), interpretation_duration(0),
     nodes(0), fails(0), solutions(0),
     depth_max(0), exhaustive(true),
@@ -38,7 +39,7 @@ struct Statistics {
     eliminated_variables(0), eliminated_formulas(0)
     {}
 
-  CUDA Statistics(): Statistics(0,0,false) {}
+  CUDA Statistics(): Statistics(0,0,0,false) {}
   Statistics(const Statistics&) = default;
   Statistics(Statistics&&) = default;
 
@@ -75,6 +76,7 @@ public:
     print_stat("failures", fails);
     print_stat("variables", variables);
     print_stat("propagators", constraints);
+    print_stat("num_tables", num_tables);
     print_stat("peakDepth", depth_max);
     print_stat("initTime", to_sec(interpretation_duration));
     print_stat("solveTime", to_sec(duration));
