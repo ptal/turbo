@@ -322,6 +322,7 @@ public:
     stats.variables = store->vars();
     stats.constraints = ipc->num_refinements() + tables->num_tables();
     stats.num_tables = tables->num_tables();
+    stats.num_refinements = tables->num_refinements();
     bool can_interpret = true;
     if(split->num_strategies() == 0) {
       can_interpret &= interpret_default_strategy<F>();
