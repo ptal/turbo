@@ -1,0 +1,3 @@
+output ["\"output\": {","\"dzn\": ",showJSON(concat(["labels = ",showDzn(labels),";\n"])),"}, \"sections\": [\"dzn\"]"];
+int: n = 32;
+array [1..n] of int: labels;
