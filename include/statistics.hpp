@@ -58,7 +58,7 @@ struct Statistics {
 
 private:
   CUDA void print_stat(const char* name, size_t value) const {
-    printf("%%%%%%mzn-stat: %s=%lu\n", name, value);
+    printf("%%%%%%mzn-stat: %s=%zu\n", name, value);
   }
 
   CUDA void print_stat(const char* name, double value) const {

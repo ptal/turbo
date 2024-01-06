@@ -3,6 +3,9 @@
 #ifndef TURBO_COMMON_SOLVING_HPP
 #define TURBO_COMMON_SOLVING_HPP
 
+#ifdef _WINDOWS
+#include <atomic>
+#endif
 #include <algorithm>
 #include <chrono>
 #include <thread>
@@ -29,9 +32,47 @@
 #include "lala/interpretation.hpp"
 
 #include "lala/flatzinc_parser.hpp"
-#include "lala/XCSP3_parser.hpp"
+
+#ifdef WITH_XCSP3PARSER
+# include "lala/XCSP3_parser.hpp"
+#endif
 
 using namespace lala;
+
+#ifdef _WINDOWS
+//
+// The Microsoft Windows API does not support sigprocmask() or sigpending(),
+// so we have to fall back to traditional signal handling.
+//
+static std::atomic<bool> got_signal;
+static void (*prev_sigint)(int);
+static void (*prev_sigterm)(int);
+
+void signal_handler(int signum)
+{
+    signal(SIGINT, signal_handler); // re-arm
+    signal(SIGTERM, signal_handler); // re-arm
+
+    got_signal = true; // volatile
+
+    if (signum == SIGINT && prev_sigint != SIG_DFL && prev_sigint != SIG_IGN) {
+        (*prev_sigint)(signum);
+    }
+    if (signum == SIGTERM && prev_sigterm != SIG_DFL && prev_sigterm != SIG_IGN) {
+        (*prev_sigterm)(signum);
+    }
+}
+
+void block_signal_ctrlc() {
+    prev_sigint = signal(SIGINT, signal_handler);
+    prev_sigterm = signal(SIGTERM, signal_handler);
+}
+
+bool must_quit() {
+    return static_cast<bool>(got_signal);
+}
+
+#else
 
 void block_signal_ctrlc() {
   sigset_t ctrlc;
@@ -51,6 +92,7 @@ bool must_quit() {
   sigpending(&pending_sigs);
   return sigismember(&pending_sigs, SIGINT) == 1 || sigismember(&pending_sigs, SIGTERM) == 1;
 }
+#endif
 
 /** Check if the timeout of the current execution is exceeded and returns `false` otherwise.
  * It also update the statistics relevant to the solving duration and the exhaustive flag if we reach the timeout.
@@ -62,7 +104,7 @@ bool check_timeout(A& a, const Timepoint& start) {
   if(a.config.timeout_ms == 0) {
     return true;
   }
-  if(a.stats.duration >= a.config.timeout_ms) {
+  if(a.stats.duration >= static_cast<decltype(a.stats.duration/*int64_t*/)>(a.config.timeout_ms/*size_t*/)) {
     if(a.config.verbose_solving) {
       printf("%% CPU: Timeout reached.\n");
     }
@@ -378,9 +420,11 @@ public:
     if(config.input_format() == InputFormat::FLATZINC) {
       f = parse_flatzinc(config.problem_path.data(), fzn_output);
     }
+#ifdef WITH_XCSP3PARSER
     else if(config.input_format() == InputFormat::XCSP3) {
       f = parse_xcsp3(config.problem_path.data(), fzn_output);
     }
+#endif
     if(!f) {
       std::cerr << "Could not parse input file." << std::endl;
       exit(EXIT_FAILURE);

@@ -24,6 +24,11 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-and 256: Run each subproblem with 256 threads per block (only for GPU architecture). Default: -and 0 for automatic selection of the number of threads per block." << std::endl;
   std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the 'OR threads' (embarrasingly parallel search). Default: -sub 10." << std::endl;
   std::cout << "\t-stack 100: Use a maximum of 100KB of stack size per thread stored in global memory (only for GPU architectures)." << std::endl;
+  std::cout << "\t-gpu-opt <options>: A comma-separated list of GPU options" << std::endl;
+  std::cout << "\t\tmem-abort: Abort if the GPU runs out of memory." << std::endl;
+#ifdef NON_UNIFIED_MEMORY_SUPPORT
+  std::cout << "\t\tno-um: Disable access to Unified Memory (cudaMallocManaged)." << std::endl;
+#endif
   std::cout << "\t-version 1.0.0: A version identifier that is printed as statistics to know which version of Turbo was used to solve an instance. It is only for documentation and replicability purposes." << std::endl;
   std::cout << "\t-hardware \"Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000\": The description of the hardware on which the solver is executed (\"CPU;RAM;GPU\"). It is only for documentation and replicability purposes." << std::endl;
   exit(EXIT_FAILURE);
@@ -94,6 +99,30 @@ public:
     return false;
   }
 
+  bool read_option_list(const std::string& option, const std::string& env, std::string& comma_opts, std::vector<std::string>& result) {
+    comma_opts = getCmdOption(option);
+    if(!comma_opts.empty()) {
+      tokens_read += 2;
+      comma_opts += ',';
+    }
+    char* _env = std::getenv(env.data());
+    if(_env != nullptr) {
+      comma_opts += _env;
+    }
+    std::string opts = comma_opts;
+    opts.replace(opts.begin(), opts.end(), ',', ' ');
+    if(opts.empty()) {
+      return false;
+    }
+    // Use istringstream to tokenize whitespace
+    std::istringstream strm(opts);
+    std::string opt;
+    while (strm >> opt) {
+      result.push_back(opt);
+    }
+    return (result.size() > 0);
+  }
+
   void read_input_file(std::string& result) {
     if(tokens.size() <= tokens_read) {
       usage_and_exit(program_name);
@@ -137,10 +166,25 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
       config.arch = Arch::GPU;
     }
     else {
-      std::cerr << "unknown architecture -arch " << architecture << std::endl;
+      std::cerr << "Unknown architecture -arch " << architecture << std::endl;
       exit(EXIT_FAILURE);
     }
   }
+  std::string opts;
+  std::vector<std::string> gpu_opt;
+  if (input.read_option_list("-gpu-opt", "TURBO_GPU_OPT", opts, gpu_opt)) {
+    for (auto opt : gpu_opt) {
+      if (opt == "mem-abort") {
+        battery::configuration::gpu.mem_abort = true;
+      } else if (opt == "no-um") {
+        battery::configuration::gpu.no_um = true;
+      } else {
+        std::cerr << "Unknown -gpu-opt " << opt << std::endl;
+        exit(EXIT_FAILURE);
+      }
+    }
+  }
+  config.gpu_opt = battery::string<battery::standard_allocator>(opts.data());
   std::string version;
   if(input.read_string("-version", version)) {
     config.version = battery::string<battery::standard_allocator>(version.data());

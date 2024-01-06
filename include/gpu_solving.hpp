@@ -85,9 +85,9 @@ struct MemoryConfig {
     printf("%%%%%%mzn-stat: memory_configuration=\"%s\"\n",
       mem_kind == MemoryKind::GLOBAL ? "global" : (
       mem_kind == MemoryKind::STORE_SHARED ? "store_shared" : "store_pc_shared"));
-    printf("%%%%%%mzn-stat: shared_mem=%lu\n", shared_bytes);
-    printf("%%%%%%mzn-stat: store_mem=%lu\n", store_bytes);
-    printf("%%%%%%mzn-stat: propagator_mem=%lu\n", pc_bytes);
+    printf("%%%%%%mzn-stat: shared_mem=%zu\n", shared_bytes);
+    printf("%%%%%%mzn-stat: store_mem=%zu\n", store_bytes);
+    printf("%%%%%%mzn-stat: propagator_mem=%zu\n", pc_bytes);
   }
 };
 
@@ -394,7 +394,7 @@ __global__ void gpu_solve_kernel(GridData* grid_data)
   while(block_data.subproblem_idx < num_subproblems && !*(block_data.stop)) {
     if(threadIdx.x == 0 && grid_data->root.config.verbose_solving) {
       grid_data->print_lock->acquire();
-      printf("%% Block %d solves subproblem num %lu\n", blockIdx.x, block_data.subproblem_idx);
+      printf("%% Block %d solves subproblem num %zu\n", blockIdx.x, block_data.subproblem_idx);
       grid_data->print_lock->release();
     }
     block_data.restore();
@@ -571,8 +571,8 @@ void transfer_memory_and_run(CP& root, MemoryConfig mem_config, const Timepoint&
   }
   std::thread consumer_thread(consume_kernel_solutions, std::ref(*grid_data));
   gpu_solve_kernel
-    <<<grid_data->root.config.or_nodes,
-      grid_data->root.config.and_nodes,
+    <<<static_cast<unsigned int>(grid_data->root.config.or_nodes),
+      static_cast<unsigned int>(grid_data->root.config.and_nodes),
       grid_data->mem_config.shared_bytes>>>
     (grid_data.get());
   bool interrupted = wait_solving_ends(*grid_data, start);
@@ -614,7 +614,7 @@ void configure_blocks_threads(CP& root, const MemoryConfig& mem_config) {
 
   if(config.and_nodes > deviceProp.maxThreadsPerBlock) {
     if(config.verbose_solving) {
-      printf("%% WARNING: -and %lu too high for this GPU, we use the maximum %d instead.", config.and_nodes, deviceProp.maxThreadsPerBlock);
+      printf("%% WARNING: -and %zu too high for this GPU, we use the maximum %d instead.", config.and_nodes, deviceProp.maxThreadsPerBlock);
     }
     config.and_nodes = deviceProp.maxThreadsPerBlock;
   }
@@ -638,8 +638,8 @@ void configure_blocks_threads(CP& root, const MemoryConfig& mem_config) {
     print_memory_statistics("stack_memory", total_stack_size);
     print_memory_statistics("heap_memory", remaining_global_mem);
     print_memory_statistics("heap_usage_estimation", heap_usage_estimation);
-    printf("%% and_nodes=%lu\n", config.and_nodes);
-    printf("%% or_nodes=%lu\n", config.or_nodes);
+    printf("%% and_nodes=%zu\n", config.and_nodes);
+    printf("%% or_nodes=%zu\n", config.or_nodes);
   }
 }
 
@@ -656,6 +656,7 @@ void gpu_solve(Configuration<bt::standard_allocator>& config) {
 #ifndef __CUDACC__
   std::cerr << "You must use a CUDA compiler (nvcc or clang) to compile Turbo on GPU." << std::endl;
 #else
+  bt::configuration::gpu.init();
   auto start = std::chrono::high_resolution_clock::now();
   CP root(config);
   root.preprocess();

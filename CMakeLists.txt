@@ -2,8 +2,12 @@ cmake_minimum_required(VERSION 3.24)
 
 cmake_policy(SET CMP0135 NEW)
 
-if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-  set(CMAKE_CUDA_ARCHITECTURES native)
+if("$ENV{CUDAARCHS}" STREQUAL "")
+  set(CMAKE_CUDA_ARCHITECTURES native CACHE STRING "Targeted CUDA architectures")
+endif()
+
+if(MSVC)
+  set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "Available configuration types to select")
 endif()
 
 project(Turbo
@@ -11,6 +15,15 @@ project(Turbo
   LANGUAGES CUDA CXX)
 option(GPU "GPU" ON)
 option(LOCAL_DEPS "LOCAL_DEPS" OFF)
+option(TURBO_VERBOSE "Compile with verbose output" ON)
+option(WITH_ASAN "Compile with the Address Sanitizer to check for memory corruption errors" OFF)
+option(WITH_XCSP3PARSER "Add support for parsing XCSP3 .xml files" ON)
+
+if(MSVC)
+  set(WITH_XCSP3PARSER OFF)  # XCSP3-CPP-Parser has dependencies on gcc that break MSVC
+endif()
+
+set(TURBO_INITLIB "" CACHE STRING "Include an external initialization library to construct statics before main() for use in code instrumentation")
 
 # Dependencies
 
@@ -51,12 +64,35 @@ endif()
 add_executable(turbo src/turbo.cpp src/config.cpp)
 target_include_directories(turbo PRIVATE include)
 target_compile_options(turbo PRIVATE
-  "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:SHELL:-Xptxas --suppress-stack-size-warning>"
-  "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:--verbose;--keep>"
-  "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>,$<CONFIG:Debug>>:-ftemplate-backtrace-limit=0>"
-  "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:Clang>>:SHELL:-Xcuda-ptxas --suppress-stack-size-warning>"
+    $<$<BOOL:${WITH_XCSP3PARSER}>:-DWITH_XCSP3PARSER>
+    "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:SHELL:-Xptxas --suppress-stack-size-warning>"
+    $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:--keep$<$<BOOL:${TURBO_VERBOSE}>:;--verbose>>
+    "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>,$<CONFIG:Debug>>:-ftemplate-backtrace-limit=0>"
+    "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:Clang>>:SHELL:-Xcuda-ptxas --suppress-stack-size-warning>"
+    # MSVC requires /bigobj. See https://learn.microsoft.com/en-us/cpp/build/reference/bigobj-increase-number-of-sections-in-dot-obj-file
+    $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:MSVC>>:/bigobj /W3>
+    "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>,$<CXX_COMPILER_ID:MSVC>>:SHELL:--compiler-options /bigobj>"
+    "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>,$<CXX_COMPILER_ID:MSVC>>:SHELL:--compiler-options /W3>"
+    # Address Sanitizer
+    $<$<AND:$<BOOL:${WITH_ASAN}>,$<COMPILE_LANGUAGE:CXX>>:-fsanitize=address>
+    $<$<AND:$<BOOL:${WITH_ASAN}>,$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:Clang>>:-fsanitize=address>
+    "$<$<AND:$<BOOL:${WITH_ASAN}>,$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:SHELL:--compiler-options -fsanitize=address>"
 )
 target_link_libraries(turbo PRIVATE lala_parsing lala_pc lala_power)
+target_link_options(turbo PRIVATE
+    $<$<AND:$<BOOL:${WITH_ASAN}>,$<CXX_COMPILER_ID:GNU>>:-fsanitize=address;-static-libasan>
+	$<$<AND:$<BOOL:${WITH_ASAN}>,$<CXX_COMPILER_ID:Clang>>:-fsanitize=address>
+    $<$<AND:$<BOOL:{WITH_ASAN}>,$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:MSVC>>:/INCREMENTAL:NO>
+    $<$<CXX_COMPILER_ID:MSVC>:/NODEFAULTLIB:LIBCMT>
+    # Link an optional initialization library ${TURBO_INITLIB}
+    $<$<AND:$<BOOL:${TURBO_INITLIB}>,$<CXX_COMPILER_ID:GNU>>:SHELL:--whole-archive -l${TURBO_INITLIB} --no-whole-archive>
+    $<$<AND:$<BOOL:${TURBO_INITLIB}>,$<CXX_COMPILER_ID:Clang>>:SHELL:-force_load ${TURBO_INITLIB}>
+    $<$<AND:$<BOOL:${TURBO_INITLIB}>,$<CXX_COMPILER_ID:MSVC>>:SHELL:/WHOLEARCHIVE:${TURBO_INITLIB}>
+)
+
+if(MSVC)
+  set_target_properties(turbo PROPERTIES VS_USER_PROPS "${CMAKE_CURRENT_SOURCE_DIR}/vs.props")
+endif()
 
 # Documentation
 
