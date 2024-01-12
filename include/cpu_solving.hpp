@@ -20,9 +20,9 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
       break;
     }
     has_changed = false;
-    cp.stats.fixpoint_iterations += fp_engine.fixpoint(*cp.ipc, has_changed);
+    cp.stats.fixpoint_iterations += fp_engine.fixpoint(*cp.tables, has_changed);
     cp.on_node();
-    if(cp.ipc->is_top()) {
+    if(cp.tables->is_top()) {
       cp.on_failed_node();
     }
     else if(cp.search_tree->template is_extractable<AtomicExtraction>()) {
