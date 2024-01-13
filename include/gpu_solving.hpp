@@ -16,20 +16,29 @@ namespace bt = ::battery;
 using F = TFormula<bt::managed_allocator>;
 using FormulaPtr = bt::shared_ptr<F, bt::managed_allocator>;
 
+#ifdef ITV_ABSTRACT_DOM
+  using Universe0 = Interval<ZInc<int, bt::local_memory>>;
+  using Universe1 = Interval<ZInc<int, bt::atomic_memory_block>>;
+  using Universe2 = Interval<ZInc<int, bt::atomic_memory_grid>>;
+  using CP = CPItv;
+#else
+  using Universe0 = NBitset<64, battery::local_memory, unsigned long long>;
+  using Universe1 = NBitset<64, bt::atomic_memory_block, unsigned long long>;
+  using Universe2 = NBitset<64, bt::atomic_memory_grid, unsigned long long>;
+  using CP = CP61;
+#endif
+
 /** We first interpret the formula in an abstract domain with sequential managed memory, that we call `GridCP`. */
-using Itv0 = Interval<ZInc<int, bt::local_memory>>;
-using GridCP = AbstractDomains<Itv0,
+using GridCP = AbstractDomains<Universe0,
   bt::statistics_allocator<bt::managed_allocator>,
   bt::statistics_allocator<UniqueLightAlloc<bt::managed_allocator, 0>>,
   bt::statistics_allocator<UniqueLightAlloc<bt::managed_allocator, 1>>>;
 
 /** Then, once everything is initialized, we rely on a parallel abstract domain called `BlockCP`, using atomic shared and global memory. */
-using Itv1 = Interval<ZInc<int, bt::atomic_memory_block>>;
-using Itv2 = Interval<ZInc<int, bt::atomic_memory_grid>>;
 using AtomicBInc = BInc<bt::atomic_memory_block>;
 using FPEngine = BlockAsynchronousIterationGPU<bt::pool_allocator>;
 
-using BlockCP = AbstractDomains<Itv1,
+using BlockCP = AbstractDomains<Universe1,
   bt::global_allocator,
   bt::pool_allocator,
   UniqueAlloc<bt::pool_allocator, 0>>;
@@ -106,7 +115,7 @@ struct GridData {
   // Stop from a block on the GPU, for instance because we found a solution.
   bt::shared_ptr<BInc<bt::atomic_memory_grid>, bt::global_allocator> gpu_stop;
   bt::shared_ptr<ZInc<size_t, bt::atomic_memory_grid>, bt::global_allocator> next_subproblem;
-  bt::shared_ptr<Itv2, bt::global_allocator> best_bound;
+  bt::shared_ptr<Universe2, bt::global_allocator> best_bound;
 
   // All of what follows is only to support printing while the kernel is running.
   // In particular, we transfer the solution to the CPU where it is printed, because printing on the GPU can be very slow when the problem is large.
@@ -164,7 +173,7 @@ struct GridData {
     gpu_stop = bt::make_shared<BInc<bt::atomic_memory_grid>, bt::global_allocator>(false);
     print_lock = bt::make_shared<cuda::binary_semaphore<cuda::thread_scope_device>, bt::global_allocator>(1);
     next_subproblem = bt::make_shared<ZInc<size_t, bt::atomic_memory_grid>, bt::global_allocator>(0);
-    best_bound = bt::make_shared<Itv2, bt::global_allocator>();
+    best_bound = bt::make_shared<Universe2, bt::global_allocator>();
   }
 
   __device__ void deallocate() {
@@ -253,10 +262,10 @@ __device__ void update_grid_best_bound(BlockData& block_data, GridData& grid_dat
     auto local_best = bab->optimum().project(bab->objective_var());
     // printf("[new bound] %d: [%d..%d] (current best: [%d..%d])\n", blockIdx.x, local_best.lb().value(), local_best.ub().value(), grid_data.best_bound->lb().value(), grid_data.best_bound->ub().value());
     if(bab->is_maximization()) {
-      grid_data.best_bound->tell_lb(dual<typename Itv0::LB>(local_best.ub()), best_has_changed);
+      grid_data.best_bound->tell_lb(dual<typename Universe0::LB>(local_best.ub()), best_has_changed);
     }
     else {
-      grid_data.best_bound->tell_ub(dual<typename Itv0::UB>(local_best.lb()), best_has_changed);
+      grid_data.best_bound->tell_ub(dual<typename Universe0::UB>(local_best.lb()), best_has_changed);
     }
   }
 }
@@ -271,8 +280,8 @@ __device__ void update_block_best_bound(BlockData& block_data, GridData& grid_da
     VarEnv<bt::global_allocator> empty_env{};
     auto best_formula = bab->template deinterpret_best_bound<bt::global_allocator>(
       bab->is_maximization()
-      ? Itv0(dual<typename Itv0::UB>(grid_data.best_bound->lb()))
-      : Itv0(dual<typename Itv0::LB>(grid_data.best_bound->ub())));
+      ? Universe0(dual<typename Universe0::UB>(grid_data.best_bound->lb()))
+      : Universe0(dual<typename Universe0::LB>(grid_data.best_bound->ub())));
     // printf("global best: "); grid_data.best_bound->ub().print(); printf("\n");
     // best_formula.print(); printf("\n");
     IDiagnostics diagnostics;

@@ -5,10 +5,12 @@
 
 #include "common_solving.hpp"
 
+using CP_CPU = CP61;
+
 void cpu_solve(const Configuration<battery::standard_allocator>& config) {
   auto start = std::chrono::high_resolution_clock::now();
 
-  CP cp(config);
+  CP_CPU cp(config);
   cp.preprocess();
 
   GaussSeidelIteration fp_engine;

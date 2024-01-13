@@ -3,6 +3,6 @@
 % consider each row in t to be a tuple and t as a set of tuples.
 %-----------------------------------------------------------------------------%
 
-predicate turbo_fzn_table_int(array[int] of var int: x, array[int] of int: t);
+predicate turbo_fzn_table_int(bool: positive, array[int] of var int: x, array[int] of int: t);
 
-predicate fzn_table_int(array[int] of var int: x, array[int, int] of int: t) = turbo_fzn_table_int(x,array1d(t));
+predicate fzn_table_int(array[int] of var int: x, array[int, int] of int: t) = turbo_fzn_table_int(true,x,array1d(t));

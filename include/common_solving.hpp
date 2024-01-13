@@ -151,6 +151,7 @@ struct AbstractDomains {
    , prop_allocator(prop_allocator)
    , store_allocator(store_allocator)
    , fzn_output(basic_allocator)
+   , printed_solutions(other.printed_solutions)
    , config(other.config, basic_allocator)
    , stats(other.stats)
    , env(basic_allocator)
@@ -206,6 +207,7 @@ struct AbstractDomains {
   , config(config, basic_allocator)
   , env(basic_allocator)
   , fzn_output(basic_allocator)
+  , printed_solutions(0)
   , store(store_allocator)
   , ipc(prop_allocator)
   , tables(prop_allocator)
@@ -238,6 +240,7 @@ struct AbstractDomains {
 
   // Information about the output of the solutions expected by MiniZinc.
   FlatZincOutput<BasicAllocator> fzn_output;
+  size_t printed_solutions;
 
   Configuration<BasicAllocator> config;
   Statistics stats;
@@ -365,6 +368,16 @@ public:
       f.print(true);
       printf("\n");
     }
+    if(config.verbose_solving) {
+      printf("%% Partially evaluating the formula...\n");
+    }
+    f = eval(f);
+    if(config.print_ast) {
+      printf("%% Evaluated AST:\n");
+      f.print(true);
+      printf("\n");
+    }
+
     if(!interpret(f)) {
       exit(EXIT_FAILURE);
     }
@@ -478,6 +491,7 @@ public:
   }
 
   CUDA void print_solution() {
+    printed_solutions++;
     fzn_output.print_solution(env, *best, *simplifier);
     stats.print_mzn_separator();
   }
@@ -505,7 +519,7 @@ public:
   }
 
   CUDA void print_final_solution() {
-    if(!is_printing_intermediate_sol() && stats.solutions > 0) {
+    if(stats.solutions != printed_solutions) {
       print_solution();
     }
     stats.print_mzn_final_separator();
@@ -533,8 +547,7 @@ public:
 };
 
 using Itv = Interval<ZInc<int, battery::local_memory>>;
-using NBit = NBitset<64, battery::local_memory, unsigned long long>;
-using CP = AbstractDomains<Itv,
+using CPItv = AbstractDomains<Itv,
   battery::statistics_allocator<battery::standard_allocator>,
   battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 0>>,
   battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 1>>>;

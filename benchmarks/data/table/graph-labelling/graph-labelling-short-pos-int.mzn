@@ -1,9 +1,10 @@
-include "globals.mzn";
+include "table.mzn";
+include "alldifferent.mzn";
 
 int: n;
 array[1..n] of var 1..n: labels;
 
-constraint labels[16] = 16;
+constraint labels[1] = 1;
 
 int: rows;
 array[1..rows, 1..2] of int: supports;
@@ -17,4 +18,4 @@ constraint forall(i in 1..t)
 
 constraint alldifferent(labels);
 
-solve satisfy;
+solve::int_search(labels, first_fail, indomain_min, complete) satisfy;
