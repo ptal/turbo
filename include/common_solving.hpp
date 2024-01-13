@@ -539,4 +539,10 @@ using CP = AbstractDomains<Itv,
   battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 0>>,
   battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 1>>>;
 
+using NBit61 = NBitset<64, battery::local_memory, unsigned long long>;
+using CP61 = AbstractDomains<NBit61,
+  battery::statistics_allocator<battery::standard_allocator>,
+  battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 0>>,
+  battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 1>>>;
+
 #endif
