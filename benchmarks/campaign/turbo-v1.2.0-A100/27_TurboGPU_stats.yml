@@ -1,11 +1,11 @@
 {and_nodes: 256, arch: gpu, configuration: TurboGPU, cuda_version: 12020, data_file: ../data/table/graph-labelling/compressed-pos-int/will57-6-compressed-pos-int-57-SAT.dzn,
   eliminated_formulas: 423, eliminated_variables: 311, eps_num_subproblems: 4096,
-  eps_skipped_subproblems: 0, eps_solved_subproblems: 0, failures: 0, fixpoint_iterations: 11458950,
-  flatIntConstraints: 1723, flatIntVars: 56, flatTime: 0.388011, free_search: no,
-  hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.781,
-  memory_configuration: store_shared, method: satisfy, model: ../data/table/graph-labelling/graph-labelling-compressed-pos-int.mzn,
-  nSolutions: 0, nodes: 11458954, num_blocks_done: 0, num_refinements: 33043, num_solutions: 0,
-  num_tables: 127, or_nodes: 108, paths: 0, peakDepth: 178, problem: graph-labelling,
-  problem_path: /tmp/mznfileX0J3mh.fzn, propagator_mem: 2353992, propagators: 1667,
-  shared_mem: 796, solveTime: 599.626, solver: Turbo, stack_size: 32000, status: UNKNOWN,
-  store_mem: 696, time: 602.5540950750001, timeout_ms: 599609.0, variables: 56, version: 1.2.0a}
+  eps_skipped_subproblems: 0, eps_solved_subproblems: 847, failures: 1223791, fixpoint_iterations: 52580608,
+  flatIntConstraints: 1723, flatIntVars: 56, flatTime: 0.39343, free_search: no, hardware: AMD
+    EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.781, memory_configuration: store_shared,
+  method: satisfy, model: ../data/table/graph-labelling/graph-labelling-compressed-pos-int.mzn,
+  nSolutions: 0, nodes: 2399544, num_blocks_done: 0, num_refinements: 33043, num_solutions: 0,
+  num_tables: 127, or_nodes: 108, paths: 0, peakDepth: 39, problem: graph-labelling,
+  problem_path: /tmp/mznfileWlAzck.fzn, propagator_mem: 2353992, propagators: 1667,
+  shared_mem: 796, solveTime: 599.621, solver: Turbo, stack_size: 32000, status: UNKNOWN,
+  store_mem: 696, time: 601.9873027591966, timeout_ms: 599604.0, variables: 56, version: 1.2.0a}
