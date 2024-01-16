@@ -1,0 +1,3 @@
+- {configuration: TurboGPU, data_file: ../data/table/graph-labelling/compressed-pos-int/steam3-6-compressed-pos-int-80-UNSAT.dzn,
+  model: ../data/table/graph-labelling/graph-labelling-noalldiff-compressed-pos-int.mzn,
+  problem: graph-labelling, status: UNSATISFIABLE}

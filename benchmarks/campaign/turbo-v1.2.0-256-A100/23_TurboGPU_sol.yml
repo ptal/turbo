@@ -1,0 +1,16 @@
+- configuration: TurboGPU
+  data_file: ../data/table/graph-labelling/compressed-pos-int/nos4-10-compressed-pos-int-100-SAT.dzn
+  model: ../data/table/graph-labelling/graph-labelling-compressed-pos-int.mzn
+  problem: graph-labelling
+  solution:
+    labels: [1, 79, 18, 73, 23, 39, 2, 85, 25, 32, 33, 3, 26, 27, 83, 100, 28, 74,
+      87, 78, 24, 98, 6, 96, 13, 80, 35, 89, 12, 95, 82, 97, 76, 44, 68, 16, 14, 5,
+      65, 49, 64, 67, 30, 62, 66, 55, 15, 37, 69, 57, 29, 81, 22, 4, 17, 71, 34, 46,
+      36, 60, 56, 63, 11, 45, 20, 92, 31, 40, 47, 90, 72, 48, 38, 84, 19, 75, 91,
+      50, 41, 86, 54, 51, 8, 93, 52, 61, 94, 70, 77, 99, 43, 88, 7, 53, 10, 21, 59,
+      58, 42, 9]
+  status: SATISFIED
+  time: 10.023
+- {configuration: TurboGPU, data_file: ../data/table/graph-labelling/compressed-pos-int/nos4-10-compressed-pos-int-100-SAT.dzn,
+  model: ../data/table/graph-labelling/graph-labelling-compressed-pos-int.mzn, problem: graph-labelling,
+  status: SATISFIED}

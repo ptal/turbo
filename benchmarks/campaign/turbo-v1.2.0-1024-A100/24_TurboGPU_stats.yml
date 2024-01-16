@@ -1,0 +1,4 @@
+{configuration: TurboGPU, data_file: ../data/table/graph-labelling/short-pos-int/fs_680_1-17-short-pos-int-680-SAT.dzn,
+  flatIntConstraints: 232324, flatIntVars: 679, flatTime: 6.0257, method: satisfy,
+  model: ../data/table/graph-labelling/graph-labelling-noalldiff-short-pos-int.mzn,
+  nSolutions: 0, paths: 0, problem: graph-labelling, status: UNKNOWN, time: 605.7974008640003}

@@ -1,0 +1,12 @@
+- configuration: TurboGPU
+  data_file: ../data/table/graph-labelling/short-pos-int/ibm32-9-short-pos-int-32-SAT.dzn
+  model: ../data/table/graph-labelling/graph-labelling-short-pos-int.mzn
+  problem: graph-labelling
+  solution:
+    labels: [1, 25, 21, 16, 20, 17, 2, 9, 18, 24, 15, 7, 8, 3, 26, 4, 13, 5, 31, 19,
+      10, 32, 28, 11, 23, 12, 30, 14, 27, 22, 29, 6]
+  status: SATISFIED
+  time: 15.606
+- {configuration: TurboGPU, data_file: ../data/table/graph-labelling/short-pos-int/ibm32-9-short-pos-int-32-SAT.dzn,
+  model: ../data/table/graph-labelling/graph-labelling-short-pos-int.mzn, problem: graph-labelling,
+  status: SATISFIED}

@@ -1,0 +1,12 @@
+{and_nodes: 256, arch: gpu, configuration: TurboGPU, cuda_version: 12020, data_file: ../data/table/graph-labelling/short-pos-int/bcspwr05-26-short-pos-int-443-SAT.dzn,
+  eliminated_formulas: 2507, eliminated_variables: 1623, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 0, eps_solved_subproblems: 0, failures: 2552, fixpoint_iterations: 78881,
+  flatIntConstraints: 98493, flatIntVars: 442, flatTime: 2.46009, free_search: no,
+  hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 428.17,
+  memory_configuration: global, method: satisfy, model: ../data/table/graph-labelling/graph-labelling-noalldiff-short-pos-int.mzn,
+  nSolutions: 0, nodes: 10987, num_blocks_done: 0, num_refinements: 98638, num_solutions: 0,
+  num_tables: 587, or_nodes: 108, paths: 0, peakDepth: 49, problem: graph-labelling,
+  problem_path: /tmp/mznfileEpwyDH.fzn, propagator_mem: 50972227, propagators: 98051,
+  shared_mem: 100, solveTime: 597.584, solver: Turbo, stack_size: 32000, status: UNKNOWN,
+  store_mem: 56824, time: 604.7168751889999, timeout_ms: 597537.0, variables: 442,
+  version: 1.2.0-1024}

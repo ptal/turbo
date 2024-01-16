@@ -1,0 +1,15 @@
+- configuration: TurboGPU
+  data_file: ../data/table/graph-labelling/short-pos-int/steam3-7-short-pos-int-80-SAT.dzn
+  model: ../data/table/graph-labelling/graph-labelling-noalldiff-short-pos-int.mzn
+  problem: graph-labelling
+  solution:
+    labels: [1, 55, 15, 63, 3, 71, 2, 27, 19, 75, 35, 31, 47, 28, 7, 48, 39, 80, 51,
+      49, 36, 23, 8, 16, 40, 4, 32, 52, 59, 53, 67, 9, 11, 64, 37, 17, 12, 5, 43,
+      20, 44, 54, 45, 13, 38, 21, 24, 41, 60, 14, 42, 65, 68, 29, 6, 66, 10, 69, 76,
+      56, 61, 77, 72, 33, 25, 62, 70, 57, 46, 58, 79, 18, 73, 34, 74, 30, 50, 26,
+      78, 22]
+  status: SATISFIED
+  time: 22.305
+- {configuration: TurboGPU, data_file: ../data/table/graph-labelling/short-pos-int/steam3-7-short-pos-int-80-SAT.dzn,
+  model: ../data/table/graph-labelling/graph-labelling-noalldiff-short-pos-int.mzn,
+  problem: graph-labelling, status: SATISFIED}

@@ -1,0 +1,12 @@
+{and_nodes: 256, arch: gpu, configuration: TurboGPU, cuda_version: 12020, data_file: ../data/table/graph-labelling/compressed-pos-int/lns__131-19-compressed-pos-int-123-UNSAT.dzn,
+  eliminated_formulas: 917, eliminated_variables: 673, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 0, eps_solved_subproblems: 0, failures: 4458927, fixpoint_iterations: 59473494,
+  flatIntConstraints: 7778, flatIntVars: 122, flatTime: 0.44217, free_search: no,
+  hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 3.511,
+  memory_configuration: store_shared, method: satisfy, model: ../data/table/graph-labelling/graph-labelling-compressed-pos-int.mzn,
+  nSolutions: 0, nodes: 8921355, num_blocks_done: 0, num_refinements: 7929, num_solutions: 0,
+  num_tables: 273, or_nodes: 108, paths: 0, peakDepth: 42, problem: graph-labelling,
+  problem_path: /tmp/mznfileBQnB5y.fzn, propagator_mem: 1151625, propagators: 7656,
+  shared_mem: 4252, solveTime: 599.637, solver: Turbo, stack_size: 32000, status: UNKNOWN,
+  store_mem: 4152, time: 601.9135481899993, timeout_ms: 599554.0, variables: 122,
+  version: 1.2.0-256}

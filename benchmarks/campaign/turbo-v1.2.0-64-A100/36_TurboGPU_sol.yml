@@ -1,0 +1,13 @@
+- configuration: TurboGPU
+  data_file: ../data/table/graph-labelling/short-pos-int/curtis54-8-short-pos-int-54-SAT.dzn
+  model: ../data/table/graph-labelling/graph-labelling-noalldiff-short-pos-int.mzn
+  problem: graph-labelling
+  solution:
+    labels: [1, 40, 2, 37, 5, 7, 47, 26, 12, 38, 51, 44, 28, 23, 8, 19, 36, 48, 11,
+      14, 53, 15, 24, 29, 30, 54, 9, 25, 6, 18, 13, 3, 21, 34, 20, 16, 31, 22, 32,
+      42, 41, 39, 33, 4, 49, 43, 50, 17, 45, 52, 27, 46, 10, 35]
+  status: SATISFIED
+  time: 4.986
+- {configuration: TurboGPU, data_file: ../data/table/graph-labelling/short-pos-int/curtis54-8-short-pos-int-54-SAT.dzn,
+  model: ../data/table/graph-labelling/graph-labelling-noalldiff-short-pos-int.mzn,
+  problem: graph-labelling, status: SATISFIED}

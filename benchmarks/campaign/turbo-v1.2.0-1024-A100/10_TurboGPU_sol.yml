@@ -1,0 +1,3 @@
+- {configuration: TurboGPU, data_file: ../data/table/graph-labelling/compressed-pos-int/fs_680_1-17-compressed-pos-int-680-SAT.dzn,
+  model: ../data/table/graph-labelling/graph-labelling-compressed-pos-int.mzn, problem: graph-labelling,
+  status: UNKNOWN}

@@ -1,0 +1,3 @@
+- {configuration: TurboGPU, data_file: ../data/table/graph-labelling/compressed-pos-int/dwt__310-12-compressed-pos-int-310-SAT.dzn,
+  model: ../data/table/graph-labelling/graph-labelling-noalldiff-compressed-pos-int.mzn,
+  problem: graph-labelling, status: UNKNOWN}

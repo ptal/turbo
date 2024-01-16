@@ -1,0 +1,12 @@
+{and_nodes: 256, arch: gpu, configuration: TurboGPU, cuda_version: 12020, data_file: ../data/table/graph-labelling/short-pos-int/dwt__310-12-short-pos-int-310-SAT.dzn,
+  eliminated_formulas: 3066, eliminated_variables: 2448, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 0, eps_solved_subproblems: 0, failures: 12282, fixpoint_iterations: 294087,
+  flatIntConstraints: 48964, flatIntVars: 309, flatTime: 1.34224, free_search: no,
+  hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 241.614,
+  memory_configuration: store_shared, method: satisfy, model: ../data/table/graph-labelling/graph-labelling-noalldiff-short-pos-int.mzn,
+  nSolutions: 0, nodes: 26443, num_blocks_done: 0, num_refinements: 49717, num_solutions: 0,
+  num_tables: 1062, or_nodes: 108, paths: 0, peakDepth: 22, problem: graph-labelling,
+  problem_path: /tmp/mznfilegRJDqU.fzn, propagator_mem: 22895875, propagators: 48655,
+  shared_mem: 39900, solveTime: 598.715, solver: Turbo, stack_size: 32000, status: UNKNOWN,
+  store_mem: 39800, time: 603.3891258179999, timeout_ms: 598654.0, variables: 309,
+  version: 1.2.0-1024}

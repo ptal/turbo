@@ -1,0 +1,6 @@
+{configuration: TurboGPU, data_file: ../data/table/graph-labelling/short-pos-int/bcspwr01-4-short-pos-int-39-SAT.dzn,
+  error: 'MiniZinc stopped with a non-zero exit code, but did not output an error
+    message. ', flatIntConstraints: 787, flatIntVars: 38, flatTime: 0.125008, memory_configuration: store_shared,
+  method: satisfy, model: ../data/table/graph-labelling/graph-labelling-noalldiff-short-pos-int.mzn,
+  nSolutions: 0, paths: 0, problem: graph-labelling, propagator_mem: 124636, shared_mem: 652,
+  status: ERROR, store_mem: 552, time: 99.2593526089986}
