@@ -552,7 +552,7 @@ using CPItv = AbstractDomains<Itv,
   battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 0>>,
   battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 1>>>;
 
-#define BITSET_AD_SIZE 128
+#define BITSET_AD_SIZE 64
 
 using NBit = NBitset<BITSET_AD_SIZE, battery::local_memory, unsigned long long>;
 using CPNBit = AbstractDomains<NBit,
