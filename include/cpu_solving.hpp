@@ -5,7 +5,12 @@
 
 #include "common_solving.hpp"
 
-using CP_CPU = CP61;
+
+#ifdef ITV_ABSTRACT_DOM
+  using CP_CPU = CPItv;
+#else
+  using CP_CPU = CPNBit;
+#endif
 
 void cpu_solve(const Configuration<battery::standard_allocator>& config) {
   auto start = std::chrono::high_resolution_clock::now();

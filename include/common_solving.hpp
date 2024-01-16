@@ -28,7 +28,7 @@
 #include "lala/bab.hpp"
 #include "lala/split_strategy.hpp"
 #include "lala/interpretation.hpp"
-#include "lala/tables.hpp"
+#include "lala/table.hpp"
 
 #include "lala/flatzinc_parser.hpp"
 #include "lala/XCSP3_parser.hpp"
@@ -120,7 +120,7 @@ struct AbstractDomains {
 
   using IStore = VStore<Universe, StoreAllocator>;
   using IPC = PC<IStore, PropAllocator>; // Interval Propagators Completion
-  using ITables = Tables<IPC>;
+  using ITables = Table<IPC>;
   using ISimplifier = Simplifier<ITables, BasicAllocator>;
   using Split = SplitStrategy<ITables, BasicAllocator>;
   using IST = SearchTree<ITables, Split, BasicAllocator>;
@@ -552,8 +552,10 @@ using CPItv = AbstractDomains<Itv,
   battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 0>>,
   battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 1>>>;
 
-using NBit61 = NBitset<64, battery::local_memory, unsigned long long>;
-using CP61 = AbstractDomains<NBit61,
+#define BITSET_AD_SIZE 64
+
+using NBit = NBitset<BITSET_AD_SIZE, battery::local_memory, unsigned long long>;
+using CPNBit = AbstractDomains<NBit,
   battery::statistics_allocator<battery::standard_allocator>,
   battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 0>>,
   battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 1>>>;

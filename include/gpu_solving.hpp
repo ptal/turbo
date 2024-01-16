@@ -22,10 +22,12 @@ using FormulaPtr = bt::shared_ptr<F, bt::managed_allocator>;
   using Universe2 = Interval<ZInc<int, bt::atomic_memory_grid>>;
   using CP = CPItv;
 #else
-  using Universe0 = NBitset<64, battery::local_memory, unsigned long long>;
-  using Universe1 = NBitset<64, bt::atomic_memory_block, unsigned long long>;
-  using Universe2 = NBitset<64, bt::atomic_memory_grid, unsigned long long>;
-  using CP = CP61;
+  using Universe0 = NBitset<BITSET_AD_SIZE, battery::local_memory, unsigned long long>;
+  // using Universe1 = NBitset<BITSET_AD_SIZE, bt::atomic_memory_block, unsigned long long>;
+  using Universe1 = NBitset<BITSET_AD_SIZE, bt::local_memory, unsigned long long>;
+  using Universe2 = NBitset<BITSET_AD_SIZE, bt::atomic_memory_grid, unsigned long long>;
+  // using Universe2 = NBitset<BITSET_AD_SIZE, bt::local_memory, unsigned long long>;
+  using CP = CPNBit;
 #endif
 
 /** We first interpret the formula in an abstract domain with sequential managed memory, that we call `GridCP`. */
