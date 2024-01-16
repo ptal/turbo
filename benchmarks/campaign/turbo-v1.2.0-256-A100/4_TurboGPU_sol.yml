@@ -1,3 +1,0 @@
-- {configuration: TurboGPU, data_file: ../data/table/graph-labelling/short-pos-int/steam3-6-short-pos-int-80-UNSAT.dzn,
-  model: ../data/table/graph-labelling/graph-labelling-short-pos-int.mzn, problem: graph-labelling,
-  status: UNSATISFIABLE}

@@ -469,7 +469,7 @@ private:
   CUDA bool interpret_default_eps_strategy() {
     typename F::Sequence seq;
     seq.push_back(F::make_nary("first_fail", {}));
-    seq.push_back(F::make_nary("indomain_split", {}));
+    seq.push_back(F::make_nary("indomain_min", {}));
     for(int i = 0; i < env.num_vars(); ++i) {
       seq.push_back(F::make_avar(env[i].avars[0]));
     }
@@ -552,7 +552,7 @@ using CPItv = AbstractDomains<Itv,
   battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 0>>,
   battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 1>>>;
 
-#define BITSET_AD_SIZE 1024
+#define BITSET_AD_SIZE 128
 
 using NBit = NBitset<BITSET_AD_SIZE, battery::local_memory, unsigned long long>;
 using CPNBit = AbstractDomains<NBit,

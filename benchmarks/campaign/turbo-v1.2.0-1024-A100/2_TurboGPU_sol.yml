@@ -1,3 +1,0 @@
-- {configuration: TurboGPU, data_file: ../data/table/graph-labelling/short-pos-int/bcspwr05-26-short-pos-int-443-SAT.dzn,
-  model: ../data/table/graph-labelling/graph-labelling-short-pos-int.mzn, problem: graph-labelling,
-  status: UNKNOWN}

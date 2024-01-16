@@ -1,3 +1,0 @@
-- {configuration: TurboGPU, data_file: ../data/table/graph-labelling/compressed-pos-int/ash85-9-compressed-pos-int-85-SAT.dzn,
-  model: ../data/table/graph-labelling/graph-labelling-compressed-pos-int.mzn, problem: graph-labelling,
-  status: UNKNOWN}

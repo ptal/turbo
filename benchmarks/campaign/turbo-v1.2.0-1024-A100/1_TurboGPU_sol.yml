@@ -1,3 +1,0 @@
-- {configuration: TurboGPU, data_file: ../data/table/graph-labelling/short-pos-int/dwt__992-34-short-pos-int-992-UNSAT.dzn,
-  model: ../data/table/graph-labelling/graph-labelling-short-pos-int.mzn, problem: graph-labelling,
-  status: UNKNOWN}

@@ -1,3 +1,0 @@
-- {configuration: TurboGPU, data_file: ../data/table/graph-labelling/compressed-pos-int/bcsstk01-11-compressed-pos-int-48-UNSAT.dzn,
-  model: ../data/table/graph-labelling/graph-labelling-compressed-pos-int.mzn, problem: graph-labelling,
-  status: UNKNOWN}

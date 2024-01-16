@@ -17,4 +17,4 @@ constraint forall(i in 1..t)
 
 constraint alldifferent(labels);
 
-solve satisfy;
+solve::int_search(labels, first_fail, indomain_min, complete) satisfy;
