@@ -3,11 +3,11 @@
   model: ../data/table/graph-labelling/graph-labelling-compressed-pos-int.mzn
   problem: graph-labelling
   solution:
-    labels: [1, 40, 2, 42, 11, 54, 3, 29, 17, 43, 47, 45, 30, 26, 7, 20, 37, 48, 12,
-      14, 51, 15, 27, 31, 32, 5, 8, 25, 13, 21, 16, 4, 23, 38, 22, 18, 33, 24, 34,
-      46, 41, 39, 35, 6, 49, 44, 52, 19, 50, 9, 28, 53, 10, 36]
+    labels: [1, 40, 2, 37, 5, 7, 47, 26, 12, 38, 51, 44, 28, 23, 8, 19, 36, 48, 11,
+      14, 53, 15, 24, 29, 30, 54, 9, 25, 6, 18, 13, 3, 21, 34, 20, 16, 31, 22, 32,
+      42, 41, 39, 33, 4, 49, 43, 50, 17, 45, 52, 27, 46, 10, 35]
   status: SATISFIED
-  time: 24.238
+  time: 2.906
 - {configuration: TurboGPU, data_file: ../data/table/graph-labelling/compressed-pos-int/curtis54-8-compressed-pos-int-54-SAT.dzn,
   model: ../data/table/graph-labelling/graph-labelling-compressed-pos-int.mzn, problem: graph-labelling,
   status: SATISFIED}

@@ -3,10 +3,10 @@
   model: ../data/table/graph-labelling/graph-labelling-compressed-pos-int.mzn
   problem: graph-labelling
   solution:
-    labels: [1, 26, 2, 16, 20, 6, 4, 14, 12, 30, 5, 27, 21, 18, 7, 15, 22, 3, 8, 10,
-      24, 19, 28, 29, 23, 11, 17, 13, 25, 9]
+    labels: [1, 27, 3, 17, 21, 7, 5, 15, 13, 2, 6, 28, 22, 19, 8, 16, 23, 4, 9, 11,
+      25, 20, 29, 30, 24, 12, 18, 14, 26, 10]
   status: SATISFIED
-  time: 26.06
+  time: 5.474
 - {configuration: TurboGPU, data_file: ../data/table/graph-labelling/compressed-pos-int/pores_1-7-compressed-pos-int-30-SAT.dzn,
   model: ../data/table/graph-labelling/graph-labelling-compressed-pos-int.mzn, problem: graph-labelling,
   status: SATISFIED}

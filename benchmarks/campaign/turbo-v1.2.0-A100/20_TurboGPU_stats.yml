@@ -1,11 +1,6 @@
-{and_nodes: 256, arch: gpu, configuration: TurboGPU, cuda_version: 12020, data_file: ../data/table/graph-labelling/compressed-pos-int/ibm32-8-compressed-pos-int-32-UNSAT.dzn,
-  eliminated_formulas: 274, eliminated_variables: 212, eps_num_subproblems: 4096,
-  eps_skipped_subproblems: 0, eps_solved_subproblems: 103, failures: 3517637, fixpoint_iterations: 118482917,
-  flatIntConstraints: 586, flatIntVars: 31, flatTime: 0.353467, free_search: no, hardware: AMD
-    EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.319, memory_configuration: store_shared,
+{configuration: TurboGPU, data_file: ../data/table/graph-labelling/compressed-pos-int/ibm32-8-compressed-pos-int-32-UNSAT.dzn,
+  error: 'MiniZinc stopped with a non-zero exit code, but did not output an error
+    message. ', flatIntConstraints: 586, flatIntVars: 31, flatTime: 0.357216, memory_configuration: store_shared,
   method: satisfy, model: ../data/table/graph-labelling/graph-labelling-compressed-pos-int.mzn,
-  nSolutions: 0, nodes: 7036565, num_blocks_done: 0, num_refinements: 14220, num_solutions: 0,
-  num_tables: 90, or_nodes: 108, paths: 0, peakDepth: 41, problem: graph-labelling,
-  problem_path: /tmp/mznfileipRQaB.fzn, propagator_mem: 1002542, propagators: 555,
-  shared_mem: 596, solveTime: 599.653, solver: Turbo, stack_size: 32000, status: UNKNOWN,
-  store_mem: 496, time: 601.86210590275, timeout_ms: 599644.0, variables: 31, version: 1.2.0a}
+  nSolutions: 0, paths: 0, problem: graph-labelling, propagator_mem: 85910, shared_mem: 596,
+  status: ERROR, store_mem: 496, time: 399.09891041099945}

@@ -1,11 +1,11 @@
 {and_nodes: 256, arch: gpu, configuration: TurboGPU, cuda_version: 12020, data_file: ../data/table/graph-labelling/short-pos-int/bcspwr01-3-short-pos-int-39-UNSAT.dzn,
   eliminated_formulas: 207, eliminated_variables: 131, eps_num_subproblems: 4096,
-  eps_skipped_subproblems: 2960, eps_solved_subproblems: 1191, failures: 67709, fixpoint_iterations: 1230633,
-  flatIntConstraints: 787, flatIntVars: 38, flatTime: 0.126001, free_search: no, hardware: AMD
-    EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.353, memory_configuration: store_shared,
+  eps_skipped_subproblems: 3722, eps_solved_subproblems: 543, failures: 15557, fixpoint_iterations: 310140,
+  flatIntConstraints: 787, flatIntVars: 38, flatTime: 0.127868, free_search: no, hardware: AMD
+    EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.327, memory_configuration: store_shared,
   method: satisfy, model: ../data/table/graph-labelling/graph-labelling-short-pos-int.mzn,
-  nSolutions: 0, nodes: 108136, num_blocks_done: 108, num_refinements: 21397, num_solutions: 0,
-  num_tables: 46, or_nodes: 108, paths: 0, peakDepth: 12, problem: graph-labelling,
-  problem_path: /tmp/mznfileZPD2Tr.fzn, propagator_mem: 1499136, propagators: 749,
-  shared_mem: 652, solveTime: 9.191, solver: Turbo, stack_size: 32000, status: UNSATISFIABLE,
-  store_mem: 552, time: 10.674896236043423, timeout_ms: 599871.0, variables: 38, version: 1.2.0a}
+  nSolutions: 0, nodes: 47523, num_blocks_done: 108, num_refinements: 793, num_solutions: 0,
+  num_tables: 44, or_nodes: 108, paths: 0, peakDepth: 14, problem: graph-labelling,
+  problem_path: /tmp/mznfileQAMFHI.fzn, propagator_mem: 120067, propagators: 749,
+  shared_mem: 652, solveTime: 4.287, solver: Turbo, stack_size: 32000, status: UNSATISFIABLE,
+  store_mem: 552, time: 5.439622322999639, timeout_ms: 599868.0, variables: 38, version: 1.2.0-64}
