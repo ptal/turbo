@@ -1,0 +1,4 @@
+{configuration: TurboGPU, data_file: ../data/table/graph-labelling/compressed-pos-int/dwt__992-35-compressed-pos-int-992-SAT.dzn,
+  flatIntConstraints: 499412, flatIntVars: 991, flatTime: 9.71446, method: satisfy,
+  model: ../data/table/graph-labelling/graph-labelling-compressed-pos-int.mzn, nSolutions: 0,
+  paths: 0, problem: graph-labelling, status: UNKNOWN, time: 607.042503491044}

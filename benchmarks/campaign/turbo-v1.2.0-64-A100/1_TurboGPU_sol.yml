@@ -1,0 +1,13 @@
+- configuration: TurboGPU
+  data_file: ../data/table/graph-labelling/short-pos-int/bcspwr02-7-short-pos-int-49-SAT.dzn
+  model: ../data/table/graph-labelling/graph-labelling-short-pos-int.mzn
+  problem: graph-labelling
+  solution:
+    labels: [1, 16, 44, 41, 35, 24, 14, 37, 26, 47, 29, 8, 21, 45, 18, 38, 43, 33,
+      11, 48, 22, 5, 30, 27, 49, 9, 15, 40, 2, 17, 4, 10, 25, 39, 23, 31, 13, 32,
+      42, 28, 19, 20, 12, 34, 36, 3, 46, 6, 7]
+  status: SATISFIED
+  time: 2.245
+- {configuration: TurboGPU, data_file: ../data/table/graph-labelling/short-pos-int/bcspwr02-7-short-pos-int-49-SAT.dzn,
+  model: ../data/table/graph-labelling/graph-labelling-short-pos-int.mzn, problem: graph-labelling,
+  status: SATISFIED}

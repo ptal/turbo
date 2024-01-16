@@ -1,0 +1,12 @@
+- configuration: TurboGPU
+  data_file: ../data/table/graph-labelling/compressed-pos-int/bcspwr01-4-compressed-pos-int-39-SAT.dzn
+  model: ../data/table/graph-labelling/graph-labelling-compressed-pos-int.mzn
+  problem: graph-labelling
+  solution:
+    labels: [1, 18, 23, 12, 35, 2, 31, 20, 14, 3, 5, 6, 38, 19, 17, 28, 39, 34, 33,
+      30, 11, 16, 24, 25, 10, 27, 29, 32, 7, 36, 21, 37, 15, 13, 9, 22, 26, 8, 4]
+  status: SATISFIED
+  time: 192.71
+- {configuration: TurboGPU, data_file: ../data/table/graph-labelling/compressed-pos-int/bcspwr01-4-compressed-pos-int-39-SAT.dzn,
+  model: ../data/table/graph-labelling/graph-labelling-compressed-pos-int.mzn, problem: graph-labelling,
+  status: SATISFIED}
