@@ -13,15 +13,23 @@ namespace bt = ::battery;
 
 #include <cuda/semaphore>
 
-using F = TFormula<bt::managed_allocator>;
-using FormulaPtr = bt::shared_ptr<F, bt::managed_allocator>;
+//
+// TODO: We need to segregate memory that does not require concurrent access
+// between the host and the device while a kernel is running.  This 'safe'
+// memory can use managed_allocator instead of concurrent_allocator,
+// which will avoid pinning excessive amounts of physical memory on
+// GPUs that do not support concurrent memory (Windows, WSL, NVIDIA Grid, etc.
+//
+
+using F = TFormula<bt::concurrent_allocator>;
+using FormulaPtr = bt::shared_ptr<F, bt::concurrent_allocator>;
 
 /** We first interpret the formula in an abstract domain with sequential managed memory, that we call `GridCP`. */
 using Itv0 = Interval<ZInc<int, bt::local_memory>>;
 using GridCP = AbstractDomains<Itv0,
-  bt::statistics_allocator<bt::managed_allocator>,
-  bt::statistics_allocator<UniqueLightAlloc<bt::managed_allocator, 0>>,
-  bt::statistics_allocator<UniqueLightAlloc<bt::managed_allocator, 1>>>;
+  bt::statistics_allocator<bt::concurrent_allocator>,
+  bt::statistics_allocator<UniqueLightAlloc<bt::concurrent_allocator, 0>>,
+  bt::statistics_allocator<UniqueLightAlloc<bt::concurrent_allocator, 1>>>;
 
 /** Then, once everything is initialized, we rely on a parallel abstract domain called `BlockCP`, using atomic shared and global memory. */
 using Itv1 = Interval<ZInc<int, bt::atomic_memory_block>>;
@@ -85,9 +93,9 @@ struct MemoryConfig {
     printf("%%%%%%mzn-stat: memory_configuration=\"%s\"\n",
       mem_kind == MemoryKind::GLOBAL ? "global" : (
       mem_kind == MemoryKind::STORE_SHARED ? "store_shared" : "store_pc_shared"));
-    printf("%%%%%%mzn-stat: shared_mem=%zu\n", shared_bytes);
-    printf("%%%%%%mzn-stat: store_mem=%zu\n", store_bytes);
-    printf("%%%%%%mzn-stat: propagator_mem=%zu\n", pc_bytes);
+    printf("%%%%%%mzn-stat: shared_mem=%" PRIu64 "\n", shared_bytes);
+    printf("%%%%%%mzn-stat: store_mem=%" PRIu64 "\n", store_bytes);
+    printf("%%%%%%mzn-stat: propagator_mem=%" PRIu64 "\n", pc_bytes);
   }
 };
 
@@ -394,7 +402,7 @@ __global__ void gpu_solve_kernel(GridData* grid_data)
   while(block_data.subproblem_idx < num_subproblems && !*(block_data.stop)) {
     if(threadIdx.x == 0 && grid_data->root.config.verbose_solving) {
       grid_data->print_lock->acquire();
-      printf("%% Block %d solves subproblem num %zu\n", blockIdx.x, block_data.subproblem_idx);
+      printf("%% Block %d solves subproblem num %" PRIu64 "\n", blockIdx.x, block_data.subproblem_idx);
       grid_data->print_lock->release();
     }
     block_data.restore();
@@ -453,7 +461,7 @@ __global__ void gpu_solve_kernel(GridData* grid_data)
 template <class T> __global__ void gpu_sizeof_kernel(size_t* size) { *size = sizeof(T); }
 template <class T>
 size_t gpu_sizeof() {
-  auto s = bt::make_unique<size_t, bt::managed_allocator>();
+  auto s = bt::make_unique<size_t, bt::concurrent_allocator>();
   gpu_sizeof_kernel<T><<<1, 1>>>(s.get());
   CUDAEX(cudaDeviceSynchronize());
   return *s;
@@ -476,6 +484,20 @@ void print_memory_statistics(const char* key, size_t bytes) {
     printf("%.2fGB", static_cast<double>(bytes) / (1000 * 1000 * 1000));
   }
   printf("]\n");
+}
+
+/** Set cudaDeviceMapHost to allow cudaMallocHost() to allocate pinned memory
+ * for concurrent access between the device and the host.  This flag must be
+ * set in any host thread that calls kernel code.  It must be called early,
+ * before any CUDA management functions.
+ */
+void prepare_host_thread_no_concurrent_managed_access()
+{
+  unsigned int flags = 0;
+  CUDAEX(cudaGetDeviceFlags(&flags));
+  flags |= cudaDeviceMapHost;
+  CUDAEX(cudaSetDeviceFlags(flags));
+  bt::concurrent_allocator{}.noConcurrentManagedAccess = true;
 }
 
 /** \returns the size of the shared memory and the kind of memory used. */
@@ -563,7 +585,7 @@ void consume_kernel_solutions(GridData& grid_data) {
 
 template <class Timepoint>
 void transfer_memory_and_run(CP& root, MemoryConfig mem_config, const Timepoint& start) {
-  auto grid_data = bt::make_shared<GridData, bt::managed_allocator>(std::move(root), mem_config);
+  auto grid_data = bt::make_shared<GridData, bt::concurrent_allocator>(std::move(root), mem_config);
   initialize_grid_data<<<1,1>>>(grid_data.get());
   CUDAEX(cudaDeviceSynchronize());
   if(grid_data->root.config.print_statistics) {
@@ -645,6 +667,18 @@ void configure_blocks_threads(CP& root, const MemoryConfig& mem_config) {
 
 template <class Timepoint>
 void configure_and_run(CP& root, const Timepoint& start) {
+  int attr = 0, dev = 0;
+  CUDAEX(cudaDeviceGetAttribute(&attr, cudaDevAttrManagedMemory, dev));
+  if (!attr) {
+    std::cerr << "The GPU does not support unified memory." << std::endl;
+    exit(EXIT_FAILURE);
+  }
+  attr = 0;
+  CUDAEX(cudaDeviceGetAttribute(&attr, cudaDevAttrConcurrentManagedAccess, dev));
+  if (!attr) {
+    printf("%% The GPU does not support concurrent access to managed memory.\n");
+    prepare_host_thread_no_concurrent_managed_access();
+  }
   MemoryConfig mem_config = configure_memory(root);
   configure_blocks_threads(root, mem_config);
   transfer_memory_and_run(root, mem_config, start);
@@ -656,7 +690,6 @@ void gpu_solve(Configuration<bt::standard_allocator>& config) {
 #ifndef __CUDACC__
   std::cerr << "You must use a CUDA compiler (nvcc or clang) to compile Turbo on GPU." << std::endl;
 #else
-  bt::configuration::gpu.init();
   auto start = std::chrono::high_resolution_clock::now();
   CP root(config);
   root.preprocess();

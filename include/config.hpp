@@ -38,7 +38,6 @@ struct Configuration {
   size_t subproblems_power;
   size_t stack_kb;
   Arch arch;
-  battery::string<allocator_type> gpu_opt;
   battery::string<allocator_type> problem_path;
   battery::string<allocator_type> version;
   battery::string<allocator_type> hardware;
@@ -62,7 +61,6 @@ struct Configuration {
         Arch::CPU
       #endif
     ),
-    gpu_opt(alloc),
     problem_path(alloc),
     version(alloc),
     hardware(alloc)
@@ -85,7 +83,6 @@ struct Configuration {
     subproblems_power(other.subproblems_power),
     stack_kb(other.stack_kb),
     arch(other.arch),
-    gpu_opt(other.gpu_opt, alloc),
     problem_path(other.problem_path, alloc),
     version(other.version, alloc),
     hardware(other.hardware, alloc)
@@ -105,7 +102,6 @@ struct Configuration {
     subproblems_power = other.subproblems_power;
     stack_kb = other.stack_kb;
     arch = other.arch;
-    gpu_opt = other.gpu_opt;
     problem_path = other.problem_path;
     version = other.version;
     hardware = other.hardware;
@@ -129,9 +125,6 @@ struct Configuration {
     else {
       printf("-arch cpu -p %zu ", or_nodes);
     }
-    if(gpu_opt.size() != 0) {
-      printf("-gpu-opt %s ", gpu_opt.data());
-    }
     if(version.size() != 0) {
       printf("-version %s ", version.data());
     }
@@ -147,15 +140,12 @@ struct Configuration {
     printf("%%%%%%mzn-stat: version=\"%s\"\n", (version.size() == 0) ? "1.1.0" : version.data());
     printf("%%%%%%mzn-stat: hardware=\"%s\"\n", (hardware.size() == 0) ? "Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000" : hardware.data());
     printf("%%%%%%mzn-stat: arch=\"%s\"\n", arch == Arch::GPU ? "gpu" : "cpu");
-    if(gpu_opt.size() != 0) {
-      printf("%%%%%%mzn-stat: gpu_opt=\"%s\"\n", gpu_opt.data());
-    }
     printf("%%%%%%mzn-stat: free_search=\"%s\"\n", free_search ? "yes" : "no");
-    printf("%%%%%%mzn-stat: or_nodes=%zu\n", or_nodes);
-    printf("%%%%%%mzn-stat: timeout_ms=%zu\n", timeout_ms);
+    printf("%%%%%%mzn-stat: or_nodes=%" PRIu64 "\n", or_nodes);
+    printf("%%%%%%mzn-stat: timeout_ms=%" PRIu64 "\n", timeout_ms);
     if(arch == Arch::GPU) {
-      printf("%%%%%%mzn-stat: and_nodes=%zu\n", and_nodes);
-      printf("%%%%%%mzn-stat: stack_size=%zu\n", stack_kb * 1000);
+      printf("%%%%%%mzn-stat: and_nodes=%" PRIu64 "\n", and_nodes);
+      printf("%%%%%%mzn-stat: stack_size=%" PRIu64 "\n", stack_kb * 1000);
       #ifdef CUDA_VERSION
         printf("%%%%%%mzn-stat: cuda_version=%d\n", CUDA_VERSION);
       #endif

@@ -2,9 +2,7 @@ cmake_minimum_required(VERSION 3.24)
 
 cmake_policy(SET CMP0135 NEW)
 
-if("$ENV{CUDAARCHS}" STREQUAL "")
-  set(CMAKE_CUDA_ARCHITECTURES native CACHE STRING "Targeted CUDA architectures")
-endif()
+set(CMAKE_CUDA_ARCHITECTURES native CACHE STRING "Targeted CUDA architectures")
 
 if(MSVC)
   set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "Available configuration types to select")
@@ -81,7 +79,7 @@ target_compile_options(turbo PRIVATE
 target_link_libraries(turbo PRIVATE lala_parsing lala_pc lala_power)
 target_link_options(turbo PRIVATE
     $<$<AND:$<BOOL:${WITH_ASAN}>,$<CXX_COMPILER_ID:GNU>>:-fsanitize=address;-static-libasan>
-	$<$<AND:$<BOOL:${WITH_ASAN}>,$<CXX_COMPILER_ID:Clang>>:-fsanitize=address>
+    $<$<AND:$<BOOL:${WITH_ASAN}>,$<CXX_COMPILER_ID:Clang>>:-fsanitize=address>
     $<$<AND:$<BOOL:{WITH_ASAN}>,$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:MSVC>>:/INCREMENTAL:NO>
     $<$<CXX_COMPILER_ID:MSVC>:/NODEFAULTLIB:LIBCMT>
     # Link an optional initialization library ${TURBO_INITLIB}
