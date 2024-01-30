@@ -24,19 +24,19 @@ else()
   FetchContent_Declare(
     lala_pc
     GIT_REPOSITORY "https://github.com/lattice-land/lala-pc.git"
-    GIT_TAG        v1.1.2
+    GIT_TAG        v1.1.3
   )
 
   FetchContent_Declare(
     lala_parsing
     GIT_REPOSITORY "https://github.com/lattice-land/lala-parsing.git"
-    GIT_TAG        v1.1.2
+    GIT_TAG        v1.1.3
   )
 
   FetchContent_Declare(
     lala_power
     GIT_REPOSITORY "https://github.com/lattice-land/lala-power.git"
-    GIT_TAG        v1.1.2
+    GIT_TAG        v1.1.3
   )
 endif()
 
