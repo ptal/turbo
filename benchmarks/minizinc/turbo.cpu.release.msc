@@ -21,9 +21,9 @@
     "supportsFzn": true,
     "supportsMzn": false,
     "supportsNL": false,
-    "version": "1.1.1",
+    "version": "1.1.2",
     "extraFlags": [
-        ["-version", "version of the solver to be printed as statistics", "string", "1.1.1"],
+        ["-version", "version of the solver to be printed as statistics", "string", "1.1.2"],
         ["-hardware", "description of the hardware on which the solver is executed (CPU;RAM;GPU)", "string", "unspecified"]
     ]
 }

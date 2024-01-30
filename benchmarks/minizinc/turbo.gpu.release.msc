@@ -21,12 +21,12 @@
     "supportsFzn": true,
     "supportsMzn": false,
     "supportsNL": false,
-    "version": "1.1.1",
+    "version": "1.1.2",
     "extraFlags": [
         ["-sub", "number of EPS subproblems (value of 10 generates 2^10 subproblems)", "int", "10"],
         ["-or", "number of OR threads", "int", "0"],
         ["-and", "number of AND threads", "int", "0"],
-        ["-version", "version of the solver to be printed as statistics", "string", "1.1.1"],
+        ["-version", "version of the solver to be printed as statistics", "string", "1.1.2"],
         ["-hardware", "description of the hardware on which the solver is executed (CPU;RAM;GPU)", "string", "unspecified"]
     ]
 }
