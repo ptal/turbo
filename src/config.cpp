@@ -116,13 +116,14 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
   input.read_size_t("-sub", config.subproblems_power);
   input.read_size_t("-t", config.timeout_ms);
   input.read_size_t("-stack", config.stack_kb);
+  input.read_size_t("-n", config.stop_after_n_solutions);
+  input.read_bool("-i", config.print_intermediate_solutions);
   bool all_sols;
   input.read_bool("-a", all_sols);
   if(all_sols) {
     config.stop_after_n_solutions = 0;
+    config.print_intermediate_solutions = true;
   }
-  input.read_size_t("-n", config.stop_after_n_solutions);
-  input.read_bool("-i", config.print_intermediate_solutions);
   input.read_bool("-f", config.free_search);
   input.read_bool("-v", config.verbose_solving);
   input.read_bool("-ast", config.print_ast);
