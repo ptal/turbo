@@ -1,9 +1,13 @@
 #!/bin/bash -l
-#SBATCH --nodes=5                          # number of nodes
-#SBATCH --partition=gpu                    # partition
-#SBATCH --account=p200244                  # project account
-#SBATCH --qos=default                      # SLURM qos
+#SBATCH --time=00:15:00
+#SBATCH --nodes=2
+#SBATCH --partition=gpu
+#SBATCH --account=p200244 
+#SBATCH --qos=default 
+#SBATCH --cpus-per-task=1
 #SBATCH --export=ALL
+
+echo $SLURM_JOB_NODELIST
 
 module load env/release/2023.1
 module load CUDA/12.2.0
