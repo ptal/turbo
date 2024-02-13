@@ -657,6 +657,7 @@ void gpu_solve(Configuration<bt::standard_allocator>& config) {
   std::cerr << "You must use a CUDA compiler (nvcc or clang) to compile Turbo on GPU." << std::endl;
 #else
   auto start = std::chrono::high_resolution_clock::now();
+  config.timeout_ms -= 10000; // let CUDA the time to print statistics.
   CP root(config);
   root.preprocess();
   block_signal_ctrlc();
