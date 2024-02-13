@@ -7,16 +7,15 @@ set -e
 
 MZN_SOLVER="turbo.gpu.release"
 VERSION="v1.1.0"
-TIMEOUT=25000
+TIMEOUT=310000
 NUM_GPUS=4
 
 HARDWARE="\"AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM\""
 SHORT_HARDWARE="A100"
 MZN_COMMAND="minizinc --solver $MZN_SOLVER -s --json-stream -t $TIMEOUT --output-mode json --output-time --output-objective -hardware $HARDWARE -version $VERSION"
 INSTANCE_FILE="short.csv"
-OUTPUT_DIR="../campaign/$MZN_SOLVER-$VERSION-$SHORT_HARDWARE"
+OUTPUT_DIR=$(pwd)"/../campaign/$MZN_SOLVER-$VERSION-$SHORT_HARDWARE"
 mkdir -p $OUTPUT_DIR
-
 
 # II. Compile and install the right version of Turbo.
 
@@ -53,4 +52,4 @@ fi
 cp $0 $OUTPUT_DIR/ # for replicability.
 
 DUMP_PY_PATH=$(pwd)/dump.py
-parallel $MULTINODES_OPTION --rpl '{} uq()' --process-slot-var=CUDA_VISIBLE_DEVICES --jobs $NUM_GPUS -k --colsep ',' --header : $MZN_COMMAND {2} {3} '|' python3 $DUMP_PY_PATH $OUTPUT_DIR {1} {2} {3} $MZN_SOLVER :::: $INSTANCE_FILE
+parallel $MULTINODES_OPTION --rpl '{} uq()' --process-slot-var=CUDA_VISIBLE_DEVICES --jobs $NUM_GPUS -k --colsep ',' --header : $MZN_COMMAND {2} {3} -sub {4} '|' python3 $DUMP_PY_PATH $OUTPUT_DIR {1} {2} {3} $MZN_SOLVER "sub"{4} :::: $INSTANCE_FILE ::: 10 12
