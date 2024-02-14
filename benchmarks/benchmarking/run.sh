@@ -52,4 +52,11 @@ fi
 cp $0 $OUTPUT_DIR/ # for replicability.
 
 DUMP_PY_PATH=$(pwd)/dump.py
-parallel $MULTINODES_OPTION --rpl '{} uq()' --process-slot-var=CUDA_VISIBLE_DEVICES --jobs $NUM_GPUS -k --colsep ',' --header : $MZN_COMMAND {2} {3} -sub {4} '|' python3 $DUMP_PY_PATH $OUTPUT_DIR {1} {2} {3} $MZN_SOLVER "sub"{4} :::: $INSTANCE_FILE ::: 10 12
+TEST_PATH=$(pwd)/test.sh
+CUDA_WRAP_PATH=$(pwd)/cuda_wrap.sh
+parallel --no-run-if-empty $MULTINODES_OPTION --rpl '{} uq()' --jobs $NUM_GPUS -k --colsep ',' --skip-first-line $CUDA_WRAP_PATH $MZN_COMMAND {2} {3} -sub {4} '|' python3 $DUMP_PY_PATH $OUTPUT_DIR {1} {2} {3} $MZN_SOLVER "sub"{4} :::: $INSTANCE_FILE ::: 10 12
+# parallel --no-run-if-empty $MULTINODES_OPTION --rpl '{} uq()' --jobs $NUM_GPUS -k --colsep ',' --skip-first-line $CUDA_WRAP_PATH $TEST_PATH {1} {2} {3} {4} :::: $INSTANCE_FILE ::: 10 12
+
+rm *.lock
+rm *.count
+rm *.cuda_device
