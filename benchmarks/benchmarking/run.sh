@@ -49,12 +49,15 @@ fi
 
 # IV. Run the experiments in parallel (one per available GPUs).
 
-cp $0 $OUTPUT_DIR/ # for replicability.
-
 DUMP_PY_PATH=$(pwd)/dump.py
-TEST_PATH=$(pwd)/test.sh
 CUDA_WRAP_PATH=$(pwd)/cuda_wrap.sh
+
+cp $0 $OUTPUT_DIR/ # for replicability.
+cp $DUMP_PY_PATH $OUTPUT_DIR/ 
+cp $CUDA_WRAP_PATH $OUTPUT_DIR/
+
 parallel --no-run-if-empty $MULTINODES_OPTION --rpl '{} uq()' --jobs $NUM_GPUS -k --colsep ',' --skip-first-line $CUDA_WRAP_PATH $MZN_COMMAND {2} {3} -sub {4} '|' python3 $DUMP_PY_PATH $OUTPUT_DIR {1} {2} {3} $MZN_SOLVER "sub"{4} :::: $INSTANCE_FILE ::: 10 12
+# TEST_PATH=$(pwd)/test.sh
 # parallel --no-run-if-empty $MULTINODES_OPTION --rpl '{} uq()' --jobs $NUM_GPUS -k --colsep ',' --skip-first-line $CUDA_WRAP_PATH $TEST_PATH {1} {2} {3} {4} :::: $INSTANCE_FILE ::: 10 12
 
 rm *.lock

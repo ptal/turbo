@@ -1,6 +1,6 @@
 #!/bin/bash -l
-#SBATCH --time=00:15:00
-#SBATCH --nodes=2
+#SBATCH --time=00:30:00
+#SBATCH --nodes=10
 #SBATCH --partition=gpu
 #SBATCH --account=p200244 
 #SBATCH --qos=default 

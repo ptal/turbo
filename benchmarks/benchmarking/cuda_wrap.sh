@@ -21,4 +21,20 @@ lock_file=/project/scratch/p200244/lattice-land/turbo/benchmarks/benchmarking/${
 
 read -r CUDA_VISIBLE_DEVICES_LOCAL < "$PARALLEL_SSHHOST"_"$PARALLEL_JOBSLOT".cuda_device
 
-eval "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES_LOCAL $@"
+
+# Construct the command string while preserving quotes
+cmd="CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES_LOCAL"
+for arg in "$@"; do
+  # Escape double quotes in the argument
+  arg="${arg//\"/\\\"}"
+  
+  # Wrap the argument in quotes if it contains spaces
+  [[ $arg =~ \  ]] && arg="\"$arg\""
+  
+  cmd="$cmd $arg"
+done
+
+# Execute the command
+eval "$cmd"
+
+# eval "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES_LOCAL $@"
