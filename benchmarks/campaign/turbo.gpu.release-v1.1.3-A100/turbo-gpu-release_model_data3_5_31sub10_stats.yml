@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_model_data3_5_31sub10,
+  cuda_version: 12020, data_file: ../mzn-challenge/2022/team-assignment/data3_5_31.dzn,
+  eliminated_formulas: 15932, eliminated_variables: 7950, eps_num_subproblems: 1024,
+  eps_skipped_subproblems: 0, eps_solved_subproblems: 0, evaluatedReifiedConstraints: 7764,
+  failures: 317168, fixpoint_iterations: 8212424, flatBoolVars: 7764, flatIntConstraints: 17514,
+  flatIntVars: 7982, flatTime: 1.15844, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz;
+    RAM 512GO;NVIDIA A100 40GB HBM, initTime: 1.091, memory_configuration: global,
+  method: maximize, model: ../mzn-challenge/2022/team-assignment/model.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 1, nodes: 647804, num_blocks_done: 0, num_solutions: 287, objective: 9249,
+  or_nodes: 108, paths: 0, peakDepth: 144, problem: team-assignment, problem_path: /tmp/mznfilexSgiKD.fzn,
+  propagator_mem: 4954699, propagators: 9750, shared_mem: 100, solveTime: 300.097,
+  solver: Turbo, stack_size: 32000, status: SATISFIED, store_mem: 64104, timeout_ms: 300000,
+  variables: 7982, version: v1.1.3}

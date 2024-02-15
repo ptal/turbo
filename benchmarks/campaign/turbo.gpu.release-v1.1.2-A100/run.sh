@@ -6,7 +6,7 @@ set -e
 # I. Define the campaign to run and hardware information.
 
 MZN_SOLVER="turbo.gpu.release"
-VERSION="v1.1.3"
+VERSION="v1.1.2"
 TIMEOUT=310000
 NUM_GPUS=4
 
