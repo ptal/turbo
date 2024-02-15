@@ -43,8 +43,8 @@ def read_experiments(experiments):
       df['mzn_solver'] = df['configuration'].apply(determine_mzn_solver)
     # print(df[(df['mzn_solver'] == "turbo.gpu.release") & df['or_nodes'].isna()])
     # print(df[(df['mzn_solver'] == "turbo.gpu.release") & df['and_nodes'].isna()])
-    # df = df[(df['mzn_solver'] != "turbo.gpu.release") | (~df['or_nodes'].isna())]
-    # df = df[(df['mzn_solver'] != "turbo.gpu.release") | (~df['and_nodes'].isna())]
+    df = df[(df['mzn_solver'] != "turbo.gpu.release") | (~df['or_nodes'].isna())]
+    df = df[(df['mzn_solver'] != "turbo.gpu.release") | (~df['and_nodes'].isna())]
     all_xp = pd.concat([df, all_xp], ignore_index=True)
   all_xp['version'] = all_xp['version'].apply(version.parse)
   all_xp['nodes'] = all_xp['nodes'].fillna(0).astype(int)
