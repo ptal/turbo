@@ -1,0 +1,10 @@
+- configuration: turbo-gpu-release_tower_100_100_20_100-04sub12
+  data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn
+  model: ../mzn-challenge/2022/tower/tower.mzn
+  mzn_solver: turbo.gpu.release
+  problem: tower
+  solution:
+    objective: 58
+    power: [10, 3, 6, 3, 2, 4, 2, 3, 4, 4, 4, 4, 1, 3, 4, 3, 6, 3, 1, 3]
+  status: SATISFIED
+  time: 301.615

@@ -4,20 +4,31 @@ import numpy as np
 from packaging import version
 
 # A tentative to have unique experiment names.
-def make_uid(config, version, machine, eps_num_subproblems, or_nodes, and_nodes):
-  if config == 'TurboGPU':
-    return 'TurboGPU_' + str(version) + '_' + machine + '_' + str(eps_num_subproblems) + '_' + str(or_nodes) + '_' + str(and_nodes)
-  elif config == 'TurboCPU':
-    return 'TurboCPU_' + str(version) + '_' + machine
+def make_uid(mzn_solver, version, machine, eps_num_subproblems, or_nodes, and_nodes):
+  if mzn_solver == 'turbo.gpu.release':
+    return 'turbo.gpu.release_' + str(version) + '_' + machine + '_' + str(eps_num_subproblems) + '_' + str(or_nodes) + '_' + str(and_nodes)
+  elif mzn_solver == 'turbo.cpu.release':
+    return 'turbo.cpu.release_' + str(version) + '_' + machine
   else:
-    return config + '_' + str(version) + '_' + machine
+    return mzn_solver + '_' + str(version) + '_' + machine
 
-# For some experiments, I put too much information in the configuration name, so we clean it up here.
-def clean_config_name(config):
+def determine_mzn_solver(config):
   if 'TurboGPU' in config:
-    return 'TurboGPU'
+    return 'turbo.gpu.release'
   elif 'TurboCPU' in config:
-    return 'TurboCPU'
+    return 'turbo.cpu.release'
+  elif 'turbo.gpu.release' in config:
+    return 'turbo.gpu.release'
+  elif 'turbo.cpu.release' in config:
+    return 'turbo.cpu.release'
+  elif 'or-tools' == config:
+    return 'com.google.or-tools'
+  elif 'or-tools.noglobal' == config:
+    return 'com.google.or-tools.noglobal'
+  elif 'choco' == config:
+    return 'org.choco.choco'
+  elif 'choco.noglobal' == config:
+    return 'org.choco.choco.noglobal'
   else:
     return config
 
@@ -25,12 +36,15 @@ def read_experiments(experiments):
   all_xp = pd.read_csv("../campaign/baseline.csv")
   all_xp['hardware'] = 'Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000'
   all_xp['version'] = all_xp['configuration'].apply(determine_version)
+  all_xp['mzn_solver'] = all_xp['configuration'].apply(determine_mzn_solver)
   for e in experiments:
     df = pd.read_csv(e)
-    df['configuration'] = df['configuration'].apply(clean_config_name)
-    df = df[(df['configuration'] != "TurboGPU") | (~df['or_nodes'].isna())]
-    df = df[(df['configuration'] != "TurboGPU") | (~df['and_nodes'].isna())]
-    # all_xp = pd.merge(df.T, all_xp.T, left_index=True, right_index=True, how='outer').T
+    if 'mzn_solver' not in df:
+      df['mzn_solver'] = df['configuration'].apply(determine_mzn_solver)
+    # print(df[(df['mzn_solver'] == "turbo.gpu.release") & df['or_nodes'].isna()])
+    # print(df[(df['mzn_solver'] == "turbo.gpu.release") & df['and_nodes'].isna()])
+    # df = df[(df['mzn_solver'] != "turbo.gpu.release") | (~df['or_nodes'].isna())]
+    # df = df[(df['mzn_solver'] != "turbo.gpu.release") | (~df['and_nodes'].isna())]
     all_xp = pd.concat([df, all_xp], ignore_index=True)
   all_xp['version'] = all_xp['version'].apply(version.parse)
   all_xp['nodes'] = all_xp['nodes'].fillna(0).astype(int)
@@ -39,7 +53,7 @@ def read_experiments(experiments):
   all_xp['fixpoint_iterations'] = pd.to_numeric(all_xp['fixpoint_iterations'], errors='coerce').fillna(0).astype(int)
   all_xp['eps_num_subproblems'] = pd.to_numeric(all_xp['eps_num_subproblems'], errors='coerce').fillna(1).astype(int)
   all_xp['machine'] = all_xp['hardware'].apply(determine_machine)
-  all_xp['uid'] = all_xp.apply(lambda row: make_uid(row['configuration'], row['version'], row['machine'],
+  all_xp['uid'] = all_xp.apply(lambda row: make_uid(row['mzn_solver'], row['version'], row['machine'],
                                                     row['eps_num_subproblems'], row['or_nodes'], row['and_nodes']), axis=1)
   all_xp['nodes_per_second'] = all_xp['nodes'] / all_xp['solveTime']
   all_xp['fp_iterations_per_node'] = all_xp['fixpoint_iterations'] / all_xp['nodes']
@@ -65,7 +79,7 @@ def plot_overall_result(df):
   plt.show()
 
 def remove_meluxina_scaling_tests(df):
-  return df[(df['configuration'] != 'TurboGPU') | (df['machine'] != 'Meluxina') | (((df['eps_num_subproblems'] == 1024) | (df['eps_num_subproblems'] == 4096)) & (df['and_nodes'] == 256) & (df['or_nodes'] == 108))]
+  return df[(df['mzn_solver'] != 'turbo.gpu.release') | (df['machine'] != 'Meluxina') | (((df['eps_num_subproblems'] == 1024) | (df['eps_num_subproblems'] == 4096)) & (df['and_nodes'] == 256) & (df['or_nodes'] == 108))]
 
 def determine_machine(hardware_info):
   if hardware_info == 'Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000':
