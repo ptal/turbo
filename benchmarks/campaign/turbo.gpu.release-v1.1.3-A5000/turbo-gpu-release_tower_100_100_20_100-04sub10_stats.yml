@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_tower_100_100_20_100-04sub10,
+  cuda_version: 12030, data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn,
+  eliminated_formulas: 10387, eliminated_variables: 5640, eps_num_subproblems: 1024,
+  eps_skipped_subproblems: 508, eps_solved_subproblems: 66, evaluatedReifiedConstraints: 8060,
+  failures: 35873, fixpoint_iterations: 2978238, flatBoolConstraints: 100, flatBoolVars: 4260,
+  flatIntConstraints: 10887, flatIntVars: 4747, flatTime: 0.366548, free_search: no,
+  hardware: Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000, initTime: 0.75,
+  memory_configuration: global, method: maximize, model: ../mzn-challenge/2022/tower/tower.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 1, nodes: 77023, num_blocks_done: 0,
+  num_solutions: 40, objective: 48, or_nodes: 64, paths: 0, peakDepth: 337, problem: tower,
+  problem_path: /tmp/mznfile2Pvo65.fzn, propagator_mem: 7740091, propagators: 12867,
+  shared_mem: 100, solveTime: 300.049, solver: Turbo, stack_size: 32000, status: SATISFIED,
+  store_mem: 55504, timeout_ms: 300000, variables: 6907, version: v1.1.3}

@@ -1,0 +1,12 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_bool-model-sickness_small-4sub12,
+  cuda_version: 12030, data_file: ../mzn-challenge/2022/roster-sickness/small-4.dzn,
+  eliminated_formulas: 5806, eliminated_variables: 4881, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 0, eps_solved_subproblems: 135, failures: 2732223, fixpoint_iterations: 12948148,
+  flatBoolVars: 1444, flatIntConstraints: 1394, flatIntVars: 344, flatTime: 1.14906,
+  free_search: no, hardware: Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000,
+  initTime: 0.134, memory_configuration: store_shared, method: maximize, model: ../mzn-challenge/2022/roster-sickness/bool-model-sickness.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 1, nodes: 5466890, num_blocks_done: 0,
+  num_solutions: 13, objective: 14457, or_nodes: 64, paths: 0, peakDepth: 41, problem: roster-sickness,
+  problem_path: /tmp/mznfileKusEXk.fzn, propagator_mem: 108091, propagators: 259,
+  shared_mem: 1140, solveTime: 300.011, solver: Turbo, stack_size: 32000, status: SATISFIED,
+  store_mem: 1040, timeout_ms: 300000, variables: 99, version: v1.1.2}
