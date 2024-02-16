@@ -1,4 +1,4 @@
-- configuration: turbo-gpu-release_bool-model-sickness_large-2sub12
+- configuration: turbo-gpu-release_bool-model-sickness_large-2sub10
   data_file: ../mzn-challenge/2022/roster-sickness/large-2.dzn
   model: ../mzn-challenge/2022/roster-sickness/bool-model-sickness.mzn
   mzn_solver: turbo.gpu.release
@@ -214,10 +214,10 @@
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, false, true, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
-      false, false, true, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false]
@@ -646,9 +646,9 @@
       false, false, false, false, false, false, true, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
-      false, false, true, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, true, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
       false, false, false, false, false, false, false, false, false, false, false,
