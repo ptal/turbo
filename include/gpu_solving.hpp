@@ -6,6 +6,7 @@
 #include "common_solving.hpp"
 #include <thread>
 #include <algorithm>
+#include <cuda/std/chrono>
 
 namespace bt = ::battery;
 
@@ -287,8 +288,20 @@ __device__ bool propagate(BlockData& block_data, GridData& grid_data, local::BIn
   bool is_leaf_node = false;
   BlockCP& cp = *block_data.root;
   auto& fp_engine = *block_data.fp_engine;
+#ifdef TURBO_PROFILE_MODE
+  cuda::std::chrono::system_clock::time_point start;
+  if(threadIdx.x == 0) {
+    start = cuda::std::chrono::system_clock::now();
+  }
+  fp_engine.barrier();
+#endif
   size_t iterations = fp_engine.fixpoint(*cp.ipc, thread_has_changed, &grid_data.cpu_stop);
   if(threadIdx.x == 0) {
+#ifdef TURBO_PROFILE_MODE
+    auto end = cuda::std::chrono::system_clock::now();
+    cuda::std::chrono::duration<double> diff = end - start;
+    cp.stats.propagation_time += diff.count();
+#endif
     cp.stats.fixpoint_iterations += iterations;
     cp.on_node();
     if(cp.ipc->is_top()) {
@@ -310,6 +323,14 @@ __device__ bool propagate(BlockData& block_data, GridData& grid_data, local::BIn
         }
       }
     }
+#ifdef TURBO_PROFILE_MODE
+    if(cp.stats.nodes >= cp.config.stop_after_n_nodes) {
+      grid_data.gpu_stop->tell_top();
+    }
+    auto end2 = cuda::std::chrono::system_clock::now();
+    diff = end2 - end;
+    cp.stats.search_time += diff.count();
+#endif
   }
   return is_leaf_node;
 }

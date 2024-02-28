@@ -425,12 +425,12 @@ private:
   template <class F>
   CUDA bool interpret_default_strategy() {
     if(config.verbose_solving) {
-      printf("%% No split strategy provided, using the default one (first_fail, indomain_split).\n");
+      printf("%% No split strategy provided, using the default one (first_fail, indomain_min).\n");
     }
     config.free_search = true;
     typename F::Sequence seq;
     seq.push_back(F::make_nary("first_fail", {}));
-    seq.push_back(F::make_nary("indomain_split", {}));
+    seq.push_back(F::make_nary("indomain_min", {}));
     for(int i = 0; i < env.num_vars(); ++i) {
       seq.push_back(F::make_avar(env[i].avars[0]));
     }
@@ -445,7 +445,7 @@ private:
   CUDA bool interpret_default_eps_strategy() {
     typename F::Sequence seq;
     seq.push_back(F::make_nary("first_fail", {}));
-    seq.push_back(F::make_nary("indomain_split", {}));
+    seq.push_back(F::make_nary("indomain_min", {}));
     for(int i = 0; i < env.num_vars(); ++i) {
       seq.push_back(F::make_avar(env[i].avars[0]));
     }

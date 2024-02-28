@@ -28,6 +28,7 @@ struct Configuration {
   using allocator_type = Allocator;
   bool print_intermediate_solutions; // (only optimization problems).
   size_t stop_after_n_solutions; // 0 for all solutions (satisfaction problems only).
+  size_t stop_after_n_nodes; // size_t MAX values for all nodes.
   bool free_search;
   bool print_statistics;
   bool verbose_solving;
@@ -45,6 +46,7 @@ struct Configuration {
   CUDA Configuration(const allocator_type& alloc = allocator_type{}):
     print_intermediate_solutions(false),
     stop_after_n_solutions(1),
+    stop_after_n_nodes(std::numeric_limits<size_t>::max()),
     free_search(false),
     verbose_solving(false),
     print_ast(false),
@@ -73,6 +75,7 @@ struct Configuration {
   CUDA Configuration(const Configuration<Alloc>& other, const allocator_type& alloc = allocator_type{}) :
     print_intermediate_solutions(other.print_intermediate_solutions),
     stop_after_n_solutions(other.stop_after_n_solutions),
+    stop_after_n_nodes(other.stop_after_n_nodes),
     free_search(other.free_search),
     print_statistics(other.print_statistics),
     verbose_solving(other.verbose_solving),
@@ -92,6 +95,7 @@ struct Configuration {
   CUDA Configuration<allocator_type>& operator=(const Configuration<Alloc2>& other) {
     print_intermediate_solutions = other.print_intermediate_solutions;
     stop_after_n_solutions = other.stop_after_n_solutions;
+    stop_after_n_nodes = other.stop_after_n_nodes;
     free_search = other.free_search;
     verbose_solving = other.verbose_solving;
     print_ast = other.print_ast;
@@ -131,6 +135,10 @@ struct Configuration {
     if(hardware.size() != 0) {
       printf("-hardware \"%s\" ", hardware.data());
     }
+#ifdef TURBO_PROFILE_MODE
+    printf("-cutnodes %" PRIu64 " ",
+    stop_after_n_nodes == std::numeric_limits<size_t>::max() ? 0 : stop_after_n_nodes);
+#endif
     printf("%s\n", problem_path.data());
   }
 
@@ -141,11 +149,11 @@ struct Configuration {
     printf("%%%%%%mzn-stat: hardware=\"%s\"\n", (hardware.size() == 0) ? "Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000" : hardware.data());
     printf("%%%%%%mzn-stat: arch=\"%s\"\n", arch == Arch::GPU ? "gpu" : "cpu");
     printf("%%%%%%mzn-stat: free_search=\"%s\"\n", free_search ? "yes" : "no");
-    printf("%%%%%%mzn-stat: or_nodes=%lu\n", or_nodes);
-    printf("%%%%%%mzn-stat: timeout_ms=%lu\n", timeout_ms);
+    printf("%%%%%%mzn-stat: or_nodes=%" PRIu64 "\n", or_nodes);
+    printf("%%%%%%mzn-stat: timeout_ms=%" PRIu64 "\n", timeout_ms);
     if(arch == Arch::GPU) {
-      printf("%%%%%%mzn-stat: and_nodes=%lu\n", and_nodes);
-      printf("%%%%%%mzn-stat: stack_size=%lu\n", stack_kb * 1000);
+      printf("%%%%%%mzn-stat: and_nodes=%" PRIu64 "\n", and_nodes);
+      printf("%%%%%%mzn-stat: stack_size=%" PRIu64 "\n", stack_kb * 1000);
       #ifdef CUDA_VERSION
         printf("%%%%%%mzn-stat: cuda_version=%d\n", CUDA_VERSION);
       #endif
@@ -153,6 +161,9 @@ struct Configuration {
         printf("%%%%%%mzn-stat: cuda_architecture=%d\n", __CUDA_ARCH__);
       #endif
     }
+#ifdef TURBO_PROFILE_MODE
+    printf("%%%%%%mzn-stat: cutnodes=%" PRIu64 "\n", stop_after_n_nodes == std::numeric_limits<size_t>::max() ? 0 : stop_after_n_nodes);
+#endif
   }
 
   CUDA InputFormat input_format() const {

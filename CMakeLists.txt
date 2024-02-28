@@ -11,6 +11,7 @@ project(Turbo
   LANGUAGES CUDA CXX)
 option(GPU "GPU" ON)
 option(LOCAL_DEPS "LOCAL_DEPS" OFF)
+option(TURBO_PROFILE_MODE "TURBO_PROFILE_MODE" OFF)
 
 # Dependencies
 
@@ -56,6 +57,11 @@ target_compile_options(turbo PRIVATE
   "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>,$<CONFIG:Debug>>:-ftemplate-backtrace-limit=0>"
   "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:Clang>>:SHELL:-Xcuda-ptxas --suppress-stack-size-warning>"
 )
+if(TURBO_PROFILE_MODE)
+  target_compile_options(turbo PRIVATE "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:-lineinfo>")
+  target_compile_definitions(turbo PRIVATE TURBO_PROFILE_MODE)
+endif()
+
 target_link_libraries(turbo PRIVATE lala_parsing lala_pc lala_power)
 
 # Documentation

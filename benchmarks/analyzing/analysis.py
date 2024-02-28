@@ -43,8 +43,8 @@ def read_experiments(experiments):
       df['mzn_solver'] = df['configuration'].apply(determine_mzn_solver)
     # print(df[(df['mzn_solver'] == "turbo.gpu.release") & df['or_nodes'].isna()])
     # print(df[(df['mzn_solver'] == "turbo.gpu.release") & df['and_nodes'].isna()])
-    df = df[(df['mzn_solver'] != "turbo.gpu.release") | (~df['or_nodes'].isna())]
-    df = df[(df['mzn_solver'] != "turbo.gpu.release") | (~df['and_nodes'].isna())]
+    # df = df[(df['mzn_solver'] != "turbo.gpu.release") | (~df['or_nodes'].isna())]
+    # df = df[(df['mzn_solver'] != "turbo.gpu.release") | (~df['and_nodes'].isna())]
     all_xp = pd.concat([df, all_xp], ignore_index=True)
   all_xp['version'] = all_xp['version'].apply(version.parse)
   all_xp['nodes'] = all_xp['nodes'].fillna(0).astype(int)
@@ -62,6 +62,12 @@ def read_experiments(experiments):
 def plot_overall_result(df):
   grouped = df.groupby(['uid', 'status']).size().unstack(fill_value=0)
   grouped['OPTIMAL/UNSAT'] = grouped.get('OPTIMAL_SOLUTION', 0) + grouped.get('UNSATISFIABLE', 0)
+
+  # Ensure 'SATISFIED' and 'UNKNOWN' columns exist, even if they are all zeros
+  if 'SATISFIED' not in grouped.columns:
+      grouped['SATISFIED'] = 0
+  if 'UNKNOWN' not in grouped.columns:
+      grouped['UNKNOWN'] = 0
 
   grouped = grouped[['OPTIMAL/UNSAT', 'SATISFIED', 'UNKNOWN']]
 
@@ -120,7 +126,7 @@ def metrics_table(df):
 
   # Merge metrics with idle_eps_workers
   overall_metrics = metrics.merge(idle_eps_workers, on=['uid'], how='left').fillna(0)
-  overall_metrics = overall_metrics.sort_values(by=['version', 'machine', 'avg_nodes_per_second'], ascending=[False, True, False])
+  overall_metrics = overall_metrics.sort_values(by=['avg_nodes_per_second', 'version', 'machine'], ascending=[False, False, True])
 
   return overall_metrics
 
