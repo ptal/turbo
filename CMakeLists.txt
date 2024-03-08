@@ -13,6 +13,7 @@ project(Turbo
   LANGUAGES CUDA CXX)
 option(GPU "GPU" ON)
 option(LOCAL_DEPS "LOCAL_DEPS" OFF)
+option(TURBO_PROFILE_MODE "TURBO_PROFILE_MODE" OFF)
 option(TURBO_VERBOSE "Compile with verbose output" ON)
 option(WITH_ASAN "Compile with the Address Sanitizer to check for memory corruption errors" OFF)
 option(WITH_XCSP3PARSER "Add support for parsing XCSP3 .xml files" ON)
@@ -35,19 +36,19 @@ else()
   FetchContent_Declare(
     lala_pc
     GIT_REPOSITORY "https://github.com/lattice-land/lala-pc.git"
-    GIT_TAG        v1.0.4
+    GIT_TAG        v1.1.3
   )
 
   FetchContent_Declare(
     lala_parsing
     GIT_REPOSITORY "https://github.com/lattice-land/lala-parsing.git"
-    GIT_TAG        v1.0.3
+    GIT_TAG        v1.1.3
   )
 
   FetchContent_Declare(
     lala_power
     GIT_REPOSITORY "https://github.com/lattice-land/lala-power.git"
-    GIT_TAG        v1.0.3
+    GIT_TAG        v1.1.3
   )
 endif()
 
@@ -76,6 +77,11 @@ target_compile_options(turbo PRIVATE
     $<$<AND:$<BOOL:${WITH_ASAN}>,$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:Clang>>:-fsanitize=address>
     "$<$<AND:$<BOOL:${WITH_ASAN}>,$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:SHELL:--compiler-options -fsanitize=address>"
 )
+if(TURBO_PROFILE_MODE)
+  target_compile_options(turbo PRIVATE "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:-lineinfo>")
+  target_compile_definitions(turbo PRIVATE TURBO_PROFILE_MODE)
+endif()
+
 target_link_libraries(turbo PRIVATE lala_parsing lala_pc lala_power)
 target_link_options(turbo PRIVATE
     $<$<AND:$<BOOL:${WITH_ASAN}>,$<CXX_COMPILER_ID:GNU>>:-fsanitize=address;-static-libasan>

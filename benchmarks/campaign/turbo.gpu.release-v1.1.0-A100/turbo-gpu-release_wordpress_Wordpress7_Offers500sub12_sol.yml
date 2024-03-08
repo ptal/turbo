@@ -1,0 +1,18 @@
+- configuration: turbo-gpu-release_wordpress_Wordpress7_Offers500sub12
+  data_file: ../mzn-challenge/2022/wordpress/Wordpress7_Offers500.dzn
+  model: ../mzn-challenge/2022/wordpress/wordpress.mzn
+  mzn_solver: turbo.gpu.release
+  problem: wordpress
+  solution:
+    AssignmentMatrix:
+    - [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1]
+    - [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1]
+    - [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    - [0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0]
+    - [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0]
+    OccupancyVector: [0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    Price: [0, 0, 0, 339, 0, 8403, 8403, 924, 116, 9152, 9152, 9152, 9152, 9152, 9152]
+    VMType: [1, 1, 1, 312, 1, 1, 1, 93, 433, 2, 2, 2, 2, 2, 2]
+    objective: 73097
+  status: SATISFIED
+  time: 300.341
