@@ -7,7 +7,7 @@ set -e
 
 MZN_SOLVER="turbo.gpu.release"
 VERSION="v1.1.0"
-TIMEOUT=310000
+TIMEOUT=360000
 NUM_GPUS=1
 
 HARDWARE="\"Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000\""
@@ -33,23 +33,11 @@ else
   git checkout main
 fi
 
-## III. Gather the list of Slurm nodes to run the experiments on many nodes if available.
-
-if [ -n "${SLURM_JOB_NODELIST}" ]; then
-  # get host name
-  NODES_HOSTNAME="nodes_hostname.txt"
-  scontrol show hostname $SLURM_JOB_NODELIST > $NODES_HOSTNAME
-  # Collect public key and accept them
-  while read -r node; do
-      ssh-keyscan "$node" >> ~/.ssh/known_hosts
-  done < "$NODES_HOSTNAME"
-  MULTINODES_OPTION="--sshloginfile $NODES_HOSTNAME"
-  cp $(realpath "$(dirname "$0")")/slurm.sh $OUTPUT_DIR/
-fi
-
-# IV. Run the experiments in parallel (one per available GPUs).
-
-cp $0 $OUTPUT_DIR/ # for replicability.
+# III. Run the experiments in parallel (one per available GPUs).
 
 DUMP_PY_PATH=$(pwd)/dump.py
-parallel $MULTINODES_OPTION --rpl '{} uq()' --process-slot-var=CUDA_VISIBLE_DEVICES --jobs $NUM_GPUS -k --colsep ',' --header : $MZN_COMMAND {2} {3} '|' python3 $DUMP_PY_PATH $OUTPUT_DIR {1} {2} {3} $MZN_SOLVER :::: $INSTANCE_FILE
+
+cp $0 $OUTPUT_DIR/ # for replicability.
+cp $DUMP_PY_PATH $OUTPUT_DIR/
+
+parallel --rpl '{} uq()' --jobs $NUM_GPUS -k --colsep ',' --skip-first-line $MZN_COMMAND {2} {3} -sub 10 '|' python3 $DUMP_PY_PATH $OUTPUT_DIR {1} {2} {3} $MZN_SOLVER "sub10" :::: $INSTANCE_FILE

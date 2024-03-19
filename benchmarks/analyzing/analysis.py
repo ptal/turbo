@@ -57,6 +57,7 @@ def read_experiments(experiments):
                                                     row['eps_num_subproblems'], row['or_nodes'], row['and_nodes']), axis=1)
   all_xp['nodes_per_second'] = all_xp['nodes'] / all_xp['solveTime']
   all_xp['fp_iterations_per_node'] = all_xp['fixpoint_iterations'] / all_xp['nodes']
+  all_xp['fp_iterations_per_second'] = all_xp['fixpoint_iterations'] / all_xp['solveTime']
   return all_xp
 
 def plot_overall_result(df):
@@ -112,12 +113,19 @@ def metrics_table(df):
     machine=('machine', 'first'),
     avg_nodes_per_second=('nodes_per_second', 'mean'),
     median_nodes_per_second=('nodes_per_second', 'median'),
+    avg_fp_iterations_per_second=('fp_iterations_per_second', 'mean'),
+    median_fp_iterations_per_second=('fp_iterations_per_second', 'median'),
     avg_fp_iterations=('fp_iterations_per_node', 'mean'),
     median_fp_iterations=('fp_iterations_per_node', 'median'),
     avg_propagator_mem_mb=('propagator_mem', lambda x: x.mean() / 1000000),
     median_propagator_mem_mb=('propagator_mem', lambda x: x.median() / 1000000),
     avg_store_mem_kb=('store_mem', lambda x: x.mean() / 1000),
-    median_store_mem_kb=('store_mem', lambda x: x.median() / 1000)
+    median_store_mem_kb=('store_mem', lambda x: x.median() / 1000),
+    problem_optimal=('status', lambda x: (x == 'OPTIMAL_SOLUTION').sum() + (x == 'UNSATISFIABLE').sum()),
+    problem_sat=('status', lambda x: (x == 'SATISFIED').sum()),
+    problem_unknown=('status', lambda x: (x == 'UNKNOWN').sum()),
+    problem_with_store_shared=('memory_configuration', lambda x: (x == "store_shared").sum()),
+    problem_with_props_shared=('memory_configuration', lambda x: (x == "store_pc_shared").sum())
   )
 
   # Count problems with non-zero num_blocks_done and not solved to optimality or proven unsatisfiable
