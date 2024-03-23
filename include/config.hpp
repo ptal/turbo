@@ -5,6 +5,7 @@
 
 #include "battery/allocator.hpp"
 #include "battery/string.hpp"
+#include <cinttypes>
 
 #ifdef __CUDACC__
   #include <cuda.h>
