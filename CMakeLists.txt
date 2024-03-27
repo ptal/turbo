@@ -86,8 +86,8 @@ target_link_libraries(turbo PRIVATE lala_parsing lala_pc lala_power)
 target_link_options(turbo PRIVATE
     $<$<AND:$<BOOL:${WITH_ASAN}>,$<CXX_COMPILER_ID:GNU>>:-fsanitize=address;-static-libasan>
     $<$<AND:$<BOOL:${WITH_ASAN}>,$<CXX_COMPILER_ID:Clang>>:-fsanitize=address>
-    $<$<AND:$<BOOL:{WITH_ASAN}>,$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:MSVC>>:/INCREMENTAL:NO>
-    $<$<CXX_COMPILER_ID:MSVC>:/NODEFAULTLIB:LIBCMT>
+    $<$<AND:$<BOOL:${WITH_ASAN}>,$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:MSVC>>:/INCREMENTAL:NO>
+    $<$<CXX_COMPILER_ID:MSVC>:/NODEFAULTLIB:LIBCMT /STACK:8388608>
     # Link an optional initialization library ${TURBO_INITLIB}
     $<$<AND:$<BOOL:${TURBO_INITLIB}>,$<CXX_COMPILER_ID:GNU>>:SHELL:--whole-archive -l${TURBO_INITLIB} --no-whole-archive>
     $<$<AND:$<BOOL:${TURBO_INITLIB}>,$<CXX_COMPILER_ID:Clang>>:SHELL:-force_load ${TURBO_INITLIB}>
