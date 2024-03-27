@@ -146,7 +146,7 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
       config.arch = Arch::GPU;
     }
     else {
-      std::cerr << "unknown architecture -arch " << architecture << std::endl;
+      std::cerr << "Unknown architecture -arch " << architecture << std::endl;
       exit(EXIT_FAILURE);
     }
   }
