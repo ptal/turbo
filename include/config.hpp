@@ -5,6 +5,7 @@
 
 #include "battery/allocator.hpp"
 #include "battery/string.hpp"
+#include <cinttypes>
 
 #ifdef __CUDACC__
   #include <cuda.h>
@@ -28,6 +29,7 @@ struct Configuration {
   using allocator_type = Allocator;
   bool print_intermediate_solutions; // (only optimization problems).
   size_t stop_after_n_solutions; // 0 for all solutions (satisfaction problems only).
+  size_t stop_after_n_nodes; // size_t MAX values for all nodes.
   bool free_search;
   bool print_statistics;
   bool verbose_solving;
@@ -45,6 +47,7 @@ struct Configuration {
   CUDA Configuration(const allocator_type& alloc = allocator_type{}):
     print_intermediate_solutions(false),
     stop_after_n_solutions(1),
+    stop_after_n_nodes(std::numeric_limits<size_t>::max()),
     free_search(false),
     verbose_solving(false),
     print_ast(false),
@@ -73,6 +76,7 @@ struct Configuration {
   CUDA Configuration(const Configuration<Alloc>& other, const allocator_type& alloc = allocator_type{}) :
     print_intermediate_solutions(other.print_intermediate_solutions),
     stop_after_n_solutions(other.stop_after_n_solutions),
+    stop_after_n_nodes(other.stop_after_n_nodes),
     free_search(other.free_search),
     print_statistics(other.print_statistics),
     verbose_solving(other.verbose_solving),
@@ -92,6 +96,7 @@ struct Configuration {
   CUDA Configuration<allocator_type>& operator=(const Configuration<Alloc2>& other) {
     print_intermediate_solutions = other.print_intermediate_solutions;
     stop_after_n_solutions = other.stop_after_n_solutions;
+    stop_after_n_nodes = other.stop_after_n_nodes;
     free_search = other.free_search;
     verbose_solving = other.verbose_solving;
     print_ast = other.print_ast;
@@ -131,13 +136,17 @@ struct Configuration {
     if(hardware.size() != 0) {
       printf("-hardware \"%s\" ", hardware.data());
     }
+#ifdef TURBO_PROFILE_MODE
+    printf("-cutnodes %" PRIu64 " ",
+    stop_after_n_nodes == std::numeric_limits<size_t>::max() ? 0 : stop_after_n_nodes);
+#endif
     printf("%s\n", problem_path.data());
   }
 
   CUDA void print_mzn_statistics() const {
     printf("%%%%%%mzn-stat: problem_path=\"%s\"\n", problem_path.data());
     printf("%%%%%%mzn-stat: solver=\"Turbo\"\n");
-    printf("%%%%%%mzn-stat: version=\"%s\"\n", (version.size() == 0) ? "1.1.0" : version.data());
+    printf("%%%%%%mzn-stat: version=\"%s\"\n", (version.size() == 0) ? "1.1.3" : version.data());
     printf("%%%%%%mzn-stat: hardware=\"%s\"\n", (hardware.size() == 0) ? "Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000" : hardware.data());
     printf("%%%%%%mzn-stat: arch=\"%s\"\n", arch == Arch::GPU ? "gpu" : "cpu");
     printf("%%%%%%mzn-stat: free_search=\"%s\"\n", free_search ? "yes" : "no");
@@ -153,6 +162,9 @@ struct Configuration {
         printf("%%%%%%mzn-stat: cuda_architecture=%d\n", __CUDA_ARCH__);
       #endif
     }
+#ifdef TURBO_PROFILE_MODE
+    printf("%%%%%%mzn-stat: cutnodes=%" PRIu64 "\n", stop_after_n_nodes == std::numeric_limits<size_t>::max() ? 0 : stop_after_n_nodes);
+#endif
   }
 
   CUDA InputFormat input_format() const {

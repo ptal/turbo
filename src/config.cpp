@@ -11,6 +11,7 @@
 void usage_and_exit(const std::string& program_name) {
   std::cout << "usage: " << program_name << " [-t 2000] [-a] [-n 10] [-i] [-f] [-s] [-v] [-p <i>] [-arch <cpu|gpu>] [-p 48] [-or 48] [-and 256] [-sub 12] [-heap 100] [-stack 100] [-version 1.0.0] [xcsp3instance.xml | fzninstance.fzn]" << std::endl;
   std::cout << "\t-t 2000: Run the solver with a timeout of 2000 milliseconds." << std::endl;
+  std::cout << "\t-timeout 2000: Same as -t, but if both -t and -timeout are specified, -timeout overrides -t." << std::endl;
   std::cout << "\t-a: Instructs the solver to report all solutions in the case of satisfaction problems, or print intermediate solutions of increasing quality in the case of optimisation problems." << std::endl;
   std::cout << "\t-n 10: Instructs the solver to stop after reporting 10 solutions (only used with satisfaction problems)." << std::endl;
   std::cout << "\t-i: Instructs the solver to print intermediate solutions of increasing quality (only used with optimisation problems)." << std::endl;
@@ -26,6 +27,9 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-stack 100: Use a maximum of 100KB of stack size per thread stored in global memory (only for GPU architectures)." << std::endl;
   std::cout << "\t-version 1.0.0: A version identifier that is printed as statistics to know which version of Turbo was used to solve an instance. It is only for documentation and replicability purposes." << std::endl;
   std::cout << "\t-hardware \"Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000\": The description of the hardware on which the solver is executed (\"CPU;RAM;GPU\"). It is only for documentation and replicability purposes." << std::endl;
+#ifdef TURBO_PROFILE_MODE
+  std::cout << "\t-cutnodes 1000: Stop the solver when 1000 nodes have been explored in a subproblem (0 for no limit)." << std::endl;
+#endif
   exit(EXIT_FAILURE);
 }
 
@@ -115,14 +119,19 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
   input.read_size_t("-and", config.and_nodes);
   input.read_size_t("-sub", config.subproblems_power);
   input.read_size_t("-t", config.timeout_ms);
+  input.read_size_t("-timeout", config.timeout_ms);
   input.read_size_t("-stack", config.stack_kb);
+  input.read_size_t("-n", config.stop_after_n_solutions);
+#ifdef TURBO_PROFILE_MODE
+  input.read_size_t("-cutnodes", config.stop_after_n_nodes);
+#endif
+  input.read_bool("-i", config.print_intermediate_solutions);
   bool all_sols;
   input.read_bool("-a", all_sols);
   if(all_sols) {
     config.stop_after_n_solutions = 0;
+    config.print_intermediate_solutions = true;
   }
-  input.read_size_t("-n", config.stop_after_n_solutions);
-  input.read_bool("-i", config.print_intermediate_solutions);
   input.read_bool("-f", config.free_search);
   input.read_bool("-v", config.verbose_solving);
   input.read_bool("-ast", config.print_ast);

@@ -27,6 +27,8 @@ struct Statistics {
   size_t fixpoint_iterations;
   size_t eliminated_variables;
   size_t eliminated_formulas;
+  double search_time;
+  double propagation_time;
 
   CUDA Statistics(size_t variables, size_t constraints, bool optimization):
     variables(variables), constraints(constraints), optimization(optimization),
@@ -35,7 +37,8 @@ struct Statistics {
     depth_max(0), exhaustive(true),
     eps_solved_subproblems(0), eps_num_subproblems(1), eps_skipped_subproblems(0),
     num_blocks_done(0), fixpoint_iterations(0),
-    eliminated_variables(0), eliminated_formulas(0)
+    eliminated_variables(0), eliminated_formulas(0),
+    search_time(0.0), propagation_time(0.0)
     {}
 
   CUDA Statistics(): Statistics(0,0,false) {}
@@ -54,6 +57,8 @@ struct Statistics {
     eps_skipped_subproblems += other.eps_skipped_subproblems;
     num_blocks_done += other.num_blocks_done;
     fixpoint_iterations += other.fixpoint_iterations;
+    search_time += other.search_time;
+    propagation_time += other.propagation_time;
   }
 
 private:
@@ -86,6 +91,10 @@ public:
     print_stat("fixpoint_iterations", fixpoint_iterations);
     print_stat("eliminated_variables", eliminated_variables);
     print_stat("eliminated_formulas", eliminated_formulas);
+#ifdef TURBO_PROFILE_MODE
+    print_stat("search_time", search_time);
+    print_stat("propagation_time", propagation_time);
+#endif
   }
 
   CUDA void print_mzn_end_stats() const {

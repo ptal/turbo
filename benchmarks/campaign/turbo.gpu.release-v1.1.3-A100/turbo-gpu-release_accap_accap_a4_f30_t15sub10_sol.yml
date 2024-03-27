@@ -1,0 +1,13 @@
+- configuration: turbo-gpu-release_accap_accap_a4_f30_t15sub10
+  data_file: ../mzn-challenge/2022/accap/accap_a4_f30_t15.json
+  model: ../mzn-challenge/2022/accap/accap.mzn
+  mzn_solver: turbo.gpu.release
+  problem: accap
+  solution:
+    D: 48
+    S: [9, 11, 17, 30]
+    objective: 115
+    yCoor: [13, 6, 41, 1, 12, 1, 1, 22, 37, 16, 13, 10, 45, 47, 4, 41, 38, 13, 13,
+      7, 31, 48, 10, 23, 35, 21, 21, 16, 26, 37]
+  status: SATISFIED
+  time: 300.404

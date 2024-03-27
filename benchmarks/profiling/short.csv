@@ -1,0 +1,10 @@
+"problem","model","data_file","cutnodes"
+"gfd-schedule","../mzn-challenge/2022/gfd-schedule/gfd-schedule2.mzn","../mzn-challenge/2022/gfd-schedule/n55f2d50m30k3_10124.dzn",1000
+"wordpress7_500","../mzn-challenge/2022/wordpress/wordpress.mzn","../mzn-challenge/2022/wordpress/Wordpress7_Offers500.dzn",1000
+"accap_a4","../mzn-challenge/2022/accap/accap.mzn","../mzn-challenge/2022/accap/accap_a4_f30_t15.json",1000
+"accap_a5","../mzn-challenge/2022/accap/accap.mzn","../mzn-challenge/2022/accap/accap_a5_f40_t20.json",1000
+"accap_a12","../mzn-challenge/2022/accap/accap.mzn","../mzn-challenge/2022/accap/accap_a12_f100_t60.json",1000
+"blocks-world_4_5","../mzn-challenge/2022/blocks-world/blocks.mzn","../mzn-challenge/2022/blocks-world/16-4-5.dzn",1000
+"triangular_n10","../mzn-challenge/2022/triangular/triangular.mzn","../mzn-challenge/2022/triangular/n10.dzn",1000
+"team-assignment_5_31","../mzn-challenge/2022/team-assignment/model.mzn","../mzn-challenge/2022/team-assignment/data3_5_31.dzn",1000
+"rcpsp_J30_45_3","../minizinc-benchmarks/rcpsp/rcpsp.mzn","../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_45_3.dzn",100
