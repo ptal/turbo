@@ -13,6 +13,7 @@ project(Turbo
   LANGUAGES CUDA CXX)
 option(GPU "GPU" ON)
 option(LOCAL_DEPS "LOCAL_DEPS" OFF)
+option(TURBO_PROFILE_MODE "TURBO_PROFILE_MODE" OFF)
 option(TURBO_VERBOSE "Compile with verbose output" ON)
 option(WITH_ASAN "Compile with the Address Sanitizer to check for memory corruption errors" OFF)
 option(WITH_XCSP3PARSER "Add support for parsing XCSP3 .xml files" ON)
