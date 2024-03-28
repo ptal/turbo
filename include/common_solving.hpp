@@ -430,7 +430,7 @@ private:
     config.free_search = true;
     typename F::Sequence seq;
     seq.push_back(F::make_nary("first_fail", {}));
-    seq.push_back(F::make_nary("indomain_min", {}));
+    seq.push_back(F::make_nary("indomain_split", {}));
     for(int i = 0; i < env.num_vars(); ++i) {
       seq.push_back(F::make_avar(env[i].avars[0]));
     }
@@ -445,7 +445,7 @@ private:
   CUDA bool interpret_default_eps_strategy() {
     typename F::Sequence seq;
     seq.push_back(F::make_nary("first_fail", {}));
-    seq.push_back(F::make_nary("indomain_min", {}));
+    seq.push_back(F::make_nary("indomain_split", {}));
     for(int i = 0; i < env.num_vars(); ++i) {
       seq.push_back(F::make_avar(env[i].avars[0]));
     }
