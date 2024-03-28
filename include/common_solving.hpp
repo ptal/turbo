@@ -160,7 +160,7 @@ struct AbstractDomains {
    , best(basic_allocator)
    , bab(basic_allocator)
   {
-    AbstractDeps<BasicAllocator, PropAllocator, StoreAllocator> deps{basic_allocator, prop_allocator, store_allocator};
+    AbstractDeps<BasicAllocator, PropAllocator, StoreAllocator> deps{true, basic_allocator, prop_allocator, store_allocator};
     store = deps.template clone<IStore>(other.store);
     ipc = deps.template clone<IPC>(other.ipc);
     split = deps.template clone<Split>(other.split);
