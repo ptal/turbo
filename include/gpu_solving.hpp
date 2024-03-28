@@ -30,11 +30,6 @@ using Itv2 = Interval<ZInc<int, bt::atomic_memory_grid>>;
 using AtomicBInc = BInc<bt::atomic_memory_block>;
 using FPEngine = BlockAsynchronousIterationGPU<bt::pool_allocator>;
 
-using RootBlockCP = AbstractDomains<Itv1,
-  bt::global_allocator,
-  bt::pool_allocator, // this allocator must not be wrapped in UniqueLightAlloc, otherwise propagators' allocators between the blocks_root and block will not be seen as equal and propagators won't be shared. This is kind of hacky, and we shall design a better solutions later on.
-  UniqueLightAlloc<bt::global_allocator, 1>>;
-
 using BlockCP = AbstractDomains<Itv1,
   bt::global_allocator,
   bt::pool_allocator,
@@ -105,7 +100,7 @@ struct GridData {
   GridCP root;
   // `blocks_root` is a copy of `root` but with the same allocators than the ones used in `blocks`.
   // This is helpful to share immutable data among blocks (for instance the propagators).
-  bt::shared_ptr<RootBlockCP, bt::global_allocator> blocks_root;
+  bt::shared_ptr<BlockCP, bt::global_allocator> blocks_root;
   // Stop from the CPU, for instance because of a timeout.
   volatile bool cpu_stop;
   // Boolean indicating that the blocks have been reduced, and the CPU can now print the statistics.
@@ -169,9 +164,15 @@ struct GridData {
 
   __device__ void allocate() {
     assert(threadIdx.x == 0 && blockIdx.x == 0);
-    printf("make GridCP::blocks_root\n");
-    blocks_root = bt::make_shared<RootBlockCP, bt::global_allocator>(RootBlockCP::tag_gpu_block_copy{}, root);
-    printf("done GridCP::blocks_root\n");
+    auto root_mem_config(mem_config);
+    root_mem_config.mem_kind = MemoryKind::GLOBAL;
+    blocks_root = bt::make_shared<BlockCP, bt::global_allocator>(
+      BlockCP::tag_gpu_block_copy{},
+      false, // Due to different allocators between BlockCP and GridCP, it won't be able to share data anyways.
+      root,
+      bt::global_allocator{},
+      root_mem_config.make_pc_pool(bt::pool_allocator(nullptr,0)),
+      root_mem_config.make_store_pool(bt::pool_allocator(nullptr,0)));
     blocks = bt::vector<BlockData, bt::global_allocator>(root.config.or_nodes);
     gpu_stop = bt::make_shared<BInc<bt::atomic_memory_grid>, bt::global_allocator>(false);
     print_lock = bt::make_shared<cuda::binary_semaphore<cuda::thread_scope_device>, bt::global_allocator>(1);
@@ -218,8 +219,12 @@ public:
       fp_engine = bt::make_shared<FPEngine, bt::global_allocator>(block, shared_mem_pool);
       has_changed = bt::allocate_shared<AtomicBInc, bt::pool_allocator>(shared_mem_pool, true);
       stop = bt::allocate_shared<AtomicBInc, bt::pool_allocator>(shared_mem_pool, false);
-      bt::pool_allocator pc_pool{mem_config.make_pc_pool(shared_mem_pool)};
-      root = bt::make_shared<BlockCP, bt::global_allocator>(BlockCP::tag_gpu_block_copy{}, *(grid_data.blocks_root), bt::global_allocator{}, pc_pool, mem_config.make_store_pool(shared_mem_pool));
+      root = bt::make_shared<BlockCP, bt::global_allocator>(BlockCP::tag_gpu_block_copy{},
+        (mem_config.mem_kind != MemoryKind::STORE_PC_SHARED),
+        *(grid_data.blocks_root),
+        bt::global_allocator{},
+        mem_config.make_pc_pool(shared_mem_pool),
+        mem_config.make_store_pool(shared_mem_pool));
       snapshot_root = bt::make_shared<snapshot_type, bt::global_allocator>(root->search_tree->template snapshot<bt::global_allocator>());
     }
     block.sync();
