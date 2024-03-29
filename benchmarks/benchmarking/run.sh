@@ -6,16 +6,16 @@ set -e
 # I. Define the campaign to run and hardware information.
 
 MZN_SOLVER="turbo.gpu.release"
-VERSION="v1.1.3"
+VERSION="v1.1.7"
 # This is to avoid MiniZinc to kill Turbo before it can print the statistics.
-MZN_TIMEOUT=360000
-REAL_TIMEOUT=300000
+MZN_TIMEOUT=1260000
+REAL_TIMEOUT=1200000
 NUM_GPUS=4
 
 HARDWARE="\"AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM\""
 SHORT_HARDWARE="A100"
 MZN_COMMAND="minizinc --solver $MZN_SOLVER -s --json-stream -t $MZN_TIMEOUT --output-mode json --output-time --output-objective -hardware $HARDWARE -version $VERSION -timeout $REAL_TIMEOUT"
-INSTANCE_FILE="short.csv"
+INSTANCE_FILE="mzn2022.csv"
 OUTPUT_DIR=$(pwd)"/../campaign/$MZN_SOLVER-$VERSION-$SHORT_HARDWARE"
 mkdir -p $OUTPUT_DIR
 
@@ -58,7 +58,7 @@ cp $0 $OUTPUT_DIR/ # for replicability.
 cp $DUMP_PY_PATH $OUTPUT_DIR/
 cp $CUDA_WRAP_PATH $OUTPUT_DIR/
 
-parallel --no-run-if-empty $MULTINODES_OPTION --rpl '{} uq()' --jobs $NUM_GPUS -k --colsep ',' --skip-first-line $CUDA_WRAP_PATH $MZN_COMMAND {2} {3} -sub {4} '|' python3 $DUMP_PY_PATH $OUTPUT_DIR {1} {2} {3} $MZN_SOLVER "sub"{4} :::: $INSTANCE_FILE ::: 10 12
+parallel --no-run-if-empty $MULTINODES_OPTION --rpl '{} uq()' --jobs $NUM_GPUS -k --colsep ',' --skip-first-line $CUDA_WRAP_PATH $MZN_COMMAND {2} {3} '|' python3 $DUMP_PY_PATH $OUTPUT_DIR {1} {2} {3} $MZN_SOLVER :::: $INSTANCE_FILE
 # TEST_PATH=$(pwd)/test.sh
 # parallel --no-run-if-empty $MULTINODES_OPTION --rpl '{} uq()' --jobs $NUM_GPUS -k --colsep ',' --skip-first-line $CUDA_WRAP_PATH $TEST_PATH {1} {2} {3} {4} :::: $INSTANCE_FILE ::: 10 12
 
