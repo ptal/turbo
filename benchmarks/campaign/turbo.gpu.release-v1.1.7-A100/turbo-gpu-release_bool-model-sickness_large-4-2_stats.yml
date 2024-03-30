@@ -1,0 +1,5 @@
+{configuration: turbo-gpu-release_bool-model-sickness_large-4-2, data_file: ../mzn-challenge/2022/roster-sickness/large-4-2.dzn,
+  flatBoolVars: 693, flatIntConstraints: 6205, flatIntVars: 738, flatTime: 28.2329,
+  memory_configuration: store_pc_shared, method: maximize, model: ../mzn-challenge/2022/roster-sickness/bool-model-sickness.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, paths: 0, problem: roster-sickness,
+  propagator_mem: 139, shared_mem: 487, status: UNKNOWN, store_mem: 248}

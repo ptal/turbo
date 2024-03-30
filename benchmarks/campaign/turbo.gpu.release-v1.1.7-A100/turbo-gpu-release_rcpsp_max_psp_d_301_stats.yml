@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-release_rcpsp_max_psp_d_301, data_file: ../minizinc-benchmarks/rcpsp-max/psp_d_301.dzn,
+  evaluatedReifiedConstraints: 213223, flatBoolConstraints: 108486, flatBoolVars: 318800,
+  flatIntConstraints: 323460, flatIntVars: 104838, flatTime: 21.1309, memory_configuration: global,
+  method: minimize, model: ../minizinc-benchmarks/rcpsp-max/rcpsp_max.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, paths: 0, problem: rcpsp-max, propagator_mem: 136358961, shared_mem: 100,
+  status: ERROR, store_mem: 1343008}

@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-release_rcpsp_J120_55_1, data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j120/J120_55_1.dzn,
+  evaluatedReifiedConstraints: 156480, flatBoolConstraints: 77587, flatBoolVars: 234067,
+  flatIntConstraints: 238275, flatIntVars: 79014, flatTime: 14.4277, memory_configuration: global,
+  method: minimize, model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, paths: 0, problem: rcpsp, propagator_mem: 167662305, shared_mem: 100,
+  status: ERROR, store_mem: 1650600}
