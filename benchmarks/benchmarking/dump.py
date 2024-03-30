@@ -23,13 +23,17 @@ if __name__ == "__main__":
   solver = sys.argv[5]
   extras = []
   for i in range(6, len(sys.argv)):
-    if sys.argv[i] != "":
-      extras.append(sys.argv[i])
+    arg = sys.argv[i].strip().replace(' ', '-')
+    if arg != "" and arg != "-s": # we use "-s" when there are "no special options to be used".
+      extras.append(arg)
       # Remove leading "-" from extras (these are used for specifying options)
-      if extras[-1].startWith("-"):
+      if extras[-1].startswith("-"):
         extras[-1] = extras[-1][1:]
 
-  uid = solver.replace('.', '-') + "_" + model.stem + "_" + data.stem + "_".join(extras)
+  uid = solver.replace('.', '-') + "_" + model.stem + "_" + data.stem
+  if len(extras) > 0:
+    uid += "_"
+    uid += "_".join(extras)
 
   if(output_dir[-1] == "/"):
     output_dir = output_dir[:-1]
