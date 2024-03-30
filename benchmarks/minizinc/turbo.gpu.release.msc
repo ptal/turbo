@@ -28,6 +28,8 @@
         ["-and", "number of AND threads", "int", "0"],
         ["-version", "version of the solver to be printed as statistics", "string", "1.1.3"],
         ["-hardware", "description of the hardware on which the solver is executed (CPU;RAM;GPU)", "string", "unspecified"],
-        ["-timeout", "soft timeout of Turbo (do not kill the process after the timeout and wait for statistics to be printed)", "int", "0"]
+        ["-timeout", "soft timeout of Turbo (do not kill the process after the timeout and wait for statistics to be printed)", "int", "0"],
+        ["-globalmem", "store all data abstract elements in the global memory and do not try to optimise using shared memory.", "bool", "false"],
+        ["-noatomics", "do not use atomics to store the domain of variables, this is theoretically unsafe (according to the CUDA memory consistency model).", "bool", "false"]
     ]
 }

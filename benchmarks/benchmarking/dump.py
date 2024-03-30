@@ -22,8 +22,12 @@ if __name__ == "__main__":
   data = Path(sys.argv[4])
   solver = sys.argv[5]
   extras = []
-  if(len(sys.argv) > 6):
-    extras = sys.argv[6:]
+  for i in range(6, len(sys.argv)):
+    if sys.argv[i] != "":
+      extras.append(sys.argv[i])
+      # Remove leading "-" from extras (these are used for specifying options)
+      if extras[-1].startWith("-"):
+        extras[-1] = extras[-1][1:]
 
   uid = solver.replace('.', '-') + "_" + model.stem + "_" + data.stem + "_".join(extras)
 
