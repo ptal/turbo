@@ -1,4 +1,4 @@
-#!/bin/bash
+  #!/bin/bash
 
 # Exits when an error occurs.
 set -e

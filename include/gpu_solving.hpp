@@ -14,26 +14,43 @@ namespace bt = ::battery;
 
 #include <cuda/semaphore>
 
-using F = TFormula<bt::managed_allocator>;
-using FormulaPtr = bt::shared_ptr<F, bt::managed_allocator>;
+template <
+  class Universe0, // Universe used locally to one thread.
+  class Universe1, // Universe used in the scope of a block.
+  class Universe2, // Universe used in the scope of a grid.
+  class ConcurrentAllocator> // This allocator allocates memory that can be both accessed by the CPU and the GPU. See PR #18 for the reason (basically, non-Linux systems do not support concurrent managed memory (accessed from CPU and GPU) and must rely on pinned memory instead).
+struct StateTypes {
 
-/** We first interpret the formula in an abstract domain with sequential managed memory, that we call `GridCP`. */
-using Itv0 = Interval<ZInc<int, bt::local_memory>>;
-using GridCP = AbstractDomains<Itv0,
-  bt::statistics_allocator<bt::managed_allocator>,
-  bt::statistics_allocator<UniqueLightAlloc<bt::managed_allocator, 0>>,
-  bt::statistics_allocator<UniqueLightAlloc<bt::managed_allocator, 1>>>;
+  using U0 = Universe0;
+  using U1 = Universe1;
+  using U2 = Universe2;
+  using concurrent_allocator = ConcurrentAllocator;
 
-/** Then, once everything is initialized, we rely on a parallel abstract domain called `BlockCP`, using atomic shared and global memory. */
-using Itv1 = Interval<ZInc<int, bt::atomic_memory_block>>;
-using Itv2 = Interval<ZInc<int, bt::atomic_memory_grid>>;
+  /** We first interpret the formula in an abstract domain with sequential concurrent memory, that we call `GridCP`. */
+  using GridCP = AbstractDomains<U0,
+    bt::statistics_allocator<ConcurrentAllocator>,
+    bt::statistics_allocator<UniqueLightAlloc<ConcurrentAllocator, 0>>,
+    bt::statistics_allocator<UniqueLightAlloc<ConcurrentAllocator, 1>>>;
+
+  /** Then, once everything is initialized, we rely on a parallel abstract domain called `BlockCP`, usually using atomic shared and global memory. */
+  using BlockCP = AbstractDomains<U1,
+    bt::global_allocator,
+    bt::pool_allocator,
+    UniqueAlloc<bt::pool_allocator, 0>>;
+};
+
 using AtomicBInc = BInc<bt::atomic_memory_block>;
 using FPEngine = BlockAsynchronousIterationGPU<bt::pool_allocator>;
 
-using BlockCP = AbstractDomains<Itv1,
-  bt::global_allocator,
-  bt::pool_allocator,
-  UniqueAlloc<bt::pool_allocator, 0>>;
+using Itv0 = Interval<ZInc<int, bt::local_memory>>;
+using Itv1 = Interval<ZInc<int, bt::atomic_memory_block>>;
+using Itv2 = Interval<ZInc<int, bt::atomic_memory_grid>>;
+
+using ItvSolver = StateTypes<Itv0, Itv1, Itv2, bt::managed_allocator>;
+// Deactivate atomics for the domain of variables (for benchmarking only, it is not safe according to CUDA consistency model).
+using ItvSolverNoAtomics = StateTypes<Itv0, Itv0, Itv0, bt::managed_allocator>;
+// Version for non-Linux systems such as Windows where pinned memory must be used (see PR #19).
+using ItvSolverPinned = StateTypes<Itv0, Itv1, Itv2, bt::pinned_allocator>;
 
 /** Depending on the problem, we can store the abstract elements in different memories.
  * The "worst" is everything in global memory (GLOBAL) when the problem is too large for the shared memory.
@@ -92,11 +109,17 @@ struct MemoryConfig {
   }
 };
 
+template <class S>
 struct BlockData;
 
 /** `GridData` represents the problem to be solved (`root`), the data of each block when running EPS (`blocks`), the index of the subproblem that needs to be solved next (`next_subproblem`), an estimation of the best bound found across subproblems in case of optimisation problem and other global information.
  */
+template <class S>
 struct GridData {
+  using GridCP = typename S::GridCP;
+  using BlockCP = typename S::BlockCP;
+  using U2 = typename S::U2;
+
   GridCP root;
   // `blocks_root` is a copy of `root` but with the same allocators than the ones used in `blocks`.
   // This is helpful to share immutable data among blocks (for instance the propagators).
@@ -106,11 +129,11 @@ struct GridData {
   // Boolean indicating that the blocks have been reduced, and the CPU can now print the statistics.
   volatile bool blocks_reduced;
   MemoryConfig mem_config;
-  bt::vector<BlockData, bt::global_allocator> blocks;
+  bt::vector<BlockData<S>, bt::global_allocator> blocks;
   // Stop from a block on the GPU, for instance because we found a solution.
   bt::shared_ptr<BInc<bt::atomic_memory_grid>, bt::global_allocator> gpu_stop;
   bt::shared_ptr<ZInc<size_t, bt::atomic_memory_grid>, bt::global_allocator> next_subproblem;
-  bt::shared_ptr<Itv2, bt::global_allocator> best_bound;
+  bt::shared_ptr<U2, bt::global_allocator> best_bound;
 
   // All of what follows is only to support printing while the kernel is running.
   // In particular, we transfer the solution to the CPU where it is printed, because printing on the GPU can be very slow when the problem is large.
@@ -167,22 +190,22 @@ struct GridData {
     auto root_mem_config(mem_config);
     root_mem_config.mem_kind = MemoryKind::GLOBAL;
     blocks_root = bt::make_shared<BlockCP, bt::global_allocator>(
-      BlockCP::tag_gpu_block_copy{},
+      typename BlockCP::tag_gpu_block_copy{},
       false, // Due to different allocators between BlockCP and GridCP, it won't be able to share data anyways.
       root,
       bt::global_allocator{},
       root_mem_config.make_pc_pool(bt::pool_allocator(nullptr,0)),
       root_mem_config.make_store_pool(bt::pool_allocator(nullptr,0)));
-    blocks = bt::vector<BlockData, bt::global_allocator>(root.config.or_nodes);
+    blocks = bt::vector<BlockData<S>, bt::global_allocator>(root.config.or_nodes);
     gpu_stop = bt::make_shared<BInc<bt::atomic_memory_grid>, bt::global_allocator>(false);
     print_lock = bt::make_shared<cuda::binary_semaphore<cuda::thread_scope_device>, bt::global_allocator>(1);
     next_subproblem = bt::make_shared<ZInc<size_t, bt::atomic_memory_grid>, bt::global_allocator>(0);
-    best_bound = bt::make_shared<Itv2, bt::global_allocator>();
+    best_bound = bt::make_shared<U2, bt::global_allocator>();
   }
 
   __device__ void deallocate() {
     assert(threadIdx.x == 0 && blockIdx.x == 0);
-    blocks = bt::vector<BlockData, bt::global_allocator>();
+    blocks = bt::vector<BlockData<S>, bt::global_allocator>();
     blocks_root->deallocate();
     blocks_root.reset();
     gpu_stop.reset();
@@ -193,7 +216,11 @@ struct GridData {
 };
 
 /** `BlockData` contains all the structures required to solve a subproblem including the problem itself (`root`) and the fixpoint engine (`fp_engine`). */
+template <class S>
 struct BlockData {
+  using GridCP = typename S::GridCP;
+  using BlockCP = typename S::BlockCP;
+
   using snapshot_type = typename BlockCP::IST::snapshot_type<bt::global_allocator>;
   size_t subproblem_idx;
   bt::shared_ptr<FPEngine, bt::global_allocator> fp_engine;
@@ -210,7 +237,7 @@ struct BlockData {
 public:
   /** Initialize the block data.
   * Allocate the abstract domains in the best memory available depending on how large are the abstract domains. */
-  __device__ void allocate(GridData& grid_data, unsigned char* shared_mem) {
+  __device__ void allocate(GridData<S>& grid_data, unsigned char* shared_mem) {
     auto block = cooperative_groups::this_thread_block();
     if(threadIdx.x == 0) {
       subproblem_idx = blockIdx.x;
@@ -219,7 +246,7 @@ public:
       fp_engine = bt::make_shared<FPEngine, bt::global_allocator>(block, shared_mem_pool);
       has_changed = bt::allocate_shared<AtomicBInc, bt::pool_allocator>(shared_mem_pool, true);
       stop = bt::allocate_shared<AtomicBInc, bt::pool_allocator>(shared_mem_pool, false);
-      root = bt::make_shared<BlockCP, bt::global_allocator>(BlockCP::tag_gpu_block_copy{},
+      root = bt::make_shared<BlockCP, bt::global_allocator>(typename BlockCP::tag_gpu_block_copy{},
         (mem_config.mem_kind != MemoryKind::STORE_PC_SHARED),
         *(grid_data.blocks_root),
         bt::global_allocator{},
@@ -250,7 +277,8 @@ public:
   }
 };
 
-__global__ void initialize_grid_data(GridData* grid_data) {
+template <class S>
+__global__ void initialize_grid_data(GridData<S>* grid_data) {
   grid_data->allocate();
   size_t num_subproblems = 1;
   num_subproblems <<= grid_data->root.config.subproblems_power;
@@ -258,7 +286,8 @@ __global__ void initialize_grid_data(GridData* grid_data) {
   grid_data->root.stats.eps_num_subproblems = num_subproblems;
 }
 
-__global__ void deallocate_grid_data(GridData* grid_data) {
+template <class S>
+__global__ void deallocate_grid_data(GridData<S>* grid_data) {
   grid_data->deallocate();
 }
 
@@ -266,16 +295,18 @@ __global__ void deallocate_grid_data(GridData* grid_data) {
  * Note that this operation might not always succeed, which is okay, the best bound is still preserved in `block_data` and then reduced at the end (in `reduce_blocks`).
  * The worst that can happen is that a best bound is found twice, which does not prevent the correctness of the algorithm.
  */
-__device__ void update_grid_best_bound(BlockData& block_data, GridData& grid_data, local::BInc& best_has_changed) {
+template <class S>
+__device__ void update_grid_best_bound(BlockData<S>& block_data, GridData<S>& grid_data, local::BInc& best_has_changed) {
+  using U0 = typename S::U0;
   if(threadIdx.x == 0 && block_data.root->bab->is_optimization()) {
     const auto& bab = block_data.root->bab;
     auto local_best = bab->optimum().project(bab->objective_var());
     // printf("[new bound] %d: [%d..%d] (current best: [%d..%d])\n", blockIdx.x, local_best.lb().value(), local_best.ub().value(), grid_data.best_bound->lb().value(), grid_data.best_bound->ub().value());
     if(bab->is_maximization()) {
-      grid_data.best_bound->tell_lb(dual<typename Itv0::LB>(local_best.ub()), best_has_changed);
+      grid_data.best_bound->tell_lb(dual<typename U0::LB>(local_best.ub()), best_has_changed);
     }
     else {
-      grid_data.best_bound->tell_ub(dual<typename Itv0::UB>(local_best.lb()), best_has_changed);
+      grid_data.best_bound->tell_ub(dual<typename U0::UB>(local_best.lb()), best_has_changed);
     }
   }
 }
@@ -284,14 +315,16 @@ __device__ void update_grid_best_bound(BlockData& block_data, GridData& grid_dat
  * We directly update the store with the best bound.
  * This function should be called in each node, since the best bound is erased on backtracking (it is not included in the snapshot).
  */
-__device__ void update_block_best_bound(BlockData& block_data, GridData& grid_data) {
+template <class S>
+__device__ void update_block_best_bound(BlockData<S>& block_data, GridData<S>& grid_data) {
+  using U0 = typename S::U0;
   if(threadIdx.x == 0 && block_data.root->bab->is_optimization()) {
     const auto& bab = block_data.root->bab;
     VarEnv<bt::global_allocator> empty_env{};
     auto best_formula = bab->template deinterpret_best_bound<bt::global_allocator>(
       bab->is_maximization()
-      ? Itv0(dual<typename Itv0::UB>(grid_data.best_bound->lb()))
-      : Itv0(dual<typename Itv0::LB>(grid_data.best_bound->ub())));
+      ? U0(dual<typename U0::UB>(grid_data.best_bound->lb()))
+      : U0(dual<typename U0::LB>(grid_data.best_bound->ub())));
     // printf("global best: "); grid_data.best_bound->ub().print(); printf("\n");
     // best_formula.print(); printf("\n");
     IDiagnostics diagnostics;
@@ -302,7 +335,9 @@ __device__ void update_block_best_bound(BlockData& block_data, GridData& grid_da
 /** Propagate a node of the search tree and process the leaf nodes (failed or solution).
  * Branching on unknown nodes is a task left to the caller.
  */
-__device__ bool propagate(BlockData& block_data, GridData& grid_data, local::BInc& thread_has_changed) {
+template <class S>
+__device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data, local::BInc& thread_has_changed) {
+  using BlockCP = typename S::BlockCP;
   bool is_leaf_node = false;
   BlockCP& cp = *block_data.root;
   auto& fp_engine = *block_data.fp_engine;
@@ -356,7 +391,9 @@ __device__ bool propagate(BlockData& block_data, GridData& grid_data, local::BIn
 /** The initial problem tackled during the dive must always be the same.
  * Hence, don't be tempted to add the objective during diving because it might lead to ignoring some subproblems since the splitting decisions will differ.
  */
-__device__ size_t dive(BlockData& block_data, GridData& grid_data) {
+template <class S>
+__device__ size_t dive(BlockData<S>& block_data, GridData<S>& grid_data) {
+  using BlockCP = typename S::BlockCP;
   BlockCP& cp = *block_data.root;
   auto& fp_engine = *block_data.fp_engine;
   auto& stop = *block_data.stop;
@@ -387,7 +424,9 @@ __device__ size_t dive(BlockData& block_data, GridData& grid_data) {
   return remaining_depth;
 }
 
-__device__ void solve_problem(BlockData& block_data, GridData& grid_data) {
+template <class S>
+__device__ void solve_problem(BlockData<S>& block_data, GridData<S>& grid_data) {
+  using BlockCP = typename S::BlockCP;
   BlockCP& cp = *block_data.root;
   auto& fp_engine = *block_data.fp_engine;
   auto& block_has_changed = *block_data.has_changed;
@@ -413,7 +452,8 @@ __device__ void solve_problem(BlockData& block_data, GridData& grid_data) {
   }
 }
 
-CUDA void reduce_blocks(GridData* grid_data) {
+template <class S>
+CUDA void reduce_blocks(GridData<S>* grid_data) {
   for(int i = 0; i < grid_data->blocks.size(); ++i) {
     if(grid_data->blocks[i].root) { // `nullptr` could happen if we try to terminate the program before all blocks are even created.
       grid_data->root.join(*(grid_data->blocks[i].root));
@@ -421,14 +461,15 @@ CUDA void reduce_blocks(GridData* grid_data) {
   }
 }
 
-__global__ void gpu_solve_kernel(GridData* grid_data)
+template <class S>
+__global__ void gpu_solve_kernel(GridData<S>* grid_data)
 {
   if(threadIdx.x == 0 && blockIdx.x == 0 && grid_data->root.config.verbose_solving) {
     printf("%% GPU kernel started, starting solving...\n");
   }
   extern __shared__ unsigned char shared_mem[];
   size_t num_subproblems = grid_data->root.stats.eps_num_subproblems;
-  BlockData& block_data = grid_data->blocks[blockIdx.x];
+  BlockData<S>& block_data = grid_data->blocks[blockIdx.x];
   block_data.allocate(*grid_data, shared_mem);
   while(block_data.subproblem_idx < num_subproblems && !*(block_data.stop)) {
     if(threadIdx.x == 0 && grid_data->root.config.verbose_solving) {
@@ -498,9 +539,10 @@ size_t gpu_sizeof() {
   return *s;
 }
 
-size_t sizeof_store(const CP& root) {
-  return gpu_sizeof<typename BlockCP::IStore>()
-       + gpu_sizeof<typename BlockCP::IStore::universe_type>() * root.store->vars();
+template <class S, class U>
+size_t sizeof_store(const CP<U>& root) {
+  return gpu_sizeof<typename S::BlockCP::IStore>()
+       + gpu_sizeof<typename S::BlockCP::IStore::universe_type>() * root.store->vars();
 }
 
 void print_memory_statistics(const char* key, size_t bytes) {
@@ -518,27 +560,28 @@ void print_memory_statistics(const char* key, size_t bytes) {
 }
 
 /** \returns the size of the shared memory and the kind of memory used. */
-MemoryConfig configure_memory(CP& root) {
+template <class S, class U>
+MemoryConfig configure_memory(CP<U>& root) {
   cudaDeviceProp deviceProp;
   cudaGetDeviceProperties(&deviceProp, 0);
   const auto& config = root.config;
   size_t shared_mem_capacity = deviceProp.sharedMemPerBlock;
 
   // Copy the root to know how large are the abstract domains.
-  CP root2(root);
+  CP<U> root2(root);
 
   size_t store_alignment = 200; // The store does not create much alignment overhead since it is almost only a single array.
 
   MemoryConfig mem_config;
   // Need a bit of shared memory for the fixpoint engine.
   mem_config.shared_bytes = 100;
-  mem_config.store_bytes = sizeof_store(root2) + store_alignment;
+  mem_config.store_bytes = sizeof_store<S>(root2) + store_alignment;
   // We add 20% extra memory due to the alignment of the shared memory which is not taken into account in the statistics.
   // From limited experiments, alignment overhead is usually around 10%.
   mem_config.pc_bytes = root2.prop_allocator.total_bytes_allocated();
   mem_config.pc_bytes += mem_config.pc_bytes / 5;
-  if(shared_mem_capacity < mem_config.shared_bytes + mem_config.store_bytes) {
-    if(config.verbose_solving) {
+  if(config.only_global_memory || shared_mem_capacity < mem_config.shared_bytes + mem_config.store_bytes) {
+    if(!config.only_global_memory && config.verbose_solving) {
       printf("%% The store of variables (%zuKB) cannot be stored in the shared memory of the GPU (%zuKB), therefore we use the global memory.\n",
       mem_config.store_bytes / 1000,
       shared_mem_capacity / 1000);
@@ -572,8 +615,8 @@ MemoryConfig configure_memory(CP& root) {
 }
 
 /** Wait the solving ends because of a timeout, CTRL-C or because the kernel finished. */
-template<class Timepoint>
-bool wait_solving_ends(GridData& grid_data, const Timepoint& start) {
+template<class S, class Timepoint>
+bool wait_solving_ends(GridData<S>& grid_data, const Timepoint& start) {
   cudaEvent_t event;
   cudaEventCreateWithFlags(&event,cudaEventDisableTiming);
   cudaEventRecord(event);
@@ -596,19 +639,21 @@ bool wait_solving_ends(GridData& grid_data, const Timepoint& start) {
   }
 }
 
-void consume_kernel_solutions(GridData& grid_data) {
+template <class S>
+void consume_kernel_solutions(GridData<S>& grid_data) {
   while(!grid_data.consume_solution()) {}
 }
 
-template <class Timepoint>
-void transfer_memory_and_run(CP& root, MemoryConfig mem_config, const Timepoint& start) {
-  auto grid_data = bt::make_shared<GridData, bt::managed_allocator>(std::move(root), mem_config);
+template <class S, class U, class Timepoint>
+void transfer_memory_and_run(CP<U>& root, MemoryConfig mem_config, const Timepoint& start) {
+  using concurrent_allocator = typename S::concurrent_allocator;
+  auto grid_data = bt::make_shared<GridData<S>, concurrent_allocator>(std::move(root), mem_config);
   initialize_grid_data<<<1,1>>>(grid_data.get());
   CUDAEX(cudaDeviceSynchronize());
   if(grid_data->root.config.print_statistics) {
     mem_config.print_mzn_statistics();
   }
-  std::thread consumer_thread(consume_kernel_solutions, std::ref(*grid_data));
+  std::thread consumer_thread(consume_kernel_solutions<S>, std::ref(*grid_data));
   gpu_solve_kernel
     <<<grid_data->root.config.or_nodes,
       grid_data->root.config.and_nodes,
@@ -635,10 +680,11 @@ int threads_per_sm(cudaDeviceProp devProp) {
   }
 }
 
-void configure_blocks_threads(CP& root, const MemoryConfig& mem_config) {
+template <class S, class U>
+void configure_blocks_threads(CP<U>& root, const MemoryConfig& mem_config) {
   int hint_num_blocks;
   int hint_num_threads;
-  CUDAE(cudaOccupancyMaxPotentialBlockSize(&hint_num_blocks, &hint_num_threads, (void*) gpu_solve_kernel, (int)mem_config.shared_bytes));
+  CUDAE(cudaOccupancyMaxPotentialBlockSize(&hint_num_blocks, &hint_num_threads, (void*) gpu_solve_kernel<S>, (int)mem_config.shared_bytes));
 
   cudaDeviceProp deviceProp;
   cudaGetDeviceProperties(&deviceProp, 0);
@@ -682,11 +728,11 @@ void configure_blocks_threads(CP& root, const MemoryConfig& mem_config) {
   }
 }
 
-template <class Timepoint>
-void configure_and_run(CP& root, const Timepoint& start) {
-  MemoryConfig mem_config = configure_memory(root);
-  configure_blocks_threads(root, mem_config);
-  transfer_memory_and_run(root, mem_config, start);
+template <class S, class U, class Timepoint>
+void configure_and_run(CP<U>& root, const Timepoint& start) {
+  MemoryConfig mem_config = configure_memory<S>(root);
+  configure_blocks_threads<S>(root, mem_config);
+  transfer_memory_and_run<S>(root, mem_config, start);
 }
 
 #endif // __CUDACC__
@@ -696,10 +742,15 @@ void gpu_solve(Configuration<bt::standard_allocator>& config) {
   std::cerr << "You must use a CUDA compiler (nvcc or clang) to compile Turbo on GPU." << std::endl;
 #else
   auto start = std::chrono::high_resolution_clock::now();
-  CP root(config);
+  CP<Itv> root(config);
   root.preprocess();
   block_signal_ctrlc();
-  configure_and_run(root, start);
+  if(root.config.noatomics) {
+    configure_and_run<ItvSolverNoAtomics>(root, start);
+  }
+  else {
+    configure_and_run<ItvSolver>(root, start);
+  }
 #endif
 }
 

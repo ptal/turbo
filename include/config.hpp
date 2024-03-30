@@ -34,6 +34,8 @@ struct Configuration {
   bool print_statistics;
   bool verbose_solving;
   bool print_ast;
+  bool only_global_memory;
+  bool noatomics;
   size_t timeout_ms;
   size_t or_nodes;
   size_t and_nodes; // (only for GPU)
@@ -52,6 +54,8 @@ struct Configuration {
     verbose_solving(false),
     print_ast(false),
     print_statistics(false),
+    only_global_memory(false),
+    noatomics(false),
     timeout_ms(0),
     and_nodes(0),
     or_nodes(0),
@@ -81,6 +85,8 @@ struct Configuration {
     print_statistics(other.print_statistics),
     verbose_solving(other.verbose_solving),
     print_ast(other.print_ast),
+    only_global_memory(other.only_global_memory),
+    noatomics(other.noatomics),
     timeout_ms(other.timeout_ms),
     or_nodes(other.or_nodes),
     and_nodes(other.and_nodes),
@@ -101,6 +107,8 @@ struct Configuration {
     verbose_solving = other.verbose_solving;
     print_ast = other.print_ast;
     print_statistics = other.print_statistics;
+    only_global_memory = other.only_global_memory;
+    noatomics = other.noatomics;
     timeout_ms = other.timeout_ms;
     and_nodes = other.and_nodes;
     or_nodes = other.or_nodes;
@@ -126,6 +134,9 @@ struct Configuration {
     );
     if(arch == Arch::GPU) {
       printf("-arch gpu -or %lu -and %lu -sub %lu -stack %lu ", or_nodes, and_nodes, subproblems_power, stack_kb);
+      printf("%s%s",
+        (only_global_memory ? "-globalmem " : ""),
+        (noatomics ? "-noatomics " : ""));
     }
     else {
       printf("-arch cpu -p %zu ", or_nodes);
@@ -146,7 +157,7 @@ struct Configuration {
   CUDA void print_mzn_statistics() const {
     printf("%%%%%%mzn-stat: problem_path=\"%s\"\n", problem_path.data());
     printf("%%%%%%mzn-stat: solver=\"Turbo\"\n");
-    printf("%%%%%%mzn-stat: version=\"%s\"\n", (version.size() == 0) ? "1.1.3" : version.data());
+    printf("%%%%%%mzn-stat: version=\"%s\"\n", (version.size() == 0) ? "1.1.7" : version.data());
     printf("%%%%%%mzn-stat: hardware=\"%s\"\n", (hardware.size() == 0) ? "Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000" : hardware.data());
     printf("%%%%%%mzn-stat: arch=\"%s\"\n", arch == Arch::GPU ? "gpu" : "cpu");
     printf("%%%%%%mzn-stat: free_search=\"%s\"\n", free_search ? "yes" : "no");

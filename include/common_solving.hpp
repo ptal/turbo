@@ -523,7 +523,9 @@ public:
 };
 
 using Itv = Interval<ZInc<int, battery::local_memory>>;
-using CP = AbstractDomains<Itv,
+
+template <class Universe>
+using CP = AbstractDomains<Universe,
   battery::statistics_allocator<battery::standard_allocator>,
   battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 0>>,
   battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 1>>>;

@@ -27,9 +27,13 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-stack 100: Use a maximum of 100KB of stack size per thread stored in global memory (only for GPU architectures)." << std::endl;
   std::cout << "\t-version 1.0.0: A version identifier that is printed as statistics to know which version of Turbo was used to solve an instance. It is only for documentation and replicability purposes." << std::endl;
   std::cout << "\t-hardware \"Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000\": The description of the hardware on which the solver is executed (\"CPU;RAM;GPU\"). It is only for documentation and replicability purposes." << std::endl;
+
 #ifdef TURBO_PROFILE_MODE
   std::cout << "\t-cutnodes 1000: Stop the solver when 1000 nodes have been explored in a subproblem (0 for no limit)." << std::endl;
 #endif
+  // These are hidden options that should only be used to benchmark GPU cards.
+  // std::cout << "\t-globalmem: Store all data abstract elements in the global memory and do not try to optimise using shared memory." << std::endl;
+  // std::cout << "\t-noatomics: Do not use atomics to store the domain of variables, this is theoretically unsafe (according to the CUDA memory consistency model)." << std::endl;
   exit(EXIT_FAILURE);
 }
 
@@ -136,6 +140,8 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
   input.read_bool("-v", config.verbose_solving);
   input.read_bool("-ast", config.print_ast);
   input.read_bool("-s", config.print_statistics);
+  input.read_bool("-globalmem", config.only_global_memory);
+  input.read_bool("-noatomics", config.noatomics);
 
   std::string architecture;
   if(input.read_string("-arch", architecture)) {
