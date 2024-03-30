@@ -1,5 +1,5 @@
 {configuration: turbo-gpu-release_bool-model-sickness_small-4, data_file: ../mzn-challenge/2022/roster-sickness/small-4.dzn,
-  flatBoolVars: 309, flatIntConstraints: 1395, flatIntVars: 344, flatTime: 1.58447,
+  flatBoolVars: 309, flatIntConstraints: 1395, flatIntVars: 344, flatTime: 1.58357,
   memory_configuration: store_shared, method: maximize, model: ../mzn-challenge/2022/roster-sickness/bool-model-sickness.mzn,
   mzn_solver: turbo.gpu.release, nSolutions: 0, paths: 0, problem: roster-sickness,
   propagator_mem: 108129, shared_mem: 1140, status: UNKNOWN, store_mem: 1040}

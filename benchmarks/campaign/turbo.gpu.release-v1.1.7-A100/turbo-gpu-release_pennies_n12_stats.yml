@@ -1,0 +1,5 @@
+{configuration: turbo-gpu-release_pennies_n12, data_file: ../mzn-challenge/2023/pennies-opt/n12.dzn,
+  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
+    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/pennies-opt/pennies.mzn''."}',
+  model: ../mzn-challenge/2023/pennies-opt/pennies.mzn, mzn_solver: turbo.gpu.release,
+  problem: pennies-opt, rest_of_output: '', status: ERROR}

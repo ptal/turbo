@@ -1,5 +1,5 @@
 {configuration: turbo-gpu-release_mapf_ins_g32_p20_a10, data_file: ../mzn-challenge/2022/ma-path-finding/ins_g32_p20_a10.dzn,
   evaluatedReifiedConstraints: 2044240, flatBoolConstraints: 424190, flatBoolVars: 1224740,
-  flatIntConstraints: 1687496, flatIntVars: 419681, flatTime: 49.8433, method: minimize,
+  flatIntConstraints: 1687496, flatIntVars: 419681, flatTime: 50.1098, method: minimize,
   model: ../mzn-challenge/2022/ma-path-finding/mapf.mzn, mzn_solver: turbo.gpu.release,
   nSolutions: 0, paths: 0, problem: ma-path-finding, status: UNKNOWN}

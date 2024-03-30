@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-release_cvrptw_w_reload_A_1v_7l_w_reload_noatomics, data_file: ../mzn-challenge/2021/vrp-submission/A_1v_7l_w_reload.json,
+  evaluatedReifiedConstraints: 90, flatBoolConstraints: 60, flatBoolVars: 90, flatIntConstraints: 740,
+  flatIntVars: 205, flatTime: 0.154706, memory_configuration: store_shared, method: minimize,
+  model: ../mzn-challenge/2021/vrp-submission/cvrptw_w_reload.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, paths: 0, problem: vrp-submission, propagator_mem: 880161, shared_mem: 2604,
+  status: UNKNOWN, store_mem: 2504}

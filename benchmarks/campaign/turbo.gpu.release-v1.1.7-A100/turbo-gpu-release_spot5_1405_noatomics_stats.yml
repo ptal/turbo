@@ -1,0 +1,4 @@
+{configuration: turbo-gpu-release_spot5_1405_noatomics, data_file: ../mzn-challenge/2022/spot5/1405.dzn,
+  evaluatedReifiedConstraints: 855, flatBoolVars: 855, flatIntConstraints: 41217,
+  flatIntVars: 19114, flatTime: 5.1447, method: minimize, model: ../mzn-challenge/2022/spot5/spot5.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, paths: 0, problem: spot5, status: UNKNOWN}

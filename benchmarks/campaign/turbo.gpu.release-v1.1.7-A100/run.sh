@@ -1,4 +1,4 @@
-#!/bin/bash
+  #!/bin/bash
 
 # Exits when an error occurs.
 set -e
@@ -15,7 +15,7 @@ NUM_GPUS=4
 HARDWARE="\"AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM\""
 SHORT_HARDWARE="A100"
 MZN_COMMAND="minizinc --solver $MZN_SOLVER -s --json-stream -t $MZN_TIMEOUT --output-mode json --output-time --output-objective -hardware $HARDWARE -version $VERSION -timeout $REAL_TIMEOUT"
-INSTANCE_FILE="all.csv"
+INSTANCE_FILE="mzn2021-23.csv"
 OUTPUT_DIR=$(pwd)"/../campaign/$MZN_SOLVER-$VERSION-$SHORT_HARDWARE"
 mkdir -p $OUTPUT_DIR
 
@@ -58,7 +58,8 @@ cp $0 $OUTPUT_DIR/ # for replicability.
 cp $DUMP_PY_PATH $OUTPUT_DIR/
 cp $CUDA_WRAP_PATH $OUTPUT_DIR/
 
-parallel --no-run-if-empty $MULTINODES_OPTION --rpl '{} uq()' --jobs $NUM_GPUS -k --colsep ',' --skip-first-line $CUDA_WRAP_PATH $MZN_COMMAND {2} {3} '|' python3 $DUMP_PY_PATH $OUTPUT_DIR {1} {2} {3} $MZN_SOLVER :::: $INSTANCE_FILE
+parallel --no-run-if-empty $MULTINODES_OPTION --rpl '{} uq()' --jobs $NUM_GPUS -k --colsep ',' --skip-first-line $CUDA_WRAP_PATH $MZN_COMMAND {4} {2} {3} '|' python3 $DUMP_PY_PATH $OUTPUT_DIR {1} {2} {3} $MZN_SOLVER {4} :::: $INSTANCE_FILE ::: "-s " "-noatomics " "-globalmem "
+
 # TEST_PATH=$(pwd)/test.sh
 # parallel --no-run-if-empty $MULTINODES_OPTION --rpl '{} uq()' --jobs $NUM_GPUS -k --colsep ',' --skip-first-line $CUDA_WRAP_PATH $TEST_PATH {1} {2} {3} {4} :::: $INSTANCE_FILE ::: 10 12
 

@@ -1,0 +1,5 @@
+{configuration: turbo-gpu-release_test-scheduling_t50m20r10-17_noatomics, data_file: ../mzn-challenge/2023/test-scheduling/t50m20r10-17.dzn,
+  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
+    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/test-scheduling/test-scheduling.mzn''."}',
+  model: ../mzn-challenge/2023/test-scheduling/test-scheduling.mzn, mzn_solver: turbo.gpu.release,
+  problem: test-scheduling, rest_of_output: '', status: ERROR}

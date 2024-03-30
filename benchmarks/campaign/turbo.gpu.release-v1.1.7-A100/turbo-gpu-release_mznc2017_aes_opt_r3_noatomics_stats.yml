@@ -1,0 +1,4 @@
+{configuration: turbo-gpu-release_mznc2017_aes_opt_r3_noatomics, data_file: ../mzn-challenge/2021/opt-cryptoanalysis/r3.dzn,
+  flatIntConstraints: 433, flatIntVars: 353, flatTime: 0.484793, method: minimize,
+  model: ../mzn-challenge/2021/opt-cryptoanalysis/mznc2017_aes_opt.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, paths: 0, problem: opt-cryptoanalysis, status: ERROR}

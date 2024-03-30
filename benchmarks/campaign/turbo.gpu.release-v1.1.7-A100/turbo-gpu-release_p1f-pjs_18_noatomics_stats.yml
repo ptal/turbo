@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-release_p1f-pjs_18_noatomics, data_file: ../mzn-challenge/2021/p1f-pjs/18.dzn,
+  evaluatedReifiedConstraints: 7768, flatBoolConstraints: 5680, flatBoolVars: 8024,
+  flatIntConstraints: 57085, flatIntVars: 9691, flatTime: 2.43119, memory_configuration: global,
+  method: minimize, model: ../mzn-challenge/2021/p1f-pjs/p1f-pjs.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, paths: 0, problem: p1f-pjs, propagator_mem: 42176212, shared_mem: 100,
+  status: UNKNOWN, store_mem: 141968}

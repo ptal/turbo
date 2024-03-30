@@ -15,7 +15,7 @@ NUM_GPUS=4
 HARDWARE="\"AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM\""
 SHORT_HARDWARE="A100"
 MZN_COMMAND="minizinc --solver $MZN_SOLVER -s --json-stream -t $MZN_TIMEOUT --output-mode json --output-time --output-objective -hardware $HARDWARE -version $VERSION -timeout $REAL_TIMEOUT"
-INSTANCE_FILE="all.csv"
+INSTANCE_FILE="mzn2021-23.csv"
 OUTPUT_DIR=$(pwd)"/../campaign/$MZN_SOLVER-$VERSION-$SHORT_HARDWARE"
 mkdir -p $OUTPUT_DIR
 

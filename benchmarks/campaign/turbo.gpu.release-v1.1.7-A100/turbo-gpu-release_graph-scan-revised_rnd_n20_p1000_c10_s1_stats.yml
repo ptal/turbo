@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-release_graph-scan-revised_rnd_n20_p1000_c10_s1, data_file: ../mzn-challenge/2023/multi-agent-graph-coverage/rnd_n20_p1000_c10_s1.dzn,
+  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
+    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/multi-agent-graph-coverage/graph-scan-revised.mzn''."}',
+  model: ../mzn-challenge/2023/multi-agent-graph-coverage/graph-scan-revised.mzn,
+  mzn_solver: turbo.gpu.release, problem: multi-agent-graph-coverage, rest_of_output: '',
+  status: ERROR}

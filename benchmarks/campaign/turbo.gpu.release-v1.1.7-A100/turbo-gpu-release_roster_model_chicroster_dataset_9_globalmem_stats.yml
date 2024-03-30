@@ -1,0 +1,5 @@
+{configuration: turbo-gpu-release_roster_model_chicroster_dataset_9_globalmem, data_file: ../mzn-challenge/2023/roster/chicroster_dataset_9.dzn,
+  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
+    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/roster/roster_model.mzn''."}',
+  model: ../mzn-challenge/2023/roster/roster_model.mzn, mzn_solver: turbo.gpu.release,
+  problem: roster, rest_of_output: '', status: ERROR}

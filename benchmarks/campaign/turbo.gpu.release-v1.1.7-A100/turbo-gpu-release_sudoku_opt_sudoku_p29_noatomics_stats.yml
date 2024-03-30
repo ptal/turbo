@@ -1,0 +1,12 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_sudoku_opt_sudoku_p29_noatomics,
+  cuda_version: 12020, data_file: ../mzn-challenge/2022/sudoku_opt/sudoku_p29.dzn,
+  eliminated_formulas: 1616, eliminated_variables: 1610, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 260, eps_solved_subproblems: 58, failures: 5317071, fixpoint_iterations: 41870087,
+  flatIntConstraints: 6941, flatIntVars: 360, flatTime: 0.999143, free_search: no,
+  hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.558,
+  memory_configuration: store_shared, method: minimize, model: ../mzn-challenge/2022/sudoku_opt/sudoku_opt.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, nodes: 10643248, num_blocks_done: 0,
+  num_solutions: 0, or_nodes: 108, paths: 0, peakDepth: 255, problem: sudoku_opt,
+  problem_path: /tmp/mznfileyh7Lxd.fzn, propagator_mem: 1706193, propagators: 7295,
+  shared_mem: 3228, solveTime: 1200.061, solver: Turbo, stack_size: 32000, status: UNKNOWN,
+  store_mem: 3128, timeout_ms: 1200000, variables: 360, version: v1.1.7}

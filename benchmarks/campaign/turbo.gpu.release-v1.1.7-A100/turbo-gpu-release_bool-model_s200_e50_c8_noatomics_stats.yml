@@ -1,0 +1,5 @@
+{configuration: turbo-gpu-release_bool-model_s200_e50_c8_noatomics, data_file: ../mzn-challenge/2023/roster-shifts-bool/s200_e50_c8.json,
+  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
+    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/roster-shifts-bool/bool-model.mzn''."}',
+  model: ../mzn-challenge/2023/roster-shifts-bool/bool-model.mzn, mzn_solver: turbo.gpu.release,
+  problem: roster-shifts-bool, rest_of_output: '', status: ERROR}

@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-release_accap_accap_a12_f100_t60_noatomics, data_file: ../mzn-challenge/2022/accap/accap_a12_f100_t60.json,
+  evaluatedReifiedConstraints: 1174, flatBoolConstraints: 587, flatBoolVars: 1174,
+  flatIntConstraints: 2061, flatIntVars: 114, flatTime: 0.39233, memory_configuration: store_shared,
+  method: minimize, model: ../mzn-challenge/2022/accap/accap.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, paths: 0, problem: accap, propagator_mem: 1817102, shared_mem: 10652,
+  status: UNKNOWN, store_mem: 10552}

@@ -1,0 +1,5 @@
+{configuration: turbo-gpu-release_gametes_gamete_nl20_m30_12983649, data_file: ../mzn-challenge/2023/gametes/gamete_nl20_m30_12983649.json,
+  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
+    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/gametes/gametes.mzn''."}',
+  model: ../mzn-challenge/2023/gametes/gametes.mzn, mzn_solver: turbo.gpu.release,
+  problem: gametes, rest_of_output: '', status: ERROR}

@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-release_unison_mips_pegwit.ec_vlong.vlShortLshift_globalmem,
+  data_file: ../mzn-challenge/2023/code-generator/mips_pegwit.ec_vlong.vlShortLshift.dzn,
+  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
+    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/code-generator/unison.mzn''."}',
+  model: ../mzn-challenge/2023/code-generator/unison.mzn, mzn_solver: turbo.gpu.release,
+  problem: code-generator, rest_of_output: '', status: ERROR}

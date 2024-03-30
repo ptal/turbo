@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-release_perfect_square_92_noatomics, data_file: ../mzn-challenge/2021/perfect_square/data/92.dzn,
+  evaluatedReifiedConstraints: 1200, flatBoolConstraints: 300, flatBoolVars: 1200,
+  flatIntConstraints: 1200, flatIntVars: 50, flatTime: 0.483755, memory_configuration: store_shared,
+  method: satisfy, model: ../mzn-challenge/2021/perfect_square/perfect_square.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, paths: 0, problem: perfect_square,
+  propagator_mem: 1477579, shared_mem: 10348, status: UNKNOWN, store_mem: 10248}

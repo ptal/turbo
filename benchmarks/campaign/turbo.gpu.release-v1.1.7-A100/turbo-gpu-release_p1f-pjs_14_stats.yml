@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_p1f-pjs_14, cuda_version: 12020,
+  data_file: ../mzn-challenge/2021/p1f-pjs/14.dzn, eliminated_formulas: 8466, eliminated_variables: 4019,
+  eps_num_subproblems: 4096, eps_skipped_subproblems: 0, eps_solved_subproblems: 204,
+  evaluatedReifiedConstraints: 3522, failures: 2562830, fixpoint_iterations: 37760073,
+  flatBoolConstraints: 2628, flatBoolVars: 3666, flatIntConstraints: 21215, flatIntVars: 4317,
+  flatTime: 1.02484, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM
+    512GO;NVIDIA A100 40GB HBM, initTime: 2.666, memory_configuration: global, method: minimize,
+  model: ../mzn-challenge/2021/p1f-pjs/p1f-pjs.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, nodes: 5132834, num_blocks_done: 0, num_solutions: 0, or_nodes: 108,
+  paths: 0, peakDepth: 92, problem: p1f-pjs, problem_path: /tmp/mznfileB6zTm5.fzn,
+  propagator_mem: 16446120, propagators: 43733, shared_mem: 100, solveTime: 1200.084,
+  solver: Turbo, stack_size: 32000, status: UNKNOWN, store_mem: 64112, timeout_ms: 1200000,
+  variables: 7983, version: v1.1.7}
