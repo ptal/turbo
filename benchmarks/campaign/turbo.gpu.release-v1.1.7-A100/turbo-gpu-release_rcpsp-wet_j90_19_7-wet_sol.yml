@@ -1,0 +1,14 @@
+- configuration: turbo-gpu-release_rcpsp-wet_j90_19_7-wet
+  data_file: ../minizinc-benchmarks/rcpsp-wet/j90_19_7-wet.dzn
+  model: ../minizinc-benchmarks/rcpsp-wet/rcpsp-wet.mzn
+  mzn_solver: turbo.gpu.release
+  problem: rcpsp-wet
+  solution:
+    objective: 1008
+    s: [0, 0, 0, 3, 13, 18, 25, 3, 3, 1, 18, 27, 27, 13, 13, 18, 27, 19, 13, 26, 29,
+      28, 13, 12, 2, 10, 27, 31, 30, 26, 13, 30, 22, 19, 30, 45, 18, 32, 26, 27, 33,
+      12, 31, 12, 13, 28, 34, 36, 12, 22, 40, 28, 27, 21, 37, 40, 46, 34, 28, 46,
+      37, 36, 41, 36, 42, 37, 49, 45, 56, 44, 47, 32, 42, 40, 36, 49, 42, 48, 52,
+      52, 54, 49, 57, 65, 57, 61, 45, 63, 61, 55, 68, 72]
+  status: SATISFIED
+  time: 1201.176

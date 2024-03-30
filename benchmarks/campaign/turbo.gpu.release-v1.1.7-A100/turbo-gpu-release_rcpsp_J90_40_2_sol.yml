@@ -1,0 +1,14 @@
+- configuration: turbo-gpu-release_rcpsp_J90_40_2
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j90/J90_40_2.dzn
+  model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn
+  mzn_solver: turbo.gpu.release
+  problem: rcpsp
+  solution:
+    objective: 91
+    s: [4, 0, 0, 7, 10, 7, 10, 17, 7, 15, 15, 18, 9, 11, 12, 21, 22, 22, 9, 20, 10,
+      26, 26, 33, 21, 27, 20, 22, 42, 26, 9, 6, 27, 21, 20, 29, 34, 32, 29, 17, 17,
+      25, 34, 34, 23, 34, 33, 44, 33, 42, 26, 39, 33, 44, 39, 36, 19, 30, 43, 47,
+      49, 51, 52, 49, 43, 52, 54, 38, 52, 54, 53, 56, 55, 43, 53, 60, 59, 48, 54,
+      55, 60, 65, 69, 56, 58, 77, 84, 86, 57, 61]
+  status: SATISFIED
+  time: 236.112

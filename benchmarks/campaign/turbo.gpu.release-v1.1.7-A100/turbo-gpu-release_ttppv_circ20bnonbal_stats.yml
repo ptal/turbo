@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-release_ttppv_circ20bnonbal, data_file: ../mzn-challenge/2022/traveling-tppv/circ20bnonbal.dzn,
+  evaluatedReifiedConstraints: 2280, flatBoolConstraints: 1520, flatBoolVars: 2280,
+  flatIntConstraints: 11932, flatIntVars: 3021, flatTime: 1.15513, memory_configuration: store_shared,
+  method: minimize, model: ../mzn-challenge/2022/traveling-tppv/ttppv.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, paths: 0, problem: traveling-tppv, propagator_mem: 77901864, shared_mem: 42756,
+  status: UNKNOWN, store_mem: 42656}

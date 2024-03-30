@@ -1,0 +1,15 @@
+- configuration: turbo-gpu-release_model_data3_4_31
+  data_file: ../mzn-challenge/2022/team-assignment/data3_4_31.dzn
+  model: ../mzn-challenge/2022/team-assignment/model.mzn
+  mzn_solver: turbo.gpu.release
+  problem: team-assignment
+  solution:
+    Team: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+      21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 3, 4, 5, 2, 6, 7, 1, 8, 9, 10, 11,
+      12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+      31, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+      22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+      13, 14, 15, 16, 17, 18, 20, 21, 19, 31, 22, 30, 24, 23, 28, 25, 29, 26, 27]
+    objective: 7371
+  status: SATISFIED
+  time: 1201.576

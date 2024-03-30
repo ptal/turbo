@@ -1,0 +1,10 @@
+- configuration: turbo-gpu-release_rcpsp_max_psp_j10_33
+  data_file: ../minizinc-benchmarks/rcpsp-max/psp_j10_33.dzn
+  model: ../minizinc-benchmarks/rcpsp-max/rcpsp_max.mzn
+  mzn_solver: turbo.gpu.release
+  problem: rcpsp-max
+  solution:
+    objective: 70
+    s: [25, 0, 10, 6, 34, 51, 33, 61, 41, 15]
+  status: SATISFIED
+  time: 1201.312

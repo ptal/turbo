@@ -1,0 +1,11 @@
+- configuration: turbo-gpu-release_rcpsp-wet_j30_27_5-wet
+  data_file: ../minizinc-benchmarks/rcpsp-wet/j30_27_5-wet.dzn
+  model: ../minizinc-benchmarks/rcpsp-wet/rcpsp-wet.mzn
+  mzn_solver: turbo.gpu.release
+  problem: rcpsp-wet
+  solution:
+    objective: 89
+    s: [0, 30, 5, 1, 10, 11, 10, 24, 20, 11, 16, 31, 15, 16, 18, 26, 30, 21, 36, 30,
+      37, 41, 41, 39, 31, 44, 49, 43, 51, 46, 46, 58]
+  status: SATISFIED
+  time: 1200.691
