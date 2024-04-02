@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-release_flowshop-workers_ex4_globalmem, data_file: ../mzn-challenge/2021/flowshop-workers/ex4.dzn,
+  evaluatedReifiedConstraints: 13367, flatBoolConstraints: 6831, flatBoolVars: 13304,
+  flatIntConstraints: 13807, flatIntVars: 934, flatTime: 1.48315, memory_configuration: global,
+  method: minimize, model: ../mzn-challenge/2021/flowshop-workers/flowshop-workers.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, paths: 0, problem: flowshop-workers,
+  propagator_mem: 19295131, shared_mem: 100, status: UNKNOWN, store_mem: 112048}

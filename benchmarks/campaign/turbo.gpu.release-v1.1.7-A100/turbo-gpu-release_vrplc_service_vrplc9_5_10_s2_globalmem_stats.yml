@@ -1,0 +1,5 @@
+{configuration: turbo-gpu-release_vrplc_service_vrplc9_5_10_s2_globalmem, data_file: ../mzn-challenge/2023/vrplc/vrplc9_5_10_s2.dzn,
+  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
+    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/vrplc/vrplc_service.mzn''."}',
+  model: ../mzn-challenge/2023/vrplc/vrplc_service.mzn, mzn_solver: turbo.gpu.release,
+  problem: vrplc, rest_of_output: '', status: ERROR}

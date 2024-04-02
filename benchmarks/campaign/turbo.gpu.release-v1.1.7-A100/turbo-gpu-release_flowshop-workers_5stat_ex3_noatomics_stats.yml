@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-release_flowshop-workers_5stat_ex3_noatomics, data_file: ../mzn-challenge/2021/flowshop-workers/5stat_ex3.dzn,
+  evaluatedReifiedConstraints: 3797, flatBoolConstraints: 1973, flatBoolVars: 3767,
+  flatIntConstraints: 3995, flatIntVars: 444, flatTime: 0.438859, memory_configuration: store_shared,
+  method: minimize, model: ../mzn-challenge/2021/flowshop-workers/flowshop-workers.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, paths: 0, problem: flowshop-workers,
+  propagator_mem: 5347454, shared_mem: 33028, status: UNKNOWN, store_mem: 32928}

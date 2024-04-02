@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-release_evmopt-generic_BDARUMA_run_code_of_0_block_108_233_1_extended_input,
+  data_file: ../mzn-challenge/2023/evm-super-compilation/BDARUMA_run_code_of_0_block_108_233_1_extended_input.dzn,
+  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
+    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/evm-super-compilation/evmopt-generic.mzn''."}',
+  model: ../mzn-challenge/2023/evm-super-compilation/evmopt-generic.mzn, mzn_solver: turbo.gpu.release,
+  problem: evm-super-compilation, rest_of_output: '', status: ERROR}

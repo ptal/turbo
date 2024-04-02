@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_flowshop-workers_5stat_ex3_globalmem,
+  cuda_version: 12020, data_file: ../mzn-challenge/2021/flowshop-workers/5stat_ex3.dzn,
+  eliminated_formulas: 631, eliminated_variables: 187, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 0, eps_solved_subproblems: 0, evaluatedReifiedConstraints: 3797,
+  failures: 0, fixpoint_iterations: 5384754, flatBoolConstraints: 1973, flatBoolVars: 3767,
+  flatIntConstraints: 3995, flatIntVars: 444, flatTime: 0.471164, free_search: no,
+  hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.641,
+  memory_configuration: global, method: minimize, model: ../mzn-challenge/2021/flowshop-workers/flowshop-workers.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, nodes: 2154414, num_blocks_done: 0,
+  num_solutions: 0, or_nodes: 108, paths: 0, peakDepth: 10537, problem: flowshop-workers,
+  problem_path: /tmp/mznfile9gRjyD.fzn, propagator_mem: 5347454, propagators: 5896,
+  shared_mem: 100, solveTime: 1200.088, solver: Turbo, stack_size: 32000, status: UNKNOWN,
+  store_mem: 32928, timeout_ms: 1200000, variables: 4085, version: v1.1.7}

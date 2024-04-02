@@ -1,0 +1,5 @@
+{configuration: turbo-gpu-release_ccmcp_3_25_0.15_4_globalmem, data_file: ../mzn-challenge/2023/kidney-exchange/3_25_0.15_4.dzn,
+  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
+    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/kidney-exchange/ccmcp.mzn''."}',
+  model: ../mzn-challenge/2023/kidney-exchange/ccmcp.mzn, mzn_solver: turbo.gpu.release,
+  problem: kidney-exchange, rest_of_output: '', status: ERROR}

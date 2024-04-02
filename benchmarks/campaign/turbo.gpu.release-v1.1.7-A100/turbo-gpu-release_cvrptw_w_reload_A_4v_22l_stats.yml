@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_cvrptw_w_reload_A_4v_22l,
+  cuda_version: 12020, data_file: ../mzn-challenge/2021/vrp-submission/A_4v_22l.json,
+  eliminated_formulas: 1231, eliminated_variables: 294, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 120, eps_solved_subproblems: 13, evaluatedReifiedConstraints: 174,
+  failures: 1877555, fixpoint_iterations: 114379248, flatBoolConstraints: 116, flatBoolVars: 174,
+  flatIntConstraints: 2199, flatIntVars: 378, flatTime: 0.296744, free_search: no,
+  hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.304,
+  memory_configuration: store_shared, method: minimize, model: ../mzn-challenge/2021/vrp-submission/cvrptw_w_reload.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, nodes: 5665845, num_blocks_done: 0,
+  num_solutions: 0, or_nodes: 108, paths: 0, peakDepth: 513, problem: vrp-submission,
+  problem_path: /tmp/mznfile69sbjJ.fzn, propagator_mem: 3188404, propagators: 8352,
+  shared_mem: 4572, solveTime: 1200.015, solver: Turbo, stack_size: 32000, status: UNKNOWN,
+  store_mem: 4472, timeout_ms: 1200000, variables: 528, version: v1.1.7}

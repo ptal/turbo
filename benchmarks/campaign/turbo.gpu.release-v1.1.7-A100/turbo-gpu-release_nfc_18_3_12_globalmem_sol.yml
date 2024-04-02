@@ -1,0 +1,11 @@
+- configuration: turbo-gpu-release_nfc_18_3_12_globalmem
+  data_file: ../mzn-challenge/2022/nfc/18_3_12.dzn
+  model: ../mzn-challenge/2022/nfc/nfc.mzn
+  mzn_solver: turbo.gpu.release
+  problem: nfc
+  solution:
+    f: [90, 0, 9, 48, 22, 10, 0, 4, 41, 11, 46, 26, 0, 46, 34, 0, 19, 0]
+    objective: 1218
+    w: [57, 79, 80, 32, 14, 45, 56, 98, 83, 72, 72, 80, 80, 53, 19, 109, 90, 99]
+  status: SATISFIED
+  time: 1200.402

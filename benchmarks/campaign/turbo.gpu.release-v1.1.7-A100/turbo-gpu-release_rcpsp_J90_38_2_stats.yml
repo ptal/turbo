@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_rcpsp_J90_38_2, cuda_version: 12020,
+  data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j90/J90_38_2.dzn, eliminated_formulas: 186886,
+  eliminated_variables: 144404, eps_num_subproblems: 4096, eps_skipped_subproblems: 0,
+  eps_solved_subproblems: 4147, evaluatedReifiedConstraints: 83700, failures: 36471,
+  fixpoint_iterations: 485379, flatBoolConstraints: 41384, flatBoolVars: 125084, flatIntConstraints: 128107,
+  flatIntVars: 42407, flatTime: 6.14001, free_search: no, hardware: AMD EPYC 7452
+    32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 60.495, memory_configuration: global,
+  method: minimize, model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 1, nodes: 114690, num_blocks_done: 108, num_solutions: 139, objective: 78,
+  or_nodes: 108, paths: 0, peakDepth: 91, problem: rcpsp, problem_path: /tmp/mznfileuQYomF.fzn,
+  propagator_mem: 81530596, propagators: 110236, shared_mem: 100, solveTime: 249.489,
+  solver: Turbo, stack_size: 32000, status: OPTIMAL_SOLUTION, store_mem: 866736, timeout_ms: 1200000,
+  variables: 108311, version: v1.1.7}

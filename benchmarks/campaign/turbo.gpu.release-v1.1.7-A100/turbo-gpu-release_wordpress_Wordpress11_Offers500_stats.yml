@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-release_wordpress_Wordpress11_Offers500, data_file: ../mzn-challenge/2022/wordpress/Wordpress11_Offers500.dzn,
+  evaluatedReifiedConstraints: 56, flatBoolConstraints: 30, flatBoolVars: 56, flatIntConstraints: 490,
+  flatIntVars: 302, flatTime: 0.243715, memory_configuration: store_shared, method: minimize,
+  model: ../mzn-challenge/2022/wordpress/wordpress.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, paths: 0, problem: wordpress, propagator_mem: 21916497, shared_mem: 3212,
+  status: UNKNOWN, store_mem: 3112}

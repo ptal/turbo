@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-release_neighbours-rect_neightbours-new-14, data_file: ../mzn-challenge/2021/neighbours/neightbours-new-14.dzn,
+  evaluatedReifiedConstraints: 43991, flatBoolConstraints: 47789, flatBoolVars: 53976,
+  flatIntConstraints: 33997, flatIntVars: 2001, flatTime: 11.2715, memory_configuration: global,
+  method: maximize, model: ../mzn-challenge/2021/neighbours/neighbours-rect.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, paths: 0, problem: neighbours, propagator_mem: 61898817, shared_mem: 100,
+  status: UNKNOWN, store_mem: 447992}

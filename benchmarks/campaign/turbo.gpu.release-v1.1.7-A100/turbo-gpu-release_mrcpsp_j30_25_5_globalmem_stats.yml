@@ -1,0 +1,5 @@
+{configuration: turbo-gpu-release_mrcpsp_j30_25_5_globalmem, data_file: ../mzn-challenge/2023/mrcpsp/j30_25_5.dzn,
+  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
+    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/mrcpsp/mrcpsp.mzn''."}',
+  model: ../mzn-challenge/2023/mrcpsp/mrcpsp.mzn, mzn_solver: turbo.gpu.release, problem: mrcpsp,
+  rest_of_output: '', status: ERROR}

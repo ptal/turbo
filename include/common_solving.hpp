@@ -182,6 +182,7 @@ struct AbstractDomains {
   */
   template <class U2, class BasicAlloc2, class PropAllocator2, class StoreAllocator2>
   CUDA AbstractDomains(const tag_gpu_block_copy&,
+    bool enable_sharing, // `true` if the propagators are not in the shared memory.
     const AbstractDomains<U2, BasicAlloc2, PropAllocator2, StoreAllocator2>& other,
     const BasicAllocator& basic_allocator = BasicAllocator(),
     const PropAllocator& prop_allocator = PropAllocator(),
@@ -202,7 +203,7 @@ struct AbstractDomains {
    , best(basic_allocator)
    , bab(basic_allocator)
   {
-    AbstractDeps<BasicAllocator, PropAllocator, StoreAllocator> deps{basic_allocator, prop_allocator, store_allocator};
+    AbstractDeps<BasicAllocator, PropAllocator, StoreAllocator> deps{enable_sharing, basic_allocator, prop_allocator, store_allocator};
     store = deps.template clone<IStore>(other.store);
     ipc = deps.template clone<IPC>(other.ipc);
     split = deps.template clone<Split>(other.split);
@@ -218,7 +219,7 @@ struct AbstractDomains {
     const PropAllocator& prop_allocator = PropAllocator(),
     const StoreAllocator& store_allocator = StoreAllocator(),
     const tag_copy_cons& tag = tag_copy_cons{})
-   : AbstractDomains(tag_gpu_block_copy{}, other, basic_allocator, prop_allocator, store_allocator)
+   : AbstractDomains(tag_gpu_block_copy{}, false, other, basic_allocator, prop_allocator, store_allocator)
   {
     fzn_output = other.fzn_output;
     env = other.env;
@@ -566,7 +567,9 @@ public:
 };
 
 using Itv = Interval<ZInc<int, battery::local_memory>>;
-using CP = AbstractDomains<Itv,
+
+template <class Universe>
+using CP = AbstractDomains<Universe,
   battery::statistics_allocator<battery::standard_allocator>,
   battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 0>>,
   battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 1>>>;

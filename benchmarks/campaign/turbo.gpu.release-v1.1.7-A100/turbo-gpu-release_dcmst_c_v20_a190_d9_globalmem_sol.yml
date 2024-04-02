@@ -1,0 +1,29 @@
+- configuration: turbo-gpu-release_dcmst_c_v20_a190_d9_globalmem
+  data_file: ../mzn-challenge/2022/diameterc-mst/c_v20_a190_d9.dzn
+  model: ../mzn-challenge/2022/diameterc-mst/dcmst.mzn
+  mzn_solver: turbo.gpu.release
+  problem: diameterc-mst
+  solution:
+    es: [false, false, false, false, false, true, false, false, true, false, false,
+      false, false, false, false, false, false, false, false, false, false, false,
+      false, true, false, false, false, false, false, false, false, false, false,
+      false, false, true, false, false, false, false, true, false, false, false, false,
+      true, false, false, false, false, false, false, false, false, false, false,
+      true, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, false, true, false, false, false, false, false, false,
+      false, false, true, false, false, false, false, true, false, false, false, false,
+      false, false, false, false, false, true, false, false, false, false, false,
+      false, true, false, false, false, false, false, false, false, false, false,
+      false, true, false, false, false, false, false, false, false, false, false,
+      true, true, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, true, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false, false, false, true,
+      false, false, false, false, false, false, false, true, false, false, false,
+      false, false, false, false, false, false, false, false, false, false, false,
+      false, false, false, false, false, true, false, false, false, false, false]
+    h: [0, 1, 1, 1, 1, 1, 0, 2, 2, 1, 1, 2, 3, 2, 3, 2, 2, 3, 2, 3]
+    objective: 509
+    p: [1, 7, 7, 7, 7, 7, 7, 10, 10, 1, 7, 3, 16, 10, 12, 5, 6, 17, 2, 8]
+    root: 6
+  status: SATISFIED
+  time: 1200.566

@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-release_gfd-schedule2_n60f7d50m30k10_10124, data_file: ../mzn-challenge/2022/gfd-schedule/n60f7d50m30k10_10124.dzn,
+  evaluatedReifiedConstraints: 26718, flatBoolConstraints: 20822, flatBoolVars: 45800,
+  flatIntConstraints: 70552, flatIntVars: 42731, flatTime: 2.02469, memory_configuration: global,
+  method: minimize, model: ../mzn-challenge/2022/gfd-schedule/gfd-schedule2.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, paths: 0, problem: gfd-schedule, propagator_mem: 38013316, shared_mem: 100,
+  status: UNKNOWN, store_mem: 511376}

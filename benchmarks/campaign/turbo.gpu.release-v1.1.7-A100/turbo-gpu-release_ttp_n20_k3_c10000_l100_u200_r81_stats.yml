@@ -1,0 +1,5 @@
+{configuration: turbo-gpu-release_ttp_n20_k3_c10000_l100_u200_r81, data_file: ../mzn-challenge/2023/travelling-thief/data/n20_k3_c10000_l100_u200_r81.dzn,
+  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
+    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/travelling-thief/ttp.mzn''."}',
+  model: ../mzn-challenge/2023/travelling-thief/ttp.mzn, mzn_solver: turbo.gpu.release,
+  problem: travelling-thief, rest_of_output: '', status: ERROR}

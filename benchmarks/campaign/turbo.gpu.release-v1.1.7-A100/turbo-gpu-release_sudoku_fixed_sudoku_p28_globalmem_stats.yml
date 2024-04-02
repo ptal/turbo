@@ -1,0 +1,5 @@
+{configuration: turbo-gpu-release_sudoku_fixed_sudoku_p28_globalmem, data_file: ../mzn-challenge/2023/sudoku_fixed/sudoku_p28.dzn,
+  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
+    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/sudoku_fixed/sudoku_fixed.mzn''."}',
+  model: ../mzn-challenge/2023/sudoku_fixed/sudoku_fixed.mzn, mzn_solver: turbo.gpu.release,
+  problem: sudoku_fixed, rest_of_output: '', status: ERROR}

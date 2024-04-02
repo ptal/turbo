@@ -1,0 +1,5 @@
+{configuration: turbo-gpu-release_chessboard_chessboard_n12_1_globalmem, data_file: ../mzn-challenge/2023/chessboard/chessboard_n12_1.json,
+  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
+    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/chessboard/chessboard.mzn''."}',
+  model: ../mzn-challenge/2023/chessboard/chessboard.mzn, mzn_solver: turbo.gpu.release,
+  problem: chessboard, rest_of_output: '', status: ERROR}

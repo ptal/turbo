@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_seat-moving_sm-20-13-00,
+  cuda_version: 12020, data_file: ../mzn-challenge/2021/seat-moving/sm-20-13-00.dzn,
+  eliminated_formulas: 13859, eliminated_variables: 7999, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 0, eps_solved_subproblems: 3985, evaluatedReifiedConstraints: 3862,
+  failures: 2748106, fixpoint_iterations: 44222186, flatBoolConstraints: 362, flatBoolVars: 3938,
+  flatIntConstraints: 9135, flatIntVars: 4031, flatTime: 0.288754, free_search: no,
+  hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 1.406,
+  memory_configuration: store_shared, method: minimize, model: ../mzn-challenge/2021/seat-moving/seat-moving.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, nodes: 5541067, num_blocks_done: 0,
+  num_solutions: 0, or_nodes: 108, paths: 0, peakDepth: 498, problem: seat-moving,
+  problem_path: /tmp/mznfile44ZO41.fzn, propagator_mem: 5882721, propagators: 13146,
+  shared_mem: 37284, solveTime: 1200.032, solver: Turbo, stack_size: 32000, status: UNKNOWN,
+  store_mem: 37184, timeout_ms: 1200000, variables: 4617, version: v1.1.7}
