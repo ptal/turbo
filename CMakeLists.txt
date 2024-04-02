@@ -17,9 +17,11 @@ option(TURBO_PROFILE_MODE "TURBO_PROFILE_MODE" OFF)
 option(TURBO_VERBOSE "Compile with verbose output" ON)
 option(WITH_ASAN "Compile with the Address Sanitizer to check for memory corruption errors" OFF)
 option(WITH_XCSP3PARSER "Add support for parsing XCSP3 .xml files" ON)
+option(WITH_CONCURRENT_ALLOCATOR "Add support for a memory allocator that provides concurrent access to memory on GPUs that do not support it." OFF)
 
 if(MSVC)
   set(WITH_XCSP3PARSER OFF)  # XCSP3-CPP-Parser has dependencies on gcc that break MSVC
+  set(WITH_CONCURRENT_ALLOCATOR ON)  # Windows requires a special allocator to provide concurrent access to managed memory
 endif()
 
 set(TURBO_INITLIB "" CACHE STRING "Include an external initialization library to construct statics before main() for use in code instrumentation")
@@ -64,6 +66,7 @@ add_executable(turbo src/turbo.cpp src/config.cpp)
 target_include_directories(turbo PRIVATE include)
 target_compile_options(turbo PRIVATE
     $<$<BOOL:${WITH_XCSP3PARSER}>:-DWITH_XCSP3PARSER>
+    $<$<BOOL:${WITH_CONCURRENT_ALLOCATOR}>:-DWITH_CONCURRENT_ALLOCATOR>
     "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:SHELL:-Xptxas --suppress-stack-size-warning>"
     $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:--keep$<$<BOOL:${TURBO_VERBOSE}>:;--verbose>>
     "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>,$<CONFIG:Debug>>:-ftemplate-backtrace-limit=0>"
