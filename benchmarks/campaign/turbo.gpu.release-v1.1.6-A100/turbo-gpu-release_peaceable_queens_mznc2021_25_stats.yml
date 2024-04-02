@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-release_peaceable_queens_mznc2021_25, data_file: ../mzn-challenge/2021/peacable_queens/25.dzn,
+  evaluatedReifiedConstraints: 25275, flatBoolConstraints: 34184, flatBoolVars: 33805,
+  flatIntConstraints: 22742, flatIntVars: 6652, flatTime: 9.67875, memory_configuration: global,
+  method: maximize, model: ../mzn-challenge/2021/peacable_queens/peaceable_queens_mznc2021.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, paths: 0, problem: peacable_queens,
+  propagator_mem: 47632987, shared_mem: 100, status: UNKNOWN, store_mem: 313792}

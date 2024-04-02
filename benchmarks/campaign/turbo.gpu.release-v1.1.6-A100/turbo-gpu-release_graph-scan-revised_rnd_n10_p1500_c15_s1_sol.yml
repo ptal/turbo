@@ -1,0 +1,95 @@
+- configuration: turbo-gpu-release_graph-scan-revised_rnd_n10_p1500_c15_s1
+  data_file: ../mzn-challenge/2023/multi-agent-graph-coverage/rnd_n10_p1500_c15_s1.dzn
+  model: ../mzn-challenge/2023/multi-agent-graph-coverage/graph-scan-revised.mzn
+  mzn_solver: turbo.gpu.release
+  problem: multi-agent-graph-coverage
+  solution:
+    endtime: 255
+    next:
+    - - c: R
+        e: {e: E3}
+      - c: R
+        e: {e: E6}
+      - c: R
+        e: {e: E8}
+      - c: R
+        e: {e: E4}
+      - c: R
+        e: {e: E5}
+      - c: R
+        e: {e: E9}
+      - c: R
+        e: {e: E7}
+      - c: R
+        e: {e: E16}
+      - c: R
+        e: {e: E17}
+      - c: R
+        e: {e: E1}
+      - c: R
+        e: {e: E2}
+      - c: R
+        e: {e: E10}
+      - c: R
+        e: {e: E13}
+      - c: R
+        e: {e: E14}
+      - c: R
+        e: {e: E11}
+      - {e: end}
+      - c: R
+        e: {e: E12}
+      - c: R
+        e: {e: E15}
+      - c: R
+        e: {e: E18}
+    - - c: R
+        e: {e: E1}
+      - c: R
+        e: {e: E2}
+      - c: R
+        e: {e: E8}
+      - c: R
+        e: {e: E7}
+      - c: R
+        e: {e: E15}
+      - c: R
+        e: {e: E6}
+      - c: R
+        e: {e: E18}
+      - c: R
+        e: {e: E16}
+      - c: R
+        e: {e: E9}
+      - c: R
+        e: {e: E10}
+      - c: R
+        e: {e: E11}
+      - c: R
+        e: {e: E3}
+      - c: R
+        e: {e: E4}
+      - c: R
+        e: {e: E5}
+      - {e: end}
+      - c: R
+        e: {e: E13}
+      - c: R
+        e: {e: E12}
+      - c: R
+        e: {e: E14}
+      - c: R
+        e: {e: E17}
+    objective: 255
+    scan:
+    - [false, false, false, false, false, false, false, true, true, true, true, false,
+      false, false, false, false, false, false]
+    - [false, false, false, false, false, false, false, false, false, false, false,
+      true, true, true, true, true, false, false]
+    visit:
+    - [177, 54, 197, 405, 405, 68, 405, 213, 81, 137, 26, 121, 405, 405, 13, 241,
+      107, 0, 255]
+    - [405, 405, 46, 132, 207, 405, 146, 62, 405, 405, 405, 14, 104, 173, 224, 76,
+      0, 160, 250]
+  status: SATISFIED
+  time: 1201.411

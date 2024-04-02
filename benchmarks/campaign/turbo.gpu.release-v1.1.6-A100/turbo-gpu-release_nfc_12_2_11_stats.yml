@@ -1,0 +1,12 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_nfc_12_2_11, cuda_version: 12020,
+  data_file: ../mzn-challenge/2022/nfc/12_2_11.dzn, eliminated_formulas: 85, eliminated_variables: 61,
+  eps_num_subproblems: 4096, eps_skipped_subproblems: 0, eps_solved_subproblems: 4108,
+  failures: 904223, fixpoint_iterations: 16459064, flatIntConstraints: 25, flatIntVars: 25,
+  flatTime: 0.210737, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM
+    512GO;NVIDIA A100 40GB HBM, initTime: 0.014, memory_configuration: store_pc_shared,
+  method: minimize, model: ../mzn-challenge/2022/nfc/nfc.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 1, nodes: 1849538, num_blocks_done: 108, num_solutions: 6, objective: 784,
+  or_nodes: 108, paths: 0, peakDepth: 48, problem: nfc, problem_path: /tmp/mznfileotVCBh.fzn,
+  propagator_mem: 13886, propagators: 25, shared_mem: 14426, solveTime: 87.063, solver: Turbo,
+  stack_size: 32000, status: OPTIMAL_SOLUTION, store_mem: 440, timeout_ms: 1200000,
+  variables: 24, version: v1.1.6}

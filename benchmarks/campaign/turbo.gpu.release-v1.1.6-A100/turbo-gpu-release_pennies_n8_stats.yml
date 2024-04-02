@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_pennies_n8, cuda_version: 12020,
+  data_file: ../mzn-challenge/2023/pennies-opt/n8.dzn, eliminatedImplications: 32,
+  eliminated_formulas: 12559, eliminated_variables: 7929, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 3714, eps_solved_subproblems: 384, evaluatedReifiedConstraints: 4413,
+  failures: 23941, fixpoint_iterations: 465614, flatBoolConstraints: 575, flatBoolVars: 4549,
+  flatIntConstraints: 8880, flatIntVars: 4630, flatTime: 0.552681, free_search: no,
+  hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.696,
+  memory_configuration: store_shared, method: maximize, model: ../mzn-challenge/2023/pennies-opt/pennies.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 1, nodes: 61026, num_blocks_done: 107,
+  num_solutions: 192, objective: 7, or_nodes: 108, paths: 0, peakDepth: 40, problem: pennies-opt,
+  problem_path: /tmp/mznfileu9zh04.fzn, propagator_mem: 2889134, propagators: 5299,
+  shared_mem: 40532, solveTime: 1200.046, solver: Turbo, stack_size: 32000, status: SATISFIED,
+  store_mem: 40432, timeout_ms: 1200000, variables: 5023, version: v1.1.6}

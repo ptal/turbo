@@ -1,0 +1,5 @@
+{configuration: turbo-gpu-release_sudoku_opt_sudoku_p90, data_file: ../mzn-challenge/2022/sudoku_opt/sudoku_p90.dzn,
+  flatIntConstraints: 6606, flatIntVars: 350, flatTime: 1.07825, memory_configuration: store_shared,
+  method: minimize, model: ../mzn-challenge/2022/sudoku_opt/sudoku_opt.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, paths: 0, problem: sudoku_opt, propagator_mem: 1586347, shared_mem: 3132,
+  status: UNKNOWN, store_mem: 3032}

@@ -1,0 +1,5 @@
+{configuration: turbo-gpu-release_model_data1_4_6, data_file: ../mzn-challenge/2022/team-assignment/data1_4_6.dzn,
+  evaluatedReifiedConstraints: 222, flatBoolVars: 222, flatIntConstraints: 515, flatIntVars: 259,
+  flatTime: 0.449062, memory_configuration: store_shared, method: maximize, model: ../mzn-challenge/2022/team-assignment/model.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, paths: 0, problem: team-assignment,
+  propagator_mem: 145915, shared_mem: 2420, status: UNKNOWN, store_mem: 2320}

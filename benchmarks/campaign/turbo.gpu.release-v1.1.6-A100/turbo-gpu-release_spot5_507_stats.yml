@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-release_spot5_507, data_file: ../mzn-challenge/2022/spot5/507.dzn,
+  evaluatedReifiedConstraints: 311, flatBoolVars: 311, flatIntConstraints: 13758,
+  flatIntVars: 6044, flatTime: 1.74408, memory_configuration: store_shared, method: minimize,
+  model: ../mzn-challenge/2022/spot5/spot5.mzn, mzn_solver: turbo.gpu.release, nSolutions: 0,
+  paths: 0, problem: spot5, propagator_mem: 129176136, shared_mem: 48700, status: ERROR,
+  store_mem: 48600}

@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_mapping_mesh4x4_2, cuda_version: 12020,
+  data_file: ../mzn-challenge/2021/mapping/mesh4x4_2.dzn, eliminated_formulas: 5005,
+  eliminated_variables: 4048, eps_num_subproblems: 4096, eps_skipped_subproblems: 3836,
+  eps_solved_subproblems: 154, evaluatedReifiedConstraints: 896, failures: 1330052,
+  fixpoint_iterations: 34117159, flatBoolVars: 448, flatIntConstraints: 1444, flatIntVars: 1181,
+  flatTime: 0.94864, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM
+    512GO;NVIDIA A100 40GB HBM, initTime: 0.207, memory_configuration: store_shared,
+  method: minimize, model: ../mzn-challenge/2021/mapping/mapping.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 1, nodes: 2673560, num_blocks_done: 0, num_solutions: 4, objective: 1844,
+  or_nodes: 108, paths: 0, peakDepth: 3256, problem: mapping, problem_path: /tmp/mznfile6hyCj5.fzn,
+  propagator_mem: 808200, propagators: 1300, shared_mem: 10428, solveTime: 1200.025,
+  solver: Turbo, stack_size: 32000, status: SATISFIED, store_mem: 10328, timeout_ms: 1200000,
+  variables: 1260, version: v1.1.6}

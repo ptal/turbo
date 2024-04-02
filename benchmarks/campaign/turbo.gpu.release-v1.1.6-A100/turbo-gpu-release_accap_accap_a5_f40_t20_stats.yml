@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-release_accap_accap_a5_f40_t20, data_file: ../mzn-challenge/2022/accap/accap_a5_f40_t20.json,
+  evaluatedReifiedConstraints: 594, flatBoolConstraints: 297, flatBoolVars: 594, flatIntConstraints: 987,
+  flatIntVars: 47, flatTime: 0.246131, memory_configuration: store_shared, method: minimize,
+  model: ../mzn-challenge/2022/accap/accap.mzn, mzn_solver: turbo.gpu.release, nSolutions: 0,
+  paths: 0, problem: accap, propagator_mem: 893889, shared_mem: 5476, status: UNKNOWN,
+  store_mem: 5376}

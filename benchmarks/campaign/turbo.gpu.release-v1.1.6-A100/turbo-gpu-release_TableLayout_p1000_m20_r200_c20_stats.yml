@@ -1,0 +1,12 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_TableLayout_p1000_m20_r200_c20,
+  cuda_version: 12020, data_file: ../mzn-challenge/2023/table-layout/p1000_m20_r200_c20.dzn,
+  eliminated_formulas: 65620, eliminated_variables: 16331, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 0, eps_solved_subproblems: 0, failures: 0, fixpoint_iterations: 5744680,
+  flatIntConstraints: 15990, flatIntVars: 12221, flatTime: 1.16733, free_search: no,
+  hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 32.108,
+  memory_configuration: global, method: minimize, model: ../mzn-challenge/2023/table-layout/TableLayout.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, nodes: 1294573, num_blocks_done: 0,
+  num_solutions: 0, or_nodes: 108, paths: 0, peakDepth: 3995, problem: table-layout,
+  problem_path: /tmp/mznfileL6JHoq.fzn, propagator_mem: 55840632, propagators: 130811,
+  shared_mem: 100, solveTime: 1200.099, solver: Turbo, stack_size: 32000, status: UNKNOWN,
+  store_mem: 97128, timeout_ms: 1200000, variables: 12110, version: v1.1.6}

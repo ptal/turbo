@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-release_p1f-pjs_22, data_file: ../mzn-challenge/2021/p1f-pjs/22.dzn,
+  evaluatedReifiedConstraints: 14510, flatBoolConstraints: 10460, flatBoolVars: 14910,
+  flatIntConstraints: 125915, flatIntVars: 18313, flatTime: 4.33135, memory_configuration: global,
+  method: minimize, model: ../mzn-challenge/2021/p1f-pjs/p1f-pjs.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, paths: 0, problem: p1f-pjs, propagator_mem: 89845454, shared_mem: 100,
+  status: UNKNOWN, store_mem: 266032}

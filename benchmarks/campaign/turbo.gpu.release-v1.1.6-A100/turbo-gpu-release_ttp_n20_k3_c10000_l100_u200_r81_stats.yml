@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_ttp_n20_k3_c10000_l100_u200_r81,
+  cuda_version: 12020, data_file: ../mzn-challenge/2023/travelling-thief/data/n20_k3_c10000_l100_u200_r81.dzn,
+  eliminated_formulas: 3035, eliminated_variables: 428, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 2576, eps_solved_subproblems: 1522, evaluatedReifiedConstraints: 285,
+  failures: 28664, fixpoint_iterations: 251665, flatBoolConstraints: 800, flatBoolVars: 459,
+  flatIntConstraints: 1164, flatIntVars: 574, flatTime: 1.01803, free_search: no,
+  hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.946,
+  memory_configuration: store_shared, method: maximize, model: ../mzn-challenge/2023/travelling-thief/ttp.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, nodes: 88811, num_blocks_done: 108,
+  num_solutions: 0, or_nodes: 108, paths: 0, peakDepth: 32, problem: travelling-thief,
+  problem_path: /tmp/mznfileBEYrFP.fzn, propagator_mem: 13947163, propagators: 31471,
+  shared_mem: 7700, solveTime: 11.024, solver: Turbo, stack_size: 32000, status: UNSATISFIABLE,
+  store_mem: 7600, timeout_ms: 1200000, variables: 919, version: v1.1.6}

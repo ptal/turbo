@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_ccmcp_3_25_0.15_4, cuda_version: 12020,
+  data_file: ../mzn-challenge/2023/kidney-exchange/3_25_0.15_4.dzn, eliminated_formulas: 2509,
+  eliminated_variables: 1352, eps_num_subproblems: 4096, eps_skipped_subproblems: 0,
+  eps_solved_subproblems: 862, evaluatedReifiedConstraints: 625, failures: 13649885,
+  fixpoint_iterations: 146363711, flatBoolVars: 625, flatIntConstraints: 1674, flatIntVars: 725,
+  flatTime: 0.447452, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM
+    512GO;NVIDIA A100 40GB HBM, initTime: 0.181, memory_configuration: store_shared,
+  method: maximize, model: ../mzn-challenge/2023/kidney-exchange/ccmcp.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, nodes: 27924496, num_blocks_done: 0, num_solutions: 0, or_nodes: 108,
+  paths: 0, peakDepth: 39, problem: kidney-exchange, problem_path: /tmp/mznfileVcjrI9.fzn,
+  propagator_mem: 785889, propagators: 1791, shared_mem: 5940, solveTime: 1200.017,
+  solver: Turbo, stack_size: 32000, status: UNKNOWN, store_mem: 5840, timeout_ms: 1200000,
+  variables: 699, version: v1.1.6}

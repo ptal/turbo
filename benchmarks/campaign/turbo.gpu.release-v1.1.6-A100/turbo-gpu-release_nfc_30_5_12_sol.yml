@@ -1,0 +1,13 @@
+- configuration: turbo-gpu-release_nfc_30_5_12
+  data_file: ../mzn-challenge/2022/nfc/30_5_12.dzn
+  model: ../mzn-challenge/2022/nfc/nfc.mzn
+  mzn_solver: turbo.gpu.release
+  problem: nfc
+  solution:
+    f: [51, 0, 0, 63, 0, 0, 16, 1, 15, 11, 5, 4, 63, 0, 0, 0, 17, 0, 36, 25, 38, 0,
+      0, 45, 0, 0, 51, 5, 0, 5]
+    objective: 2255
+    w: [63, 79, 80, 32, 43, 48, 36, 98, 83, 72, 67, 80, 17, 53, 78, 116, 99, 99, 108,
+      83, 45, 96, 101, 56, 61, 112, 61, 56, 119, 114]
+  status: SATISFIED
+  time: 1200.415
