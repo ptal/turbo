@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_community-detection_rnd_n100_e5000_s500_d300_c4_p50,
+  cuda_version: 12040, data_file: ../mzn-challenge/2021/community-detection/rnd_n100_e5000_s500_d300_c4_p50.json,
+  eliminated_formulas: 15377, eliminated_variables: 10176, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 0, eps_solved_subproblems: 0, evaluatedReifiedConstraints: 4982,
+  failures: 0, fixpoint_iterations: 3, flatBoolVars: 4982, flatIntConstraints: 10183,
+  flatIntVars: 5094, flatTime: 0.314921, free_search: yes, hardware: Intel Core i9-10900X@3.7GHz;24GO
+    DDR4;NVIDIA RTX A5000, initTime: 0.487, memory_configuration: store_pc_shared,
+  method: maximize, model: ../mzn-challenge/2021/community-detection/community-detection.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, nodes: 4, num_blocks_done: 0, num_solutions: 4,
+  or_nodes: 64, paths: 0, peakDepth: 0, problem: community-detection, problem_path: /tmp/mznfileee0brD.fzn,
+  propagator_mem: 139, propagators: 0, shared_mem: 487, solveTime: 0.991, solver: Turbo,
+  stack_size: 32000, status: UNKNOWN, store_mem: 248, timeout_ms: 1200000, variables: 0,
+  version: v1.1.7}

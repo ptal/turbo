@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_neighbours-rect_neightbours-new-17,
+  cuda_version: 12040, data_file: ../mzn-challenge/2021/neighbours/neightbours-new-17.dzn,
+  eliminated_formulas: 1535, eliminated_variables: 1150, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 0, eps_solved_subproblems: 1, evaluatedReifiedConstraints: 8492,
+  failures: 1305447, fixpoint_iterations: 15933113, flatBoolConstraints: 8851, flatBoolVars: 10337,
+  flatIntConstraints: 6638, flatIntVars: 381, flatTime: 0.613631, free_search: no,
+  hardware: Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000, initTime: 0.992,
+  memory_configuration: global, method: maximize, model: ../mzn-challenge/2021/neighbours/neighbours-rect.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, nodes: 2622293, num_blocks_done: 0,
+  num_solutions: 0, or_nodes: 64, paths: 0, peakDepth: 306, problem: neighbours, problem_path: /tmp/mznfileqdMcXB.fzn,
+  propagator_mem: 11731982, propagators: 15481, shared_mem: 100, solveTime: 1200.066,
+  solver: Turbo, stack_size: 32000, status: UNKNOWN, store_mem: 85920, timeout_ms: 1200000,
+  variables: 10709, version: v1.1.7}

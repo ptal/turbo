@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-release_seat-moving_sm-10-11-00, data_file: ../mzn-challenge/2021/seat-moving/sm-10-11-00.dzn,
+  evaluatedReifiedConstraints: 1670, flatBoolConstraints: 295, flatBoolVars: 1735,
+  flatIntConstraints: 3808, flatIntVars: 1785, flatTime: 0.156836, memory_configuration: store_shared,
+  method: minimize, model: ../mzn-challenge/2021/seat-moving/seat-moving.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, paths: 0, problem: seat-moving, propagator_mem: 2382033, shared_mem: 18492,
+  status: ERROR, store_mem: 18392}

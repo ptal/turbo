@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_rotating-workforce-scheduling_rws-instance-e-100-s-2,
+  cuda_version: 12040, data_file: ../mzn-challenge/2022/rotating-workforce-scheduling/rws-instance-e-100-s-2.dzn,
+  eliminated_formulas: 19291, eliminated_variables: 9421, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 0, eps_solved_subproblems: 0, evaluatedReifiedConstraints: 2800,
+  failures: 119134, fixpoint_iterations: 27564733, flatBoolConstraints: 100, flatBoolVars: 2900,
+  flatIntConstraints: 10876, flatIntVars: 7162, flatTime: 0.392603, free_search: no,
+  hardware: Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000, initTime: 2.608,
+  memory_configuration: global, method: satisfy, model: ../mzn-challenge/2022/rotating-workforce-scheduling/rotating-workforce-scheduling.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, nodes: 244931, num_blocks_done: 0,
+  num_solutions: 0, or_nodes: 64, paths: 0, peakDepth: 218, problem: rotating-workforce-scheduling,
+  problem_path: /tmp/mznfileRx8oaB.fzn, propagator_mem: 11713118, propagators: 26613,
+  shared_mem: 100, solveTime: 1200.017, solver: Turbo, stack_size: 32000, status: UNKNOWN,
+  store_mem: 56576, timeout_ms: 1200000, variables: 7041, version: v1.1.7}

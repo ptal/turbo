@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_test-scheduling_t30m20r3-20,
+  cuda_version: 12040, data_file: ../mzn-challenge/2023/test-scheduling/t30m20r3-20.dzn,
+  eliminated_formulas: 31910, eliminated_variables: 16288, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 0, eps_solved_subproblems: 0, evaluatedReifiedConstraints: 4444,
+  failures: 899133, fixpoint_iterations: 16048030, flatBoolConstraints: 1963, flatBoolVars: 6372,
+  flatIntConstraints: 20589, flatIntVars: 15684, flatTime: 0.698816, free_search: no,
+  hardware: Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000, initTime: 1.999,
+  memory_configuration: global, method: minimize, model: ../mzn-challenge/2023/test-scheduling/test-scheduling.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 1, nodes: 1799546, num_blocks_done: 0,
+  num_solutions: 14, objective: 2745, or_nodes: 64, paths: 0, peakDepth: 672, problem: test-scheduling,
+  problem_path: /tmp/mznfileGxad5m.fzn, propagator_mem: 10143921, propagators: 20111,
+  shared_mem: 100, solveTime: 1200.033, solver: Turbo, stack_size: 32000, status: SATISFIED,
+  store_mem: 156656, timeout_ms: 1200000, variables: 19551, version: v1.1.7}

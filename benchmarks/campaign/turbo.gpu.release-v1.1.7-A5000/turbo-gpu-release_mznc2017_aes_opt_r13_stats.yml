@@ -1,0 +1,12 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_mznc2017_aes_opt_r13,
+  cuda_version: 12040, data_file: ../mzn-challenge/2021/opt-cryptoanalysis/r13.dzn,
+  eliminated_formulas: 5122, eliminated_variables: 4017, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 0, eps_solved_subproblems: 0, failures: 10169, fixpoint_iterations: 4539018,
+  flatIntConstraints: 1873, flatIntVars: 1313, flatTime: 0.352513, free_search: no,
+  hardware: Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000, initTime: 153.033,
+  memory_configuration: store_shared, method: minimize, model: ../mzn-challenge/2021/opt-cryptoanalysis/mznc2017_aes_opt.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 1, nodes: 27664, num_blocks_done: 0,
+  num_solutions: 1, objective: 64, or_nodes: 64, paths: 0, peakDepth: 127, problem: opt-cryptoanalysis,
+  problem_path: /tmp/mznfileXzM2i7.fzn, propagator_mem: 78663825, propagators: 181793,
+  shared_mem: 10852, solveTime: 1200.091, solver: Turbo, stack_size: 32000, status: SATISFIED,
+  store_mem: 10752, timeout_ms: 1200000, variables: 1313, version: v1.1.7}

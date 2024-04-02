@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_handball_handball10,
+  cuda_version: 12040, data_file: ../mzn-challenge/2023/elitserien/handball10.dzn,
+  eliminated_formulas: 13511, eliminated_variables: 2327, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 0, eps_solved_subproblems: 1098, evaluatedReifiedConstraints: 1333,
+  failures: 328044, fixpoint_iterations: 16347227, flatBoolConstraints: 48, flatBoolVars: 791,
+  flatIntConstraints: 6891, flatIntVars: 1729, flatTime: 0.236918, free_search: no,
+  hardware: Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000, initTime: 3.264,
+  memory_configuration: store_shared, method: minimize, model: ../mzn-challenge/2023/elitserien/handball.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, nodes: 669901, num_blocks_done: 0,
+  num_solutions: 0, or_nodes: 64, paths: 0, peakDepth: 73, problem: elitserien, problem_path: /tmp/mznfilebdqvLu.fzn,
+  propagator_mem: 14656008, propagators: 32824, shared_mem: 18316, solveTime: 1200.0,
+  solver: Turbo, stack_size: 32000, status: UNKNOWN, store_mem: 18216, timeout_ms: 1200000,
+  variables: 2246, version: v1.1.7}

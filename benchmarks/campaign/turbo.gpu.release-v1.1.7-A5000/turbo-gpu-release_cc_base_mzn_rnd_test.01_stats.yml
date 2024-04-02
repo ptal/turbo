@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_cc_base_mzn_rnd_test.01,
+  cuda_version: 12040, data_file: ../mzn-challenge/2021/carpet-cutting/mzn_rnd_test.01.dzn,
+  eliminated_formulas: 87821, eliminated_variables: 42543, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 0, eps_solved_subproblems: 4101, evaluatedReifiedConstraints: 40344,
+  failures: 192542, fixpoint_iterations: 2492066, flatBoolConstraints: 17805, flatBoolVars: 58104,
+  flatIntConstraints: 87441, flatIntVars: 44851, flatTime: 1.47097, free_search: no,
+  hardware: Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000, initTime: 15.367,
+  memory_configuration: global, method: minimize, model: ../mzn-challenge/2021/carpet-cutting/cc_base.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 1, nodes: 426338, num_blocks_done: 58,
+  num_solutions: 76, objective: 621, or_nodes: 64, paths: 0, peakDepth: 149, problem: carpet-cutting,
+  problem_path: /tmp/mznfile0rpTAr.fzn, propagator_mem: 41101464, propagators: 68393,
+  shared_mem: 100, solveTime: 1200.026, solver: Turbo, stack_size: 32000, status: SATISFIED,
+  store_mem: 532288, timeout_ms: 1200000, variables: 66505, version: v1.1.7}

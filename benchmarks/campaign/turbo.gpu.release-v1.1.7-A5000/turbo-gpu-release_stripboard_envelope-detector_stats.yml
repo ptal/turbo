@@ -1,0 +1,14 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_stripboard_envelope-detector,
+  cuda_version: 12040, data_file: ../mzn-challenge/2022/stripboard/envelope-detector.dzn,
+  eliminatedImplications: 6, eliminated_formulas: 934, eliminated_variables: 335,
+  eps_num_subproblems: 4096, eps_skipped_subproblems: 794, eps_solved_subproblems: 50,
+  evaluatedReifiedConstraints: 2351, failures: 1453223, fixpoint_iterations: 25703998,
+  flatBoolConstraints: 938, flatBoolVars: 2339, flatIntConstraints: 3114, flatIntVars: 388,
+  flatTime: 0.23335, free_search: no, hardware: Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA
+    RTX A5000, initTime: 0.332, memory_configuration: store_shared, method: minimize,
+  model: ../mzn-challenge/2022/stripboard/stripboard.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, nodes: 2915204, num_blocks_done: 0, num_solutions: 0, or_nodes: 64,
+  paths: 0, peakDepth: 90, problem: stripboard, problem_path: /tmp/mznfileN4qKED.fzn,
+  propagator_mem: 4783819, propagators: 5838, shared_mem: 21548, solveTime: 1200.047,
+  solver: Turbo, stack_size: 32000, status: UNKNOWN, store_mem: 21448, timeout_ms: 1200000,
+  variables: 2650, version: v1.1.7}

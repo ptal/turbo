@@ -1,0 +1,5 @@
+{configuration: turbo-gpu-release_unison_mips_pegwit.ec_vlong.vlShortLshift, data_file: ../mzn-challenge/2023/code-generator/mips_pegwit.ec_vlong.vlShortLshift.dzn,
+  evaluatedReifiedConstraints: 157431, flatBoolConstraints: 60826, flatBoolVars: 199373,
+  flatIntConstraints: 349488, flatIntVars: 191537, flatTime: 9.4815, method: minimize,
+  model: ../mzn-challenge/2023/code-generator/unison.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, paths: 0, problem: code-generator, status: UNKNOWN}

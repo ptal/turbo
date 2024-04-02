@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_chessboard_chessboard4,
+  cuda_version: 12040, data_file: ../mzn-challenge/2023/chessboard/chessboard4.dzn,
+  eliminated_formulas: 1208, eliminated_variables: 806, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 272, eps_solved_subproblems: 3829, evaluatedReifiedConstraints: 1264,
+  failures: 219506, fixpoint_iterations: 3290708, flatBoolConstraints: 1469, flatBoolVars: 1738,
+  flatIntConstraints: 1357, flatIntVars: 447, flatTime: 0.209768, free_search: no,
+  hardware: Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000, initTime: 0.189,
+  memory_configuration: store_shared, method: maximize, model: ../mzn-challenge/2023/chessboard/chessboard.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 1, nodes: 479000, num_blocks_done: 64,
+  num_solutions: 24, objective: 25, or_nodes: 64, paths: 0, peakDepth: 65, problem: chessboard,
+  problem_path: /tmp/mznfileYjwmss.fzn, propagator_mem: 1964193, propagators: 2916,
+  shared_mem: 14996, solveTime: 57.698, solver: Turbo, stack_size: 32000, status: OPTIMAL_SOLUTION,
+  store_mem: 14896, timeout_ms: 1200000, variables: 1831, version: v1.1.7}

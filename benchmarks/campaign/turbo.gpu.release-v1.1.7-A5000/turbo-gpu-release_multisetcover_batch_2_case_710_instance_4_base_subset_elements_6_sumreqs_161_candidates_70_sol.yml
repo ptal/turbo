@@ -1,0 +1,12 @@
+- configuration: turbo-gpu-release_multisetcover_batch_2_case_710_instance_4_base_subset_elements_6_sumreqs_161_candidates_70
+  data_file: ../mzn-challenge/2021/wmsmc-int/batch_2_case_710_instance_4_base_subset_elements_6_sumreqs_161_candidates_70.dzn
+  model: ../mzn-challenge/2021/wmsmc-int/multisetcover.mzn
+  mzn_solver: turbo.gpu.release
+  problem: wmsmc-int
+  solution:
+    candidate_copies: [0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 0]
+    objective: 150310
+  status: SATISFIED
+  time: 1200.283

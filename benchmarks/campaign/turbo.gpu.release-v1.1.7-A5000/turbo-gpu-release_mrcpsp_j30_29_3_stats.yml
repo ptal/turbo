@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_mrcpsp_j30_29_3, cuda_version: 12040,
+  data_file: ../mzn-challenge/2023/mrcpsp/j30_29_3.dzn, eliminated_formulas: 78448,
+  eliminated_variables: 34516, eps_num_subproblems: 4096, eps_skipped_subproblems: 0,
+  eps_solved_subproblems: 0, evaluatedReifiedConstraints: 22062, failures: 450106,
+  fixpoint_iterations: 6932161, flatBoolConstraints: 14244, flatBoolVars: 36372, flatIntConstraints: 50944,
+  flatIntVars: 28316, flatTime: 1.04526, free_search: no, hardware: Intel Core i9-10900X@3.7GHz;24GO
+    DDR4;NVIDIA RTX A5000, initTime: 5.854, memory_configuration: global, method: minimize,
+  model: ../mzn-challenge/2023/mrcpsp/mrcpsp.mzn, mzn_solver: turbo.gpu.release, nSolutions: 1,
+  nodes: 903257, num_blocks_done: 0, num_solutions: 69, objective: 37, or_nodes: 64,
+  paths: 0, peakDepth: 70, problem: mrcpsp, problem_path: /tmp/mznfileqmrMgI.fzn,
+  propagator_mem: 32791396, propagators: 46160, shared_mem: 100, solveTime: 1200.019,
+  solver: Turbo, stack_size: 32000, status: SATISFIED, store_mem: 362296, timeout_ms: 1200000,
+  variables: 45256, version: v1.1.7}

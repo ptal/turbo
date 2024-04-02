@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_vrplc_service_vrplc13_11_20_s4,
+  cuda_version: 12040, data_file: ../mzn-challenge/2023/vrplc/vrplc13_11_20_s4.dzn,
+  eliminated_formulas: 8001, eliminated_variables: 2339, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 5628, eps_solved_subproblems: 1, evaluatedReifiedConstraints: 2709,
+  failures: 25389, fixpoint_iterations: 1389212, flatBoolConstraints: 974, flatBoolVars: 3506,
+  flatIntConstraints: 11656, flatIntVars: 2356, flatTime: 0.308084, free_search: no,
+  hardware: Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000, initTime: 5.813,
+  memory_configuration: store_shared, method: minimize, model: ../mzn-challenge/2023/vrplc/vrplc_service.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, nodes: 52742, num_blocks_done: 61,
+  num_solutions: 0, or_nodes: 64, paths: 0, peakDepth: 90, problem: vrplc, problem_path: /tmp/mznfileWlPyEh.fzn,
+  propagator_mem: 16354852, propagators: 40786, shared_mem: 33500, solveTime: 1200.078,
+  solver: Turbo, stack_size: 32000, status: UNKNOWN, store_mem: 33400, timeout_ms: 1200000,
+  variables: 4144, version: v1.1.7}

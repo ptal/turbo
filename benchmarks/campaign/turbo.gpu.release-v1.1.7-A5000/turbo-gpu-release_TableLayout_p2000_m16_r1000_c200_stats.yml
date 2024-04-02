@@ -1,0 +1,4 @@
+{configuration: turbo-gpu-release_TableLayout_p2000_m16_r1000_c200, data_file: ../mzn-challenge/2023/table-layout/p2000_m16_r1000_c200.dzn,
+  flatIntConstraints: 799889, flatIntVars: 601163, flatTime: 41.7314, method: minimize,
+  model: ../mzn-challenge/2023/table-layout/TableLayout.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, paths: 0, problem: table-layout, status: UNKNOWN}

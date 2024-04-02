@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_perfect_square_57, cuda_version: 12040,
+  data_file: ../mzn-challenge/2021/perfect_square/data/57.dzn, eliminated_formulas: 150,
+  eliminated_variables: 100, eps_num_subproblems: 4096, eps_skipped_subproblems: 36,
+  eps_solved_subproblems: 10, evaluatedReifiedConstraints: 1200, failures: 6830364,
+  fixpoint_iterations: 36038058, flatBoolConstraints: 300, flatBoolVars: 1200, flatIntConstraints: 1200,
+  flatIntVars: 50, flatTime: 0.171505, free_search: no, hardware: Intel Core i9-10900X@3.7GHz;24GO
+    DDR4;NVIDIA RTX A5000, initTime: 0.119, memory_configuration: store_shared, method: satisfy,
+  model: ../mzn-challenge/2021/perfect_square/perfect_square.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, nodes: 13663537, num_blocks_done: 0, num_solutions: 0, or_nodes: 64,
+  paths: 0, peakDepth: 992, problem: perfect_square, problem_path: /tmp/mznfilefK6AWb.fzn,
+  propagator_mem: 1477579, propagators: 1500, shared_mem: 10348, solveTime: 1200.082,
+  solver: Turbo, stack_size: 32000, status: UNKNOWN, store_mem: 10248, timeout_ms: 1200000,
+  variables: 1250, version: v1.1.7}

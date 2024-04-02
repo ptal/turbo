@@ -1,0 +1,12 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_sudoku_fixed_sudoku_p26,
+  cuda_version: 12040, data_file: ../mzn-challenge/2023/sudoku_fixed/sudoku_p26.dzn,
+  eliminated_formulas: 1305, eliminated_variables: 1254, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 220, eps_solved_subproblems: 24, failures: 15795263, fixpoint_iterations: 103539645,
+  flatIntConstraints: 6769, flatIntVars: 358, flatTime: 0.255966, free_search: no,
+  hardware: Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000, initTime: 0.357,
+  memory_configuration: store_shared, method: satisfy, model: ../mzn-challenge/2023/sudoku_fixed/sudoku_fixed.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, nodes: 31598280, num_blocks_done: 0,
+  num_solutions: 0, or_nodes: 64, paths: 0, peakDepth: 150, problem: sudoku_fixed,
+  problem_path: /tmp/mznfilesMJyRI.fzn, propagator_mem: 1598568, propagators: 7072,
+  shared_mem: 3180, solveTime: 1200.036, solver: Turbo, stack_size: 32000, status: UNKNOWN,
+  store_mem: 3080, timeout_ms: 1200000, variables: 354, version: v1.1.7}

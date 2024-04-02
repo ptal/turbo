@@ -1,0 +1,14 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_evmopt-generic_BDARUMA_run_code_of_0_block_284_170_0_input,
+  cuda_version: 12040, data_file: ../mzn-challenge/2023/evm-super-compilation/BDARUMA_run_code_of_0_block_284_170_0_input.dzn,
+  eliminatedImplications: 12, eliminated_formulas: 2045, eliminated_variables: 1125,
+  eps_num_subproblems: 4096, eps_skipped_subproblems: 4012, eps_solved_subproblems: 38,
+  evaluatedReifiedConstraints: 1319, failures: 6326545, fixpoint_iterations: 76728976,
+  flatBoolConstraints: 845, flatBoolVars: 1429, flatIntConstraints: 1755, flatIntVars: 687,
+  flatTime: 0.203591, free_search: no, hardware: Intel Core i9-10900X@3.7GHz;24GO
+    DDR4;NVIDIA RTX A5000, initTime: 0.163, memory_configuration: store_shared, method: minimize,
+  model: ../mzn-challenge/2023/evm-super-compilation/evmopt-generic.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, nodes: 12667211, num_blocks_done: 6, num_solutions: 0, or_nodes: 64,
+  paths: 0, peakDepth: 86, problem: evm-super-compilation, problem_path: /tmp/mznfileCZsvTQ.fzn,
+  propagator_mem: 1708843, propagators: 3291, shared_mem: 13740, solveTime: 1200.06,
+  solver: Turbo, stack_size: 32000, status: UNKNOWN, store_mem: 13640, timeout_ms: 1200000,
+  variables: 1674, version: v1.1.7}

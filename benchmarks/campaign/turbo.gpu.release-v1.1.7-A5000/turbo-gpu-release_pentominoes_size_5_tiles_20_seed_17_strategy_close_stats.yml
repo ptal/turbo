@@ -1,0 +1,12 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_pentominoes_size_5_tiles_20_seed_17_strategy_close,
+  cuda_version: 12040, data_file: ../mzn-challenge/2021/pentominoes-zayenz/size_5_tiles_20_seed_17_strategy_close.dzn,
+  eliminated_formulas: 6884, eliminated_variables: 70, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 1000, eps_solved_subproblems: 22, failures: 787, fixpoint_iterations: 39539,
+  flatIntConstraints: 1180, flatIntVars: 1205, flatTime: 0.269531, free_search: no,
+  hardware: Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000, initTime: 4.705,
+  memory_configuration: store_shared, method: satisfy, model: ../mzn-challenge/2021/pentominoes-zayenz/pentominoes.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, nodes: 6043, num_blocks_done: 0, num_solutions: 1,
+  or_nodes: 64, paths: 0, peakDepth: 23, problem: pentominoes-zayenz, problem_path: /tmp/mznfilegD1GRE.fzn,
+  propagator_mem: 16933435, propagators: 39071, shared_mem: 9828, solveTime: 8.345,
+  solver: Turbo, stack_size: 32000, status: UNKNOWN, store_mem: 9728, timeout_ms: 1200000,
+  variables: 1185, version: v1.1.7}

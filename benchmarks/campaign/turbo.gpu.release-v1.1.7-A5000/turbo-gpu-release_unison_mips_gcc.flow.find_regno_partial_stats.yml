@@ -1,0 +1,5 @@
+{configuration: turbo-gpu-release_unison_mips_gcc.flow.find_regno_partial, data_file: ../mzn-challenge/2023/code-generator/mips_gcc.flow.find_regno_partial.dzn,
+  evaluatedReifiedConstraints: 104995, flatBoolConstraints: 41716, flatBoolVars: 130630,
+  flatIntConstraints: 225000, flatIntVars: 120208, flatTime: 6.47272, method: minimize,
+  model: ../mzn-challenge/2023/code-generator/unison.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, paths: 0, problem: code-generator, status: ERROR}
