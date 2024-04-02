@@ -121,7 +121,7 @@ struct Configuration {
   }
 
   CUDA void print_commandline(const char* program_name) {
-    printf("%s -t %lu %s-n %lu %s%s%s%s%s",
+    printf("%s -t %" PRIu64 " %s-n %" PRIu64 " %s%s%s%s%s",
       program_name,
       timeout_ms,
       (print_intermediate_solutions ? "-a ": ""),
@@ -133,13 +133,13 @@ struct Configuration {
       (print_ast ? "-ast " : "")
     );
     if(arch == Arch::GPU) {
-      printf("-arch gpu -or %lu -and %lu -sub %lu -stack %lu ", or_nodes, and_nodes, subproblems_power, stack_kb);
+      printf("-arch gpu -or %" PRIu64 " -and %" PRIu64 " -sub %" PRIu64 " -stack %" PRIu64 " ", or_nodes, and_nodes, subproblems_power, stack_kb);
       printf("%s%s",
         (only_global_memory ? "-globalmem " : ""),
         (noatomics ? "-noatomics " : ""));
     }
     else {
-      printf("-arch cpu -p %zu ", or_nodes);
+      printf("-arch cpu -p %" PRIu64 " ", or_nodes);
     }
     if(version.size() != 0) {
       printf("-version %s ", version.data());

@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Visual Studio properties for MSVC builds
+
+   Disable MSVC warnings:
+
+    C4099 ign mixing struct foo with class foo
+    C4141 ign noinline used more than once
+    C4996 ign unsafe use of sscanf (should use sscanf_s)
+-->
+<Project>
+    <PropertyGroup>
+        <NoWarn>C4099;C4141;C4996</NoWarn>
+    </PropertyGroup>
+</Project>
