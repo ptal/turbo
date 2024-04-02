@@ -34,7 +34,7 @@
 #include "lala/flatzinc_parser.hpp"
 
 #ifdef WITH_XCSP3PARSER
-# include "lala/XCSP3_parser.hpp"
+  #include "lala/XCSP3_parser.hpp"
 #endif
 
 using namespace lala;
@@ -104,7 +104,7 @@ bool check_timeout(A& a, const Timepoint& start) {
   if(a.config.timeout_ms == 0) {
     return true;
   }
-  if(a.stats.duration >= static_cast<decltype(a.stats.duration/*int64_t*/)>(a.config.timeout_ms/*size_t*/)) {
+  if(a.stats.duration >= static_cast<int64_t>(a.config.timeout_ms)) {
     if(a.config.verbose_solving) {
       printf("%% CPU: Timeout reached.\n");
     }
@@ -113,7 +113,6 @@ bool check_timeout(A& a, const Timepoint& start) {
   }
   return true;
 }
-
 
 /** This is a simple wrapper aimed at giving a unique type to the allocator, to use them in AbstractDeps. */
 template <class Alloc, size_t n>

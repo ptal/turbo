@@ -2,7 +2,9 @@ cmake_minimum_required(VERSION 3.24)
 
 cmake_policy(SET CMP0135 NEW)
 
-set(CMAKE_CUDA_ARCHITECTURES native CACHE STRING "Targeted CUDA architectures")
+if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+  set(CMAKE_CUDA_ARCHITECTURES native CACHE STRING "Targeted CUDA architectures")
+endif()
 
 if(MSVC)
   set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "Available configuration types to select")
@@ -17,11 +19,11 @@ option(TURBO_PROFILE_MODE "TURBO_PROFILE_MODE" OFF)
 option(TURBO_VERBOSE "Compile with verbose output" ON)
 option(WITH_ASAN "Compile with the Address Sanitizer to check for memory corruption errors" OFF)
 option(WITH_XCSP3PARSER "Add support for parsing XCSP3 .xml files" ON)
-option(WITH_CONCURRENT_ALLOCATOR "Add support for a memory allocator that provides concurrent access to memory on GPUs that do not support it." OFF)
+option(NO_CONCURRENT_MANAGED_MEMORY "Add support for platform not supporting concurrent managed access to memory on GPUs (use pinned memory instead)." OFF)
 
 if(MSVC)
   set(WITH_XCSP3PARSER OFF)  # XCSP3-CPP-Parser has dependencies on gcc that break MSVC
-  set(WITH_CONCURRENT_ALLOCATOR ON)  # Windows requires a special allocator to provide concurrent access to managed memory
+  set(NO_CONCURRENT_MANAGED_MEMORY ON)  # Windows requires a special allocator to provide concurrent access to managed memory
 endif()
 
 set(TURBO_INITLIB "" CACHE STRING "Include an external initialization library to construct statics before main() for use in code instrumentation")
@@ -65,8 +67,6 @@ endif()
 add_executable(turbo src/turbo.cpp src/config.cpp)
 target_include_directories(turbo PRIVATE include)
 target_compile_options(turbo PRIVATE
-    $<$<BOOL:${WITH_XCSP3PARSER}>:-DWITH_XCSP3PARSER>
-    $<$<BOOL:${WITH_CONCURRENT_ALLOCATOR}>:-DWITH_CONCURRENT_ALLOCATOR>
     "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:SHELL:-Xptxas --suppress-stack-size-warning>"
     $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:--keep$<$<BOOL:${TURBO_VERBOSE}>:;--verbose>>
     "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>,$<CONFIG:Debug>>:-ftemplate-backtrace-limit=0>"
@@ -83,6 +83,14 @@ target_compile_options(turbo PRIVATE
 if(TURBO_PROFILE_MODE)
   target_compile_options(turbo PRIVATE "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:-lineinfo>")
   target_compile_definitions(turbo PRIVATE TURBO_PROFILE_MODE)
+endif()
+
+if(WITH_XCSP3PARSER)
+  target_compile_definitions(turbo PRIVATE WITH_XCSP3PARSER)
+endif()
+
+if(NO_CONCURRENT_MANAGED_MEMORY)
+  target_compile_definitions(turbo PRIVATE NO_CONCURRENT_MANAGED_MEMORY)
 endif()
 
 target_link_libraries(turbo PRIVATE lala_parsing lala_pc lala_power)

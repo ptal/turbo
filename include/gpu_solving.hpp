@@ -14,71 +14,6 @@ namespace bt = ::battery;
 
 #include <cuda/semaphore>
 
-//
-// On Linux, the Unified Memory Architecture uses hardware demand-paging
-// to lazy-copy managed pages from host memory to device memory.  On all
-// non-Linux architectures (Windows, WSL, NVIDIA Grid [vGPU], macOS),
-// when a kernel is invoked, the virtual managed memory addresses are
-// remapped and copied by the CUDA driver from host memory to device memory
-// before the GPU kernel is run. The addresses are mapped mapped back to host
-// memory on cudaDeviceSynchronize().
-//
-// For the pinned allocator, no copying occurs.  The GPU directly
-// read/writes the CPU memory over the PCIe x16 bus.  It only uses the
-// device L2/L1 cache, and no GPU memory is used.
-//
-// Non-Linux architectures must use the pinned allocator for data that
-// requires concurrent access between the host and the device while a
-// kernel is running.
-//
-// For performance reasons, memory should always by allocated from the
-// managed allocator instead of the pinned allocator whenever possible.
-// The latter consumes a scare resource (non-paged memory) and is slow.
-// The pinned allocator runs at PCIe speeds (c. 60 GB/s) instead of GPU
-// memory speeds (c. 300-600 GB/s).
-//
-// TODO: We need to segregate memory that does not require concurrent access.
-// Turbo needs to be re-architected to use the managed allocator instead of
-// the pinned allocator for operations that do not require concurrent access
-// by the host.  You can test the re-architecture on Linux by setting the
-// environment variable TURBO_MEMORY_ALLOCATOR=pinned to force the use of
-// the pinned allocator on Linux.
-//
-
-#ifdef WITH_CONCURRENT_ALLOCATOR  // Add support for a memory allocator that provides concurrent access to memory on GPUs that do not support it.  Required for non-Linux, WSL, macOS, and GRID [vGPU]
-#define CONCURRENT_ALLOCATOR _concurrent_allocator
-
-/** An allocator for concurrent access to shared memory between the device
- * and the host while a CUDA kernel is running.
- *
- * */
-class _concurrent_allocator {
-public:
-  CUDA NI void* allocate(size_t bytes) {
-    #ifdef __CUDA_ARCH__
-      return bt::global_allocator{}.allocate(bytes);
-    #else
-      return noConcurrentManagedAccess ? bt::pinned_allocator{}.allocate(bytes) : bt::managed_allocator{}.allocate(bytes);
-    #endif
-  }
-
-  CUDA NI void deallocate(void* data) {
-    #ifdef __CUDA_ARCH__
-      return bt::global_allocator{}.deallocate(data);
-    #else
-      if (noConcurrentManagedAccess) {
-        bt::pinned_allocator{}.deallocate(data);
-      } else {
-        bt::managed_allocator{}.deallocate(data);
-      }
-    #endif
-  }
-  inline static bool noConcurrentManagedAccess;
-};
-#else
-#define CONCURRENT_ALLOCATOR bt::managed_allocator // pure non-virtual Linux only
-#endif
-
 template <
   class Universe0, // Universe used locally to one thread.
   class Universe1, // Universe used in the scope of a block.
@@ -99,7 +34,7 @@ struct StateTypes {
 
   /** Then, once everything is initialized, we rely on a parallel abstract domain called `BlockCP`, usually using atomic shared and global memory. */
   using BlockCP = AbstractDomains<U1,
-    concurrent_allocator,
+    bt::global_allocator,
     bt::pool_allocator,
     UniqueAlloc<bt::pool_allocator, 0>>;
 };
@@ -110,11 +45,15 @@ using Itv2 = Interval<ZInc<int, bt::atomic_memory_grid>>;
 using AtomicBInc = BInc<bt::atomic_memory_block>;
 using FPEngine = BlockAsynchronousIterationGPU<bt::pool_allocator>;
 
-using ItvSolver = StateTypes<Itv0, Itv1, Itv2, CONCURRENT_ALLOCATOR>;
-// Deactivate atomics for the domain of variables (for benchmarking only, it is not safe according to CUDA consistency model).
-using ItvSolverNoAtomics = StateTypes<Itv0, Itv0, Itv0, CONCURRENT_ALLOCATOR>;
 // Version for non-Linux systems such as Windows where pinned memory must be used (see PR #19).
-using ItvSolverPinned = StateTypes<Itv0, Itv1, Itv2, bt::pinned_allocator>;
+#ifdef NO_CONCURRENT_MANAGED_MEMORY
+  using ItvSolverPinned = StateTypes<Itv0, Itv1, Itv2, bt::pinned_allocator>;
+  using ItvSolverPinnedNoAtomics = StateTypes<Itv0, Itv0, Itv0, bt::pinned_allocator>;
+#else
+  using ItvSolver = StateTypes<Itv0, Itv1, Itv2, bt::managed_allocator>;
+  // Deactivate atomics for the domain of variables (for benchmarking only, it is not safe according to CUDA consistency model).
+  using ItvSolverNoAtomics = StateTypes<Itv0, Itv0, Itv0, bt::managed_allocator>;
+#endif
 
 /** Depending on the problem, we can store the abstract elements in different memories.
  * The "worst" is everything in global memory (GLOBAL) when the problem is too large for the shared memory.
@@ -137,7 +76,7 @@ struct MemoryConfig {
   size_t pc_bytes;
 
   CUDA bt::pool_allocator make_global_pool(size_t bytes) {
-    void* mem_pool = CONCURRENT_ALLOCATOR{}.allocate(bytes);
+    void* mem_pool = bt::global_allocator{}.allocate(bytes);
     return bt::pool_allocator(static_cast<unsigned char*>(mem_pool), bytes);
   }
 
@@ -187,21 +126,21 @@ struct GridData {
   GridCP root;
   // `blocks_root` is a copy of `root` but with the same allocators than the ones used in `blocks`.
   // This is helpful to share immutable data among blocks (for instance the propagators).
-  bt::shared_ptr<BlockCP, CONCURRENT_ALLOCATOR> blocks_root;
+  bt::shared_ptr<BlockCP, bt::global_allocator> blocks_root;
   // Stop from the CPU, for instance because of a timeout.
   volatile bool cpu_stop;
   // Boolean indicating that the blocks have been reduced, and the CPU can now print the statistics.
   volatile bool blocks_reduced;
   MemoryConfig mem_config;
-  bt::vector<BlockData<S>, CONCURRENT_ALLOCATOR> blocks;
+  bt::vector<BlockData<S>, bt::global_allocator> blocks;
   // Stop from a block on the GPU, for instance because we found a solution.
-  bt::shared_ptr<BInc<bt::atomic_memory_grid>, CONCURRENT_ALLOCATOR> gpu_stop;
-  bt::shared_ptr<ZInc<size_t, bt::atomic_memory_grid>, CONCURRENT_ALLOCATOR> next_subproblem;
-  bt::shared_ptr<U2, CONCURRENT_ALLOCATOR> best_bound;
+  bt::shared_ptr<BInc<bt::atomic_memory_grid>, bt::global_allocator> gpu_stop;
+  bt::shared_ptr<ZInc<size_t, bt::atomic_memory_grid>, bt::global_allocator> next_subproblem;
+  bt::shared_ptr<U2, bt::global_allocator> best_bound;
 
   // All of what follows is only to support printing while the kernel is running.
   // In particular, we transfer the solution to the CPU where it is printed, because printing on the GPU can be very slow when the problem is large.
-  bt::shared_ptr<cuda::binary_semaphore<cuda::thread_scope_device>, CONCURRENT_ALLOCATOR> print_lock;
+  bt::shared_ptr<cuda::binary_semaphore<cuda::thread_scope_device>, bt::global_allocator> print_lock;
   cuda::std::atomic_flag ready_to_produce;
   cuda::std::atomic_flag ready_to_consume;
 
@@ -253,23 +192,23 @@ struct GridData {
     assert(threadIdx.x == 0 && blockIdx.x == 0);
     auto root_mem_config(mem_config);
     root_mem_config.mem_kind = MemoryKind::GLOBAL;
-    blocks_root = bt::make_shared<BlockCP, CONCURRENT_ALLOCATOR>(
+    blocks_root = bt::make_shared<BlockCP, bt::global_allocator>(
       typename BlockCP::tag_gpu_block_copy{},
       false, // Due to different allocators between BlockCP and GridCP, it won't be able to share data anyways.
       root,
-      CONCURRENT_ALLOCATOR{},
+      bt::global_allocator{},
       root_mem_config.make_pc_pool(bt::pool_allocator(nullptr,0)),
       root_mem_config.make_store_pool(bt::pool_allocator(nullptr,0)));
-    blocks = bt::vector<BlockData<S>, CONCURRENT_ALLOCATOR>(root.config.or_nodes);
-    gpu_stop = bt::make_shared<BInc<bt::atomic_memory_grid>, CONCURRENT_ALLOCATOR>(false);
-    print_lock = bt::make_shared<cuda::binary_semaphore<cuda::thread_scope_device>, CONCURRENT_ALLOCATOR>(1);
-    next_subproblem = bt::make_shared<ZInc<size_t, bt::atomic_memory_grid>, CONCURRENT_ALLOCATOR>(0);
-    best_bound = bt::make_shared<U2, CONCURRENT_ALLOCATOR>();
+    blocks = bt::vector<BlockData<S>, bt::global_allocator>(root.config.or_nodes);
+    gpu_stop = bt::make_shared<BInc<bt::atomic_memory_grid>, bt::global_allocator>(false);
+    print_lock = bt::make_shared<cuda::binary_semaphore<cuda::thread_scope_device>, bt::global_allocator>(1);
+    next_subproblem = bt::make_shared<ZInc<size_t, bt::atomic_memory_grid>, bt::global_allocator>(0);
+    best_bound = bt::make_shared<U2, bt::global_allocator>();
   }
 
   __device__ void deallocate() {
     assert(threadIdx.x == 0 && blockIdx.x == 0);
-    blocks = bt::vector<BlockData<S>, CONCURRENT_ALLOCATOR>();
+    blocks = bt::vector<BlockData<S>, bt::global_allocator>();
     blocks_root->deallocate();
     blocks_root.reset();
     gpu_stop.reset();
@@ -285,13 +224,13 @@ struct BlockData {
   using GridCP = typename S::GridCP;
   using BlockCP = typename S::BlockCP;
 
-  using snapshot_type = typename BlockCP::IST::snapshot_type<CONCURRENT_ALLOCATOR>;
+  using snapshot_type = typename BlockCP::IST::snapshot_type<bt::global_allocator>;
   size_t subproblem_idx;
-  bt::shared_ptr<FPEngine, CONCURRENT_ALLOCATOR> fp_engine;
+  bt::shared_ptr<FPEngine, bt::global_allocator> fp_engine;
   bt::shared_ptr<AtomicBInc, bt::pool_allocator> has_changed;
   bt::shared_ptr<AtomicBInc, bt::pool_allocator> stop;
-  bt::shared_ptr<BlockCP, CONCURRENT_ALLOCATOR> root;
-  bt::shared_ptr<snapshot_type, CONCURRENT_ALLOCATOR> snapshot_root;
+  bt::shared_ptr<BlockCP, bt::global_allocator> root;
+  bt::shared_ptr<snapshot_type, bt::global_allocator> snapshot_root;
 
   __device__ BlockData():
     has_changed(nullptr, bt::pool_allocator(nullptr, 0)),
@@ -307,16 +246,16 @@ public:
       subproblem_idx = blockIdx.x;
       MemoryConfig& mem_config = grid_data.mem_config;
       bt::pool_allocator shared_mem_pool(mem_config.make_shared_pool(shared_mem));
-      fp_engine = bt::make_shared<FPEngine, CONCURRENT_ALLOCATOR>(block, shared_mem_pool);
+      fp_engine = bt::make_shared<FPEngine, bt::global_allocator>(block, shared_mem_pool);
       has_changed = bt::allocate_shared<AtomicBInc, bt::pool_allocator>(shared_mem_pool, true);
       stop = bt::allocate_shared<AtomicBInc, bt::pool_allocator>(shared_mem_pool, false);
-      root = bt::make_shared<BlockCP, CONCURRENT_ALLOCATOR>(typename BlockCP::tag_gpu_block_copy{},
+      root = bt::make_shared<BlockCP, bt::global_allocator>(typename BlockCP::tag_gpu_block_copy{},
         (mem_config.mem_kind != MemoryKind::STORE_PC_SHARED),
         *(grid_data.blocks_root),
-        CONCURRENT_ALLOCATOR{},
+        bt::global_allocator{},
         mem_config.make_pc_pool(shared_mem_pool),
         mem_config.make_store_pool(shared_mem_pool));
-      snapshot_root = bt::make_shared<snapshot_type, CONCURRENT_ALLOCATOR>(root->search_tree->template snapshot<CONCURRENT_ALLOCATOR>());
+      snapshot_root = bt::make_shared<snapshot_type, bt::global_allocator>(root->search_tree->template snapshot<bt::global_allocator>());
     }
     block.sync();
   }
@@ -384,8 +323,8 @@ __device__ void update_block_best_bound(BlockData<S>& block_data, GridData<S>& g
   using U0 = typename S::U0;
   if(threadIdx.x == 0 && block_data.root->bab->is_optimization()) {
     const auto& bab = block_data.root->bab;
-    VarEnv<CONCURRENT_ALLOCATOR> empty_env{};
-    auto best_formula = bab->template deinterpret_best_bound<CONCURRENT_ALLOCATOR>(
+    VarEnv<bt::global_allocator> empty_env{};
+    auto best_formula = bab->template deinterpret_best_bound<bt::global_allocator>(
       bab->is_maximization()
       ? U0(dual<typename U0::UB>(grid_data.best_bound->lb()))
       : U0(dual<typename U0::LB>(grid_data.best_bound->ub())));
@@ -623,23 +562,6 @@ void print_memory_statistics(const char* key, size_t bytes) {
   printf("]\n");
 }
 
-#ifdef WITH_CONCURRENT_ALLOCATOR
-/** Set cudaDeviceMapHost to allow cudaMallocHost() to allocate pinned memory
- * for concurrent access between the device and the host.  It must be called
- * early, before any CUDA management functions, so that we can fall back to
- * using the pinned_allocator instead of the managed_allocator.
- * This is required on Windows, WSL, macOS, and NVIDIA GRID.
- */
-void prepare_host_thread_no_concurrent_managed_access()
-{
-  unsigned int flags = 0;
-  CUDAEX(cudaGetDeviceFlags(&flags));
-  flags |= cudaDeviceMapHost;
-  CUDAEX(cudaSetDeviceFlags(flags));
-  _concurrent_allocator{}.noConcurrentManagedAccess = true;
-}
-#endif // WITH_CONCURRENT_ALLOCATOR
-
 /** \returns the size of the shared memory and the kind of memory used. */
 template <class S, class U>
 MemoryConfig configure_memory(CP<U>& root) {
@@ -811,32 +733,6 @@ void configure_blocks_threads(CP<U>& root, const MemoryConfig& mem_config) {
 
 template <class S, class U, class Timepoint>
 void configure_and_run(CP<U>& root, const Timepoint& start) {
-  int attr = 0, dev = 0;
-  CUDAEX(cudaDeviceGetAttribute(&attr, cudaDevAttrManagedMemory, dev));
-  if (!attr) {
-    std::cerr << "The GPU does not support unified memory." << std::endl;
-    exit(EXIT_FAILURE);
-  }
-  attr = 0;
-  CUDAEX(cudaDeviceGetAttribute(&attr, cudaDevAttrConcurrentManagedAccess, dev));
-  // Set TURBO_MEMORY_ALLOCATOR=pinned to test the use of the pinned allocator
-  // on Linux (will cause a performance hit).
-  char* _env = std::getenv("TURBO_MEMORY_ALLOCATOR");
-  if (_env != nullptr) {
-    std::string env = _env;
-    if (env == "pinned") {
-      attr = 0;
-    }
-  }
-  if (!attr) {
-    printf("%% The GPU does not support concurrent access to managed memory.\n");
-#ifdef WITH_CONCURRENT_ALLOCATOR
-    prepare_host_thread_no_concurrent_managed_access();
-#else
-    printf("%% To run Turbo on this GPU you need to build Turbo with the option WITH_CONCURRENT_ALLOCATOR.\n");
-    exit(1);
-#endif
-  }
   MemoryConfig mem_config = configure_memory<S>(root);
   configure_blocks_threads<S>(root, mem_config);
   transfer_memory_and_run<S>(root, mem_config, start);
@@ -844,20 +740,66 @@ void configure_and_run(CP<U>& root, const Timepoint& start) {
 
 #endif // __CUDACC__
 
+void check_support_unified_memory() {
+  int attr = 0;
+  int dev = 0;
+  CUDAEX(cudaDeviceGetAttribute(&attr, cudaDevAttrManagedMemory, dev));
+  if (!attr) {
+    std::cerr << "The GPU does not support unified memory." << std::endl;
+    exit(EXIT_FAILURE);
+  }
+}
+
+void check_support_concurrent_managed_memory() {
+  int attr = 0;
+  int dev = 0;
+  CUDAEX(cudaDeviceGetAttribute(&attr, cudaDevAttrConcurrentManagedAccess, dev));
+  if (!attr) {
+#ifdef NO_CONCURRENT_MANAGED_MEMORY
+    printf("%% WARNING: The GPU does not support concurrent access to managed memory, hence we fall back on pinned memory.\n");
+  /** Set cudaDeviceMapHost to allow cudaMallocHost() to allocate pinned memory
+   * for concurrent access between the device and the host. It must be called
+   * early, before any CUDA management functions, so that we can fall back to
+   * using the pinned_allocator instead of the managed_allocator.
+   * This is required on Windows, WSL, macOS, and NVIDIA GRID.
+   * See also PR #18.
+   */
+    unsigned int flags = 0;
+    CUDAEX(cudaGetDeviceFlags(&flags));
+    flags |= cudaDeviceMapHost;
+    CUDAEX(cudaSetDeviceFlags(flags));
+#else
+    printf("%% To run Turbo on this GPU you need to build Turbo with the option NO_CONCURRENT_MANAGED_MEMORY.\n");
+    exit(EXIT_FAILURE);
+#endif
+  }
+}
+
 void gpu_solve(Configuration<bt::standard_allocator>& config) {
 #ifndef __CUDACC__
   std::cerr << "You must use a CUDA compiler (nvcc or clang) to compile Turbo on GPU." << std::endl;
 #else
+  check_support_unified_memory();
+  check_support_concurrent_managed_memory();
   auto start = std::chrono::high_resolution_clock::now();
   CP<Itv> root(config);
   root.preprocess();
   block_signal_ctrlc();
+#ifdef NO_CONCURRENT_MANAGED_MEMORY
+  if(root.config.noatomics) {
+    configure_and_run<ItvSolverPinnedNoAtomics>(root, start);
+  }
+  else {
+    configure_and_run<ItvSolverPinned>(root, start);
+  }
+#else
   if(root.config.noatomics) {
     configure_and_run<ItvSolverNoAtomics>(root, start);
   }
   else {
     configure_and_run<ItvSolver>(root, start);
   }
+#endif
 #endif
 }
 
