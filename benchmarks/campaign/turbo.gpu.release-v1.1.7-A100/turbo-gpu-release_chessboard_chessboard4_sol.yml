@@ -1,0 +1,69 @@
+- configuration: turbo-gpu-release_chessboard_chessboard4
+  data_file: ../mzn-challenge/2023/chessboard/chessboard4.dzn
+  model: ../mzn-challenge/2023/chessboard/chessboard.mzn
+  mzn_solver: turbo.gpu.release
+  problem: chessboard
+  solution:
+    cnt: [25, 0, 0, 0, 24]
+    obj: 25
+    objective: 25
+    x:
+    - - {e: N}
+      - {e: e}
+      - {e: N}
+      - {e: e}
+      - {e: N}
+      - {e: e}
+      - {e: N}
+    - - {e: e}
+      - {e: N}
+      - {e: e}
+      - {e: N}
+      - {e: e}
+      - {e: N}
+      - {e: e}
+    - - {e: N}
+      - {e: e}
+      - {e: N}
+      - {e: e}
+      - {e: N}
+      - {e: e}
+      - {e: N}
+    - - {e: e}
+      - {e: N}
+      - {e: e}
+      - {e: N}
+      - {e: e}
+      - {e: N}
+      - {e: e}
+    - - {e: N}
+      - {e: e}
+      - {e: N}
+      - {e: e}
+      - {e: N}
+      - {e: e}
+      - {e: N}
+    - - {e: e}
+      - {e: N}
+      - {e: e}
+      - {e: N}
+      - {e: e}
+      - {e: N}
+      - {e: e}
+    - - {e: N}
+      - {e: e}
+      - {e: N}
+      - {e: e}
+      - {e: N}
+      - {e: e}
+      - {e: N}
+    y:
+    - [4, 5, 4, 5, 4, 5, 4]
+    - [5, 4, 5, 4, 5, 4, 5]
+    - [4, 5, 4, 5, 4, 5, 4]
+    - [5, 4, 5, 4, 5, 4, 5]
+    - [4, 5, 4, 5, 4, 5, 4]
+    - [5, 4, 5, 4, 5, 4, 5]
+    - [4, 5, 4, 5, 4, 5, 4]
+  status: SATISFIED
+  time: 55.76

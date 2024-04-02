@@ -1,5 +1,12 @@
-{configuration: turbo-gpu-release_sudoku_fixed_sudoku_p26, data_file: ../mzn-challenge/2023/sudoku_fixed/sudoku_p26.dzn,
-  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
-    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/sudoku_fixed/sudoku_fixed.mzn''."}',
-  model: ../mzn-challenge/2023/sudoku_fixed/sudoku_fixed.mzn, mzn_solver: turbo.gpu.release,
-  problem: sudoku_fixed, rest_of_output: '', status: ERROR}
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_sudoku_fixed_sudoku_p26,
+  cuda_version: 12020, data_file: ../mzn-challenge/2023/sudoku_fixed/sudoku_p26.dzn,
+  eliminated_formulas: 1305, eliminated_variables: 1254, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 644, eps_solved_subproblems: 30, failures: 17484261, fixpoint_iterations: 112515415,
+  flatIntConstraints: 6794, flatIntVars: 358, flatTime: 1.11181, free_search: no,
+  hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.49,
+  memory_configuration: store_shared, method: satisfy, model: ../mzn-challenge/2023/sudoku_fixed/sudoku_fixed.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, nodes: 34981582, num_blocks_done: 0,
+  num_solutions: 0, or_nodes: 108, paths: 0, peakDepth: 150, problem: sudoku_fixed,
+  problem_path: /tmp/mznfileYHvMKw.fzn, propagator_mem: 1602168, propagators: 7097,
+  shared_mem: 3180, solveTime: 1200.083, solver: Turbo, stack_size: 32000, status: UNKNOWN,
+  store_mem: 3080, timeout_ms: 1200000, variables: 354, version: v1.1.7}

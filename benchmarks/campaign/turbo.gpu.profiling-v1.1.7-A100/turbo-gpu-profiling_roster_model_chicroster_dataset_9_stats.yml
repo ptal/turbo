@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-profiling_roster_model_chicroster_dataset_9,
+  cuda_version: 12020, cutnodes: 0, data_file: ../mzn-challenge/2023/roster/chicroster_dataset_9.dzn,
+  eliminated_formulas: 2835, eliminated_variables: 1593, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 0, eps_solved_subproblems: 0, evaluatedReifiedConstraints: 1005,
+  failures: 0, fixpoint_iterations: 76153014, flatBoolConstraints: 224, flatBoolVars: 1229,
+  flatIntConstraints: 2163, flatIntVars: 1347, flatTime: 0.913672, free_search: no,
+  hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.188,
+  memory_configuration: store_shared, method: minimize, model: ../mzn-challenge/2023/roster/roster_model.mzn,
+  mzn_solver: turbo.gpu.profiling, nSolutions: 0, nodes: 20060297, num_blocks_done: 0,
+  num_solutions: 0, or_nodes: 108, paths: 0, peakDepth: 103, problem: roster, problem_path: /tmp/mznfileza5wgk.fzn,
+  propagation_time: 84767.210897, propagator_mem: 889128, propagators: 1467, search_time: 6671.850093,
+  shared_mem: 12756, solveTime: 1200.03, solver: Turbo, stack_size: 32000, status: UNKNOWN,
+  store_mem: 12656, timeout_ms: 1200000, variables: 1551, version: v1.1.7}

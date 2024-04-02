@@ -1,5 +1,5 @@
 {configuration: turbo-gpu-release_TableLayout_p1000_m3_r100_c10_globalmem, data_file: ../mzn-challenge/2023/table-layout/p1000_m3_r100_c10.dzn,
-  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
-    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/table-layout/TableLayout.mzn''."}',
-  model: ../mzn-challenge/2023/table-layout/TableLayout.mzn, mzn_solver: turbo.gpu.release,
-  problem: table-layout, rest_of_output: '', status: ERROR}
+  flatIntConstraints: 3995, flatIntVars: 3108, flatTime: 0.353097, memory_configuration: global,
+  method: minimize, model: ../mzn-challenge/2023/table-layout/TableLayout.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, paths: 0, problem: table-layout, propagator_mem: 1571083, shared_mem: 100,
+  status: UNKNOWN, store_mem: 17176}

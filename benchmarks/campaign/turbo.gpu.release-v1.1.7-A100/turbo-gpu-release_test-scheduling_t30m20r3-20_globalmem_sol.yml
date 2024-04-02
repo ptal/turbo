@@ -1,0 +1,42 @@
+- configuration: turbo-gpu-release_test-scheduling_t30m20r3-20_globalmem
+  data_file: ../mzn-challenge/2023/test-scheduling/t30m20r3-20.dzn
+  model: ../mzn-challenge/2023/test-scheduling/test-scheduling.mzn
+  mzn_solver: turbo.gpu.release
+  problem: test-scheduling
+  solution:
+    objective: 2745
+    startTime: [358, 0, 0, 0, 0, 0, 0, 0, 99, 794, 897, 0, 603, 0, 1464, 933, 1739,
+      0, 0, 0, 0, 0, 0, 1936, 2079, 0, 0, 0, 2079, 0]
+    usesMachine:
+    - {e: m10}
+    - {e: m4}
+    - {e: m11}
+    - {e: m14}
+    - {e: m15}
+    - {e: m17}
+    - {e: m9}
+    - {e: m3}
+    - {e: m4}
+    - {e: m2}
+    - {e: m4}
+    - {e: m2}
+    - {e: m1}
+    - {e: m13}
+    - {e: m7}
+    - {e: m1}
+    - {e: m2}
+    - {e: m5}
+    - {e: m1}
+    - {e: m7}
+    - {e: m16}
+    - {e: m19}
+    - {e: m10}
+    - {e: m1}
+    - {e: m6}
+    - {e: m8}
+    - {e: m18}
+    - {e: m12}
+    - {e: m1}
+    - {e: m6}
+  status: SATISFIED
+  time: 1202.153

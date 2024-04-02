@@ -1,0 +1,103 @@
+- configuration: turbo-gpu-release_chessboard_chessboard_n9_1
+  data_file: ../mzn-challenge/2023/chessboard/chessboard_n9_1.json
+  model: ../mzn-challenge/2023/chessboard/chessboard.mzn
+  mzn_solver: turbo.gpu.release
+  problem: chessboard
+  solution:
+    cnt: [5, 7, 0, 3, 66]
+    obj: 189
+    objective: 189
+    x:
+    - - {e: B}
+      - {e: B}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: N}
+      - {e: e}
+      - {e: e}
+      - {e: B}
+    - - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: N}
+      - {e: N}
+      - {e: e}
+      - {e: e}
+      - {e: B}
+    - - {e: B}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: N}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+    - - {e: B}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+    - - {e: B}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+    - - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: Q}
+      - {e: e}
+    - - {e: N}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+    - - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: Q}
+      - {e: e}
+      - {e: e}
+    - - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: Q}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+      - {e: e}
+    y:
+    - [4, 4, 5, 5, 5, 2, 5, 5, 4]
+    - [5, 5, 5, 5, 2, 2, 5, 5, 4]
+    - [4, 5, 5, 5, 5, 2, 5, 5, 5]
+    - [4, 5, 5, 5, 5, 5, 5, 5, 5]
+    - [4, 5, 5, 5, 5, 5, 5, 5, 5]
+    - [5, 5, 5, 5, 5, 5, 5, 3, 5]
+    - [2, 5, 5, 5, 5, 5, 5, 5, 5]
+    - [5, 5, 5, 5, 5, 5, 3, 5, 5]
+    - [5, 5, 5, 3, 5, 5, 5, 5, 5]
+  status: SATISFIED
+  time: 1200.693

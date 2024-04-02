@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-profiling_ttp_n10_k15_c5000_l10000_u11000_r49, data_file: ../mzn-challenge/2023/travelling-thief/data/n10_k15_c5000_l10000_u11000_r49.dzn,
+  evaluatedReifiedConstraints: 80, flatBoolConstraints: 4249, flatBoolVars: 500, flatIntConstraints: 1426,
+  flatIntVars: 1020, flatTime: 0.682821, memory_configuration: store_pc_shared, method: maximize,
+  model: ../mzn-challenge/2023/travelling-thief/ttp.mzn, mzn_solver: turbo.gpu.profiling,
+  nSolutions: 0, paths: 0, problem: travelling-thief, propagator_mem: 139, shared_mem: 18615,
+  status: UNKNOWN, store_mem: 18376}

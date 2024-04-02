@@ -1,0 +1,5 @@
+{configuration: turbo-gpu-profiling_unison_mips_mesa.eval.gl_Map1f, data_file: ../mzn-challenge/2023/code-generator/mips_mesa.eval.gl_Map1f.dzn,
+  evaluatedReifiedConstraints: 1064702, flatBoolConstraints: 434372, flatBoolVars: 1350559,
+  flatIntConstraints: 2312163, flatIntVars: 1243849, flatTime: 182.005, method: minimize,
+  model: ../mzn-challenge/2023/code-generator/unison.mzn, mzn_solver: turbo.gpu.profiling,
+  nSolutions: 0, paths: 0, problem: code-generator, status: ERROR}

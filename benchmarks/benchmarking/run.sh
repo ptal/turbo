@@ -1,4 +1,4 @@
-  #!/bin/bash
+#!/bin/bash
 
 # Exits when an error occurs.
 set -e
@@ -6,7 +6,7 @@ set -e
 # I. Define the campaign to run and hardware information.
 
 MZN_SOLVER="turbo.gpu.release"
-VERSION="v1.1.7"
+VERSION="v1.1.6"
 # This is to avoid MiniZinc to kill Turbo before it can print the statistics.
 MZN_TIMEOUT=1260000
 REAL_TIMEOUT=1200000
@@ -58,7 +58,7 @@ cp $0 $OUTPUT_DIR/ # for replicability.
 cp $DUMP_PY_PATH $OUTPUT_DIR/
 cp $CUDA_WRAP_PATH $OUTPUT_DIR/
 
-parallel --no-run-if-empty $MULTINODES_OPTION --rpl '{} uq()' --jobs $NUM_GPUS -k --colsep ',' --skip-first-line $CUDA_WRAP_PATH $MZN_COMMAND {4} {2} {3} '|' python3 $DUMP_PY_PATH $OUTPUT_DIR {1} {2} {3} $MZN_SOLVER {4} :::: $INSTANCE_FILE ::: "-s " "-noatomics " "-globalmem "
+parallel --no-run-if-empty $MULTINODES_OPTION --rpl '{} uq()' --jobs $NUM_GPUS -k --colsep ',' --skip-first-line $CUDA_WRAP_PATH $MZN_COMMAND {2} {3} '|' python3 $DUMP_PY_PATH $OUTPUT_DIR {1} {2} {3} $MZN_SOLVER :::: $INSTANCE_FILE
 
 # TEST_PATH=$(pwd)/test.sh
 # parallel --no-run-if-empty $MULTINODES_OPTION --rpl '{} uq()' --jobs $NUM_GPUS -k --colsep ',' --skip-first-line $CUDA_WRAP_PATH $TEST_PATH {1} {2} {3} {4} :::: $INSTANCE_FILE ::: 10 12

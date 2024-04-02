@@ -1,5 +1,6 @@
 {configuration: turbo-gpu-release_mrcpsp_j30_29_3_globalmem, data_file: ../mzn-challenge/2023/mrcpsp/j30_29_3.dzn,
-  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
-    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/mrcpsp/mrcpsp.mzn''."}',
-  model: ../mzn-challenge/2023/mrcpsp/mrcpsp.mzn, mzn_solver: turbo.gpu.release, problem: mrcpsp,
-  rest_of_output: '', status: ERROR}
+  evaluatedReifiedConstraints: 22062, flatBoolConstraints: 14244, flatBoolVars: 36372,
+  flatIntConstraints: 50944, flatIntVars: 28316, flatTime: 1.3624, memory_configuration: global,
+  method: minimize, model: ../mzn-challenge/2023/mrcpsp/mrcpsp.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, paths: 0, problem: mrcpsp, propagator_mem: 32791396, shared_mem: 100,
+  status: UNKNOWN, store_mem: 362296}

@@ -1,5 +1,5 @@
 {configuration: turbo-gpu-release_test-scheduling_t500m50r10-8, data_file: ../mzn-challenge/2023/test-scheduling/t500m50r10-8.dzn,
-  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
-    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/test-scheduling/test-scheduling.mzn''."}',
+  evaluatedReifiedConstraints: 4280298, flatBoolConstraints: 2128092, flatBoolVars: 6398632,
+  flatIntConstraints: 18075236, flatIntVars: 13771816, flatTime: 717.306, method: minimize,
   model: ../mzn-challenge/2023/test-scheduling/test-scheduling.mzn, mzn_solver: turbo.gpu.release,
-  problem: test-scheduling, rest_of_output: '', status: ERROR}
+  nSolutions: 0, paths: 0, problem: test-scheduling, status: UNKNOWN}

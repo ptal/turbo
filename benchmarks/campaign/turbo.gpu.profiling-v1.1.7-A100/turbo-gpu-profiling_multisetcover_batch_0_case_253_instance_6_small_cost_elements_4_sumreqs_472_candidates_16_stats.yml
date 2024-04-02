@@ -1,0 +1,12 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-profiling_multisetcover_batch_0_case_253_instance_6_small_cost_elements_4_sumreqs_472_candidates_16,
+  cuda_version: 12020, cutnodes: 0, data_file: ../mzn-challenge/2021/wmsmc-int/batch_0_case_253_instance_6_small_cost_elements_4_sumreqs_472_candidates_16.dzn,
+  eliminated_formulas: 73, eliminated_variables: 56, eps_num_subproblems: 4096, eps_skipped_subproblems: 0,
+  eps_solved_subproblems: 2357, failures: 23031761, fixpoint_iterations: 124407303,
+  flatIntConstraints: 5, flatIntVars: 17, flatTime: 0.127447, free_search: no, hardware: AMD
+    EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.005, memory_configuration: store_pc_shared,
+  method: minimize, model: ../mzn-challenge/2021/wmsmc-int/multisetcover.mzn, mzn_solver: turbo.gpu.profiling,
+  nSolutions: 1, nodes: 46092237, num_blocks_done: 0, num_solutions: 1632, objective: 274870,
+  or_nodes: 108, paths: 0, peakDepth: 36, problem: wmsmc-int, problem_path: /tmp/mznfileW0dHxZ.fzn,
+  propagation_time: 41406.497422, propagator_mem: 10804, propagators: 5, search_time: 769.237175,
+  shared_mem: 11288, solveTime: 1200.065, solver: Turbo, stack_size: 32000, status: SATISFIED,
+  store_mem: 384, timeout_ms: 1200000, variables: 17, version: v1.1.7}

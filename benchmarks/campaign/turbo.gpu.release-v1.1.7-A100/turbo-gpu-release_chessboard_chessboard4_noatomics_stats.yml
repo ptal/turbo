@@ -1,5 +1,13 @@
-{configuration: turbo-gpu-release_chessboard_chessboard4_noatomics, data_file: ../mzn-challenge/2023/chessboard/chessboard4.dzn,
-  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
-    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/chessboard/chessboard.mzn''."}',
-  model: ../mzn-challenge/2023/chessboard/chessboard.mzn, mzn_solver: turbo.gpu.release,
-  problem: chessboard, rest_of_output: '', status: ERROR}
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_chessboard_chessboard4_noatomics,
+  cuda_version: 12020, data_file: ../mzn-challenge/2023/chessboard/chessboard4.dzn,
+  eliminated_formulas: 1208, eliminated_variables: 806, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 272, eps_solved_subproblems: 3825, evaluatedReifiedConstraints: 1264,
+  failures: 205441, fixpoint_iterations: 3025374, flatBoolConstraints: 1469, flatBoolVars: 1738,
+  flatIntConstraints: 1357, flatIntVars: 447, flatTime: 0.27424, free_search: no,
+  hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.234,
+  memory_configuration: store_shared, method: maximize, model: ../mzn-challenge/2023/chessboard/chessboard.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 1, nodes: 451006, num_blocks_done: 108,
+  num_solutions: 32, objective: 25, or_nodes: 108, paths: 0, peakDepth: 62, problem: chessboard,
+  problem_path: /tmp/mznfileGfkUJf.fzn, propagator_mem: 1964193, propagators: 2916,
+  shared_mem: 14996, solveTime: 46.464, solver: Turbo, stack_size: 32000, status: OPTIMAL_SOLUTION,
+  store_mem: 14896, timeout_ms: 1200000, variables: 1831, version: v1.1.7}

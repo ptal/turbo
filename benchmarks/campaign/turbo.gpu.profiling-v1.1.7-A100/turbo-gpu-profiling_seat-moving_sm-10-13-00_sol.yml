@@ -1,0 +1,27 @@
+- configuration: turbo-gpu-profiling_seat-moving_sm-10-13-00
+  data_file: ../mzn-challenge/2021/seat-moving/sm-10-13-00.dzn
+  model: ../mzn-challenge/2021/seat-moving/seat-moving.mzn
+  mzn_solver: turbo.gpu.profiling
+  problem: seat-moving
+  solution:
+    cost: 23
+    objective: 443
+    person:
+    - [8, 6, 7, 9, 10, 5, 11, 4, 2, 12]
+    - [3, 6, 7, 1, 10, 5, 2, 4, 11, 12]
+    - [3, 1, 7, 6, 8, 5, 2, 4, 9, 12]
+    - [3, 1, 7, 2, 8, 5, 6, 4, 9, 10]
+    - [3, 1, 7, 2, 11, 5, 6, 4, 9, 12]
+    - [13, 1, 7, 8, 11, 10, 6, 4, 9, 12]
+    - [13, 4, 3, 9, 5, 10, 6, 1, 8, 2]
+    seat:
+    - [0, 9, 0, 8, 6, 2, 3, 1, 4, 5, 7, 10, 0]
+    - [4, 7, 1, 8, 6, 2, 3, 0, 0, 5, 9, 10, 0]
+    - [2, 7, 1, 8, 6, 4, 3, 5, 9, 0, 0, 10, 0]
+    - [2, 4, 1, 8, 6, 7, 3, 5, 9, 10, 0, 0, 0]
+    - [2, 4, 1, 8, 6, 7, 3, 0, 9, 0, 5, 10, 0]
+    - [2, 0, 0, 8, 0, 7, 3, 4, 9, 6, 5, 10, 1]
+    - [8, 10, 3, 2, 5, 7, 0, 9, 4, 6, 0, 0, 1]
+    step: 6
+  status: SATISFIED
+  time: 1200.474

@@ -1,5 +1,13 @@
-{configuration: turbo-gpu-release_test-scheduling_t50m20r10-17_globalmem, data_file: ../mzn-challenge/2023/test-scheduling/t50m20r10-17.dzn,
-  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
-    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/test-scheduling/test-scheduling.mzn''."}',
-  model: ../mzn-challenge/2023/test-scheduling/test-scheduling.mzn, mzn_solver: turbo.gpu.release,
-  problem: test-scheduling, rest_of_output: '', status: ERROR}
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_test-scheduling_t50m20r10-17_globalmem,
+  cuda_version: 12020, data_file: ../mzn-challenge/2023/test-scheduling/t50m20r10-17.dzn,
+  eliminated_formulas: 104380, eliminated_variables: 52711, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 0, eps_solved_subproblems: 0, evaluatedReifiedConstraints: 19191,
+  failures: 322631, fixpoint_iterations: 8285315, flatBoolConstraints: 9137, flatBoolVars: 28257,
+  flatIntConstraints: 71740, flatIntVars: 51729, flatTime: 2.76382, free_search: no,
+  hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 11.698,
+  memory_configuration: global, method: minimize, model: ../mzn-challenge/2023/test-scheduling/test-scheduling.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, nodes: 653784, num_blocks_done: 0,
+  num_solutions: 0, or_nodes: 108, paths: 0, peakDepth: 3251, problem: test-scheduling,
+  problem_path: /tmp/mznfilezGva1N.fzn, propagator_mem: 39445963, propagators: 70903,
+  shared_mem: 100, solveTime: 1200.038, solver: Turbo, stack_size: 32000, status: UNKNOWN,
+  store_mem: 559856, timeout_ms: 1200000, variables: 69951, version: v1.1.7}

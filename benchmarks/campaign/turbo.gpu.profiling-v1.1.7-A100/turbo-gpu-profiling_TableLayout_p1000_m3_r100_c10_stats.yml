@@ -1,0 +1,5 @@
+{configuration: turbo-gpu-profiling_TableLayout_p1000_m3_r100_c10, data_file: ../mzn-challenge/2023/table-layout/p1000_m3_r100_c10.dzn,
+  flatIntConstraints: 3995, flatIntVars: 3108, flatTime: 0.373384, memory_configuration: store_shared,
+  method: minimize, model: ../mzn-challenge/2023/table-layout/TableLayout.mzn, mzn_solver: turbo.gpu.profiling,
+  nSolutions: 0, paths: 0, problem: table-layout, propagator_mem: 1571083, shared_mem: 17276,
+  status: UNKNOWN, store_mem: 17176}

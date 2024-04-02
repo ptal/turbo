@@ -1,0 +1,13 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-profiling_vrplc_service_vrplc13_11_20_s4,
+  cuda_version: 12020, cutnodes: 0, data_file: ../mzn-challenge/2023/vrplc/vrplc13_11_20_s4.dzn,
+  eliminated_formulas: 8001, eliminated_variables: 2339, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 4092, eps_solved_subproblems: 1, evaluatedReifiedConstraints: 2709,
+  failures: 24221, fixpoint_iterations: 1322944, flatBoolConstraints: 974, flatBoolVars: 3506,
+  flatIntConstraints: 11656, flatIntVars: 2356, flatTime: 0.433121, free_search: no,
+  hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 6.801,
+  memory_configuration: store_shared, method: minimize, model: ../mzn-challenge/2023/vrplc/vrplc_service.mzn,
+  mzn_solver: turbo.gpu.profiling, nSolutions: 0, nodes: 50828, num_blocks_done: 105,
+  num_solutions: 0, or_nodes: 108, paths: 0, peakDepth: 90, problem: vrplc, problem_path: /tmp/mznfileqWTMf7.fzn,
+  propagation_time: 2920.991297, propagator_mem: 16354852, propagators: 40786, search_time: 0.504457,
+  shared_mem: 33500, solveTime: 1200.094, solver: Turbo, stack_size: 32000, status: UNKNOWN,
+  store_mem: 33400, timeout_ms: 1200000, variables: 4144, version: v1.1.7}

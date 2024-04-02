@@ -1,0 +1,14 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-profiling_evmopt-generic_BDARUMA_run_code_of_0_block_108_233_1_extended_input,
+  cuda_version: 12020, cutnodes: 0, data_file: ../mzn-challenge/2023/evm-super-compilation/BDARUMA_run_code_of_0_block_108_233_1_extended_input.dzn,
+  eliminatedImplications: 40, eliminated_formulas: 14181, eliminated_variables: 7379,
+  eps_num_subproblems: 4096, eps_skipped_subproblems: 0, eps_solved_subproblems: 0,
+  evaluatedReifiedConstraints: 11915, failures: 340347, fixpoint_iterations: 14400149,
+  flatBoolConstraints: 7058, flatBoolVars: 12466, flatIntConstraints: 15059, flatIntVars: 5170,
+  flatTime: 1.10033, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM
+    512GO;NVIDIA A100 40GB HBM, initTime: 2.188, memory_configuration: global, method: minimize,
+  model: ../mzn-challenge/2023/evm-super-compilation/evmopt-generic.mzn, mzn_solver: turbo.gpu.profiling,
+  nSolutions: 0, nodes: 682685, num_blocks_done: 0, num_solutions: 0, or_nodes: 108,
+  paths: 0, peakDepth: 78, problem: evm-super-compilation, problem_path: /tmp/mznfilea6ppxR.fzn,
+  propagation_time: 121342.992982, propagator_mem: 16155028, propagators: 30516, search_time: 29.299539,
+  shared_mem: 100, solveTime: 1200.033, solver: Turbo, stack_size: 32000, status: UNKNOWN,
+  store_mem: 118880, timeout_ms: 1200000, variables: 14829, version: v1.1.7}

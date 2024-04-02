@@ -1,7 +1,7 @@
 {configuration: turbo-gpu-release_graph-scan-revised_rnd_n10_p1500_c15_s1_noatomics,
   data_file: ../mzn-challenge/2023/multi-agent-graph-coverage/rnd_n10_p1500_c15_s1.dzn,
-  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
-    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/multi-agent-graph-coverage/graph-scan-revised.mzn''."}',
+  evaluatedReifiedConstraints: 180, flatBoolConstraints: 171, flatBoolVars: 216, flatIntConstraints: 633,
+  flatIntVars: 149, flatTime: 0.881186, memory_configuration: store_shared, method: minimize,
   model: ../mzn-challenge/2023/multi-agent-graph-coverage/graph-scan-revised.mzn,
-  mzn_solver: turbo.gpu.release, problem: multi-agent-graph-coverage, rest_of_output: '',
-  status: ERROR}
+  mzn_solver: turbo.gpu.release, nSolutions: 0, paths: 0, problem: multi-agent-graph-coverage,
+  propagator_mem: 527544, shared_mem: 2980, status: UNKNOWN, store_mem: 2880}

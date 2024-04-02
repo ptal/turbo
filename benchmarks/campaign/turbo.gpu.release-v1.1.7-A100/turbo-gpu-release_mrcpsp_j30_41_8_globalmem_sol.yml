@@ -1,0 +1,19 @@
+- configuration: turbo-gpu-release_mrcpsp_j30_41_8_globalmem
+  data_file: ../mzn-challenge/2023/mrcpsp/j30_41_8.dzn
+  model: ../mzn-challenge/2023/mrcpsp/mrcpsp.mzn
+  mzn_solver: turbo.gpu.release
+  problem: mrcpsp
+  solution:
+    mrun: [true, false, false, false, true, false, false, false, true, true, false,
+      false, true, false, false, false, true, false, false, false, true, true, false,
+      false, false, true, false, true, false, false, false, true, false, false, false,
+      true, true, false, false, false, true, false, false, false, true, false, true,
+      false, true, false, false, false, true, false, true, false, false, false, true,
+      false, false, true, false, false, false, true, true, false, false, true, false,
+      false, true, false, false, true, false, false, true, false, false, true, false,
+      false, true, false, false, false, true, false]
+    objective: 30
+    start: [0, 0, 0, 5, 3, 6, 6, 5, 3, 8, 19, 6, 10, 13, 11, 6, 10, 14, 11, 14, 15,
+      16, 16, 19, 20, 25, 20, 24, 28, 24]
+  status: SATISFIED
+  time: 372.553

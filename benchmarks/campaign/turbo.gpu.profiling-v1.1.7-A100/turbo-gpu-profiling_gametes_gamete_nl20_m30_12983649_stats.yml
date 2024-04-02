@@ -1,0 +1,14 @@
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-profiling_gametes_gamete_nl20_m30_12983649,
+  cuda_version: 12020, cutnodes: 0, data_file: ../mzn-challenge/2023/gametes/gamete_nl20_m30_12983649.json,
+  eliminatedImplications: 39, eliminated_formulas: 25523, eliminated_variables: 12395,
+  eps_num_subproblems: 4096, eps_skipped_subproblems: 0, eps_solved_subproblems: 0,
+  evaluatedReifiedConstraints: 15821, failures: 582627, fixpoint_iterations: 8838688,
+  flatBoolConstraints: 11745, flatBoolVars: 19171, flatIntConstraints: 19696, flatIntVars: 9945,
+  flatTime: 1.33851, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM
+    512GO;NVIDIA A100 40GB HBM, initTime: 5.681, memory_configuration: global, method: minimize,
+  model: ../mzn-challenge/2023/gametes/gametes.mzn, mzn_solver: turbo.gpu.profiling,
+  nSolutions: 0, nodes: 1176047, num_blocks_done: 0, num_solutions: 0, or_nodes: 108,
+  paths: 0, peakDepth: 773, problem: gametes, problem_path: /tmp/mznfileKvNy3N.fzn,
+  propagation_time: 109929.756464, propagator_mem: 59166110, propagators: 125455,
+  search_time: 1575.655416, shared_mem: 100, solveTime: 1200.004, solver: Turbo, stack_size: 32000,
+  status: UNKNOWN, store_mem: 218944, timeout_ms: 1200000, variables: 27337, version: v1.1.7}

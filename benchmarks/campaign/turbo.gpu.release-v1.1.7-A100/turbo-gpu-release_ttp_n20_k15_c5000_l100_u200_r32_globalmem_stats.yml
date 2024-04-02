@@ -1,5 +1,6 @@
 {configuration: turbo-gpu-release_ttp_n20_k15_c5000_l100_u200_r32_globalmem, data_file: ../mzn-challenge/2023/travelling-thief/data/n20_k15_c5000_l100_u200_r32.dzn,
-  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
-    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/travelling-thief/ttp.mzn''."}',
-  model: ../mzn-challenge/2023/travelling-thief/ttp.mzn, mzn_solver: turbo.gpu.release,
-  problem: travelling-thief, rest_of_output: '', status: ERROR}
+  evaluatedReifiedConstraints: 396, flatBoolConstraints: 21399, flatBoolVars: 1266,
+  flatIntConstraints: 3327, flatIntVars: 2170, flatTime: 2.11732, memory_configuration: global,
+  method: maximize, model: ../mzn-challenge/2023/travelling-thief/ttp.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, paths: 0, problem: travelling-thief, propagator_mem: 152238081, shared_mem: 100,
+  status: ERROR, store_mem: 21904}

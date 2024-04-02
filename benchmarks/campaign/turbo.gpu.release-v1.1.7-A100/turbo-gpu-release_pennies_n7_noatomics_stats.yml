@@ -1,5 +1,6 @@
 {configuration: turbo-gpu-release_pennies_n7_noatomics, data_file: ../mzn-challenge/2023/pennies-opt/n7.dzn,
-  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
-    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/pennies-opt/pennies.mzn''."}',
-  model: ../mzn-challenge/2023/pennies-opt/pennies.mzn, mzn_solver: turbo.gpu.release,
-  problem: pennies-opt, rest_of_output: '', status: ERROR}
+  eliminatedImplications: 28, evaluatedReifiedConstraints: 2657, flatBoolConstraints: 464,
+  flatBoolVars: 2769, flatIntConstraints: 5341, flatIntVars: 2816, flatTime: 0.514732,
+  memory_configuration: store_shared, method: maximize, model: ../mzn-challenge/2023/pennies-opt/pennies.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, paths: 0, problem: pennies-opt, propagator_mem: 1811947,
+  shared_mem: 25428, status: UNKNOWN, store_mem: 25328}

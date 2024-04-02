@@ -1,6 +1,14 @@
-{configuration: turbo-gpu-release_evmopt-generic_Kongu_run_code_of_0_block_240_0_input_noatomics,
-  data_file: ../mzn-challenge/2023/evm-super-compilation/Kongu_run_code_of_0_block_240_0_input.dzn,
-  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
-    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/evm-super-compilation/evmopt-generic.mzn''."}',
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_evmopt-generic_Kongu_run_code_of_0_block_240_0_input_noatomics,
+  cuda_version: 12020, data_file: ../mzn-challenge/2023/evm-super-compilation/Kongu_run_code_of_0_block_240_0_input.dzn,
+  eliminatedImplications: 57, eliminated_formulas: 18891, eliminated_variables: 10205,
+  eps_num_subproblems: 4096, eps_skipped_subproblems: 4030, eps_solved_subproblems: 44,
+  evaluatedReifiedConstraints: 17610, failures: 252757, fixpoint_iterations: 13222166,
+  flatBoolConstraints: 10426, flatBoolVars: 18399, flatIntConstraints: 22436, flatIntVars: 7220,
+  flatTime: 1.78619, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM
+    512GO;NVIDIA A100 40GB HBM, initTime: 3.554, memory_configuration: global, method: minimize,
   model: ../mzn-challenge/2023/evm-super-compilation/evmopt-generic.mzn, mzn_solver: turbo.gpu.release,
-  problem: evm-super-compilation, rest_of_output: '', status: ERROR}
+  nSolutions: 0, nodes: 524963, num_blocks_done: 20, num_solutions: 0, or_nodes: 108,
+  paths: 0, peakDepth: 66, problem: evm-super-compilation, problem_path: /tmp/mznfileFwmmZy.fzn,
+  propagator_mem: 25120680, propagators: 49260, shared_mem: 100, solveTime: 1200.038,
+  solver: Turbo, stack_size: 32000, status: UNKNOWN, store_mem: 172040, timeout_ms: 1200000,
+  variables: 21474, version: v1.1.7}

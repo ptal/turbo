@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-profiling_chessboard_chessboard3, data_file: ../mzn-challenge/2023/chessboard/chessboard3.dzn,
+  evaluatedReifiedConstraints: 1264, flatBoolConstraints: 1469, flatBoolVars: 1738,
+  flatIntConstraints: 1357, flatIntVars: 447, flatTime: 0.233468, memory_configuration: store_shared,
+  method: maximize, model: ../mzn-challenge/2023/chessboard/chessboard.mzn, mzn_solver: turbo.gpu.profiling,
+  nSolutions: 0, paths: 0, problem: chessboard, propagator_mem: 1987752, shared_mem: 15420,
+  status: UNKNOWN, store_mem: 15320}

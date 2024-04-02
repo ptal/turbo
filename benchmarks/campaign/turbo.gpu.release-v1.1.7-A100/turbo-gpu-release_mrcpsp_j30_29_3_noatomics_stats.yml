@@ -1,5 +1,13 @@
-{configuration: turbo-gpu-release_mrcpsp_j30_29_3_noatomics, data_file: ../mzn-challenge/2023/mrcpsp/j30_29_3.dzn,
-  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
-    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/mrcpsp/mrcpsp.mzn''."}',
-  model: ../mzn-challenge/2023/mrcpsp/mrcpsp.mzn, mzn_solver: turbo.gpu.release, problem: mrcpsp,
-  rest_of_output: '', status: ERROR}
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_mrcpsp_j30_29_3_noatomics,
+  cuda_version: 12020, data_file: ../mzn-challenge/2023/mrcpsp/j30_29_3.dzn, eliminated_formulas: 78418,
+  eliminated_variables: 34486, eps_num_subproblems: 4096, eps_skipped_subproblems: 0,
+  eps_solved_subproblems: 9, evaluatedReifiedConstraints: 22062, failures: 962791,
+  fixpoint_iterations: 16468696, flatBoolConstraints: 14244, flatBoolVars: 36372,
+  flatIntConstraints: 50944, flatIntVars: 28316, flatTime: 1.34675, free_search: no,
+  hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 6.817,
+  memory_configuration: global, method: minimize, model: ../mzn-challenge/2023/mrcpsp/mrcpsp.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 1, nodes: 1930605, num_blocks_done: 0,
+  num_solutions: 113, objective: 36, or_nodes: 108, paths: 0, peakDepth: 69, problem: mrcpsp,
+  problem_path: /tmp/mznfileVrdUIJ.fzn, propagator_mem: 32791396, propagators: 46160,
+  shared_mem: 100, solveTime: 1200.019, solver: Turbo, stack_size: 32000, status: SATISFIED,
+  store_mem: 362296, timeout_ms: 1200000, variables: 45256, version: v1.1.7}

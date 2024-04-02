@@ -1,0 +1,6 @@
+{configuration: turbo-gpu-profiling_roster_model_chicroster_dataset_10, data_file: ../mzn-challenge/2023/roster/chicroster_dataset_10.dzn,
+  evaluatedReifiedConstraints: 1131, flatBoolConstraints: 252, flatBoolVars: 1383,
+  flatIntConstraints: 2429, flatIntVars: 1515, flatTime: 0.858824, memory_configuration: store_shared,
+  method: minimize, model: ../mzn-challenge/2023/roster/roster_model.mzn, mzn_solver: turbo.gpu.profiling,
+  nSolutions: 0, paths: 0, problem: roster, propagator_mem: 1038648, shared_mem: 15028,
+  status: UNKNOWN, store_mem: 14928}

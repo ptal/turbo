@@ -1,5 +1,13 @@
-{configuration: turbo-gpu-release_pennies_n5_globalmem, data_file: ../mzn-challenge/2023/pennies-opt/n5.dzn,
-  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
-    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/pennies-opt/pennies.mzn''."}',
-  model: ../mzn-challenge/2023/pennies-opt/pennies.mzn, mzn_solver: turbo.gpu.release,
-  problem: pennies-opt, rest_of_output: '', status: ERROR}
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_pennies_n5_globalmem,
+  cuda_version: 12020, data_file: ../mzn-challenge/2023/pennies-opt/n5.dzn, eliminatedImplications: 20,
+  eliminated_formulas: 2083, eliminated_variables: 1236, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 3942, eps_solved_subproblems: 291, evaluatedReifiedConstraints: 777,
+  failures: 2527, fixpoint_iterations: 94821, flatBoolConstraints: 275, flatBoolVars: 847,
+  flatIntConstraints: 1545, flatIntVars: 847, flatTime: 0.913882, free_search: no,
+  hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.129,
+  memory_configuration: global, method: maximize, model: ../mzn-challenge/2023/pennies-opt/pennies.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 1, nodes: 17951, num_blocks_done: 108,
+  num_solutions: 180, objective: 5, or_nodes: 108, paths: 0, peakDepth: 15, problem: pennies-opt,
+  problem_path: /tmp/mznfilemqlEEN.fzn, propagator_mem: 610766, propagators: 1165,
+  shared_mem: 100, solveTime: 1.628, solver: Turbo, stack_size: 32000, status: OPTIMAL_SOLUTION,
+  store_mem: 8560, timeout_ms: 1200000, variables: 1039, version: v1.1.7}

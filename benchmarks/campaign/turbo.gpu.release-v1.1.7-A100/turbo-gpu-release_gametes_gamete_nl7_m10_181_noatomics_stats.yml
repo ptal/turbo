@@ -1,5 +1,14 @@
-{configuration: turbo-gpu-release_gametes_gamete_nl7_m10_181_noatomics, data_file: ../mzn-challenge/2023/gametes/gamete_nl7_m10_181.json,
-  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
-    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/gametes/gametes.mzn''."}',
-  model: ../mzn-challenge/2023/gametes/gametes.mzn, mzn_solver: turbo.gpu.release,
-  problem: gametes, rest_of_output: '', status: ERROR}
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_gametes_gamete_nl7_m10_181_noatomics,
+  cuda_version: 12020, data_file: ../mzn-challenge/2023/gametes/gamete_nl7_m10_181.json,
+  eliminatedImplications: 13, eliminated_formulas: 2859, eliminated_variables: 1444,
+  eps_num_subproblems: 4096, eps_skipped_subproblems: 0, eps_solved_subproblems: 0,
+  evaluatedReifiedConstraints: 1977, failures: 8420518, fixpoint_iterations: 123159835,
+  flatBoolConstraints: 1476, flatBoolVars: 2415, flatIntConstraints: 2465, flatIntVars: 1209,
+  flatTime: 0.824684, free_search: no, hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM
+    512GO;NVIDIA A100 40GB HBM, initTime: 0.386, memory_configuration: store_shared,
+  method: minimize, model: ../mzn-challenge/2023/gametes/gametes.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, nodes: 16845443, num_blocks_done: 0, num_solutions: 0, or_nodes: 108,
+  paths: 0, peakDepth: 134, problem: gametes, problem_path: /tmp/mznfileUkgGop.fzn,
+  propagator_mem: 3450158, propagators: 6653, shared_mem: 26372, solveTime: 1200.098,
+  solver: Turbo, stack_size: 32000, status: UNKNOWN, store_mem: 26272, timeout_ms: 1200000,
+  variables: 3253, version: v1.1.7}

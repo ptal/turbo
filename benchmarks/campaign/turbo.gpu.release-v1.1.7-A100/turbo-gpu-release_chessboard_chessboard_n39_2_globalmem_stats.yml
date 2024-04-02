@@ -1,5 +1,6 @@
 {configuration: turbo-gpu-release_chessboard_chessboard_n39_2_globalmem, data_file: ../mzn-challenge/2023/chessboard/chessboard_n39_2.json,
-  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
-    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/chessboard/chessboard.mzn''."}',
-  model: ../mzn-challenge/2023/chessboard/chessboard.mzn, mzn_solver: turbo.gpu.release,
-  problem: chessboard, rest_of_output: '', status: ERROR}
+  evaluatedReifiedConstraints: 99754, flatBoolConstraints: 126329, flatBoolVars: 134467,
+  flatIntConstraints: 81960, flatIntVars: 13695, flatTime: 53.4629, memory_configuration: global,
+  method: maximize, model: ../mzn-challenge/2023/chessboard/chessboard.mzn, mzn_solver: turbo.gpu.release,
+  nSolutions: 0, paths: 0, problem: chessboard, propagator_mem: 155596488, shared_mem: 100,
+  status: ERROR, store_mem: 1112376}

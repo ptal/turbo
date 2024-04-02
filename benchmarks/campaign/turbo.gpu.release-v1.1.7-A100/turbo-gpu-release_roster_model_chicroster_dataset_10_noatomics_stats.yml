@@ -1,5 +1,13 @@
-{configuration: turbo-gpu-release_roster_model_chicroster_dataset_10_noatomics, data_file: ../mzn-challenge/2023/roster/chicroster_dataset_10.dzn,
-  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
-    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/roster/roster_model.mzn''."}',
-  model: ../mzn-challenge/2023/roster/roster_model.mzn, mzn_solver: turbo.gpu.release,
-  problem: roster, rest_of_output: '', status: ERROR}
+{and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_roster_model_chicroster_dataset_10_noatomics,
+  cuda_version: 12020, data_file: ../mzn-challenge/2023/roster/chicroster_dataset_10.dzn,
+  eliminated_formulas: 3182, eliminated_variables: 1701, eps_num_subproblems: 4096,
+  eps_skipped_subproblems: 0, eps_solved_subproblems: 0, evaluatedReifiedConstraints: 1131,
+  failures: 0, fixpoint_iterations: 84865882, flatBoolConstraints: 252, flatBoolVars: 1383,
+  flatIntConstraints: 2429, flatIntVars: 1515, flatTime: 1.01978, free_search: no,
+  hardware: AMD EPYC 7452 32-Core@2.35GHz; RAM 512GO;NVIDIA A100 40GB HBM, initTime: 0.219,
+  memory_configuration: store_shared, method: minimize, model: ../mzn-challenge/2023/roster/roster_model.mzn,
+  mzn_solver: turbo.gpu.release, nSolutions: 0, nodes: 23149280, num_blocks_done: 0,
+  num_solutions: 0, or_nodes: 108, paths: 0, peakDepth: 108, problem: roster, problem_path: /tmp/mznfileDmovq4.fzn,
+  propagator_mem: 1038648, propagators: 1652, shared_mem: 15028, solveTime: 1200.069,
+  solver: Turbo, stack_size: 32000, status: UNKNOWN, store_mem: 14928, timeout_ms: 1200000,
+  variables: 1835, version: v1.1.7}

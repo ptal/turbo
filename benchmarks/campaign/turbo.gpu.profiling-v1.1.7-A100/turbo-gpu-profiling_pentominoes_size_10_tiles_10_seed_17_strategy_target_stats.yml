@@ -1,0 +1,29 @@
+{configuration: turbo-gpu-profiling_pentominoes_size_10_tiles_10_seed_17_strategy_target,
+  data_file: ../mzn-challenge/2021/pentominoes-zayenz/size_10_tiles_10_seed_17_strategy_target.dzn,
+  error: '{''type'': ''error'', ''what'': ''flattening error'', ''location'': {''filename'':
+    ''/mnt/tier1/project/p200244/deps/libminizinc/share/minizinc/std/regular_regexp.mzn'',
+    ''firstLine'': 34, ''firstColumn'': 11, ''lastLine'': 34, ''lastColumn'': 27},
+    ''message'': ''MiniZinc was compiled without built-in Gecode, cannot parse regular
+    expression'', ''stack'': [{''location'': {''filename'': ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/mzn-challenge/2021/pentominoes-zayenz/pentominoes.mzn'',
+    ''firstLine'': 29, ''firstColumn'': 12, ''lastLine'': 31, ''lastColumn'': 1},
+    ''isCompIter'': False, ''description'': "call ''forall''"}, {''location'': {''filename'':
+    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/mzn-challenge/2021/pentominoes-zayenz/pentominoes.mzn'',
+    ''firstLine'': 29, ''firstColumn'': 12, ''lastLine'': 31, ''lastColumn'': 1},
+    ''isCompIter'': False, ''description'': ''array comprehension expression''}, {''location'':
+    {''filename'': ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/mzn-challenge/2021/pentominoes-zayenz/pentominoes.mzn'',
+    ''firstLine'': 29, ''firstColumn'': 20, ''lastLine'': 29, ''lastColumn'': 29},
+    ''isCompIter'': True, ''description'': ''expression = "( ([2 3 4 5 6 7 8 9 10
+    11]* 1{2} [2 3 4 5 6 7 8 9 10 11]{2} [2 3 4 5 6 7 8 9 10 11] [2 3 4 5 6 7 8 9
+    10 11]{6} 1{2} [2 3 4 5 6 7 8 9 10 11]*) | ([2 3 4 5 6 7 8 9 10 11]* 1{2} [2 3
+    4 5 6 7 8 9 10 11] [2 3 4 5 6 7 8 9 10 11]{8} 1{2} [2 3 4 5 6 7 8 9 10 11]*) |
+    ([2 3 4 5 6 7 8 9 10 11]* 1{2} [2 3 4 5 6 7 8 9 10 11]{6} [2 3 4 5 6 7 8 9 10
+    11] [2 3 4 5 6 7 8 9 10 11]{2} 1{2} [2 3 4 5 6 7 8 9 10 11]*) | ([2 3 4 5 6 7
+    8 9 10 11]* 1{2} [2 3 4 5 6 7 8 9 10 11]{8} [2 3 4 5 6 7 8 9 10 11] 1{2} [2 3
+    4 5 6 7 8 9 10 11]*) )"''}, {''location'': {''filename'': ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/mzn-challenge/2021/pentominoes-zayenz/pentominoes.mzn'',
+    ''firstLine'': 30, ''firstColumn'': 5, ''lastLine'': 30, ''lastColumn'': 42},
+    ''isCompIter'': False, ''description'': "call ''regular''"}, {''location'': {''filename'':
+    ''/mnt/tier1/project/p200244/deps/libminizinc/share/minizinc/std/regular_regexp.mzn'',
+    ''firstLine'': 34, ''firstColumn'': 11, ''lastLine'': 34, ''lastColumn'': 27},
+    ''isCompIter'': False, ''description'': "call ''fzn_regular''"}]}', model: ../mzn-challenge/2021/pentominoes-zayenz/pentominoes.mzn,
+  mzn_solver: turbo.gpu.profiling, problem: pentominoes-zayenz, rest_of_output: '',
+  status: ERROR}

@@ -1,6 +1,6 @@
 {configuration: turbo-gpu-release_unison_mips_gcc.varasm.default_named_section_asm_out_destructor,
   data_file: ../mzn-challenge/2023/code-generator/mips_gcc.varasm.default_named_section_asm_out_destructor.dzn,
-  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
-    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/code-generator/unison.mzn''."}',
+  evaluatedReifiedConstraints: 172860, flatBoolConstraints: 78477, flatBoolVars: 222182,
+  flatIntConstraints: 348030, flatIntVars: 174251, flatTime: 13.6025, method: minimize,
   model: ../mzn-challenge/2023/code-generator/unison.mzn, mzn_solver: turbo.gpu.release,
-  problem: code-generator, rest_of_output: '', status: ERROR}
+  nSolutions: 0, paths: 0, problem: code-generator, status: UNKNOWN}

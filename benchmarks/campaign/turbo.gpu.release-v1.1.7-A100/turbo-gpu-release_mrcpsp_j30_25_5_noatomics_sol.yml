@@ -1,0 +1,19 @@
+- configuration: turbo-gpu-release_mrcpsp_j30_25_5_noatomics
+  data_file: ../mzn-challenge/2023/mrcpsp/j30_25_5.dzn
+  model: ../mzn-challenge/2023/mrcpsp/mrcpsp.mzn
+  mzn_solver: turbo.gpu.release
+  problem: mrcpsp
+  solution:
+    mrun: [true, false, false, true, false, false, false, false, true, true, false,
+      false, true, false, false, true, false, false, false, true, false, true, false,
+      false, false, true, false, true, false, false, true, false, false, true, false,
+      false, true, false, false, true, false, false, true, false, false, true, false,
+      false, true, false, false, true, false, false, true, false, false, true, false,
+      false, true, false, false, true, false, false, true, false, false, true, false,
+      false, true, false, false, true, false, false, false, true, false, true, false,
+      false, true, false, false, true, false, false]
+    objective: 27
+    start: [0, 0, 0, 1, 1, 12, 3, 3, 3, 3, 10, 7, 11, 13, 1, 10, 13, 23, 19, 17, 20,
+      13, 15, 9, 21, 21, 15, 23, 24, 23]
+  status: SATISFIED
+  time: 66.61

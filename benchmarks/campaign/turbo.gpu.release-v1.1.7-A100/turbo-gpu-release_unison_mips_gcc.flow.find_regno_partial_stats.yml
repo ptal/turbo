@@ -1,5 +1,5 @@
 {configuration: turbo-gpu-release_unison_mips_gcc.flow.find_regno_partial, data_file: ../mzn-challenge/2023/code-generator/mips_gcc.flow.find_regno_partial.dzn,
-  error: '{''type'': ''error'', ''what'': ''error'', ''message'': "Cannot open file
-    ''/mnt/tier1/project/p200244/lattice-land/turbo/benchmarks/benchmarking/../mzn-challenge/2023/code-generator/unison.mzn''."}',
+  evaluatedReifiedConstraints: 105547, flatBoolConstraints: 41949, flatBoolVars: 131182,
+  flatIntConstraints: 225641, flatIntVars: 120297, flatTime: 9.37023, method: minimize,
   model: ../mzn-challenge/2023/code-generator/unison.mzn, mzn_solver: turbo.gpu.release,
-  problem: code-generator, rest_of_output: '', status: ERROR}
+  nSolutions: 0, paths: 0, problem: code-generator, status: ERROR}

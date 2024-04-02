@@ -1,0 +1,5 @@
+{configuration: turbo-gpu-profiling_triangular_n18, data_file: ../mzn-challenge/2022/triangular/n18.dzn,
+  flatIntConstraints: 4846, flatIntVars: 172, flatTime: 0.240421, memory_configuration: store_shared,
+  method: maximize, model: ../mzn-challenge/2022/triangular/triangular.mzn, mzn_solver: turbo.gpu.profiling,
+  nSolutions: 0, paths: 0, problem: triangular, propagator_mem: 1697764, shared_mem: 1724,
+  status: UNKNOWN, store_mem: 1624}

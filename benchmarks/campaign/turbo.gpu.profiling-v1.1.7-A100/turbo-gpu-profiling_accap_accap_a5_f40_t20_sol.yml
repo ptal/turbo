@@ -1,0 +1,13 @@
+- configuration: turbo-gpu-profiling_accap_accap_a5_f40_t20
+  data_file: ../mzn-challenge/2022/accap/accap_a5_f40_t20.json
+  model: ../mzn-challenge/2022/accap/accap.mzn
+  mzn_solver: turbo.gpu.profiling
+  problem: accap
+  solution:
+    D: 42
+    S: [21, 13, 37, 19, 8]
+    objective: 140
+    yCoor: [15, 5, 11, 23, 6, 11, 26, 11, 5, 26, 1, 8, 27, 35, 15, 20, 30, 1, 32,
+      20, 13, 1, 16, 39, 14, 33, 1, 5, 24, 6, 29, 31, 22, 1, 33, 16, 23, 11, 42, 16]
+  status: SATISFIED
+  time: 1200.444
