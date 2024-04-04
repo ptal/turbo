@@ -36,6 +36,7 @@ if(LOCAL_DEPS)
   FetchContent_Declare(lala_pc SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../lala-pc/")
   FetchContent_Declare(lala_parsing SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../lala-parsing/")
   FetchContent_Declare(lala_power SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../lala-power/")
+  FetchContent_Declare(lala_octagon SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../lala-octagon/")
 else()
   FetchContent_Declare(
     lala_pc
@@ -54,9 +55,15 @@ else()
     GIT_REPOSITORY "https://github.com/lattice-land/lala-power.git"
     GIT_TAG        v1.1.7
   )
+
+  FetchContent_Declare(
+    lala_octagon
+    GIT_REPOSITORY "https://github.com/lattice-land/lala-octagon.git"
+    GIT_TAG        v1.1.7
+  )
 endif()
 
-FetchContent_MakeAvailable(lala_parsing lala_pc lala_power)
+FetchContent_MakeAvailable(lala_parsing lala_pc lala_power lala_octagon)
 
 # Turbo executable
 
@@ -93,7 +100,7 @@ if(NO_CONCURRENT_MANAGED_MEMORY)
   target_compile_definitions(turbo PRIVATE NO_CONCURRENT_MANAGED_MEMORY)
 endif()
 
-target_link_libraries(turbo PRIVATE lala_parsing lala_pc lala_power)
+target_link_libraries(turbo PRIVATE lala_parsing lala_pc lala_power lala_octagon)
 target_link_options(turbo PRIVATE
     $<$<AND:$<BOOL:${WITH_ASAN}>,$<CXX_COMPILER_ID:GNU>>:-fsanitize=address;-static-libasan>
     $<$<AND:$<BOOL:${WITH_ASAN}>,$<CXX_COMPILER_ID:Clang>>:-fsanitize=address>

@@ -27,6 +27,7 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-stack 100: Use a maximum of 100KB of stack size per thread stored in global memory (only for GPU architectures)." << std::endl;
   std::cout << "\t-version 1.0.0: A version identifier that is printed as statistics to know which version of Turbo was used to solve an instance. It is only for documentation and replicability purposes." << std::endl;
   std::cout << "\t-hardware \"Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000\": The description of the hardware on which the solver is executed (\"CPU;RAM;GPU\"). It is only for documentation and replicability purposes." << std::endl;
+  std::cout << "\t-octagon: Use the octagon abstract domains." << std::endl;
 
 #ifdef TURBO_PROFILE_MODE
   std::cout << "\t-cutnodes 1000: Stop the solver when 1000 nodes have been explored in a subproblem (0 for no limit)." << std::endl;
@@ -142,6 +143,7 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
   input.read_bool("-s", config.print_statistics);
   input.read_bool("-globalmem", config.only_global_memory);
   input.read_bool("-noatomics", config.noatomics);
+  input.read_bool("-octagon", config.octagon);
 
   std::string architecture;
   if(input.read_string("-arch", architecture)) {

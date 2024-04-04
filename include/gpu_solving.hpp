@@ -4,6 +4,7 @@
 #define TURBO_GPU_SOLVING_HPP
 
 #include "common_solving.hpp"
+#include "lala/octagon.hpp"
 #include <thread>
 #include <algorithm>
 #include <cuda/std/chrono>
@@ -18,6 +19,7 @@ template <
   class Universe0, // Universe used locally to one thread.
   class Universe1, // Universe used in the scope of a block.
   class Universe2, // Universe used in the scope of a grid.
+  template <class, class> class Store,
   class ConcurrentAllocator> // This allocator allocates memory that can be both accessed by the CPU and the GPU. See PR #18 for the reason (basically, non-Linux systems do not support concurrent managed memory (accessed from CPU and GPU) and must rely on pinned memory instead).
 struct StateTypes {
 
@@ -28,12 +30,14 @@ struct StateTypes {
 
   /** We first interpret the formula in an abstract domain with sequential concurrent memory, that we call `GridCP`. */
   using GridCP = AbstractDomains<U0,
+    Store,
     bt::statistics_allocator<ConcurrentAllocator>,
     bt::statistics_allocator<UniqueLightAlloc<ConcurrentAllocator, 0>>,
     bt::statistics_allocator<UniqueLightAlloc<ConcurrentAllocator, 1>>>;
 
   /** Then, once everything is initialized, we rely on a parallel abstract domain called `BlockCP`, usually using atomic shared and global memory. */
   using BlockCP = AbstractDomains<U1,
+    Store,
     bt::global_allocator,
     bt::pool_allocator,
     UniqueAlloc<bt::pool_allocator, 0>>;
@@ -47,12 +51,13 @@ using FPEngine = BlockAsynchronousIterationGPU<bt::pool_allocator>;
 
 // Version for non-Linux systems such as Windows where pinned memory must be used (see PR #19).
 #ifdef NO_CONCURRENT_MANAGED_MEMORY
-  using ItvSolverPinned = StateTypes<Itv0, Itv1, Itv2, bt::pinned_allocator>;
-  using ItvSolverPinnedNoAtomics = StateTypes<Itv0, Itv0, Itv0, bt::pinned_allocator>;
+  using ItvSolverPinned = StateTypes<Itv0, Itv1, Itv2, VStore, bt::pinned_allocator>;
+  using ItvSolverPinnedNoAtomics = StateTypes<Itv0, Itv0, Itv0, VStore, bt::pinned_allocator>;
 #else
-  using ItvSolver = StateTypes<Itv0, Itv1, Itv2, bt::managed_allocator>;
+  using ItvSolver = StateTypes<Itv0, Itv1, Itv2, VStore, bt::managed_allocator>;
   // Deactivate atomics for the domain of variables (for benchmarking only, it is not safe according to CUDA consistency model).
-  using ItvSolverNoAtomics = StateTypes<Itv0, Itv0, Itv0, bt::managed_allocator>;
+  using ItvSolverNoAtomics = StateTypes<Itv0, Itv0, Itv0, VStore, bt::managed_allocator>;
+  using ItvSolverOctagon = StateTypes<Itv0, Itv1, Itv2, Octagon, bt::managed_allocator>;
 #endif
 
 /** Depending on the problem, we can store the abstract elements in different memories.
@@ -542,8 +547,8 @@ size_t gpu_sizeof() {
   return *s;
 }
 
-template <class S, class U>
-size_t sizeof_store(const CP<U>& root) {
+template <class S, class U, template <class, class> class Store>
+size_t sizeof_store(const CP<U, Store>& root) {
   return gpu_sizeof<typename S::BlockCP::IStore>()
        + gpu_sizeof<typename S::BlockCP::IStore::universe_type>() * root.store->vars();
 }
@@ -563,15 +568,15 @@ void print_memory_statistics(const char* key, size_t bytes) {
 }
 
 /** \returns the size of the shared memory and the kind of memory used. */
-template <class S, class U>
-MemoryConfig configure_memory(CP<U>& root) {
+template <class S, class U, template <class, class> class Store>
+MemoryConfig configure_memory(CP<U, Store>& root) {
   cudaDeviceProp deviceProp;
   cudaGetDeviceProperties(&deviceProp, 0);
   const auto& config = root.config;
   size_t shared_mem_capacity = deviceProp.sharedMemPerBlock;
 
   // Copy the root to know how large are the abstract domains.
-  CP<U> root2(root);
+  CP<U, Store> root2(root);
 
   size_t store_alignment = 200; // The store does not create much alignment overhead since it is almost only a single array.
 
@@ -647,8 +652,8 @@ void consume_kernel_solutions(GridData<S>& grid_data) {
   while(!grid_data.consume_solution()) {}
 }
 
-template <class S, class U, class Timepoint>
-void transfer_memory_and_run(CP<U>& root, MemoryConfig mem_config, const Timepoint& start) {
+template <class S, class U, template <class, class> class Store, class Timepoint>
+void transfer_memory_and_run(CP<U, Store>& root, MemoryConfig mem_config, const Timepoint& start) {
   using concurrent_allocator = typename S::concurrent_allocator;
   auto grid_data = bt::make_shared<GridData<S>, concurrent_allocator>(std::move(root), mem_config);
   initialize_grid_data<<<1,1>>>(grid_data.get());
@@ -683,8 +688,8 @@ int threads_per_sm(cudaDeviceProp devProp) {
   }
 }
 
-template <class S, class U>
-void configure_blocks_threads(CP<U>& root, const MemoryConfig& mem_config) {
+template <class S, class U, template <class, class> class Store>
+void configure_blocks_threads(CP<U, Store>& root, const MemoryConfig& mem_config) {
   int hint_num_blocks;
   int hint_num_threads;
   CUDAE(cudaOccupancyMaxPotentialBlockSize(&hint_num_blocks, &hint_num_threads, (void*) gpu_solve_kernel<S>, (int)mem_config.shared_bytes));
@@ -731,8 +736,8 @@ void configure_blocks_threads(CP<U>& root, const MemoryConfig& mem_config) {
   }
 }
 
-template <class S, class U, class Timepoint>
-void configure_and_run(CP<U>& root, const Timepoint& start) {
+template <class S, class U, template <class, class> class Store, class Timepoint>
+void configure_and_run(CP<U, Store>& root, const Timepoint& start) {
   MemoryConfig mem_config = configure_memory<S>(root);
   configure_blocks_threads<S>(root, mem_config);
   transfer_memory_and_run<S>(root, mem_config, start);
@@ -782,24 +787,40 @@ void gpu_solve(Configuration<bt::standard_allocator>& config) {
   check_support_unified_memory();
   check_support_concurrent_managed_memory();
   auto start = std::chrono::high_resolution_clock::now();
-  CP<Itv> root(config);
-  root.preprocess();
   block_signal_ctrlc();
+
+  if(config.octagon) {
 #ifdef NO_CONCURRENT_MANAGED_MEMORY
-  if(root.config.noatomics) {
-    configure_and_run<ItvSolverPinnedNoAtomics>(root, start);
-  }
-  else {
-    configure_and_run<ItvSolverPinned>(root, start);
-  }
-#else
-  if(root.config.noatomics) {
-    configure_and_run<ItvSolverNoAtomics>(root, start);
-  }
-  else {
-    configure_and_run<ItvSolver>(root, start);
-  }
+  printf("Unsupported system for octagon.\n");
+  exit(EXIT_FAILURE);
 #endif
+    if(config.noatomics) {
+      printf("-noatomics unsupported for octagon.\n");
+      exit(EXIT_FAILURE);
+    }
+    CP<Itv, Octagon> root(config);
+    root.preprocess();
+    configure_and_run<ItvSolverOctagon>(root, start);
+  }
+  else {
+    CP<Itv, VStore> root(config);
+    root.preprocess();
+  #ifdef NO_CONCURRENT_MANAGED_MEMORY
+    if(root.config.noatomics) {
+      configure_and_run<ItvSolverPinnedNoAtomics>(root, start);
+    }
+    else {
+      configure_and_run<ItvSolverPinned>(root, start);
+    }
+  #else
+    if(root.config.noatomics) {
+      configure_and_run<ItvSolverNoAtomics>(root, start);
+    }
+    else {
+      configure_and_run<ItvSolver>(root, start);
+    }
+  #endif
+  }
 #endif
 }
 

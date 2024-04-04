@@ -148,6 +148,7 @@ struct UniqueLightAlloc {
  * Normally, you should use the fastest memory for the store, then for the propagators and then for the rest.
  */
 template <class Universe,
+  template <class,class> class Store,
   class BasicAllocator,
   class PropAllocator,
   class StoreAllocator>
@@ -155,9 +156,9 @@ struct AbstractDomains {
   using universe_type = typename Universe::local_type;
 
   /** Version of the abstract domains with a simple allocator, to represent the best solutions. */
-  using LIStore = VStore<universe_type, BasicAllocator>;
+  using LIStore = Store<universe_type, BasicAllocator>;
 
-  using IStore = VStore<Universe, StoreAllocator>;
+  using IStore = Store<Universe, StoreAllocator>;
   using IPC = PC<IStore, PropAllocator>; // Interval Propagators Completion
   using ISimplifier = Simplifier<IPC, BasicAllocator>;
   using Split = SplitStrategy<IPC, BasicAllocator>;
@@ -168,7 +169,7 @@ struct AbstractDomains {
   using prop_allocator_type = PropAllocator;
   using store_allocator_type = StoreAllocator;
 
-  using this_type = AbstractDomains<Universe, BasicAllocator, PropAllocator, StoreAllocator>;
+  using this_type = AbstractDomains<Universe, Store, BasicAllocator, PropAllocator, StoreAllocator>;
 
   struct tag_copy_cons{};
 
@@ -182,7 +183,7 @@ struct AbstractDomains {
   template <class U2, class BasicAlloc2, class PropAllocator2, class StoreAllocator2>
   CUDA AbstractDomains(const tag_gpu_block_copy&,
     bool enable_sharing, // `true` if the propagators are not in the shared memory.
-    const AbstractDomains<U2, BasicAlloc2, PropAllocator2, StoreAllocator2>& other,
+    const AbstractDomains<U2, Store, BasicAlloc2, PropAllocator2, StoreAllocator2>& other,
     const BasicAllocator& basic_allocator = BasicAllocator(),
     const PropAllocator& prop_allocator = PropAllocator(),
     const StoreAllocator& store_allocator = StoreAllocator())
@@ -213,7 +214,7 @@ struct AbstractDomains {
   }
 
   template <class U2, class BasicAlloc2, class PropAllocator2, class StoreAllocator2>
-  CUDA AbstractDomains(const AbstractDomains<U2, BasicAlloc2, PropAllocator2, StoreAllocator2>& other,
+  CUDA AbstractDomains(const AbstractDomains<U2, Store, BasicAlloc2, PropAllocator2, StoreAllocator2>& other,
     const BasicAllocator& basic_allocator = BasicAllocator(),
     const PropAllocator& prop_allocator = PropAllocator(),
     const StoreAllocator& store_allocator = StoreAllocator(),
@@ -557,7 +558,7 @@ public:
 
   /** Extract in `this` the content of `other`. */
   template <class U2, class BasicAlloc2, class PropAlloc2, class StoreAlloc2>
-  CUDA void join(AbstractDomains<U2, BasicAlloc2, PropAlloc2, StoreAlloc2>& other) {
+  CUDA void join(AbstractDomains<U2, Store, BasicAlloc2, PropAlloc2, StoreAlloc2>& other) {
     if(bab->is_optimization() && !other.best->is_bot() && bab->compare_bound(*other.best, *best)) {
       other.best->extract(*best);
     }
@@ -567,8 +568,9 @@ public:
 
 using Itv = Interval<ZInc<int, battery::local_memory>>;
 
-template <class Universe>
+template <class Universe, template <class, class> class Store>
 using CP = AbstractDomains<Universe,
+  Store,
   battery::statistics_allocator<battery::standard_allocator>,
   battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 0>>,
   battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 1>>>;

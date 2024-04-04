@@ -36,6 +36,7 @@ struct Configuration {
   bool print_ast;
   bool only_global_memory;
   bool noatomics;
+  bool octagon;
   size_t timeout_ms;
   size_t or_nodes;
   size_t and_nodes; // (only for GPU)
@@ -56,6 +57,7 @@ struct Configuration {
     print_statistics(false),
     only_global_memory(false),
     noatomics(false),
+    octagon(false),
     timeout_ms(0),
     and_nodes(0),
     or_nodes(0),
@@ -87,6 +89,7 @@ struct Configuration {
     print_ast(other.print_ast),
     only_global_memory(other.only_global_memory),
     noatomics(other.noatomics),
+    octagon(other.octagon),
     timeout_ms(other.timeout_ms),
     or_nodes(other.or_nodes),
     and_nodes(other.and_nodes),
@@ -109,6 +112,7 @@ struct Configuration {
     print_statistics = other.print_statistics;
     only_global_memory = other.only_global_memory;
     noatomics = other.noatomics;
+    octagon = other.octagon;
     timeout_ms = other.timeout_ms;
     and_nodes = other.and_nodes;
     or_nodes = other.or_nodes;
@@ -130,7 +134,8 @@ struct Configuration {
       (free_search ? "-f " : ""),
       (print_statistics ? "-s " : ""),
       (verbose_solving ? "-v " : ""),
-      (print_ast ? "-ast " : "")
+      (print_ast ? "-ast " : ""),
+      (octagon ? "-octagon " : "")
     );
     if(arch == Arch::GPU) {
       printf("-arch gpu -or %" PRIu64 " -and %" PRIu64 " -sub %" PRIu64 " -stack %" PRIu64 " ", or_nodes, and_nodes, subproblems_power, stack_kb);
@@ -163,6 +168,7 @@ struct Configuration {
     printf("%%%%%%mzn-stat: free_search=\"%s\"\n", free_search ? "yes" : "no");
     printf("%%%%%%mzn-stat: or_nodes=%" PRIu64 "\n", or_nodes);
     printf("%%%%%%mzn-stat: timeout_ms=%" PRIu64 "\n", timeout_ms);
+    printf("%%%%%%mzn-stat: abstract_domain=%s\n", octagon ? "IPC(Octagon)" : "IPC(VStore)");
     if(arch == Arch::GPU) {
       printf("%%%%%%mzn-stat: and_nodes=%" PRIu64 "\n", and_nodes);
       printf("%%%%%%mzn-stat: stack_size=%" PRIu64 "\n", stack_kb * 1000);

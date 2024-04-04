@@ -8,7 +8,7 @@
 void cpu_solve(const Configuration<battery::standard_allocator>& config) {
   auto start = std::chrono::high_resolution_clock::now();
 
-  CP<Itv> cp(config);
+  CP<Itv, VStore> cp(config);
   cp.preprocess();
 
   GaussSeidelIteration fp_engine;
