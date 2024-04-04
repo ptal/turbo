@@ -1,6 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+from pathlib import Path
 from packaging import version
 
 # A tentative to have unique experiment names.
@@ -39,6 +40,12 @@ def read_experiments(experiments):
   all_xp['mzn_solver'] = all_xp['configuration'].apply(determine_mzn_solver)
   for e in experiments:
     df = pd.read_csv(e)
+    if df[df['status'] == 'ERROR'].shape[0] > 0:
+      print('Number of erroneous rows: ', df[df['status'] == 'ERROR'].shape[0])
+      df = df[df['status'] != 'ERROR']
+    if df[df['nodes'].isna()].shape[0] > 0:
+      print('Number of incomplete rows: ', df[df['nodes'].isna()].shape[0])
+      df = df[~df['nodes'].isna()]
     if 'mzn_solver' not in df:
       df['mzn_solver'] = df['configuration'].apply(determine_mzn_solver)
     # print(df[(df['mzn_solver'] == "turbo.gpu.release") & df['or_nodes'].isna()])
@@ -59,6 +66,12 @@ def read_experiments(experiments):
   all_xp['fp_iterations_per_node'] = all_xp['fixpoint_iterations'] / all_xp['nodes']
   all_xp['fp_iterations_per_second'] = all_xp['fixpoint_iterations'] / all_xp['solveTime']
   return all_xp
+
+def filter_benchmarks(df, bench_files):
+  instances = ""
+  for bf in bench_files:
+    instances += Path(bf).read_text()
+
 
 def plot_overall_result(df):
   grouped = df.groupby(['uid', 'status']).size().unstack(fill_value=0)
@@ -84,9 +97,6 @@ def plot_overall_result(df):
   ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3)
   plt.tight_layout()
   plt.show()
-
-def remove_meluxina_scaling_tests(df):
-  return df[(df['mzn_solver'] != 'turbo.gpu.release') | (df['machine'] != 'Meluxina') | (((df['eps_num_subproblems'] == 1024) | (df['eps_num_subproblems'] == 4096)) & (df['and_nodes'] == 256) & (df['or_nodes'] == 108))]
 
 def determine_machine(hardware_info):
   if hardware_info == 'Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000':
