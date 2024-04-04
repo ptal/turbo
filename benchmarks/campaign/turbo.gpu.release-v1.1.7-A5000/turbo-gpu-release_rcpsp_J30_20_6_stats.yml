@@ -1,13 +1,13 @@
 {and_nodes: 256, arch: gpu, configuration: turbo-gpu-release_rcpsp_J30_20_6, cuda_version: 12040,
   data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_20_6.dzn, eliminated_formulas: 14383,
-  eliminated_variables: 8921, eps_num_subproblems: 4096, eps_skipped_subproblems: 4216,
-  eps_solved_subproblems: 8, evaluatedReifiedConstraints: 10301, failures: 1324, fixpoint_iterations: 17819,
+  eliminated_variables: 8921, eps_num_subproblems: 4096, eps_skipped_subproblems: 4872,
+  eps_solved_subproblems: 8, evaluatedReifiedConstraints: 10301, failures: 1327, fixpoint_iterations: 17860,
   flatBoolConstraints: 4979, flatBoolVars: 15259, flatIntConstraints: 16377, flatIntVars: 5332,
-  flatTime: 0.396067, free_search: no, hardware: Intel Core i9-10900X@3.7GHz;24GO
-    DDR4;NVIDIA RTX A5000, initTime: 1.279, memory_configuration: global, method: minimize,
+  flatTime: 0.426675, free_search: no, hardware: Intel Core i9-10900X@3.7GHz;24GO
+    DDR4;NVIDIA RTX A5000, initTime: 1.449, memory_configuration: global, method: minimize,
   model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn, mzn_solver: turbo.gpu.release, nSolutions: 1,
-  nodes: 6620, num_blocks_done: 64, num_solutions: 3, objective: 51, or_nodes: 64,
-  paths: 0, peakDepth: 31, problem: rcpsp, problem_path: /tmp/mznfileYhKJLb.fzn, propagator_mem: 8081956,
-  propagators: 12366, shared_mem: 100, solveTime: 5.325, solver: Turbo, stack_size: 32000,
-  status: OPTIMAL_SOLUTION, store_mem: 94096, timeout_ms: 300000, variables: 11731,
+  nodes: 6638, num_blocks_done: 64, num_solutions: 3, objective: 51, or_nodes: 64,
+  paths: 0, peakDepth: 31, problem: rcpsp, problem_path: /tmp/mznfileQoO1mb.fzn, propagator_mem: 8081956,
+  propagators: 12366, shared_mem: 100, solveTime: 5.569, solver: Turbo, stack_size: 32000,
+  status: OPTIMAL_SOLUTION, store_mem: 94096, timeout_ms: 1200000, variables: 11731,
   version: v1.1.7}
