@@ -1,12 +1,18 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+from pathlib import Path
 from packaging import version
 
 # A tentative to have unique experiment names.
-def make_uid(mzn_solver, version, machine, eps_num_subproblems, or_nodes, and_nodes):
+def make_uid(config, mzn_solver, version, machine, eps_num_subproblems, or_nodes, and_nodes):
   if mzn_solver == 'turbo.gpu.release':
-    return 'turbo.gpu.release_' + str(version) + '_' + machine + '_' + str(eps_num_subproblems) + '_' + str(or_nodes) + '_' + str(and_nodes)
+    uid = 'turbo.gpu.release_' + str(version) + '_' + machine + '_' + str(eps_num_subproblems) + '_' + str(or_nodes) + '_' + str(and_nodes)
+    if 'noatomics' in config:
+      uid += '_noatomics'
+    if 'globalmem' in config:
+      uid += '_globalmem'
+    return uid
   elif mzn_solver == 'turbo.cpu.release':
     return 'turbo.cpu.release_' + str(version) + '_' + machine
   else:
@@ -41,9 +47,13 @@ def read_experiments(experiments):
     df = pd.read_csv(e)
     if 'mzn_solver' not in df:
       df['mzn_solver'] = df['configuration'].apply(determine_mzn_solver)
-    # print(df[(df['mzn_solver'] == "turbo.gpu.release") & df['or_nodes'].isna()])
+    failed_xps = df[(df['mzn_solver'] == "turbo.gpu.release") & df['or_nodes'].isna()]
+    if len(failed_xps) > 0:
+      failed_xps_path = f"failed_{Path(e).name}"
+      failed_xps[['problem', 'model', 'data_file']].to_csv(failed_xps_path, index=False)
+      df = df[(df['mzn_solver'] != "turbo.gpu.release") | (~df['or_nodes'].isna())]
+      print(f"{e}: {len(failed_xps)} failed experiments using turbo.gpu.release have been removed (the faulty experiments have been stored in {failed_xps_path}).")
     # print(df[(df['mzn_solver'] == "turbo.gpu.release") & df['and_nodes'].isna()])
-    # df = df[(df['mzn_solver'] != "turbo.gpu.release") | (~df['or_nodes'].isna())]
     # df = df[(df['mzn_solver'] != "turbo.gpu.release") | (~df['and_nodes'].isna())]
     all_xp = pd.concat([df, all_xp], ignore_index=True)
   all_xp['version'] = all_xp['version'].apply(version.parse)
@@ -53,7 +63,7 @@ def read_experiments(experiments):
   all_xp['fixpoint_iterations'] = pd.to_numeric(all_xp['fixpoint_iterations'], errors='coerce').fillna(0).astype(int)
   all_xp['eps_num_subproblems'] = pd.to_numeric(all_xp['eps_num_subproblems'], errors='coerce').fillna(1).astype(int)
   all_xp['machine'] = all_xp['hardware'].apply(determine_machine)
-  all_xp['uid'] = all_xp.apply(lambda row: make_uid(row['mzn_solver'], row['version'], row['machine'],
+  all_xp['uid'] = all_xp.apply(lambda row: make_uid(row['configuration'], row['mzn_solver'], row['version'], row['machine'],
                                                     row['eps_num_subproblems'], row['or_nodes'], row['and_nodes']), axis=1)
   all_xp['nodes_per_second'] = all_xp['nodes'] / all_xp['solveTime']
   all_xp['fp_iterations_per_node'] = all_xp['fixpoint_iterations'] / all_xp['nodes']
@@ -85,8 +95,11 @@ def plot_overall_result(df):
   plt.tight_layout()
   plt.show()
 
-def remove_meluxina_scaling_tests(df):
-  return df[(df['mzn_solver'] != 'turbo.gpu.release') | (df['machine'] != 'Meluxina') | (((df['eps_num_subproblems'] == 1024) | (df['eps_num_subproblems'] == 4096)) & (df['and_nodes'] == 256) & (df['or_nodes'] == 108))]
+def benchmarks_view(df, benchmarks_file):
+  benches = pd.read_csv(benchmarks_file)
+  # Create a mask that checks if each row's 'model' and 'data_file' in df exist in benches
+  mask = df.apply(lambda row: (row['model'], row['data_file']) in zip(benches['model'], benches['data_file']), axis=1)
+  return df[mask]
 
 def determine_machine(hardware_info):
   if hardware_info == 'Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000':
