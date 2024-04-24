@@ -738,8 +738,6 @@ void configure_and_run(CP<U>& root, const Timepoint& start) {
   transfer_memory_and_run<S>(root, mem_config, start);
 }
 
-#endif // __CUDACC__
-
 void check_support_unified_memory() {
   int attr = 0;
   int dev = 0;
@@ -774,6 +772,8 @@ void check_support_concurrent_managed_memory() {
 #endif
   }
 }
+
+#endif // __CUDACC__
 
 void gpu_solve(Configuration<bt::standard_allocator>& config) {
 #ifndef __CUDACC__

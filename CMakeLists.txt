@@ -10,9 +10,11 @@ if(MSVC)
   set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "Available configuration types to select")
 endif()
 
+
 project(Turbo
-  HOMEPAGE_URL "https://github.com/ptal/turbo"
-  LANGUAGES CUDA CXX)
+HOMEPAGE_URL "https://github.com/ptal/turbo"
+LANGUAGES CUDA CXX)
+
 option(GPU "GPU" ON)
 option(LOCAL_DEPS "LOCAL_DEPS" OFF)
 option(TURBO_PROFILE_MODE "TURBO_PROFILE_MODE" OFF)
