@@ -125,7 +125,7 @@ struct Configuration {
   }
 
   CUDA void print_commandline(const char* program_name) {
-    printf("%s -t %" PRIu64 " %s-n %" PRIu64 " %s%s%s%s%s",
+    printf("%s -t %" PRIu64 " %s-n %" PRIu64 " %s%s%s%s%s%s",
       program_name,
       timeout_ms,
       (print_intermediate_solutions ? "-a ": ""),
