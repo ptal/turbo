@@ -9,7 +9,8 @@ I write about Turbo in a [technical journal](https://lattice-land.github.io/1-tu
 
 * Cuda compiler `nvcc` (>= 12.0).
 * [libxml2](http://xmlsoft.org/)
-* CMake version (>= 3.24)
+* CMake (>= 3.27)
+* Doxygen
 
 The other dependencies will be pulled and compiled automatically by CMake.
 
