@@ -6,12 +6,12 @@
 #include "common_solving.hpp"
 #include <thread>
 #include <algorithm>
-#include <cuda/std/chrono>
 
 namespace bt = ::battery;
 
 #ifdef __CUDACC__
 
+#include <cuda/std/chrono>
 #include <cuda/semaphore>
 
 template <
