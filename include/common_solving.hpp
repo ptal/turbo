@@ -189,7 +189,7 @@ struct AbstractDomains {
    : basic_allocator(basic_allocator)
    , prop_allocator(prop_allocator)
    , store_allocator(store_allocator)
-   , fzn_output(basic_allocator)
+   , solver_output(basic_allocator)
    , config(other.config, basic_allocator)
    , stats(other.stats)
    , env(basic_allocator)
@@ -220,7 +220,7 @@ struct AbstractDomains {
     const tag_copy_cons& tag = tag_copy_cons{})
    : AbstractDomains(tag_gpu_block_copy{}, false, other, basic_allocator, prop_allocator, store_allocator)
   {
-    fzn_output = other.fzn_output;
+    solver_output = other.solver_output;
     env = other.env;
     simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, *other.simplifier, typename ISimplifier::light_copy_tag{}, ipc, basic_allocator);
   }
@@ -242,7 +242,7 @@ struct AbstractDomains {
   , store_allocator(store_allocator)
   , config(config, basic_allocator)
   , env(basic_allocator)
-  , fzn_output(basic_allocator)
+  , solver_output(basic_allocator)
   , store(store_allocator)
   , ipc(prop_allocator)
   , simplifier(basic_allocator)
@@ -272,7 +272,7 @@ struct AbstractDomains {
   VarEnv<BasicAllocator> env;
 
   // Information about the output of the solutions expected by MiniZinc.
-  FlatZincOutput<BasicAllocator> fzn_output;
+  SolverOutput<BasicAllocator> solver_output;
 
   Configuration<BasicAllocator> config;
   Statistics stats;
@@ -418,11 +418,11 @@ public:
     // I. Parse the FlatZinc model.
     FormulaPtr f;
     if(config.input_format() == InputFormat::FLATZINC) {
-      f = parse_flatzinc(config.problem_path.data(), fzn_output);
+      f = parse_flatzinc(config.problem_path.data(), solver_output);
     }
 #ifdef WITH_XCSP3PARSER
     else if(config.input_format() == InputFormat::XCSP3) {
-      f = parse_xcsp3(config.problem_path.data(), fzn_output);
+      f = parse_xcsp3(config.problem_path.data(), solver_output);
     }
 #endif
     if(!f) {
@@ -511,7 +511,7 @@ public:
   }
 
   CUDA void print_solution() {
-    fzn_output.print_solution(env, *best, *simplifier);
+    solver_output.print_solution(env, *best, *simplifier);
     stats.print_mzn_separator();
   }
 
