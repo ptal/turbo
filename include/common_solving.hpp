@@ -161,9 +161,9 @@ struct AbstractDomains {
   using IStore = VStore<Universe, StoreAllocator>;
   using IPC = PC<IStore, PropAllocator>; // Interval Propagators Completion
   using ISimplifier = Simplifier<IPC, BasicAllocator>;
-  using LIR = Compiler<IPC, BasicAllocator>;
-  using Split = SplitStrategy<LIR, BasicAllocator>;
-  using IST = SearchTree<LIR, Split, BasicAllocator>;
+  using ILIR = LIR<IPC, BasicAllocator>;
+  using Split = SplitStrategy<ILIR, BasicAllocator>;
+  using IST = SearchTree<ILIR, Split, BasicAllocator>;
   using IBAB = BAB<IST, LIStore>;
 
   using basic_allocator_type = BasicAllocator;
@@ -208,7 +208,7 @@ struct AbstractDomains {
     AbstractDeps<BasicAllocator, PropAllocator, StoreAllocator> deps{enable_sharing, basic_allocator, prop_allocator, store_allocator};
     store = deps.template clone<IStore>(other.store);
     ipc = deps.template clone<IPC>(other.ipc);
-    lir = deps.template clone<LIR>(other.lir);
+    lir = deps.template clone<ILIR>(other.lir);
     split = deps.template clone<Split>(other.split);
     eps_split = deps.template clone<Split>(other.eps_split);
     search_tree = deps.template clone<IST>(other.search_tree);
@@ -267,7 +267,7 @@ struct AbstractDomains {
   abstract_ptr<IStore> store;
   abstract_ptr<IPC> ipc;
   abstract_ptr<ISimplifier> simplifier;
-  abstract_ptr<LIR> lir;
+  abstract_ptr<ILIR> lir;
   abstract_ptr<Split> split;
   abstract_ptr<Split> eps_split;
   abstract_ptr<IST> search_tree;
@@ -285,7 +285,7 @@ struct AbstractDomains {
 
   CUDA void allocate(int num_vars, bool preprocessing) {
     env = VarEnv<basic_allocator_type>{basic_allocator};
-    // After the preprocessing, we don't need store and ipc anymore if we are using the LIR.
+    // After the preprocessing, we don't need store and ipc anymore if we are using the ILIR.
     if(!preprocessing && config.lir) {
       store = nullptr;
       ipc = nullptr;
@@ -297,11 +297,11 @@ struct AbstractDomains {
     if(preprocessing) {
       simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
     }
-    lir = battery::allocate_shared<LIR, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
+    lir = battery::allocate_shared<ILIR, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
     split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), lir, basic_allocator);
     eps_split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), lir, basic_allocator);
     search_tree = battery::allocate_shared<IST, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), lir, split, basic_allocator);
-    // Note that `best` must have the same abstract type then store or LIR (otherwise projection of the variables will fail).
+    // Note that `best` must have the same abstract type then store or ILIR (otherwise projection of the variables will fail).
     best = battery::allocate_shared<LIStore, BasicAllocator>(basic_allocator, config.lir ? lir->aty() : store->aty(), num_vars, basic_allocator);
     bab = battery::allocate_shared<IBAB, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), search_tree, best);
     if(config.verbose_solving) {
@@ -323,11 +323,11 @@ struct AbstractDomains {
   }
 
   // Mainly to interpret the IN constraint in IPC instead of only over-approximating in intervals.
-  // Also to decide whether we want to interpret the formulas in LIR or IPC.
+  // Also to decide whether we want to interpret the formulas in ILIR or IPC.
   template <class F>
   CUDA void typing(F& f, bool preprocessing) const {
     bool lir_typing = !preprocessing && config.lir;
-    // In LIR if not an extended sequence (e.g. search strategy), or a maximize/minimize constraint.
+    // In ILIR if not an extended sequence (e.g. search strategy), or a maximize/minimize constraint.
     if(lir_typing && !f.is(F::ESeq) && !(f.is(F::S) && (f.sig() == ::lala::MAXIMIZE || f.sig() == ::lala::MINIMIZE))) {
       f.type_as(lir->aty());
     }
