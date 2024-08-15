@@ -30,6 +30,7 @@
 #include "lala/bab.hpp"
 #include "lala/split_strategy.hpp"
 #include "lala/interpretation.hpp"
+#include "lala/compiler.hpp"
 
 #include "lala/flatzinc_parser.hpp"
 
@@ -160,8 +161,9 @@ struct AbstractDomains {
   using IStore = VStore<Universe, StoreAllocator>;
   using IPC = PC<IStore, PropAllocator>; // Interval Propagators Completion
   using ISimplifier = Simplifier<IPC, BasicAllocator>;
-  using Split = SplitStrategy<IPC, BasicAllocator>;
-  using IST = SearchTree<IPC, Split, BasicAllocator>;
+  using LIR = Compiler<IPC, BasicAllocator>;
+  using Split = SplitStrategy<LIR, BasicAllocator>;
+  using IST = SearchTree<LIR, Split, BasicAllocator>;
   using IBAB = BAB<IST, LIStore>;
 
   using basic_allocator_type = BasicAllocator;
@@ -196,6 +198,7 @@ struct AbstractDomains {
    , store(store_allocator)
    , ipc(prop_allocator)
    , simplifier(basic_allocator)
+   , lir(basic_allocator)
    , split(basic_allocator)
    , eps_split(basic_allocator)
    , search_tree(basic_allocator)
@@ -205,6 +208,7 @@ struct AbstractDomains {
     AbstractDeps<BasicAllocator, PropAllocator, StoreAllocator> deps{enable_sharing, basic_allocator, prop_allocator, store_allocator};
     store = deps.template clone<IStore>(other.store);
     ipc = deps.template clone<IPC>(other.ipc);
+    lir = deps.template clone<LIR>(other.lir);
     split = deps.template clone<Split>(other.split);
     eps_split = deps.template clone<Split>(other.eps_split);
     search_tree = deps.template clone<IST>(other.search_tree);
@@ -246,6 +250,7 @@ struct AbstractDomains {
   , store(store_allocator)
   , ipc(prop_allocator)
   , simplifier(basic_allocator)
+  , lir(basic_allocator)
   , split(basic_allocator)
   , eps_split(basic_allocator)
   , search_tree(basic_allocator)
@@ -262,6 +267,7 @@ struct AbstractDomains {
   abstract_ptr<IStore> store;
   abstract_ptr<IPC> ipc;
   abstract_ptr<ISimplifier> simplifier;
+  abstract_ptr<LIR> lir;
   abstract_ptr<Split> split;
   abstract_ptr<Split> eps_split;
   abstract_ptr<IST> search_tree;
@@ -277,19 +283,26 @@ struct AbstractDomains {
   Configuration<BasicAllocator> config;
   Statistics stats;
 
-  CUDA void allocate(int num_vars) {
+  CUDA void allocate(int num_vars, bool preprocessing) {
     env = VarEnv<basic_allocator_type>{basic_allocator};
-    store = battery::allocate_shared<IStore, StoreAllocator>(store_allocator, env.extends_abstract_dom(), num_vars, store_allocator);
-    ipc = battery::allocate_shared<IPC, PropAllocator>(prop_allocator, env.extends_abstract_dom(), store, prop_allocator);
-    // If the simplifier is already allocated, it means we are currently reallocating the abstract domains after preprocessing.
-    if(!simplifier) {
+    // After the preprocessing, we don't need store and ipc anymore if we are using the LIR.
+    if(!preprocessing && config.lir) {
+      store = nullptr;
+      ipc = nullptr;
+    }
+    else {
+      store = battery::allocate_shared<IStore, StoreAllocator>(store_allocator, env.extends_abstract_dom(), num_vars, store_allocator);
+      ipc = battery::allocate_shared<IPC, PropAllocator>(prop_allocator, env.extends_abstract_dom(), store, prop_allocator);
+    }
+    if(preprocessing) {
       simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
     }
-    split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
-    eps_split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
-    search_tree = battery::allocate_shared<IST, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, split, basic_allocator);
-    // Note that `best` must have the same abstract type then store (otherwise projection of the variables will fail).
-    best = battery::allocate_shared<LIStore, BasicAllocator>(basic_allocator, store->aty(), num_vars, basic_allocator);
+    lir = battery::allocate_shared<LIR, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
+    split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), lir, basic_allocator);
+    eps_split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), lir, basic_allocator);
+    search_tree = battery::allocate_shared<IST, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), lir, split, basic_allocator);
+    // Note that `best` must have the same abstract type then store or LIR (otherwise projection of the variables will fail).
+    best = battery::allocate_shared<LIStore, BasicAllocator>(basic_allocator, config.lir ? lir->aty() : store->aty(), num_vars, basic_allocator);
     bab = battery::allocate_shared<IBAB, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), search_tree, best);
     if(config.verbose_solving) {
       printf("%% Abstract domain allocated.\n");
@@ -301,6 +314,7 @@ struct AbstractDomains {
     store = nullptr;
     ipc = nullptr;
     simplifier = nullptr;
+    lir = nullptr;
     split = nullptr;
     eps_split = nullptr;
     search_tree = nullptr;
@@ -309,28 +323,29 @@ struct AbstractDomains {
   }
 
   // Mainly to interpret the IN constraint in IPC instead of only over-approximating in intervals.
+  // Also to decide whether we want to interpret the formulas in LIR or IPC.
   template <class F>
-  CUDA void typing(F& f) const {
+  CUDA void typing(F& f, bool preprocessing) const {
+    bool lir_typing = !preprocessing && config.lir;
+    // In LIR if not an extended sequence (e.g. search strategy), or a maximize/minimize constraint.
+    if(lir_typing && !f.is(F::ESeq) && !(f.is(F::S) && (f.sig() == ::lala::MAXIMIZE || f.sig() == ::lala::MINIMIZE))) {
+      f.type_as(lir->aty());
+    }
     switch(f.index()) {
-      case F::Seq:
-        if(f.sig() == ::lala::IN && f.seq(1).is(F::S) && f.seq(1).s().size() > 1) {
+      case F::Seq: {
+        if(!lir_typing && f.sig() == ::lala::IN && f.seq(1).is(F::S) && f.seq(1).s().size() > 1) {
           f.type_as(ipc->aty());
           return;
         }
         for(int i = 0; i < f.seq().size(); ++i) {
-          typing(f.seq(i));
+          typing(f.seq(i), preprocessing);
         }
         break;
-      case F::ESeq:
-        for(int i = 0; i < f.eseq().size(); ++i) {
-          typing(f.eseq(i));
-        }
-        break;
+      }
     }
   }
 
 private:
-
   // We first try to interpret, and if it does not work, we interpret again with the diagnostics mode turned on.
   template <class F, class Env, class A>
   CUDA bool interpret_and_diagnose_and_tell(const F& f, Env& env, A& a) {
@@ -346,15 +361,21 @@ private:
 
 public:
   template <class F>
-  CUDA bool interpret(const F& f) {
+  CUDA bool interpret(const F& f, bool preprocessing) {
     if(config.verbose_solving) {
       printf("%% Interpreting the formula...\n");
     }
     if(!interpret_and_diagnose_and_tell(f, env, *bab)) {
       return false;
     }
-    stats.variables = store->vars();
-    stats.constraints = ipc->num_refinements();
+    if(!preprocessing && config.lir) {
+      stats.variables = lir->vars();
+      stats.constraints = lir->num_refinements();
+    }
+    else {
+      stats.variables = store->vars();
+      stats.constraints = ipc->num_refinements();
+    }
     bool can_interpret = true;
     if(split->num_strategies() == 0) {
       can_interpret &= interpret_default_strategy<F>();
@@ -386,23 +407,24 @@ public:
   }
 
   template <class F>
-  void type_and_interpret(F& f) {
+  void type_and_interpret(F& f, bool preprocessing) {
     if(config.verbose_solving) {
       printf("%% Typing the formula...\n");
     }
-    typing(f);
+    typing(f, preprocessing);
     if(config.print_ast) {
       printf("%% Typed AST:\n");
       f.print(true);
       printf("\n");
     }
-    if(!interpret(f)) {
+    if(!interpret(f, preprocessing)) {
       exit(EXIT_FAILURE);
     }
-
     if(config.print_ast) {
       printf("%% Interpreted AST:\n");
-      ipc->deinterpret(env).print(true);
+      if(preprocessing || !config.lir) {
+        ipc->deinterpret(env).print(true);
+      }
       printf("\n");
     }
     if(config.verbose_solving) {
@@ -440,8 +462,8 @@ public:
       printf("\n");
     }
 
-    allocate(num_quantified_vars(*f));
-    type_and_interpret(*f);
+    allocate(num_quantified_vars(*f), true);
+    type_and_interpret(*f, true);
 
     auto interpretation_time = std::chrono::high_resolution_clock::now();
     stats.interpretation_duration += std::chrono::duration_cast<std::chrono::milliseconds>(interpretation_time - start).count();
@@ -458,8 +480,8 @@ public:
       auto f = simplifier->deinterpret();
       stats.eliminated_variables = simplifier->num_eliminated_variables();
       stats.eliminated_formulas = simplifier->num_eliminated_formulas();
-      allocate(num_quantified_vars(f));
-      type_and_interpret(f);
+      allocate(num_quantified_vars(f), false);
+      type_and_interpret(f, false);
     }
     auto interpretation_time = std::chrono::high_resolution_clock::now();
     stats.interpretation_duration += std::chrono::duration_cast<std::chrono::milliseconds>(interpretation_time - start).count();

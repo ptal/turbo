@@ -36,6 +36,7 @@ struct Configuration {
   bool print_ast;
   bool only_global_memory;
   bool noatomics;
+  bool lir;
   size_t timeout_ms;
   size_t or_nodes;
   size_t and_nodes; // (only for GPU)
@@ -56,6 +57,7 @@ struct Configuration {
     print_statistics(false),
     only_global_memory(false),
     noatomics(false),
+    lir(false),
     timeout_ms(0),
     and_nodes(0),
     or_nodes(0),
@@ -87,6 +89,7 @@ struct Configuration {
     print_ast(other.print_ast),
     only_global_memory(other.only_global_memory),
     noatomics(other.noatomics),
+    lir(other.lir),
     timeout_ms(other.timeout_ms),
     or_nodes(other.or_nodes),
     and_nodes(other.and_nodes),
@@ -109,6 +112,7 @@ struct Configuration {
     print_statistics = other.print_statistics;
     only_global_memory = other.only_global_memory;
     noatomics = other.noatomics;
+    lir = other.lir;
     timeout_ms = other.timeout_ms;
     and_nodes = other.and_nodes;
     or_nodes = other.or_nodes;
@@ -131,6 +135,7 @@ struct Configuration {
       (print_statistics ? "-s " : ""),
       (verbose_solving ? "-v " : ""),
       (print_ast ? "-ast " : "")
+      (lir ? "-lir " : "")
     );
     if(arch == Arch::GPU) {
       printf("-arch gpu -or %" PRIu64 " -and %" PRIu64 " -sub %" PRIu64 " -stack %" PRIu64 " ", or_nodes, and_nodes, subproblems_power, stack_kb);
@@ -160,6 +165,7 @@ struct Configuration {
     printf("%%%%%%mzn-stat: version=\"%s\"\n", (version.size() == 0) ? "1.1.7" : version.data());
     printf("%%%%%%mzn-stat: hardware=\"%s\"\n", (hardware.size() == 0) ? "Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000" : hardware.data());
     printf("%%%%%%mzn-stat: arch=\"%s\"\n", arch == Arch::GPU ? "gpu" : "cpu");
+    printf("%%%%%%mzn-stat: lir=\"%s\"\n", lir ? "yes" : "no");
     printf("%%%%%%mzn-stat: free_search=\"%s\"\n", free_search ? "yes" : "no");
     printf("%%%%%%mzn-stat: or_nodes=%" PRIu64 "\n", or_nodes);
     printf("%%%%%%mzn-stat: timeout_ms=%" PRIu64 "\n", timeout_ms);

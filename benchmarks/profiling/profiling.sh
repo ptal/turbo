@@ -6,7 +6,7 @@ set -e
 # I. Define the campaign to run and hardware information.
 
 MZN_SOLVER="turbo.gpu.profiling"
-VERSION="v1.1.4"
+VERSION="v1.1.8"
 NUM_GPUS=1
 
 HARDWARE="\"Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000\""

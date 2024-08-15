@@ -18,7 +18,12 @@ int main(int argc, char** argv) {
       cpu_solve(config);
     }
     else if(config.arch == Arch::GPU) {
-      gpu_solve(config);
+      if(config.lir) {
+        lir_solve(config);
+      }
+      else {
+        gpu_solve(config);
+      }
     }
   }
   catch (std::exception &e)
