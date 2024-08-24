@@ -39,10 +39,10 @@ struct StateTypes {
     UniqueAlloc<bt::pool_allocator, 0>>;
 };
 
-using Itv0 = Interval<ZInc<int, bt::local_memory>>;
-using Itv1 = Interval<ZInc<int, bt::atomic_memory_block>>;
-using Itv2 = Interval<ZInc<int, bt::atomic_memory_grid>>;
-using AtomicBInc = BInc<bt::atomic_memory_block>;
+using Itv0 = Interval<ZLB<int, bt::local_memory>>;
+using Itv1 = Interval<ZLB<int, bt::atomic_memory_block>>;
+using Itv2 = Interval<ZLB<int, bt::atomic_memory_grid>>;
+using AtomicBool = B<bt::atomic_memory_block>;
 using FPEngine = BlockAsynchronousIterationGPU<bt::pool_allocator>;
 
 // Version for non-Linux systems such as Windows where pinned memory must be used (see PR #19).
@@ -134,8 +134,8 @@ struct GridData {
   MemoryConfig mem_config;
   bt::vector<BlockData<S>, bt::global_allocator> blocks;
   // Stop from a block on the GPU, for instance because we found a solution.
-  bt::shared_ptr<BInc<bt::atomic_memory_grid>, bt::global_allocator> gpu_stop;
-  bt::shared_ptr<ZInc<size_t, bt::atomic_memory_grid>, bt::global_allocator> next_subproblem;
+  bt::shared_ptr<B<bt::atomic_memory_grid>, bt::global_allocator> gpu_stop;
+  bt::shared_ptr<ZLB<size_t, bt::atomic_memory_grid>, bt::global_allocator> next_subproblem;
   bt::shared_ptr<U2, bt::global_allocator> best_bound;
 
   // All of what follows is only to support printing while the kernel is running.
@@ -200,9 +200,9 @@ struct GridData {
       root_mem_config.make_pc_pool(bt::pool_allocator(nullptr,0)),
       root_mem_config.make_store_pool(bt::pool_allocator(nullptr,0)));
     blocks = bt::vector<BlockData<S>, bt::global_allocator>(root.config.or_nodes);
-    gpu_stop = bt::make_shared<BInc<bt::atomic_memory_grid>, bt::global_allocator>(false);
+    gpu_stop = bt::make_shared<B<bt::atomic_memory_grid>, bt::global_allocator>(false);
     print_lock = bt::make_shared<cuda::binary_semaphore<cuda::thread_scope_device>, bt::global_allocator>(1);
-    next_subproblem = bt::make_shared<ZInc<size_t, bt::atomic_memory_grid>, bt::global_allocator>(0);
+    next_subproblem = bt::make_shared<ZLB<size_t, bt::atomic_memory_grid>, bt::global_allocator>(0);
     best_bound = bt::make_shared<U2, bt::global_allocator>();
   }
 
@@ -227,8 +227,8 @@ struct BlockData {
   using snapshot_type = typename BlockCP::IST::snapshot_type<bt::global_allocator>;
   size_t subproblem_idx;
   bt::shared_ptr<FPEngine, bt::global_allocator> fp_engine;
-  bt::shared_ptr<AtomicBInc, bt::pool_allocator> has_changed;
-  bt::shared_ptr<AtomicBInc, bt::pool_allocator> stop;
+  bt::shared_ptr<AtomicBool, bt::pool_allocator> has_changed;
+  bt::shared_ptr<AtomicBool, bt::pool_allocator> stop;
   bt::shared_ptr<BlockCP, bt::global_allocator> root;
   bt::shared_ptr<snapshot_type, bt::global_allocator> snapshot_root;
 
@@ -247,8 +247,8 @@ public:
       MemoryConfig& mem_config = grid_data.mem_config;
       bt::pool_allocator shared_mem_pool(mem_config.make_shared_pool(shared_mem));
       fp_engine = bt::make_shared<FPEngine, bt::global_allocator>(block, shared_mem_pool);
-      has_changed = bt::allocate_shared<AtomicBInc, bt::pool_allocator>(shared_mem_pool, true);
-      stop = bt::allocate_shared<AtomicBInc, bt::pool_allocator>(shared_mem_pool, false);
+      has_changed = bt::allocate_shared<AtomicBool, bt::pool_allocator>(shared_mem_pool, true);
+      stop = bt::allocate_shared<AtomicBool, bt::pool_allocator>(shared_mem_pool, false);
       root = bt::make_shared<BlockCP, bt::global_allocator>(typename BlockCP::tag_gpu_block_copy{},
         (mem_config.mem_kind != MemoryKind::STORE_PC_SHARED),
         *(grid_data.blocks_root),
@@ -285,7 +285,7 @@ __global__ void initialize_grid_data(GridData<S>* grid_data) {
   grid_data->allocate();
   size_t num_subproblems = 1;
   num_subproblems <<= grid_data->root.config.subproblems_power;
-  grid_data->next_subproblem->tell(ZInc<size_t, bt::local_memory>(grid_data->root.config.or_nodes));
+  grid_data->next_subproblem->meet(ZLB<size_t, bt::local_memory>(grid_data->root.config.or_nodes));
   grid_data->root.stats.eps_num_subproblems = num_subproblems;
 }
 
@@ -299,19 +299,21 @@ __global__ void deallocate_grid_data(GridData<S>* grid_data) {
  * The worst that can happen is that a best bound is found twice, which does not prevent the correctness of the algorithm.
  */
 template <class S>
-__device__ void update_grid_best_bound(BlockData<S>& block_data, GridData<S>& grid_data, local::BInc& best_has_changed) {
+__device__ bool update_grid_best_bound(BlockData<S>& block_data, GridData<S>& grid_data) {
   using U0 = typename S::U0;
-  if(threadIdx.x == 0 && block_data.root->bab->is_optimization()) {
+  assert(threadIdx.x == 0);
+  if(block_data.root->bab->is_optimization()) {
     const auto& bab = block_data.root->bab;
     auto local_best = bab->optimum().project(bab->objective_var());
     // printf("[new bound] %d: [%d..%d] (current best: [%d..%d])\n", blockIdx.x, local_best.lb().value(), local_best.ub().value(), grid_data.best_bound->lb().value(), grid_data.best_bound->ub().value());
     if(bab->is_maximization()) {
-      grid_data.best_bound->tell_lb(dual<typename U0::LB>(local_best.ub()), best_has_changed);
+      return grid_data.best_bound->meet_lb(dual<typename U0::LB>(local_best.ub()));
     }
     else {
-      grid_data.best_bound->tell_ub(dual<typename U0::UB>(local_best.lb()), best_has_changed);
+      return grid_data.best_bound->meet_ub(dual<typename U0::UB>(local_best.lb()));
     }
   }
+  return false;
 }
 
 /** This function updates the best bound of the current block according to the best bound found so far across blocks.
@@ -339,7 +341,7 @@ __device__ void update_block_best_bound(BlockData<S>& block_data, GridData<S>& g
  * Branching on unknown nodes is a task left to the caller.
  */
 template <class S>
-__device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data, local::BInc& thread_has_changed) {
+__device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data, local::B& thread_has_changed) {
   using BlockCP = typename S::BlockCP;
   bool is_leaf_node = false;
   BlockCP& cp = *block_data.root;
@@ -360,20 +362,19 @@ __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data, loca
 #endif
     cp.stats.fixpoint_iterations += iterations;
     cp.on_node();
-    if(cp.ipc->is_top()) {
+    if(cp.ipc->is_bot()) {
       is_leaf_node = true;
       cp.on_failed_node();
     }
     else if(cp.search_tree->template is_extractable<AtomicExtraction>()) {
       is_leaf_node = true;
       if(cp.bab->is_satisfaction() || cp.bab->compare_bound(*cp.store, cp.bab->optimum())) {
-        cp.bab->refine(thread_has_changed);
+        thread_has_changed |= cp.bab->deduce();
         bool do_not_stop = cp.update_solution_stats();
         if(!do_not_stop) {
-          grid_data.gpu_stop->tell_top();
+          grid_data.gpu_stop->join_top();
         }
-        local::BInc best_has_changed;
-        update_grid_best_bound(block_data, grid_data, best_has_changed);
+        bool best_has_changed = update_grid_best_bound(block_data, grid_data);
         if(best_has_changed && cp.is_printing_intermediate_sol()) {
           grid_data.produce_solution(*cp.bab);
         }
@@ -381,7 +382,7 @@ __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data, loca
     }
 #ifdef TURBO_PROFILE_MODE
     if(cp.stats.nodes >= cp.config.stop_after_n_nodes) {
-      grid_data.gpu_stop->tell_top();
+      grid_data.gpu_stop->join_top();
     }
     auto end2 = cuda::std::chrono::system_clock::now();
     diff = end2 - end;
@@ -402,25 +403,25 @@ __device__ size_t dive(BlockData<S>& block_data, GridData<S>& grid_data) {
   auto& stop = *block_data.stop;
   // Note that we use `block_has_changed` to stop the "diving", not really to indicate something has changed or not (since we do not need this information for this algorithm).
   auto& stop_diving = *block_data.has_changed;
-  stop.dtell_bot();
-  stop_diving.dtell_bot();
+  stop.meet_bot();
+  stop_diving.meet_bot();
   fp_engine.barrier();
   size_t remaining_depth = grid_data.root.config.subproblems_power;
   while(remaining_depth > 0 && !stop_diving && !stop) {
     remaining_depth--;
-    local::BInc thread_has_changed;
+    local::B thread_has_changed;
     bool is_leaf_node = propagate(block_data, grid_data, thread_has_changed);
     if(threadIdx.x == 0) {
       if(is_leaf_node) {
-        stop_diving.tell_top();
+        stop_diving.join_top();
       }
       else {
         size_t branch_idx = (block_data.subproblem_idx & (size_t{1} << remaining_depth)) >> remaining_depth;
         auto branches = cp.eps_split->split();
         assert(branches.size() == 2);
-        cp.ipc->tell(branches[branch_idx]);
+        cp.ipc->deduce(branches[branch_idx]);
       }
-      stop.tell(local::BInc(grid_data.cpu_stop || *(grid_data.gpu_stop)));
+      stop.join(local::B(grid_data.cpu_stop || *(grid_data.gpu_stop)));
     }
     fp_engine.barrier();
   }
@@ -434,23 +435,23 @@ __device__ void solve_problem(BlockData<S>& block_data, GridData<S>& grid_data) 
   auto& fp_engine = *block_data.fp_engine;
   auto& block_has_changed = *block_data.has_changed;
   auto& stop = *block_data.stop;
-  block_has_changed.tell_top();
-  stop.dtell_bot();
+  block_has_changed.join_top();
+  stop.meet_bot();
   fp_engine.barrier();
   // In the condition, we must only read variables that are local to this block.
   // Otherwise, two threads might read different values if it is changed in between by another block.
   while(block_has_changed && !stop) {
     // For correctness we need this local variable, we cannot use `block_has_changed` (because it might still need to be read by other threads to enter this loop).
-    local::BInc thread_has_changed;
+    local::B thread_has_changed;
     update_block_best_bound(block_data, grid_data);
     propagate(block_data, grid_data, thread_has_changed);
     if(threadIdx.x == 0) {
-      stop.tell(local::BInc(grid_data.cpu_stop || *(grid_data.gpu_stop)));
-      cp.search_tree->refine(thread_has_changed);
+      stop.tell(local::B(grid_data.cpu_stop || *(grid_data.gpu_stop)));
+      thread_has_changed |= cp.search_tree->deduce();
     }
-    block_has_changed.dtell_bot();
+    block_has_changed.meet_bot();
     fp_engine.barrier();
-    block_has_changed.tell(thread_has_changed);
+    block_has_changed.join(thread_has_changed);
     fp_engine.barrier();
   }
 }
@@ -459,7 +460,7 @@ template <class S>
 CUDA void reduce_blocks(GridData<S>* grid_data) {
   for(int i = 0; i < grid_data->blocks.size(); ++i) {
     if(grid_data->blocks[i].root) { // `nullptr` could happen if we try to terminate the program before all blocks are even created.
-      grid_data->root.join(*(grid_data->blocks[i].root));
+      grid_data->root.meet(*(grid_data->blocks[i].root));
     }
   }
 }
@@ -492,7 +493,7 @@ __global__ void gpu_solve_kernel(GridData<S>* grid_data)
     else {
       if(threadIdx.x == 0 && !*(block_data.stop)) {
         size_t next_subproblem_idx = ((block_data.subproblem_idx >> remaining_depth) + size_t{1}) << remaining_depth;
-        grid_data->next_subproblem->tell(ZInc<size_t, bt::local_memory>(next_subproblem_idx));
+        grid_data->next_subproblem->meet(ZLB<size_t, bt::local_memory>(next_subproblem_idx));
         // It is possible that several blocks skip similar subproblems. Hence, we only count the subproblems skipped by the block solving the left most subproblem.
         if((block_data.subproblem_idx & ((size_t{1} << remaining_depth) - size_t{1})) == size_t{0}) {
           block_data.root->stats.eps_skipped_subproblems += next_subproblem_idx - block_data.subproblem_idx;
@@ -502,7 +503,7 @@ __global__ void gpu_solve_kernel(GridData<S>* grid_data)
     // Load next problem.
     if(threadIdx.x == 0 && !*(block_data.stop)) {
       block_data.subproblem_idx = grid_data->next_subproblem->value();
-      grid_data->next_subproblem->tell(ZInc<size_t, bt::local_memory>(block_data.subproblem_idx + size_t{1}));
+      grid_data->next_subproblem->meet(ZLB<size_t, bt::local_memory>(block_data.subproblem_idx + size_t{1}));
     }
     cooperative_groups::this_thread_block().sync();
   }

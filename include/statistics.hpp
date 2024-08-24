@@ -45,7 +45,7 @@ struct Statistics {
   Statistics(const Statistics&) = default;
   Statistics(Statistics&&) = default;
 
-  CUDA void join(const Statistics& other) {
+  CUDA void meet(const Statistics& other) {
     duration = battery::max(other.duration, duration);
     interpretation_duration = battery::max(other.interpretation_duration, interpretation_duration);
     nodes += other.nodes;

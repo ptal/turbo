@@ -354,7 +354,7 @@ public:
       return false;
     }
     stats.variables = store->vars();
-    stats.constraints = ipc->num_refinements();
+    stats.constraints = ipc->num_deductions();
     bool can_interpret = true;
     if(split->num_strategies() == 0) {
       can_interpret &= interpret_default_strategy<F>();
@@ -373,7 +373,7 @@ public:
     IDiagnostics diagnostics;
     typename ISimplifier::template tell_type<basic_allocator_type> tell{basic_allocator};
     if(top_level_ginterpret_in<IKind::TELL>(*simplifier, f, env, tell, diagnostics)) {
-      simplifier->tell(std::move(tell));
+      simplifier->deduce(std::move(tell));
       return true;
     }
     else if(config.verbose_solving) {
@@ -548,7 +548,7 @@ public:
     if(config.print_statistics) {
       config.print_mzn_statistics();
       stats.print_mzn_statistics();
-      if(!bab->objective_var().is_untyped() && !best->is_bot()) {
+      if(!bab->objective_var().is_untyped() && !best->is_top()) {
         stats.print_mzn_objective(best->project(bab->objective_var()), bab->is_minimization());
       }
       stats.print_mzn_end_stats();
@@ -557,15 +557,15 @@ public:
 
   /** Extract in `this` the content of `other`. */
   template <class U2, class BasicAlloc2, class PropAlloc2, class StoreAlloc2>
-  CUDA void join(AbstractDomains<U2, BasicAlloc2, PropAlloc2, StoreAlloc2>& other) {
-    if(bab->is_optimization() && !other.best->is_bot() && bab->compare_bound(*other.best, *best)) {
+  CUDA void meet(AbstractDomains<U2, BasicAlloc2, PropAlloc2, StoreAlloc2>& other) {
+    if(bab->is_optimization() && !other.best->is_top() && bab->compare_bound(*other.best, *best)) {
       other.best->extract(*best);
     }
-    stats.join(other.stats);
+    stats.meet(other.stats);
   }
 };
 
-using Itv = Interval<ZInc<int, battery::local_memory>>;
+using Itv = Interval<local::ZLB>;
 
 template <class Universe>
 using CP = AbstractDomains<Universe,
