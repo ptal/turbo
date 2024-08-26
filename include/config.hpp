@@ -147,17 +147,17 @@ struct Configuration {
     if(hardware.size() != 0) {
       printf("-hardware \"%s\" ", hardware.data());
     }
-#ifdef TURBO_PROFILE_MODE
+// #ifdef TURBO_PROFILE_MODE
     printf("-cutnodes %" PRIu64 " ",
     stop_after_n_nodes == std::numeric_limits<size_t>::max() ? 0 : stop_after_n_nodes);
-#endif
+// #endif
     printf("%s\n", problem_path.data());
   }
 
   CUDA void print_mzn_statistics() const {
     printf("%%%%%%mzn-stat: problem_path=\"%s\"\n", problem_path.data());
     printf("%%%%%%mzn-stat: solver=\"Turbo\"\n");
-    printf("%%%%%%mzn-stat: version=\"%s\"\n", (version.size() == 0) ? "1.1.7" : version.data());
+    printf("%%%%%%mzn-stat: version=\"%s\"\n", (version.size() == 0) ? "1.2.0" : version.data());
     printf("%%%%%%mzn-stat: hardware=\"%s\"\n", (hardware.size() == 0) ? "Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000" : hardware.data());
     printf("%%%%%%mzn-stat: arch=\"%s\"\n", arch == Arch::GPU ? "gpu" : "cpu");
     printf("%%%%%%mzn-stat: free_search=\"%s\"\n", free_search ? "yes" : "no");
@@ -173,9 +173,9 @@ struct Configuration {
         printf("%%%%%%mzn-stat: cuda_architecture=%d\n", __CUDA_ARCH__);
       #endif
     }
-#ifdef TURBO_PROFILE_MODE
+// #ifdef TURBO_PROFILE_MODE
     printf("%%%%%%mzn-stat: cutnodes=%" PRIu64 "\n", stop_after_n_nodes == std::numeric_limits<size_t>::max() ? 0 : stop_after_n_nodes);
-#endif
+// #endif
   }
 
   CUDA InputFormat input_format() const {

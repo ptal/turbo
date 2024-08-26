@@ -361,7 +361,7 @@ __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data, loca
     cp.stats.propagation_time += diff.count();
 #endif
     cp.stats.fixpoint_iterations += iterations;
-    cp.on_node();
+    bool is_pruned = cp.on_node();
     if(cp.ipc->is_bot()) {
       is_leaf_node = true;
       cp.on_failed_node();
@@ -370,20 +370,17 @@ __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data, loca
       is_leaf_node = true;
       if(cp.bab->is_satisfaction() || cp.bab->compare_bound(*cp.store, cp.bab->optimum())) {
         thread_has_changed |= cp.bab->deduce();
-        bool do_not_stop = cp.update_solution_stats();
-        if(!do_not_stop) {
-          grid_data.gpu_stop->join_top();
-        }
         bool best_has_changed = update_grid_best_bound(block_data, grid_data);
-        if(best_has_changed && cp.is_printing_intermediate_sol()) {
+        if(cp.bab->is_satisfaction() || (best_has_changed && cp.is_printing_intermediate_sol())) {
           grid_data.produce_solution(*cp.bab);
         }
+        is_pruned |= cp.update_solution_stats();
       }
     }
-#ifdef TURBO_PROFILE_MODE
-    if(cp.stats.nodes >= cp.config.stop_after_n_nodes) {
-      grid_data.gpu_stop->join_top();
+    if(is_pruned) {
+      grid_data.gpu_stop->join(true);
     }
+#ifdef TURBO_PROFILE_MODE
     auto end2 = cuda::std::chrono::system_clock::now();
     diff = end2 - end;
     cp.stats.search_time += diff.count();
@@ -403,8 +400,8 @@ __device__ size_t dive(BlockData<S>& block_data, GridData<S>& grid_data) {
   auto& stop = *block_data.stop;
   // Note that we use `block_has_changed` to stop the "diving", not really to indicate something has changed or not (since we do not need this information for this algorithm).
   auto& stop_diving = *block_data.has_changed;
-  stop.meet_bot();
-  stop_diving.meet_bot();
+  stop.meet(false);
+  stop_diving.meet(false);
   fp_engine.barrier();
   size_t remaining_depth = grid_data.root.config.subproblems_power;
   while(remaining_depth > 0 && !stop_diving && !stop) {
@@ -413,7 +410,7 @@ __device__ size_t dive(BlockData<S>& block_data, GridData<S>& grid_data) {
     bool is_leaf_node = propagate(block_data, grid_data, thread_has_changed);
     if(threadIdx.x == 0) {
       if(is_leaf_node) {
-        stop_diving.join_top();
+        stop_diving.join(true);
       }
       else {
         size_t branch_idx = (block_data.subproblem_idx & (size_t{1} << remaining_depth)) >> remaining_depth;
@@ -421,7 +418,7 @@ __device__ size_t dive(BlockData<S>& block_data, GridData<S>& grid_data) {
         assert(branches.size() == 2);
         cp.ipc->deduce(branches[branch_idx]);
       }
-      stop.join(local::B(grid_data.cpu_stop || *(grid_data.gpu_stop)));
+      stop.join(grid_data.cpu_stop || *(grid_data.gpu_stop));
     }
     fp_engine.barrier();
   }
@@ -435,8 +432,8 @@ __device__ void solve_problem(BlockData<S>& block_data, GridData<S>& grid_data) 
   auto& fp_engine = *block_data.fp_engine;
   auto& block_has_changed = *block_data.has_changed;
   auto& stop = *block_data.stop;
-  block_has_changed.join_top();
-  stop.meet_bot();
+  block_has_changed.join(true);
+  stop.meet(false);
   fp_engine.barrier();
   // In the condition, we must only read variables that are local to this block.
   // Otherwise, two threads might read different values if it is changed in between by another block.
@@ -446,10 +443,10 @@ __device__ void solve_problem(BlockData<S>& block_data, GridData<S>& grid_data) 
     update_block_best_bound(block_data, grid_data);
     propagate(block_data, grid_data, thread_has_changed);
     if(threadIdx.x == 0) {
-      stop.tell(local::B(grid_data.cpu_stop || *(grid_data.gpu_stop)));
+      stop.join(grid_data.cpu_stop || *(grid_data.gpu_stop));
       thread_has_changed |= cp.search_tree->deduce();
     }
-    block_has_changed.meet_bot();
+    block_has_changed.meet(false);
     fp_engine.barrier();
     block_has_changed.join(thread_has_changed);
     fp_engine.barrier();
@@ -516,7 +513,7 @@ __global__ void gpu_solve_kernel(GridData<S>* grid_data)
     if(!grid_data->blocks_reduced) {
       int n = 0;
       for(int i = 0; i < grid_data->blocks.size(); ++i) {
-        if(grid_data->blocks[i].root) { // `nullptr` could happen if we try to terminate the program before all blocks are even cretaed.
+        if(grid_data->blocks[i].root) { // `nullptr` could happen if we try to terminate the program before all blocks are even created.
           n += grid_data->blocks[i].root->stats.num_blocks_done;
         }
       }
@@ -629,7 +626,7 @@ bool wait_solving_ends(GridData<S>& grid_data, const Timepoint& start) {
   }
   if(cudaEventQuery(event) == cudaErrorNotReady) {
     grid_data.cpu_stop = true;
-    grid_data.root.stats.exhaustive = false;
+    grid_data.root.prune();
     return true;
   }
   else {

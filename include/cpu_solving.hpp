@@ -17,17 +17,16 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
   while(!must_quit() && check_timeout(cp, start) && has_changed) {
     has_changed = false;
     cp.stats.fixpoint_iterations += fp_engine.fixpoint(*cp.ipc, has_changed);
-    cp.on_node();
+    bool must_prune = cp.on_node();
     if(cp.ipc->is_bot()) {
       cp.on_failed_node();
     }
     else if(cp.search_tree->template is_extractable<AtomicExtraction>()) {
       has_changed |= cp.bab->deduce();
-      if(!cp.on_solution_node()) {
-        break;
-      }
+      must_prune |= cp.on_solution_node();
     }
     has_changed |= cp.search_tree->deduce();
+    if(must_prune) { break; }
   }
   cp.print_final_solution();
   cp.print_mzn_statistics();

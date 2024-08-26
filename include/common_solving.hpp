@@ -501,9 +501,14 @@ private:
   }
 
 public:
-  CUDA void on_node() {
+  CUDA bool on_node() {
     stats.nodes++;
     stats.depth_max = battery::max(stats.depth_max, search_tree->depth());
+    if(stats.nodes >= config.stop_after_n_nodes) {
+      prune();
+      return true;
+    }
+    return false;
   }
 
   CUDA bool is_printing_intermediate_sol() {
@@ -515,15 +520,20 @@ public:
     stats.print_mzn_separator();
   }
 
+  CUDA void prune() {
+    stats.exhaustive = false;
+  }
+
+  /** Return `true` if the search state must be pruned. */
   CUDA bool update_solution_stats() {
     stats.solutions++;
     if(bab->is_satisfaction() && config.stop_after_n_solutions != 0 &&
        stats.solutions >= config.stop_after_n_solutions)
     {
-      stats.exhaustive = false;
-      return false;
+      prune();
+      return true;
     }
-    return true;
+    return false;
   }
 
   CUDA bool on_solution_node() {
