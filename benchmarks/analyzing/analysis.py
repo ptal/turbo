@@ -46,10 +46,10 @@ def read_experiments(experiments):
   for e in experiments:
     df = pd.read_csv(e)
     if df[df['status'] == 'ERROR'].shape[0] > 0:
-      print('Number of erroneous rows: ', df[df['status'] == 'ERROR'].shape[0])
+      print(e, ': Number of erroneous rows: ', df[df['status'] == 'ERROR'].shape[0])
       df = df[df['status'] != 'ERROR']
     if df[df['nodes'].isna()].shape[0] > 0:
-      print('Number of incomplete rows: ', df[df['nodes'].isna()].shape[0])
+      print(e, ': Number of incomplete rows: ', df[df['nodes'].isna()].shape[0])
       df = df[~df['nodes'].isna()]
     if 'mzn_solver' not in df:
       df['mzn_solver'] = df['configuration'].apply(determine_mzn_solver)
