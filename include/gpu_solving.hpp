@@ -341,7 +341,7 @@ __device__ void update_block_best_bound(BlockData<S>& block_data, GridData<S>& g
  * Branching on unknown nodes is a task left to the caller.
  */
 template <class S>
-__device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data, local::B& thread_has_changed) {
+__device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data) {
   using BlockCP = typename S::BlockCP;
   bool is_leaf_node = false;
   BlockCP& cp = *block_data.root;
@@ -353,6 +353,7 @@ __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data, loca
   }
   fp_engine.barrier();
 #endif
+  local::B thread_has_changed{false};
   size_t iterations = fp_engine.fixpoint(*cp.ipc, thread_has_changed, &grid_data.cpu_stop);
   if(threadIdx.x == 0) {
 #ifdef TURBO_PROFILE_MODE
@@ -369,7 +370,7 @@ __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data, loca
     else if(cp.search_tree->template is_extractable<AtomicExtraction>()) {
       is_leaf_node = true;
       if(cp.bab->is_satisfaction() || cp.bab->compare_bound(*cp.store, cp.bab->optimum())) {
-        thread_has_changed |= cp.bab->deduce();
+        cp.bab->deduce();
         bool best_has_changed = update_grid_best_bound(block_data, grid_data);
         if(cp.bab->is_satisfaction() || (best_has_changed && cp.is_printing_intermediate_sol())) {
           grid_data.produce_solution(*cp.bab);
@@ -406,8 +407,7 @@ __device__ size_t dive(BlockData<S>& block_data, GridData<S>& grid_data) {
   size_t remaining_depth = grid_data.root.config.subproblems_power;
   while(remaining_depth > 0 && !stop_diving && !stop) {
     remaining_depth--;
-    local::B thread_has_changed;
-    bool is_leaf_node = propagate(block_data, grid_data, thread_has_changed);
+    bool is_leaf_node = propagate(block_data, grid_data);
     if(threadIdx.x == 0) {
       if(is_leaf_node) {
         stop_diving.join(true);
@@ -438,17 +438,13 @@ __device__ void solve_problem(BlockData<S>& block_data, GridData<S>& grid_data) 
   // In the condition, we must only read variables that are local to this block.
   // Otherwise, two threads might read different values if it is changed in between by another block.
   while(block_has_changed && !stop) {
-    // For correctness we need this local variable, we cannot use `block_has_changed` (because it might still need to be read by other threads to enter this loop).
-    local::B thread_has_changed;
     update_block_best_bound(block_data, grid_data);
-    propagate(block_data, grid_data, thread_has_changed);
+    propagate(block_data, grid_data);
     if(threadIdx.x == 0) {
       stop.join(grid_data.cpu_stop || *(grid_data.gpu_stop));
-      thread_has_changed |= cp.search_tree->deduce();
+      // propagate induces a memory fence, therefore all threads are already past the "while" condition.
+      block_has_changed.meet(cp.search_tree->deduce());
     }
-    block_has_changed.meet(false);
-    fp_engine.barrier();
-    block_has_changed.join(thread_has_changed);
     fp_engine.barrier();
   }
 }
