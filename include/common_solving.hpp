@@ -440,6 +440,11 @@ public:
       printf("\n");
     }
 
+    *f = eval(*f);
+    if(config.verbose_solving) {
+      printf("%% Formula syntactically simplified.\n");
+    }
+
     allocate(num_quantified_vars(*f));
     type_and_interpret(*f);
 

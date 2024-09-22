@@ -9,7 +9,7 @@
 #include <algorithm>
 
 void usage_and_exit(const std::string& program_name) {
-  std::cout << "usage: " << program_name << " [-t 2000] [-a] [-n 10] [-i] [-f] [-s] [-v] [-p <i>] [-arch <cpu|gpu>] [-p 48] [-or 48] [-and 256] [-sub 12] [-heap 100] [-stack 100] [-version 1.0.0] [xcsp3instance.xml | fzninstance.fzn]" << std::endl;
+  std::cout << "usage: " << program_name << " [-t 2000] [-a] [-n 10] [-i] [-f] [-s] [-v] [-p <i>] [-arch <cpu|cpugpu|gpu>] [-p 48] [-or 48] [-and 256] [-sub 12] [-heap 100] [-stack 100] [-version 1.0.0] [xcsp3instance.xml | fzninstance.fzn]" << std::endl;
   std::cout << "\t-t 2000: Run the solver with a timeout of 2000 milliseconds." << std::endl;
   std::cout << "\t-timeout 2000: Same as -t, but if both -t and -timeout are specified, -timeout overrides -t." << std::endl;
   std::cout << "\t-a: Instructs the solver to report all solutions in the case of satisfaction problems, or print intermediate solutions of increasing quality in the case of optimisation problems." << std::endl;
@@ -20,7 +20,7 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-v: Print log messages (verbose solving) to the standard error stream." << std::endl;
   std::cout << "\t-ast: Print the AST of the model (useful to debug)." << std::endl;
   std::cout << "\t-p 48: On CPU, run with 48 parallel threads. On GPU, equivalent to `-or 48`." << std::endl;
-  std::cout << "\t-arch <cpu|gpu>: Choose the architecture on which the problem will be solved." << std::endl;
+  std::cout << "\t-arch <cpu|cpugpu|gpu>: Choose the architecture on which the problem will be solved." << std::endl;
   std::cout << "\t-or 48: Run the subproblems on 48 streaming multiprocessors (SMs) (only for GPU architecture). Default: -or 0 for automatic selection of the number of SMs." << std::endl;
   std::cout << "\t-and 256: Run each subproblem with 256 threads per block (only for GPU architecture). Default: -and 0 for automatic selection of the number of threads per block." << std::endl;
   std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the 'OR threads' (embarrasingly parallel search). Default: -sub 10." << std::endl;
@@ -142,6 +142,9 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
   if(input.read_string("-arch", architecture)) {
     if(architecture == "cpu") {
       config.arch = Arch::CPU;
+    }
+    else if(architecture == "cpugpu") {
+      config.arch = Arch::CPU_GPU;
     }
     else if(architecture == "gpu") {
       config.arch = Arch::GPU;

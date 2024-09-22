@@ -81,7 +81,6 @@ def filter_benchmarks(df, bench_files):
   for bf in bench_files:
     instances += Path(bf).read_text()
 
-
 def plot_overall_result(df):
   grouped = df.groupby(['uid', 'status']).size().unstack(fill_value=0)
   grouped['OPTIMAL/UNSAT'] = grouped.get('OPTIMAL_SOLUTION', 0) + grouped.get('UNSATISFIABLE', 0)
@@ -131,7 +130,6 @@ def determine_version(solver_info):
 
 def metrics_table(df):
   grouped = df.groupby(['uid'])
-
   # Calculate metrics
   metrics = grouped.agg(
     version=('version', 'first'),
@@ -160,8 +158,39 @@ def metrics_table(df):
   # Merge metrics with idle_eps_workers
   overall_metrics = metrics.merge(idle_eps_workers, on=['uid'], how='left').fillna(0)
   overall_metrics = overall_metrics.sort_values(by=['avg_nodes_per_second', 'version', 'machine'], ascending=[False, False, True])
-
   return overall_metrics
+
+def percent(new, old):
+  if old == 0:
+    return "inf"
+  else:
+    v = round(((new - old) / old) * 100)
+    if v > 0:
+      return f"+{v}%"
+    elif v < 0:
+      return f"{v}%"
+    else:
+      return "0%"
+
+def print_table_line(m1, m2, header, key, unit):
+  print(f"| {header} | {m2["avg_"+key]:.2f}{unit} | {percent(m2["avg_"+key], m1["avg_"+key])} | {m2["median_"+key]:.2f}{unit} | {percent(m2["median_"+key], m1["median_"+key])} |")
+
+def comparison_table_md(df, uid1, uid2):
+  m1 = metrics_table(df[df['uid'] == uid1]).squeeze()
+  m2 = metrics_table(df[df['uid'] == uid2]).squeeze()
+  print(f"| Metrics | Average | Δ v{m1['version']} | Median | Δ v{m1['version']} |")
+  print("|---------|---------|----------|--------|----------|")
+  print_table_line(m1, m2, "Nodes per seconds", "nodes_per_second", "")
+  print_table_line(m1, m2, "Fixpoint iterations per second", "fp_iterations_per_second", "")
+  print_table_line(m1, m2, "Fixpoint iterations per node", "fp_iterations", "")
+  print(f"| #Problems with IDLE SMs at timeout | {m2['idle_eps_workers']} | {m1['idle_eps_workers']} | |")
+  print_table_line(m1, m2, "Propagators memory", "propagator_mem_mb", "MB")
+  print_table_line(m1, m2, "Variables store memory", "store_mem_kb", "KB")
+  print(f"| #Problems at optimality | {m2['problem_optimal']} | {m1['problem_optimal']} | |")
+  print(f"| #Problems satisfiable | {m2['problem_sat']} | {m1['problem_sat']} | |")
+  print(f"| #Problems unknown | {m2['problem_unknown']} | {m1['problem_unknown']} | |")
+  print(f"| #Problem with store in shared memory | {m2['problem_with_store_shared']} | {m1['problem_with_store_shared']} | |")
+  print(f"| #Problem with prop in shared memory | {m2['problem_with_props_shared']} | {m1['problem_with_props_shared']} | |")
 
 def compare_solvers_pie_chart(df, uid1, uid2):
     """
