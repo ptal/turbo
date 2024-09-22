@@ -15,17 +15,27 @@ using CP_CPUGPU = AbstractDomains<Universe,
   battery::statistics_allocator<UniqueLightAlloc<battery::managed_allocator, 0>>,
   battery::statistics_allocator<UniqueLightAlloc<battery::managed_allocator, 1>>>;
 
-using FPEngine = BlockAsynchronousIterationGPU<bt::pool_allocator>;
+using FPEngineBlock = BlockAsynchronousIterationGPU<bt::pool_allocator>;
+using FPEngineGrid = GridAsynchronousIterationGPU<bt::global_allocator>;
 
 template <class AD>
-__global__ void fixpoint_kernel(AD* ad, size_t shared_bytes) {
-  // assert(blockIdx.x == 0);
+__global__ void fixpoint_kernel_block(AD* ad, size_t shared_bytes) {
+  assert(blockIdx.x == 0);
   extern __shared__ unsigned char shared_mem[];
   auto group = cooperative_groups::this_thread_block();
   bt::unique_ptr<bt::pool_allocator, bt::global_allocator> shared_mem_pool_ptr;
   bt::pool_allocator& shared_mem_pool = bt::make_unique_block(shared_mem_pool_ptr, shared_mem, shared_bytes);
-  bt::unique_ptr<FPEngine, bt::global_allocator> fp_engine_ptr;
-  FPEngine& fp_engine = bt::make_unique_block(fp_engine_ptr, group, shared_mem_pool);
+  bt::unique_ptr<FPEngineBlock, bt::global_allocator> fp_engine_ptr;
+  FPEngineBlock& fp_engine = bt::make_unique_block(fp_engine_ptr, group, shared_mem_pool);
+  fp_engine.fixpoint(*ad);
+  group.sync();
+}
+
+template <class AD>
+__global__ void fixpoint_kernel_grid(AD* ad) {
+  auto group = cooperative_groups::this_grid();
+  bt::unique_ptr<FPEngineGrid, bt::global_allocator> fp_engine_ptr;
+  FPEngineGrid& fp_engine = bt::make_unique_grid(fp_engine_ptr, group);
   fp_engine.fixpoint(*ad);
   group.sync();
 }
@@ -41,24 +51,28 @@ void cpu_gpu_solve(const Configuration<battery::standard_allocator>& config) {
   cp.preprocess();
 
   /** Some GPU configuration. */
-  cudaDeviceProp deviceProp;
-  cudaGetDeviceProperties(&deviceProp, 0);
-  size_t total_global_mem = deviceProp.totalGlobalMem;
-  size_t num_sm = deviceProp.multiProcessorCount;
-  size_t num_threads_per_sm = threads_per_sm(deviceProp);
   size_t shared_mem_size = 100;
   int hint_num_blocks;
   int hint_num_threads;
-  CUDAE(cudaOccupancyMaxPotentialBlockSize(&hint_num_blocks, &hint_num_threads, (void*) fixpoint_kernel<typename CP_CPUGPU<Itv>::IPC>, shared_mem_size));
+  CUDAE(cudaOccupancyMaxPotentialBlockSize(&hint_num_blocks, &hint_num_threads, (void*) fixpoint_kernel_grid<typename CP_CPUGPU<Itv>::IPC>, shared_mem_size));
   cp.config.and_nodes = (cp.config.and_nodes == 0) ? hint_num_threads : cp.config.and_nodes;
-  size_t total_stack_size = num_sm * deviceProp.maxThreadsPerMultiProcessor * cp.config.stack_kb * 1000;
+  cp.config.or_nodes = (cp.config.or_nodes == 0) ? hint_num_blocks : cp.config.or_nodes;
   CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, cp.config.stack_kb*1000));
 
   local::B has_changed = true;
   block_signal_ctrlc();
   while(!must_quit() && check_timeout(cp, start) && has_changed) {
     has_changed = false;
-    fixpoint_kernel<<<1,  static_cast<unsigned int>(cp.config.and_nodes), shared_mem_size>>>(cp.ipc.get(), shared_mem_size);
+    if(cp.config.or_nodes == 1) {
+      fixpoint_kernel_block<<<1,  static_cast<unsigned int>(cp.config.and_nodes), shared_mem_size>>>(cp.ipc.get(), shared_mem_size);
+    }
+    else {
+      auto ipc_ptr = cp.ipc.get();
+      void* args[] = {&ipc_ptr};
+      dim3 dimBlock(cp.config.and_nodes, 1, 1);
+      dim3 dimGrid(cp.config.or_nodes, 1, 1);
+      CUDAEX(cudaLaunchCooperativeKernel((void*)fixpoint_kernel_grid<typename CP_CPUGPU<Itv>::IPC>, dimGrid, dimBlock, args));
+    }
     CUDAEX(cudaDeviceSynchronize());
     bool must_prune = cp.on_node();
     if(cp.ipc->is_bot()) {
