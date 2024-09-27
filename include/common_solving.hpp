@@ -121,7 +121,9 @@ struct UniqueAlloc {
   UniqueAlloc() = default;
   CUDA UniqueAlloc(const Alloc& alloc): allocator(alloc) {}
   UniqueAlloc(const UniqueAlloc& alloc) = default;
+  UniqueAlloc(UniqueAlloc&& alloc) = default;
   UniqueAlloc& operator=(const UniqueAlloc& alloc) = default;
+  UniqueAlloc& operator=(UniqueAlloc&& alloc) = default;
   CUDA void* allocate(size_t bytes) {
     return allocator.allocate(bytes);
   }

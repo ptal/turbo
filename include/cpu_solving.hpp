@@ -16,7 +16,10 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
   block_signal_ctrlc();
   while(!must_quit() && check_timeout(cp, start) && has_changed) {
     has_changed = false;
-    cp.stats.fixpoint_iterations += fp_engine.fixpoint(*cp.ipc, has_changed);
+    local::B has_changed2 = false;
+    { printf("store before = "); cp.store->print(); printf("\n"); }
+    cp.stats.fixpoint_iterations += fp_engine.fixpoint(*cp.ipc, has_changed2);
+    { printf("store after = "); cp.store->print(); printf("\n"); }
     bool must_prune = cp.on_node();
     if(cp.ipc->is_bot()) {
       cp.on_failed_node();
