@@ -59,8 +59,7 @@ __global__ void fixpoint_kernel_block(GPUState* state, StoreType* store, size_t 
   assert(blockIdx.x == 0);
   auto group = cooperative_groups::this_thread_block();
   store->copy_to(group, *state->store_ptr);
-  group.sync();
-  if(threadIdx.x == 0) { printf("store before = "); store->print(); printf("\n"); }
+  // No need to sync here, make_unique_block already contains sync.
   bt::unique_ptr<bt::pool_allocator, bt::global_allocator> shared_mem_pool_ptr;
   bt::pool_allocator& shared_mem_pool = bt::make_unique_block(shared_mem_pool_ptr, shared_mem, shared_bytes);
   bt::unique_ptr<FPEngineBlock, bt::global_allocator> fp_engine_ptr;
@@ -69,7 +68,6 @@ __global__ void fixpoint_kernel_block(GPUState* state, StoreType* store, size_t 
   group.sync();
   state->store_ptr->copy_to(group, *store);
   group.sync();
-  if(threadIdx.x == 0) { printf("store after = "); store->print(); printf("\n"); }
 }
 
 template <class StoreType>
@@ -117,6 +115,10 @@ void cpu_gpu_solve(const Configuration<battery::standard_allocator>& config) {
     printf("%% and_nodes=%zu\n", cp.config.and_nodes);
     printf("%% or_nodes=%zu\n", cp.config.or_nodes);
   }
+
+  // int num_blocks;
+  // cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, fixpoint_kernel_block<typename CP_CPUGPU<Itv0>::IStore>, 256, shared_mem_size);
+  // printf("%% max_blocks_per_sm=%d\n", num_blocks);
 
   /** Allocating the GPU data structures in global memory. */
   using managed_alloc1 = battery::statistics_allocator<UniqueLightAlloc<battery::managed_allocator, 0>>;
