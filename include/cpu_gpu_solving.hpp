@@ -4,7 +4,9 @@
 #define TURBO_CPU_GPU_SOLVING_HPP
 
 #include "common_solving.hpp"
-#include "gpu_solving.hpp"
+// #include "gpu_solving.hpp"
+
+namespace bt = ::battery;
 
 #ifdef __CUDACC__
 
@@ -13,6 +15,26 @@ using CP_CPUGPU = AbstractDomains<Universe,
   battery::statistics_allocator<battery::standard_allocator>,
   battery::statistics_allocator<UniqueLightAlloc<battery::managed_allocator, 0>>,
   battery::statistics_allocator<UniqueLightAlloc<battery::managed_allocator, 1>>>;
+
+void print_memory_statistics(const char* key, size_t bytes) {
+  printf("%% %s=%zu [", key, bytes);
+  if(bytes < 1000 * 1000) {
+    printf("%.2fKB", static_cast<double>(bytes) / 1000);
+  }
+  else if(bytes < 1000 * 1000 * 1000) {
+    printf("%.2fMB", static_cast<double>(bytes) / (1000 * 1000));
+  }
+  else {
+    printf("%.2fGB", static_cast<double>(bytes) / (1000 * 1000 * 1000));
+  }
+  printf("]\n");
+}
+
+using Itv0 = Interval<ZLB<int, bt::local_memory>>;
+using Itv1 = Interval<ZLB<int, bt::atomic_memory_block>>;
+using Itv2 = Interval<ZLB<int, bt::atomic_memory_grid>>;
+using AtomicBool = B<bt::atomic_memory_block>;
+using FPEngine = BlockAsynchronousIterationGPU<bt::pool_allocator>;
 
 struct GPUState {
   using IStore = VStore<Itv1, bt::pool_allocator>;

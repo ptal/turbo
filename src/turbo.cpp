@@ -2,7 +2,7 @@
 
 #include <iostream>
 #include "cpu_solving.hpp"
-#include "gpu_solving.hpp"
+// #include "gpu_solving.hpp"
 #include "cpu_gpu_solving.hpp"
 
 using namespace battery;
@@ -18,9 +18,9 @@ int main(int argc, char** argv) {
     if(config.arch == Arch::CPU) {
       cpu_solve(config);
     }
-    else if(config.arch == Arch::GPU) {
-      gpu_solve(config);
-    }
+    // else if(config.arch == Arch::GPU) {
+    //   gpu_solve(config);
+    // }
     else if(config.arch == Arch::CPU_GPU) {
       cpu_gpu_solve(config);
     }
