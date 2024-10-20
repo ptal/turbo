@@ -584,10 +584,10 @@ public:
 
 using Itv = Interval<local::ZLB>;
 
-template <class Universe>
+template <class Universe, class Allocator = battery::standard_allocator>
 using CP = AbstractDomains<Universe,
-  battery::statistics_allocator<battery::standard_allocator>,
-  battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 0>>,
-  battery::statistics_allocator<UniqueLightAlloc<battery::standard_allocator, 1>>>;
+  battery::statistics_allocator<Allocator>,
+  battery::statistics_allocator<UniqueLightAlloc<Allocator, 0>>,
+  battery::statistics_allocator<UniqueLightAlloc<Allocator, 1>>>;
 
 #endif

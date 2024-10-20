@@ -542,20 +542,6 @@ size_t sizeof_store(const CP<U>& root) {
        + gpu_sizeof<typename S::BlockCP::IStore::universe_type>() * root.store->vars();
 }
 
-void print_memory_statistics(const char* key, size_t bytes) {
-  printf("%% %s=%zu [", key, bytes);
-  if(bytes < 1000 * 1000) {
-    printf("%.2fKB", static_cast<double>(bytes) / 1000);
-  }
-  else if(bytes < 1000 * 1000 * 1000) {
-    printf("%.2fMB", static_cast<double>(bytes) / (1000 * 1000));
-  }
-  else {
-    printf("%.2fGB", static_cast<double>(bytes) / (1000 * 1000 * 1000));
-  }
-  printf("]\n");
-}
-
 /** \returns the size of the shared memory and the kind of memory used. */
 template <class S, class U>
 MemoryConfig configure_memory(CP<U>& root) {

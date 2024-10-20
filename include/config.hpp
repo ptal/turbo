@@ -17,7 +17,7 @@
 enum class Arch {
   CPU,
   GPU,
-  CPU_GPU
+  HYBRID
 };
 
 enum class InputFormat {
@@ -139,8 +139,8 @@ struct Configuration {
         (only_global_memory ? "-globalmem " : ""),
         (noatomics ? "-noatomics " : ""));
     }
-    else if(arch == Arch::CPU_GPU) {
-      printf("-arch cpugpu -or %" PRIu64 " -and %" PRIu64 " ", or_nodes, and_nodes);
+    else if(arch == Arch::HYBRID) {
+      printf("-arch hybrid -or %" PRIu64 " -and %" PRIu64 " ", or_nodes, and_nodes);
     }
     else {
       printf("-arch cpu -p %" PRIu64 " ", or_nodes);
@@ -161,8 +161,8 @@ struct Configuration {
         return "CPU";
       case Arch::GPU:
         return "GPU";
-      case Arch::CPU_GPU:
-        return "CPU_GPU";
+      case Arch::HYBRID:
+        return "HYBRID";
       default:
         assert(0);
         return "Unknown";

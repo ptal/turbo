@@ -2,8 +2,8 @@
 
 #include <iostream>
 #include "cpu_solving.hpp"
-// #include "gpu_solving.hpp"
-#include "cpu_gpu_solving.hpp"
+// #include "gpu_dive_and_solve.hpp"
+#include "hybrid_dive_and_solve.hpp"
 
 using namespace battery;
 
@@ -19,10 +19,10 @@ int main(int argc, char** argv) {
       cpu_solve(config);
     }
     // else if(config.arch == Arch::GPU) {
-    //   gpu_solve(config);
+    //   gpu_dive_and_solve(config);
     // }
-    else if(config.arch == Arch::CPU_GPU) {
-      cpu_gpu_solve(config);
+    else if(config.arch == Arch::HYBRID) {
+      hybrid_dive_and_solve(config);
     }
   }
   catch (std::exception &e)
