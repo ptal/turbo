@@ -27,7 +27,7 @@ namespace bt = ::battery;
 #ifdef __CUDACC__
 
 /** We only need a few bytes for the shared memory. */
-#define SHARED_MEM_SIZE_BYTES 100
+#define DEFAULT_SHARED_MEM_BYTES 100
 
 /** A CPU cube is the data used by a CPU thread to solve a subproblem. */
 struct CPUCube {
@@ -167,6 +167,9 @@ struct CPUData {
    */
   CP<Itv> root;
 
+  /** For each block, how much shared memory are we using? */
+  size_t shared_mem_bytes;
+
   /** Each CPU thread has its own local state to solve a subproblem, called a cube. */
   bt::vector<CPUCube> cpu_cubes;
 
@@ -180,11 +183,12 @@ struct CPUData {
    * Further, we connect the CPU and GPU cubes by sharing their store of variables (`gpu_cubes[i].store_cpu` and `cpu_cubes[i].cube.store`).
    * Also, we share the propagators of `gpu_cubes[0].ipc_gpu` with all other cubes `gpu_cubes[i].ipc_gpu` (with i >= 1).
   */
-  CPUData(const CP<Itv>& root)
+  CPUData(const CP<Itv>& root, size_t shared_mem_bytes)
    : next_subproblem(root.config.or_nodes)
    , best_bound(Itv::top())
    , cpu_stop(false)
    , root(root)
+   , shared_mem_bytes(shared_mem_bytes)
    , cpu_cubes(root.config.or_nodes, this->root)
    , gpu_cubes(root.config.or_nodes)
   {
@@ -219,7 +223,7 @@ bool update_global_best_bound(CPUData& global, size_t cube_idx);
 void update_local_best_bound(CPUData& global, size_t cube_idx);
 void reduce_cubes(CPUData& global);
 template <class Alloc>
-void configure_gpu(Configuration<Alloc>& config);
+void configure_gpu(Configuration<Alloc>& config, size_t shared_mem_bytes);
 __global__ void gpu_propagate(GPUCube* cube, size_t shared_bytes);
 
 #endif // __CUDACC__
@@ -234,13 +238,25 @@ void hybrid_dive_and_solve(const Configuration<battery::standard_allocator>& con
   /** We start with some preprocessing to reduce the number of variables and constraints. */
   CP<Itv> cp(config);
   cp.preprocess();
-  configure_gpu(cp.config);
+  size_t alignment_overhead = 200;
+  size_t shared_mem_bytes = DEFAULT_SHARED_MEM_BYTES + alignment_overhead + (cp.store->vars() * sizeof(GPUCube::Itv1));
+  cudaDeviceProp deviceProp;
+  cudaGetDeviceProperties(&deviceProp, 0);
+  if(shared_mem_bytes >= deviceProp.sharedMemPerBlock || config.only_global_memory) {
+    shared_mem_bytes = DEFAULT_SHARED_MEM_BYTES;
+    printf("%%%%%%mzn-stat: memory_configuration=\"global\"\n");
+  }
+  else {
+    printf("%%%%%%mzn-stat: memory_configuration=\"store_shared\"\n");
+  }
+  printf("%%%%%%mzn-stat: shared_mem=%" PRIu64 "\n", shared_mem_bytes);
+  configure_gpu(cp.config, shared_mem_bytes);
 
   /** Block the signal CTRL-C to notify the threads if we must exit. */
   block_signal_ctrlc();
 
   /** This is the main data structure, we create all the data for each thread and GPU block. */
-  CPUData global(cp);
+  CPUData global(cp, shared_mem_bytes);
 
   /** Start the algorithm in parallel with as many CPU threads as GPU blocks. */
   std::vector<std::thread> threads;
@@ -417,8 +433,8 @@ bool propagate(CPUData& global, size_t cube_idx) {
   auto& cube = global.cpu_cubes[cube_idx].cube;
   bool is_leaf_node = false;
   /** The propagation is done by a single block on the GPU. */
-  gpu_propagate<<<1, static_cast<unsigned int>(global.root.config.and_nodes), SHARED_MEM_SIZE_BYTES, global.cpu_cubes[cube_idx].stream>>>
-    (&global.gpu_cubes[cube_idx], SHARED_MEM_SIZE_BYTES);
+  gpu_propagate<<<1, static_cast<unsigned int>(global.root.config.and_nodes), global.shared_mem_bytes, global.cpu_cubes[cube_idx].stream>>>
+    (&global.gpu_cubes[cube_idx], global.shared_mem_bytes);
   CUDAEX(cudaStreamSynchronize(global.cpu_cubes[cube_idx].stream));
   /** `on_node` updates the statistics and verifies whether we should stop (e.g. option `--cutnodes`). */
   bool is_pruned = cube.on_node();
@@ -466,10 +482,15 @@ __global__ void gpu_propagate(GPUCube* gpu_cube, size_t shared_bytes) {
   extern __shared__ unsigned char shared_mem[];
   assert(blockIdx.x == 0);
   auto group = cooperative_groups::this_thread_block();
-  gpu_cube->store_cpu->copy_to(group, *gpu_cube->store_gpu);
-  // No need to sync here, make_unique_block already contains sync.
   bt::unique_ptr<bt::pool_allocator, bt::global_allocator> shared_mem_pool_ptr;
   bt::pool_allocator& shared_mem_pool = bt::make_unique_block(shared_mem_pool_ptr, shared_mem, shared_bytes);
+  // If we booked more than the default shared memory, it means we allocate the store in shared memory.
+  if(threadIdx.x == 0 && shared_bytes > DEFAULT_SHARED_MEM_BYTES) {
+    gpu_cube->store_gpu->reset_data(shared_mem_pool);
+  }
+  group.sync();
+  gpu_cube->store_cpu->copy_to(group, *gpu_cube->store_gpu);
+  // No need to sync here, make_unique_block already contains sync.
   bt::unique_ptr<FPEngine, bt::global_allocator> fp_engine_ptr;
   FPEngine& fp_engine = bt::make_unique_block(fp_engine_ptr, group, shared_mem_pool);
   size_t fp_iterations = fp_engine.fixpoint(*(gpu_cube->ipc_gpu));
@@ -534,10 +555,10 @@ void reduce_cubes(CPUData& global) {
  * 3) Guess the "best" number of threads per block and the number of blocks per SM, if not provided.
  */
 template <class Alloc>
-void configure_gpu(Configuration<Alloc>& config) {
+void configure_gpu(Configuration<Alloc>& config, size_t shared_mem_bytes) {
   int hint_num_blocks;
   int hint_num_threads;
-  CUDAE(cudaOccupancyMaxPotentialBlockSize(&hint_num_blocks, &hint_num_threads, (void*) gpu_propagate, SHARED_MEM_SIZE_BYTES));
+  CUDAE(cudaOccupancyMaxPotentialBlockSize(&hint_num_blocks, &hint_num_threads, (void*) gpu_propagate, shared_mem_bytes));
   cudaDeviceProp deviceProp;
   cudaGetDeviceProperties(&deviceProp, 0);
   size_t total_global_mem = deviceProp.totalGlobalMem;
@@ -550,15 +571,13 @@ void configure_gpu(Configuration<Alloc>& config) {
   remaining_global_mem -= remaining_global_mem / 10; // We leave 10% of global memory free for CUDA allocations, not sure if it is useful though.
   CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, config.stack_kb*1000));
   CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, remaining_global_mem));
-  if(config.verbose_solving) {
-    print_memory_statistics("stack_memory", total_stack_size);
-    print_memory_statistics("heap_memory", remaining_global_mem);
-    printf("%% and_nodes=%zu\n", config.and_nodes);
-    printf("%% or_nodes=%zu\n", config.or_nodes);
-  }
-  // int num_blocks;
-  // cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, gpu_propagate, 256, SHARED_MEM_SIZE_BYTES);
-  // printf("%% max_blocks_per_sm=%d\n", num_blocks);
+  print_memory_statistics("stack_memory", total_stack_size);
+  print_memory_statistics("heap_memory", remaining_global_mem);
+  printf("%% and_nodes=%zu\n", config.and_nodes);
+  printf("%% or_nodes=%zu\n", config.or_nodes);
+  int num_blocks;
+  cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, (void*) gpu_propagate, config.and_nodes, shared_mem_bytes);
+  printf("%% max_blocks_per_sm=%d\n", num_blocks);
 }
 
 #endif // __CUDACC__
