@@ -1,7 +1,7 @@
 // Copyright 2023 Pierre Talbot
 
-#ifndef TURBO_GPU_SOLVING_HPP
-#define TURBO_GPU_SOLVING_HPP
+#ifndef TURBO_GPU_DIVE_AND_SOLVE_HPP
+#define TURBO_GPU_DIVE_AND_SOLVE_HPP
 
 #include "common_solving.hpp"
 #include <thread>
@@ -755,7 +755,7 @@ void check_support_concurrent_managed_memory() {
 
 #endif // __CUDACC__
 
-void gpu_solve(Configuration<bt::standard_allocator>& config) {
+void gpu_dive_and_solve(Configuration<bt::standard_allocator>& config) {
 #ifndef __CUDACC__
   std::cerr << "You must use a CUDA compiler (nvcc or clang) to compile Turbo on GPU." << std::endl;
 #else
@@ -783,4 +783,4 @@ void gpu_solve(Configuration<bt::standard_allocator>& config) {
 #endif
 }
 
-#endif // TURBO_GPU_SOLVING_HPP
+#endif // TURBO_GPU_DIVE_AND_SOLVE_HPP

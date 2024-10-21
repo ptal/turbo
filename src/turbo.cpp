@@ -2,7 +2,11 @@
 
 #include <iostream>
 #include "cpu_solving.hpp"
-// #include "gpu_dive_and_solve.hpp"
+
+#ifdef REDUCE_PTX_SIZE
+#include "gpu_dive_and_solve.hpp"
+#endif
+
 #include "hybrid_dive_and_solve.hpp"
 
 using namespace battery;
@@ -18,9 +22,13 @@ int main(int argc, char** argv) {
     if(config.arch == Arch::CPU) {
       cpu_solve(config);
     }
-    // else if(config.arch == Arch::GPU) {
-    //   gpu_dive_and_solve(config);
-    // }
+#ifdef REDUCE_PTX_SIZE
+#ifndef DISABLE_FULL_GPU_SOLVING
+    else if(config.arch == Arch::GPU) {
+      gpu_dive_and_solve(config);
+    }
+#endif
+#endif
     else if(config.arch == Arch::HYBRID) {
       hybrid_dive_and_solve(config);
     }
