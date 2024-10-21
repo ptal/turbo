@@ -4,7 +4,9 @@
 #include "cpu_solving.hpp"
 
 #ifdef REDUCE_PTX_SIZE
+#ifndef DISABLE_FULL_GPU_SOLVING
 #include "gpu_dive_and_solve.hpp"
+#endif
 #endif
 
 #include "hybrid_dive_and_solve.hpp"
