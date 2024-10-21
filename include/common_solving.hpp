@@ -253,7 +253,11 @@ struct AbstractDomains {
   , search_tree(basic_allocator)
   , best(basic_allocator)
   , bab(basic_allocator)
-  {}
+  {
+    size_t num_subproblems = 1;
+    num_subproblems <<= config.subproblems_power;
+    stats.eps_num_subproblems = num_subproblems;
+  }
 
   AbstractDomains(AbstractDomains&& other) = default;
 

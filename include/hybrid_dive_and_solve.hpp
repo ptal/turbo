@@ -38,8 +38,14 @@ struct CPUCube {
    */
   cube_type cube;
 
+  /** Each cube runs kernel in distinct stream (otherwise they would all be sequentialized on the default stream). */
+  cudaStream_t stream;
+
   /** We keep a snapshot of the root to reinitialize the CPU cube after each subproblem has been solved. */
   typename cube_type::IST::snapshot_type<bt::standard_allocator> root_snapshot;
+
+  /** This flag becomes `true` when the thread has finished its execution (it exits `dive_and_solve` function). */
+  std::atomic_flag finished;
 
   /** This is the path to the subproblem needed to be solved by this cube.
    * This member is initialized in `CPUData` constructor.
@@ -49,7 +55,13 @@ struct CPUCube {
   CPUCube(const CP<Itv>& root)
    : cube(root)
    , root_snapshot(cube.search_tree->template snapshot<bt::standard_allocator>())
-  {}
+  {
+    cudaStreamCreate(&stream);
+  }
+
+  ~CPUCube() {
+    cudaStreamDestroy(stream);
+  }
 };
 
 /** A GPU cube is the data used by a GPU block to solve a subproblem.
@@ -236,19 +248,18 @@ void hybrid_dive_and_solve(const Configuration<battery::standard_allocator>& con
     threads.push_back(std::thread(dive_and_solve, std::ref(global), i));
   }
 
-  /** We wait that either the solving is interrupted, or that all threads finish. */
-  size_t joinable = 0;
-  while(joinable < threads.size()) {
+  /** We wait that either the solving is interrupted, or that all threads have finished. */
+  size_t terminated = 0;
+  while(terminated < threads.size()) {
     if(must_quit() || !check_timeout(global.root, start)) {
       global.cpu_stop.test_and_set();
       break;
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    printf("Wait thread to be joinable...\n");
-    joinable = 0;
-    for(auto& t : threads) {
-      if(t.joinable()) {
-        ++joinable;
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    terminated = 0;
+    for(int i = 0; i < global.cpu_cubes.size(); ++i) {
+      if(global.cpu_cubes[i].finished.test()) {
+        ++terminated;
       }
     }
   }
@@ -336,6 +347,7 @@ void dive_and_solve(CPUData& global, size_t cube_idx)
   if(!global.cpu_stop.test()) {
     cube.stats.num_blocks_done = 1;
   }
+  global.cpu_cubes[cube_idx].finished.test_and_set();
 }
 
 /** Given a root problem, we follow a predefined path in the search tree to reach a subproblem.
@@ -404,10 +416,10 @@ void solve(CPUData& global, size_t cube_idx) {
 bool propagate(CPUData& global, size_t cube_idx) {
   auto& cube = global.cpu_cubes[cube_idx].cube;
   bool is_leaf_node = false;
-  /** The propagation is done by a single block on the GPU. Thanks to the option `--default-stream per-thread` (see CMakeLists.txt), each thread can run kernels concurrently. */
-  gpu_propagate<<<1, static_cast<unsigned int>(global.root.config.and_nodes), SHARED_MEM_SIZE_BYTES>>>
+  /** The propagation is done by a single block on the GPU. */
+  gpu_propagate<<<1, static_cast<unsigned int>(global.root.config.and_nodes), SHARED_MEM_SIZE_BYTES, global.cpu_cubes[cube_idx].stream>>>
     (&global.gpu_cubes[cube_idx], SHARED_MEM_SIZE_BYTES);
-  CUDAEX(cudaDeviceSynchronize());
+  CUDAEX(cudaStreamSynchronize(global.cpu_cubes[cube_idx].stream));
   /** `on_node` updates the statistics and verifies whether we should stop (e.g. option `--cutnodes`). */
   bool is_pruned = cube.on_node();
   /** If the abstract domain is `bottom`, we reached a leaf node where the problem is unsatisfiable. */
@@ -512,6 +524,7 @@ void reduce_cubes(CPUData& global) {
   for(int i = 0; i < global.cpu_cubes.size(); ++i) {
     /** `meet` is the merge operation. */
     global.root.meet(global.cpu_cubes[i].cube);
+    global.root.stats.fixpoint_iterations += global.gpu_cubes[i].fp_iterations;
   }
 }
 
