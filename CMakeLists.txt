@@ -85,8 +85,8 @@ target_compile_options(turbo PRIVATE
     "$<$<AND:$<BOOL:${WITH_ASAN}>,$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:SHELL:--compiler-options -fsanitize=address>"
 )
 target_compile_definitions(turbo PRIVATE DISABLE_FULL_GPU_SOLVING)
+target_compile_options(turbo PRIVATE "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:-lineinfo>")
 if(TURBO_PROFILE_MODE)
-  target_compile_options(turbo PRIVATE "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:-lineinfo>")
   target_compile_definitions(turbo PRIVATE TURBO_PROFILE_MODE)
 endif()
 
