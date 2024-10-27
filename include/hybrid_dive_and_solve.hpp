@@ -26,13 +26,13 @@ namespace bt = ::battery;
 
 #ifdef __CUDACC__
 
-/** We only need a few bytes for the shared memory. */
-#define DEFAULT_SHARED_MEM_BYTES 100
+/** By default, we don't need dynamic shared memory. */
+#define DEFAULT_SHARED_MEM_BYTES 0
 
 /** A CPU cube is the data used by a CPU thread to solve a subproblem. */
 struct CPUCube {
   using cube_type = AbstractDomains<
-    Itv, bt::standard_allocator, UniqueLightAlloc<bt::standard_allocator,0>, bt::managed_allocator>;
+    Itv, bt::standard_allocator, UniqueLightAlloc<bt::standard_allocator,0>, bt::pinned_allocator>;
   /** A CPU cube is fully allocated on the CPU, but for the store of variables `cube.store` which is allocated in managed memory.
    * Indeed, when exchanging information between a GPU cube and a CPU cube, only the store of variables need to be transfered.
    */
@@ -81,7 +81,7 @@ struct GPUCube {
    * Note that this store is the same than the one in the corresponding CPU cube (`cube.store`).
    * This member is initialized in `CPUData` constructor.
    */
-  abstract_ptr<VStore<Itv, bt::managed_allocator>> store_cpu;
+  abstract_ptr<VStore<Itv, bt::pinned_allocator>> store_cpu;
 
   /** The cumulative number of iterations required to reach a fixpoint.
    * By dividing this statistic by the number of nodes, we get the average number of iterations per node.
@@ -207,6 +207,8 @@ struct CPUData {
       bt::statistics_allocator<UniqueLightAlloc<bt::managed_allocator, 0>>,
       bt::statistics_allocator<UniqueLightAlloc<bt::managed_allocator, 1>>>
     managed_cp(root);
+    printf("%%%%%%mzn-stat: store_mem=%" PRIu64 "\n", managed_cp.store.get_allocator().total_bytes_allocated());
+    printf("%%%%%%mzn-stat: propagator_mem=%" PRIu64 "\n", managed_cp.ipc.get_allocator().total_bytes_allocated());
     allocate_gpu_cubes<<<1, 1>>>(gpu_cubes.data(), gpu_cubes.size(), managed_cp.store.get(), managed_cp.ipc.get());
     CUDAEX(cudaDeviceSynchronize());
   }
@@ -444,6 +446,8 @@ bool propagate(CPUData& global, size_t cube_idx) {
   auto& gpu_cube = global.gpu_cubes[cube_idx];
   bool is_leaf_node = false;
 
+  gpu_cube.store_cpu->prefetch(0);
+
   /** We signal to the GPU that it can propagate the current node.
    * Thereafter, we immediately wait for the GPU to finish the propagation before performing the search step.
    */
@@ -452,6 +456,7 @@ bool propagate(CPUData& global, size_t cube_idx) {
   gpu_cube.ready_to_propagate.notify_one();
   gpu_cube.ready_to_search.wait(false, cuda::std::memory_order_seq_cst);
   gpu_cube.ready_to_search.clear();
+  gpu_cube.store_cpu->prefetch(cudaCpuDeviceId);
 
   /** `on_node` updates the statistics and verifies whether we should stop (e.g. option `--cutnodes`). */
   bool is_pruned = cpu_cube.on_node();
@@ -501,20 +506,20 @@ bool propagate(CPUData& global, size_t cube_idx) {
  */
 __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
   extern __shared__ unsigned char shared_mem[];
-  auto group = cooperative_groups::this_thread_block();
   GPUCube& cube = gpu_cubes[blockIdx.x];
 
   /** We start by initializing the structures in shared memory (fixpoint loop engine, store of variables). */
-  using FPEngine = BlockAsynchronousIterationGPU<bt::pool_allocator>;
-  bt::unique_ptr<bt::pool_allocator, bt::global_allocator> shared_mem_pool_ptr;
-  bt::pool_allocator& shared_mem_pool = bt::make_unique_block(shared_mem_pool_ptr, shared_mem, shared_bytes);
+  __shared__ BlockAsynchronousIterationGPU fp_engine;
+  /** This shared variable is necessary to avoid multiple threads to read into `cube.stop.test()`,
+   * potentially reading different values and leading to deadlock. */
+  __shared__ bool stop;
   // If we booked more than the default shared memory, it means we allocate the store in shared memory.
   if(threadIdx.x == 0 && shared_bytes > DEFAULT_SHARED_MEM_BYTES) {
+    bt::pool_allocator shared_mem_pool(shared_mem, shared_bytes);
     cube.store_gpu->reset_data(shared_mem_pool);
   }
-  // No need to sync here, make_unique_block already contains sync.
-  bt::unique_ptr<FPEngine, bt::global_allocator> fp_engine_ptr;
-  FPEngine& fp_engine = bt::make_unique_block(fp_engine_ptr, group, shared_mem_pool);
+
+  auto group = cooperative_groups::this_thread_block();
   group.sync();
 
   while(true) {
@@ -522,9 +527,11 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
     if(threadIdx.x == 0) {
       cube.ready_to_propagate.wait(false, cuda::std::memory_order_seq_cst);
       cube.ready_to_propagate.clear();
+      // NOTE: Only one thread should read the atomic `cube.stop`, to avoid deadlock if one thread reads `true` and exits, while another thread reads `false`.
+      stop = cube.stop.test();
     }
     group.sync();
-    if(cube.stop.test()) {
+    if(stop) {
       break;
     }
     /** We copy the CPU store into the GPU memory. */

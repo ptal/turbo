@@ -43,7 +43,7 @@ using Itv0 = Interval<ZLB<int, bt::local_memory>>;
 using Itv1 = Interval<ZLB<int, bt::atomic_memory_block>>;
 using Itv2 = Interval<ZLB<int, bt::atomic_memory_grid>>;
 using AtomicBool = B<bt::atomic_memory_block>;
-using FPEngine = BlockAsynchronousIterationGPU<bt::pool_allocator>;
+using FPEngine = BlockAsynchronousIterationGPU;
 
 // Version for non-Linux systems such as Windows where pinned memory must be used (see PR #19).
 #ifdef NO_CONCURRENT_MANAGED_MEMORY
@@ -226,7 +226,7 @@ struct BlockData {
 
   using snapshot_type = typename BlockCP::IST::snapshot_type<bt::global_allocator>;
   size_t subproblem_idx;
-  bt::shared_ptr<FPEngine, bt::global_allocator> fp_engine;
+  bt::shared_ptr<FPEngine, bt::pool_allocator> fp_engine;
   bt::shared_ptr<AtomicBool, bt::pool_allocator> has_changed;
   bt::shared_ptr<AtomicBool, bt::pool_allocator> stop;
   bt::shared_ptr<BlockCP, bt::global_allocator> root;
@@ -246,7 +246,7 @@ public:
       subproblem_idx = blockIdx.x;
       MemoryConfig& mem_config = grid_data.mem_config;
       bt::pool_allocator shared_mem_pool(mem_config.make_shared_pool(shared_mem));
-      fp_engine = bt::make_shared<FPEngine, bt::global_allocator>(block, shared_mem_pool);
+      fp_engine = bt::allocate_shared<FPEngine, bt::pool_allocator>(shared_mem_pool);
       has_changed = bt::allocate_shared<AtomicBool, bt::pool_allocator>(shared_mem_pool, true);
       stop = bt::allocate_shared<AtomicBool, bt::pool_allocator>(shared_mem_pool, false);
       root = bt::make_shared<BlockCP, bt::global_allocator>(typename BlockCP::tag_gpu_block_copy{},
@@ -353,8 +353,7 @@ __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data) {
   }
   fp_engine.barrier();
 #endif
-  local::B thread_has_changed{false};
-  size_t iterations = fp_engine.fixpoint(*cp.ipc, thread_has_changed, &grid_data.cpu_stop);
+  size_t iterations = fp_engine.fixpoint(*cp.ipc);
   if(threadIdx.x == 0) {
 #ifdef TURBO_PROFILE_MODE
     auto end = cuda::std::chrono::system_clock::now();
