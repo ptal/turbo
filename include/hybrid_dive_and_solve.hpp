@@ -456,6 +456,7 @@ bool propagate(CPUData& global, size_t cube_idx) {
   gpu_cube.ready_to_propagate.notify_one();
   gpu_cube.ready_to_search.wait(false, cuda::std::memory_order_seq_cst);
   gpu_cube.ready_to_search.clear();
+
   gpu_cube.store_cpu->prefetch(cudaCpuDeviceId);
 
   /** `on_node` updates the statistics and verifies whether we should stop (e.g. option `--cutnodes`). */
@@ -536,6 +537,7 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
     }
     /** We copy the CPU store into the GPU memory. */
     cube.store_cpu->copy_to(group, *cube.store_gpu);
+    group.sync();
     /** This is the main propagation algorithm: the current node is propagated in parallel. */
     size_t fp_iterations = fp_engine.fixpoint(*(cube.ipc_gpu));
     // No need to sync because all threads are always synchronized in the last iteration of the fixpoint loop.
@@ -543,9 +545,10 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
     if(threadIdx.x == 0) {
       cube.fp_iterations += fp_iterations;
     }
+    cuda::atomic_thread_fence(cuda::memory_order_seq_cst, cuda::thread_scope_system);
+    group.sync();
     /** We notify to the CPU that we have propagated the current node. */
     if(threadIdx.x == 0) {
-      cuda::atomic_thread_fence(cuda::memory_order_seq_cst, cuda::thread_scope_system);
       cube.ready_to_search.test_and_set(cuda::std::memory_order_seq_cst);
       cube.ready_to_search.notify_one();
     }
