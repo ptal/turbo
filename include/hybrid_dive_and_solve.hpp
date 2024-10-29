@@ -7,7 +7,6 @@
 #include <mutex>
 #include <thread>
 #include <chrono>
-#include <cub/block/block_scan.cuh>
 
 namespace bt = ::battery;
 
@@ -27,6 +26,8 @@ namespace bt = ::battery;
  */
 
 #ifdef __CUDACC__
+
+#include <cub/block/block_scan.cuh>
 
 #define BLOCK_SIZE 256
 
