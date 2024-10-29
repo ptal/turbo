@@ -6,6 +6,8 @@
 #include "common_solving.hpp"
 #include <mutex>
 #include <thread>
+#include <chrono>
+#include <cub/block/block_scan.cuh>
 
 namespace bt = ::battery;
 
@@ -25,6 +27,8 @@ namespace bt = ::battery;
  */
 
 #ifdef __CUDACC__
+
+#define BLOCK_SIZE 256
 
 /** By default, we don't need dynamic shared memory. */
 #define DEFAULT_SHARED_MEM_BYTES 0
@@ -60,7 +64,8 @@ struct CPUCube {
 */
 struct GPUCube {
   /** We use atomic to store the interval's lower and upper bounds. */
-  using Itv1 = Interval<ZLB<int, bt::atomic_memory_block>>;
+  // using Itv1 = Interval<ZLB<int, bt::atomic_memory_block>>;
+  using Itv1 = Interval<ZLB<int, bt::local_memory>>;
 
   /** We use a `pool_allocator`, this allows to easily switch between global memory and shared memory, if the store of variables can fit inside. */
   using IStore = VStore<Itv1, bt::pool_allocator>;
@@ -72,6 +77,21 @@ struct GPUCube {
   /** The store of variables is only accessible on GPU. */
   abstract_ptr<IStore> store_gpu;
 
+  /** The indexes of propagators that are still unknown (not entailed).
+   * The unknown propagators are between 0 and pidx.size() - 1. */
+  bt::vector<int, bt::pool_allocator> pidx;
+
+  /** A mask to know which propagators are still unknown.
+   * We have `pmask[i] <=> !ipc.ask(pidx[i])`.
+  */
+  bt::vector<bool, bt::pool_allocator> pmask;
+
+  /** A temporary array to compute the prefix sum of `pmask`, in order to copy pidx into pidx2. */
+  bt::vector<int, bt::pool_allocator> psum;
+
+  /** A temporary array when copying the new active propagators. */
+  bt::vector<int, bt::pool_allocator> pidx2;
+
   /** The propagators is only accessible on GPU but the array of propagators is shared among all blocks.
    * Since the propagators are state-less, we avoid duplicating them in each block.
    */
@@ -82,6 +102,9 @@ struct GPUCube {
    * This member is initialized in `CPUData` constructor.
    */
   abstract_ptr<VStore<Itv, bt::pinned_allocator>> store_cpu;
+
+  /** This Boolean is used to communicate to the CPU the current node is a solution. */
+  cuda::std::atomic_flag solution_found;
 
   /** The cumulative number of iterations required to reach a fixpoint.
    * By dividing this statistic by the number of nodes, we get the average number of iterations per node.
@@ -102,6 +125,7 @@ struct GPUCube {
     ready_to_search.clear();
     ready_to_propagate.clear();
     stop.clear();
+    solution_found.clear();
     cuda::atomic_thread_fence(cuda::memory_order_seq_cst, cuda::thread_scope_system);
   }
 
@@ -112,17 +136,32 @@ struct GPUCube {
   */
   template <class StoreType, class PCType>
   __device__ void allocate(StoreType& store, PCType& pc, size_t bytes, bool pc_shared) {
+    int n = pc.num_deductions();
+    // We round n to the next multiple of BLOCK_SIZE (the maximum dimension of the block, for now).
+    n = n + ((BLOCK_SIZE - n % BLOCK_SIZE) % BLOCK_SIZE);
+    bytes += 100 + 4*sizeof(int)*n; // for the structures to eliminate propagators (and alignment padding).
     void* mem_pool = bt::global_allocator{}.allocate(bytes);
     bt::pool_allocator pool(static_cast<unsigned char*>(mem_pool), bytes);
     AbstractDeps<bt::global_allocator, bt::pool_allocator> deps(pc_shared, bt::global_allocator{}, pool);
     ipc_gpu = bt::allocate_shared<IPC, bt::pool_allocator>(pool, pc, deps);
     store_gpu = deps.template extract<IStore>(store.aty());
+    pidx = bt::vector<int, bt::pool_allocator>(pc.num_deductions(), pool);
+    for(int i = 0; i < pidx.size(); ++i) {
+      pidx[i] = i;
+    }
+    pmask = bt::vector<bool, bt::pool_allocator>(n, false, pool);
+    psum = bt::vector<int, bt::pool_allocator>(n, 0, pool);
+    pidx2 = bt::vector<int, bt::pool_allocator>(pidx, pool);
   }
 
   __device__ void deallocate() {
     // NOTE: .reset() does not work because it does not reset the allocator, which is itself allocated in global memory.
     store_gpu = abstract_ptr<IStore>();
     ipc_gpu = abstract_ptr<IPC>();
+    pidx = bt::vector<int, bt::pool_allocator>();
+    pmask = bt::vector<bool, bt::pool_allocator>();
+    psum = bt::vector<int, bt::pool_allocator>();
+    pidx2 = bt::vector<int, bt::pool_allocator>();
   }
 };
 
@@ -469,8 +508,9 @@ bool propagate(CPUData& global, size_t cube_idx) {
   /** When the problem is "extractable", then all variables are assigned to a single value.
    * It means that we have reached a solution.
    */
-  else if(cpu_cube.search_tree->template is_extractable<AtomicExtraction>()) {
+  else if(gpu_cube.solution_found.test()) {
     is_leaf_node = true;
+    gpu_cube.solution_found.clear();
     /** We save the new best solution found.
      * The "branch-and-bound" (bab) abstract domain has a local store of variable to store the best solution.
      * It adds a new bound constraint to the root of the search tree, such that, on backtracking the best bound is enforced.
@@ -523,6 +563,10 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
   auto group = cooperative_groups::this_thread_block();
   group.sync();
 
+  using BlockScan = cub::BlockScan<int, BLOCK_SIZE>;
+  assert(BLOCK_SIZE == blockDim.x);
+  __shared__ typename BlockScan::TempStorage cub_prefixsum_tmp;
+
   while(true) {
     /** We wait that the CPU notifies us the store is ready to be copied and propagated. */
     if(threadIdx.x == 0) {
@@ -538,12 +582,42 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
     /** We copy the CPU store into the GPU memory. */
     cube.store_cpu->copy_to(group, *cube.store_gpu);
     group.sync();
+    group.sync();
     /** This is the main propagation algorithm: the current node is propagated in parallel. */
-    size_t fp_iterations = fp_engine.fixpoint(*(cube.ipc_gpu));
-    // No need to sync because all threads are always synchronized in the last iteration of the fixpoint loop.
+    size_t fp_iterations = fp_engine.fixpoint(cube.pidx, *(cube.ipc_gpu));
     cube.store_gpu->copy_to(group, *cube.store_cpu);
+    // if(threadIdx.x == 0) {
+    //   printf("GPU VStore (after propagation): ");
+    //   cube.store_gpu->print();
+    // }
     if(threadIdx.x == 0) {
       cube.fp_iterations += fp_iterations;
+    }
+    /** We eliminate propagators that are entailed, shrinking the `pidx` array. */
+    bool is_leaf_node = cube.store_gpu->is_bot();
+    int n = cube.pidx.size() + ((blockDim.x - cube.pidx.size() % blockDim.x) % blockDim.x);
+    if(!is_leaf_node) {
+      // pidx:       0 1 2 3   (indexes of the propagators)
+      // pmask:      1 0 0 1   (filtering entailed propagators)
+      // psum:       0 1 1 1   (exclusive prefix sum)
+      // pidx2:      0 3       (new indexes of the propagators)
+      for(int i = threadIdx.x; i < cube.pidx.size(); i += blockDim.x) {
+        cube.pmask[i] = !cube.ipc_gpu->ask(cube.pidx[i]);
+      }
+      for(int i = threadIdx.x; i < n; i += blockDim.x) {
+        BlockScan(cub_prefixsum_tmp).InclusiveSum(cube.pmask[i], cube.psum[i]);
+        group.sync(); // required by BlockScan to reuse the temporary storage.
+      }
+      for(int i = blockDim.x + threadIdx.x; i < n; i += blockDim.x) {
+        cube.psum[i] += cube.psum[i - threadIdx.x - 1];
+        group.sync();
+      }
+      if(cube.psum[cube.pidx.size()-1] == 0) {
+        is_leaf_node = cube.store_gpu->template is_extractable<AtomicExtraction>(group);
+        if(threadIdx.x == 0 && is_leaf_node) {
+          cube.solution_found.test_and_set();
+        }
+      }
     }
     cuda::atomic_thread_fence(cuda::memory_order_seq_cst, cuda::thread_scope_system);
     group.sync();
@@ -551,6 +625,30 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
     if(threadIdx.x == 0) {
       cube.ready_to_search.test_and_set(cuda::std::memory_order_seq_cst);
       cube.ready_to_search.notify_one();
+    }
+    // Backtrack detected so we reinitialize pidx.
+    if(is_leaf_node) {
+      if(threadIdx.x == 0) {
+        cube.pidx.resize(cube.ipc_gpu->num_deductions());
+        cube.pidx2.resize(cube.ipc_gpu->num_deductions());
+      }
+      group.sync();
+      for(int i = threadIdx.x; i < cube.pidx.size(); i += blockDim.x) {
+        cube.pidx[i] = i;
+      }
+    }
+    // We compute the shrunk pidx.
+    else {
+      if(threadIdx.x == 0) {
+        battery::swap(cube.pidx, cube.pidx2);
+        cube.pidx.resize(cube.psum[cube.pidx2.size()-1]);
+      }
+      group.sync();
+      for(int i = threadIdx.x; i < cube.pidx2.size(); i += blockDim.x) {
+        if(cube.pmask[i]) {
+          cube.pidx[cube.psum[i]-1] = cube.pidx2[i];
+        }
+      }
     }
   }
 }
