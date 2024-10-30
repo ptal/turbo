@@ -302,7 +302,8 @@ void hybrid_dive_and_solve(const Configuration<battery::standard_allocator>& con
   /** We start the persistent kernel, that will perform the propagation. */
   gpu_propagate<<<
       static_cast<unsigned int>(global.root.config.or_nodes),
-      static_cast<unsigned int>(global.root.config.and_nodes),
+      BLOCK_SIZE,
+      // static_cast<unsigned int>(global.root.config.and_nodes),
       global.shared_mem_bytes>>>
     (global.gpu_cubes.data(), global.shared_mem_bytes);
 
@@ -524,6 +525,7 @@ bool propagate(CPUData& global, size_t cube_idx) {
     }
     /** If we print all intermediate solutions, and really found a better bound (no other thread found a better one meanwhile), we print the current solution. */
     if(print_solution) {
+      std::lock_guard<std::mutex> print_guard(global.print_lock);
       cpu_cube.print_solution();
     }
     /** We update the statistics, and check if we must terminate (e.g. we stop after N solutions). */
@@ -587,10 +589,6 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
     /** This is the main propagation algorithm: the current node is propagated in parallel. */
     size_t fp_iterations = fp_engine.fixpoint(cube.pidx, *(cube.ipc_gpu));
     cube.store_gpu->copy_to(group, *cube.store_cpu);
-    // if(threadIdx.x == 0) {
-    //   printf("GPU VStore (after propagation): ");
-    //   cube.store_gpu->print();
-    // }
     if(threadIdx.x == 0) {
       cube.fp_iterations += fp_iterations;
     }
@@ -600,7 +598,7 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
     if(!is_leaf_node) {
       // pidx:       0 1 2 3   (indexes of the propagators)
       // pmask:      1 0 0 1   (filtering entailed propagators)
-      // psum:       0 1 1 1   (exclusive prefix sum)
+      // psum:       1 1 1 2   (inclusive prefix sum)
       // pidx2:      0 3       (new indexes of the propagators)
       for(int i = threadIdx.x; i < cube.pidx.size(); i += blockDim.x) {
         cube.pmask[i] = !cube.ipc_gpu->ask(cube.pidx[i]);
