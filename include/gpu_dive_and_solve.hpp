@@ -307,10 +307,10 @@ __device__ bool update_grid_best_bound(BlockData<S>& block_data, GridData<S>& gr
     auto local_best = bab->optimum().project(bab->objective_var());
     // printf("[new bound] %d: [%d..%d] (current best: [%d..%d])\n", blockIdx.x, local_best.lb().value(), local_best.ub().value(), grid_data.best_bound->lb().value(), grid_data.best_bound->ub().value());
     if(bab->is_maximization()) {
-      return grid_data.best_bound->meet_lb(dual<typename U0::LB>(local_best.ub()));
+      return grid_data.best_bound->meet_lb(dual_bound<typename U0::LB>(local_best.ub()));
     }
     else {
-      return grid_data.best_bound->meet_ub(dual<typename U0::UB>(local_best.lb()));
+      return grid_data.best_bound->meet_ub(dual_bound<typename U0::UB>(local_best.lb()));
     }
   }
   return false;
@@ -328,8 +328,8 @@ __device__ void update_block_best_bound(BlockData<S>& block_data, GridData<S>& g
     VarEnv<bt::global_allocator> empty_env{};
     auto best_formula = bab->template deinterpret_best_bound<bt::global_allocator>(
       bab->is_maximization()
-      ? U0(dual<typename U0::UB>(grid_data.best_bound->lb()))
-      : U0(dual<typename U0::LB>(grid_data.best_bound->ub())));
+      ? U0(dual_bound<typename U0::UB>(grid_data.best_bound->lb()))
+      : U0(dual_bound<typename U0::LB>(grid_data.best_bound->ub())));
     // printf("global best: "); grid_data.best_bound->ub().print(); printf("\n");
     // best_formula.print(); printf("\n");
     IDiagnostics diagnostics;

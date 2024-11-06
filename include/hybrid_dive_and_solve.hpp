@@ -29,7 +29,7 @@ namespace bt = ::battery;
 
 #include <cub/block/block_scan.cuh>
 
-#define BLOCK_SIZE 256
+#define BLOCK_SIZE 1
 
 /** By default, we don't need dynamic shared memory. */
 #define DEFAULT_SHARED_MEM_BYTES 0
@@ -665,10 +665,10 @@ bool update_global_best_bound(CPUData& global, size_t cube_idx) {
   auto local_best = cube.bab->optimum().project(cube.bab->objective_var());
   // We update the global `best_bound`.
   if(cube.bab->is_maximization()) {
-    return global.best_bound.meet_lb(dual<Itv::LB>(local_best.ub()));
+    return global.best_bound.meet_lb(dual_bound<Itv::LB>(local_best.ub()));
   }
   else {
-    return global.best_bound.meet_ub(dual<Itv::UB>(local_best.lb()));
+    return global.best_bound.meet_ub(dual_bound<Itv::UB>(local_best.lb()));
   }
 }
 
@@ -682,8 +682,8 @@ void update_local_best_bound(CPUData& global, size_t cube_idx) {
     VarEnv<bt::standard_allocator> empty_env{};
     auto best_formula = cube.bab->template deinterpret_best_bound<bt::standard_allocator>(
       cube.bab->is_maximization()
-      ? Itv(dual<Itv::UB>(global.best_bound.lb()))
-      : Itv(dual<Itv::LB>(global.best_bound.ub())));
+      ? Itv(dual_bound<Itv::UB>(global.best_bound.lb()))
+      : Itv(dual_bound<Itv::LB>(global.best_bound.ub())));
     IDiagnostics diagnostics;
     bool r = interpret_and_tell(best_formula, empty_env, *cube.store, diagnostics);
     assert(r);
