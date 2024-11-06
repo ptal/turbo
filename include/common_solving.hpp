@@ -362,12 +362,9 @@ public:
     stats.variables = store->vars();
     stats.constraints = ipc->num_deductions();
     bool can_interpret = true;
-    if(split->num_strategies() == 0) {
-      can_interpret &= interpret_default_strategy<F>();
-    }
-    if(eps_split->num_strategies() == 0) {
-      can_interpret &= interpret_default_eps_strategy<F>();
-    }
+    /** We add a search strategy by default for the variables that potentially do not occur in the previous strategies. */
+    can_interpret &= interpret_default_strategy<F>();
+    can_interpret &= interpret_default_eps_strategy<F>();
     return can_interpret;
   }
 

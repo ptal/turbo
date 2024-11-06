@@ -585,7 +585,6 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
     /** We copy the CPU store into the GPU memory. */
     cube.store_cpu->copy_to(group, *cube.store_gpu);
     group.sync();
-    group.sync();
     /** This is the main propagation algorithm: the current node is propagated in parallel. */
     size_t fp_iterations = fp_engine.fixpoint(cube.pidx, *(cube.ipc_gpu));
     cube.store_gpu->copy_to(group, *cube.store_cpu);
@@ -611,7 +610,8 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
         cube.psum[i] += cube.psum[i - threadIdx.x - 1];
         group.sync();
       }
-      if(cube.psum[cube.pidx.size()-1] == 0) {
+      // If all propagators were already entailed, or they all became entailed at this iteration.
+      if(cube.pidx.size() == 0 || cube.psum[cube.pidx.size()-1] == 0) {
         is_leaf_node = cube.store_gpu->template is_extractable<AtomicExtraction>(group);
         if(threadIdx.x == 0 && is_leaf_node) {
           cube.solution_found.test_and_set();
@@ -637,7 +637,7 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
       }
     }
     // We compute the shrunk pidx.
-    else {
+    else if(cube.pidx.size() > 0) {
       if(threadIdx.x == 0) {
         battery::swap(cube.pidx, cube.pidx2);
         cube.pidx.resize(cube.psum[cube.pidx2.size()-1]);
