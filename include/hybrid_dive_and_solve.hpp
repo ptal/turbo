@@ -438,6 +438,7 @@ size_t dive(CPUData& global, size_t cube_idx) {
     /** If we reach a leaf node before the end of the path, we stop and the remaining depth is reported to the caller. */
     if(is_leaf_node) {
       stop_diving = true;
+      remaining_depth++;
     }
     else {
       /** We create two branches according to the EPS search strategy. */
@@ -517,19 +518,22 @@ bool propagate(CPUData& global, size_t cube_idx) {
      * The "branch-and-bound" (bab) abstract domain has a local store of variable to store the best solution.
      * It adds a new bound constraint to the root of the search tree, such that, on backtracking the best bound is enforced.
      */
-    cpu_cube.bab->deduce();
-    bool print_solution = cpu_cube.is_printing_intermediate_sol();
-    if(cpu_cube.bab->is_optimization()) {
-      /** We share the new best bound with the other cubes. */
-      print_solution &= update_global_best_bound(global, cube_idx);
+    if(cpu_cube.bab->is_satisfaction() || cpu_cube.bab->compare_bound(*cpu_cube.store, cpu_cube.bab->optimum())) {
+      cpu_cube.bab->deduce();
+
+      bool print_solution = cpu_cube.is_printing_intermediate_sol();
+      if(cpu_cube.bab->is_optimization()) {
+        /** We share the new best bound with the other cubes. */
+        print_solution &= update_global_best_bound(global, cube_idx);
+      }
+      /** If we print all intermediate solutions, and really found a better bound (no other thread found a better one meanwhile), we print the current solution. */
+      if(print_solution) {
+        std::lock_guard<std::mutex> print_guard(global.print_lock);
+        cpu_cube.print_solution();
+      }
+      /** We update the statistics, and check if we must terminate (e.g. we stop after N solutions). */
+      is_pruned |= cpu_cube.update_solution_stats();
     }
-    /** If we print all intermediate solutions, and really found a better bound (no other thread found a better one meanwhile), we print the current solution. */
-    if(print_solution) {
-      std::lock_guard<std::mutex> print_guard(global.print_lock);
-      cpu_cube.print_solution();
-    }
-    /** We update the statistics, and check if we must terminate (e.g. we stop after N solutions). */
-    is_pruned |= cpu_cube.update_solution_stats();
   }
   if(is_pruned) {
     /** We notify all threads that we must stop. */
