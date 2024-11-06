@@ -29,7 +29,7 @@ namespace bt = ::battery;
 
 #include <cub/block/block_scan.cuh>
 
-#define BLOCK_SIZE 1
+#define BLOCK_SIZE 256
 
 /** By default, we don't need dynamic shared memory. */
 #define DEFAULT_SHARED_MEM_BYTES 0
@@ -351,7 +351,7 @@ void dive_and_solve(CPUData& global, size_t cube_idx)
   while(subproblem_idx < num_subproblems && !global.cpu_stop.test()) {
     if(global.root.config.verbose_solving) {
       std::lock_guard<std::mutex> print_guard(global.print_lock);
-      printf("%% Cube %d solves subproblem num %zu\n", cube_idx, subproblem_idx);
+      printf("%% Cube %zu solves subproblem num %zu\n", cube_idx, subproblem_idx);
     }
     /** The first step is to "dive" by committing to a search path. */
     size_t remaining_depth = dive(global, cube_idx);
@@ -433,14 +433,13 @@ size_t dive(CPUData& global, size_t cube_idx) {
   size_t remaining_depth = cube.config.subproblems_power;
   /** The number of iterations depends on the length of the diving path. */
   while(remaining_depth > 0 && !stop_diving && !global.cpu_stop.test()) {
-    remaining_depth--;
     bool is_leaf_node = propagate(global, cube_idx);
     /** If we reach a leaf node before the end of the path, we stop and the remaining depth is reported to the caller. */
     if(is_leaf_node) {
       stop_diving = true;
-      remaining_depth++;
     }
     else {
+      remaining_depth--;
       /** We create two branches according to the EPS search strategy. */
       auto branches = cube.eps_split->split();
       assert(branches.size() == 2);

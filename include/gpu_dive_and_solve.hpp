@@ -151,7 +151,7 @@ struct GridData {
     , blocks_reduced(false)
   {
     ready_to_consume.clear();
-    ready_to_produce.test_and_set();
+    ready_to_produce.clear();
     cuda::atomic_thread_fence(cuda::memory_order_seq_cst, cuda::thread_scope_system);
   }
 
@@ -159,12 +159,14 @@ struct GridData {
   __device__ void produce_solution(const BlockBAB& bab) {
     print_lock->acquire();
     if(!cpu_stop) {
-      ready_to_produce.wait(false, cuda::std::memory_order_seq_cst);
-      ready_to_produce.clear();
       bab.extract(*(root.bab));
       cuda::atomic_thread_fence(cuda::memory_order_seq_cst, cuda::thread_scope_system);
       ready_to_consume.test_and_set(cuda::std::memory_order_seq_cst);
       ready_to_consume.notify_one();
+      // Wait the CPU has consumed the solution before continuing.
+      // This avoids a problem with "blocks_reduced" being `true` too fast.
+      ready_to_produce.wait(false, cuda::std::memory_order_seq_cst);
+      ready_to_produce.clear();
     }
     print_lock->release();
   }
@@ -182,7 +184,6 @@ struct GridData {
     else {
       root.print_solution();
     }
-    cuda::atomic_thread_fence(cuda::memory_order_seq_cst, cuda::thread_scope_system);
     ready_to_produce.test_and_set(cuda::std::memory_order_seq_cst);
     ready_to_produce.notify_one();
     return false;
@@ -405,19 +406,21 @@ __device__ size_t dive(BlockData<S>& block_data, GridData<S>& grid_data) {
   fp_engine.barrier();
   size_t remaining_depth = grid_data.root.config.subproblems_power;
   while(remaining_depth > 0 && !stop_diving && !stop) {
-    remaining_depth--;
     bool is_leaf_node = propagate(block_data, grid_data);
-    if(threadIdx.x == 0) {
-      if(is_leaf_node) {
+    stop.join(grid_data.cpu_stop || *(grid_data.gpu_stop));
+    if(is_leaf_node) {
+      if(threadIdx.x == 0) {
         stop_diving.join(true);
       }
-      else {
+    }
+    else {
+      remaining_depth--;
+      if(threadIdx.x == 0) {
         size_t branch_idx = (block_data.subproblem_idx & (size_t{1} << remaining_depth)) >> remaining_depth;
         auto branches = cp.eps_split->split();
         assert(branches.size() == 2);
         cp.ipc->deduce(branches[branch_idx]);
       }
-      stop.join(grid_data.cpu_stop || *(grid_data.gpu_stop));
     }
     fp_engine.barrier();
   }
