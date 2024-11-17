@@ -24,7 +24,7 @@
 #include "lala/cartesian_product.hpp"
 #include "lala/interval.hpp"
 #include "lala/pc.hpp"
-#include "lala/terms.hpp"
+#include "lala/pir.hpp"
 #include "lala/fixpoint.hpp"
 #include "lala/search_tree.hpp"
 #include "lala/bab.hpp"
@@ -160,7 +160,7 @@ struct AbstractDomains {
   using LIStore = VStore<universe_type, BasicAllocator>;
 
   using IStore = VStore<Universe, StoreAllocator>;
-  using IPC = PC<IStore, PropAllocator>; // Interval Propagators Completion
+  using IPC = PIR<IStore, PropAllocator>; // Interval Propagators Completion
   using ISimplifier = Simplifier<IPC, BasicAllocator>;
   using Split = SplitStrategy<IPC, BasicAllocator>;
   using IST = SearchTree<IPC, Split, BasicAllocator>;
@@ -336,7 +336,6 @@ struct AbstractDomains {
   }
 
 private:
-
   // We first try to interpret, and if it does not work, we interpret again with the diagnostics mode turned on.
   template <class F, class Env, class A>
   CUDA bool interpret_and_diagnose_and_tell(const F& f, Env& env, A& a) {
@@ -402,7 +401,6 @@ public:
     if(!interpret(f)) {
       exit(EXIT_FAILURE);
     }
-
     if(config.print_ast) {
       printf("%% Interpreted AST:\n");
       ipc->deinterpret(env).print(true);
@@ -442,12 +440,12 @@ public:
       f->print(true);
       printf("\n");
     }
-
     *f = eval(*f);
     if(config.verbose_solving) {
       printf("%% Formula syntactically simplified.\n");
     }
 
+    *f = normalize(ternarize(*f));
     allocate(num_quantified_vars(*f));
     type_and_interpret(*f);
 
@@ -466,6 +464,20 @@ public:
       auto f = simplifier->deinterpret();
       stats.eliminated_variables = simplifier->num_eliminated_variables();
       stats.eliminated_formulas = simplifier->num_eliminated_formulas();
+      if(config.verbose_solving) {
+        printf("%% Formula simplified.\n");
+        printf("%% Ternarizing the formula...\n");
+      }
+      using F = TFormula<basic_allocator_type>;
+      f = ternarize(f);
+      if(config.verbose_solving) {
+        printf("%% Formula ternarized.\n");
+        printf("%% Normalizing the formula...\n");
+      }
+      f = normalize(f);
+      if(config.verbose_solving) {
+        printf("%% Formula normalized.\n");
+      }
       allocate(num_quantified_vars(f));
       type_and_interpret(f);
     }
@@ -476,9 +488,6 @@ public:
 private:
   template <class F>
   CUDA bool interpret_default_strategy() {
-    if(config.verbose_solving) {
-      printf("%% No split strategy provided, using the default one (first_fail, indomain_min).\n");
-    }
     config.free_search = true;
     typename F::Sequence seq;
     seq.push_back(F::make_nary("first_fail", {}));

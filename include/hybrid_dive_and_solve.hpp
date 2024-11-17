@@ -29,7 +29,7 @@ namespace bt = ::battery;
 
 #include <cub/block/block_scan.cuh>
 
-#define BLOCK_SIZE 1
+#define BLOCK_SIZE 256
 
 /** By default, we don't need dynamic shared memory. */
 #define DEFAULT_SHARED_MEM_BYTES 0
@@ -73,7 +73,7 @@ struct GPUCube {
 
   /** The store of propagators also uses a `pool_allocator` of global memory. This was necessary due to the slow copy of propagators between CPU and GPU.
    * Indeed, a propagator is a tree-shaped object (like an AST) that contain many pointers, and thus the copy calls the allocation function a lot. */
-  using IPC = PC<IStore, bt::pool_allocator>;
+  using IPC = PIR<IStore, bt::pool_allocator>;
 
   /** The store of variables is only accessible on GPU. */
   abstract_ptr<IStore> store_gpu;
