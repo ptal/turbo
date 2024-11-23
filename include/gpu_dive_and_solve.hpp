@@ -43,7 +43,7 @@ using Itv0 = Interval<ZLB<int, bt::local_memory>>;
 using Itv1 = Interval<ZLB<int, bt::atomic_memory_block>>;
 using Itv2 = Interval<ZLB<int, bt::atomic_memory_grid>>;
 using AtomicBool = B<bt::atomic_memory_block>;
-using FPEngine = BlockAsynchronousIterationGPU;
+using FPEngine = BlockAsynchronousFixpointGPU;
 
 // Version for non-Linux systems such as Windows where pinned memory must be used (see PR #19).
 #ifdef NO_CONCURRENT_MANAGED_MEMORY
@@ -354,7 +354,11 @@ __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data) {
   }
   fp_engine.barrier();
 #endif
-  size_t iterations = fp_engine.fixpoint(*cp.ipc);
+  auto& ipc = *cp.ipc;
+  size_t iterations = fp_engine.fixpoint(
+    ipc.num_deductions(),
+    [&](size_t i) { return ipc.deduce(i); },
+    [&](){ return ipc.is_bot(); });
   if(threadIdx.x == 0) {
 #ifdef TURBO_PROFILE_MODE
     auto end = cuda::std::chrono::system_clock::now();
@@ -363,7 +367,7 @@ __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data) {
 #endif
     cp.stats.fixpoint_iterations += iterations;
     bool is_pruned = cp.on_node();
-    if(cp.ipc->is_bot()) {
+    if(ipc.is_bot()) {
       is_leaf_node = true;
       cp.on_failed_node();
     }

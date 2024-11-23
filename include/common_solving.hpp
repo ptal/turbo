@@ -459,8 +459,8 @@ public:
     auto start = std::chrono::high_resolution_clock::now();
     if(prepare_simplifier(*raw_formula)) {
       GaussSeidelIteration fp_engine;
-      fp_engine.fixpoint(*ipc);
-      fp_engine.fixpoint(*simplifier);
+      fp_engine.fixpoint(ipc->num_deductions(), [&](size_t i) { return ipc->deduce(i); });
+      fp_engine.fixpoint(simplifier->num_deductions(), [&](size_t i) { return simplifier->deduce(i); });
       auto f = simplifier->deinterpret();
       stats.eliminated_variables = simplifier->num_eliminated_variables();
       stats.eliminated_formulas = simplifier->num_eliminated_formulas();

@@ -556,7 +556,7 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
   GPUCube& cube = gpu_cubes[blockIdx.x];
 
   /** We start by initializing the structures in shared memory (fixpoint loop engine, store of variables). */
-  __shared__ BlockAsynchronousIterationGPU fp_engine;
+  __shared__ BlockAsynchronousFixpointGPU fp_engine;
   /** This shared variable is necessary to avoid multiple threads to read into `cube.stop.test()`,
    * potentially reading different values and leading to deadlock. */
   __shared__ bool stop;
@@ -589,7 +589,10 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
     cube.store_cpu->copy_to(group, *cube.store_gpu);
     group.sync();
     /** This is the main propagation algorithm: the current node is propagated in parallel. */
-    size_t fp_iterations = fp_engine.fixpoint(cube.pidx, *(cube.ipc_gpu));
+    GPUCube::IPC& ipc = *cube.ipc_gpu;
+    size_t fp_iterations = fp_engine.fixpoint(cube.pidx,
+      [&](size_t i){ return ipc.deduce(i); },
+      [&](){ return ipc.is_bot(); });
     cube.store_gpu->copy_to(group, *cube.store_cpu);
     if(threadIdx.x == 0) {
       cube.fp_iterations += fp_iterations;
@@ -602,9 +605,10 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
       // pmask:      1 0 0 1   (filtering entailed propagators)
       // psum:       1 1 1 2   (inclusive prefix sum)
       // pidx2:      0 3       (new indexes of the propagators)
-      for(int i = threadIdx.x; i < cube.pidx.size(); i += blockDim.x) {
-        cube.pmask[i] = !cube.ipc_gpu->ask(cube.pidx[i]);
-      }
+      fp_engine.iterate(cube.pidx.size(), [&](size_t i) { cube.pmask[i] = !ipc.ask(cube.pidx[i]); return true; });
+      // for(int i = threadIdx.x; i < cube.pidx.size(); i += blockDim.x) {
+      //   cube.pmask[i] = !ipc.ask(cube.pidx[i]);
+      // }
       for(int i = threadIdx.x; i < n; i += blockDim.x) {
         BlockScan(cub_prefixsum_tmp).InclusiveSum(cube.pmask[i], cube.psum[i]);
         group.sync(); // required by BlockScan to reuse the temporary storage.
@@ -631,8 +635,8 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
     // Backtrack detected so we reinitialize pidx.
     if(is_leaf_node) {
       if(threadIdx.x == 0) {
-        cube.pidx.resize(cube.ipc_gpu->num_deductions());
-        cube.pidx2.resize(cube.ipc_gpu->num_deductions());
+        cube.pidx.resize(ipc.num_deductions());
+        cube.pidx2.resize(ipc.num_deductions());
       }
       group.sync();
       for(int i = threadIdx.x; i < cube.pidx.size(); i += blockDim.x) {
