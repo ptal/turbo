@@ -11,21 +11,24 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
   CP<Itv> cp(config);
   cp.preprocess();
 
-  GaussSeidelIteration fp_engine;
+  FixpointSubsetCPU<GaussSeidelIteration> fp_engine(cp.ipc->num_deductions());
   local::B has_changed = true;
   block_signal_ctrlc();
   while(!must_quit() && check_timeout(cp, start) && has_changed) {
     has_changed = false;
-    cp.stats.fixpoint_iterations += fp_engine.fixpoint(
-      cp.ipc->num_deductions(),
-      [&](size_t i) { return cp.ipc->deduce(i); });
+    cp.stats.fixpoint_iterations += fp_engine.fixpoint([&](size_t i) { return cp.ipc->deduce(i); });
     bool must_prune = cp.on_node();
     if(cp.ipc->is_bot()) {
       cp.on_failed_node();
+      fp_engine.reset();
     }
-    else if(cp.search_tree->template is_extractable<AtomicExtraction>()) {
-      has_changed |= cp.bab->deduce();
-      must_prune |= cp.on_solution_node();
+    else {
+      fp_engine.select([&](size_t i) { return !cp.ipc->ask(i); });
+      if(fp_engine.num_active() == 0 && cp.store->template is_extractable<AtomicExtraction>()) {
+        has_changed |= cp.bab->deduce();
+        must_prune |= cp.on_solution_node();
+        fp_engine.reset();
+      }
     }
     has_changed |= cp.search_tree->deduce();
     if(must_prune) { break; }
