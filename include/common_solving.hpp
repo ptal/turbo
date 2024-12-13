@@ -358,6 +358,13 @@ public:
     if(!interpret_and_diagnose_and_tell(f, env, *bab)) {
       return false;
     }
+    /** If some variables were added during the interpretation, we must resize `best` as well.
+     * If we don't do it now, it will be done during the solving (when calling bab.extract) which will lead to a resize of the underlying store.
+     * The problem is that the resize will be done on the device! If it was allocated in managed memory, it will be now reallocated in device memory, leading to a segfault later on.
+    */
+    if(store->vars() != best->vars()) {
+      store->extract(*best);
+    }
     stats.variables = store->vars();
     stats.constraints = ipc->num_deductions();
     bool can_interpret = true;
@@ -472,11 +479,17 @@ public:
       f = ternarize(f);
       if(config.verbose_solving) {
         printf("%% Formula ternarized.\n");
+        if(config.print_ast) {
+          f.print(false);
+        }
         printf("%% Normalizing the formula...\n");
       }
       f = normalize(f);
       if(config.verbose_solving) {
         printf("%% Formula normalized.\n");
+        if(config.print_ast) {
+          f.print(false);
+        }
       }
       allocate(num_quantified_vars(f));
       type_and_interpret(f);
