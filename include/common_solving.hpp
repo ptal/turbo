@@ -364,6 +364,7 @@ public:
     */
     if(store->vars() != best->vars()) {
       store->extract(*best);
+      best->join_top();
     }
     stats.variables = store->vars();
     stats.constraints = ipc->num_deductions();
