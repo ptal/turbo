@@ -14,6 +14,8 @@ namespace bt = ::battery;
 #include <cuda/std/chrono>
 #include <cuda/semaphore>
 
+#define BLOCK_SIZE 256
+
 template <
   class Universe0, // Universe used locally to one thread.
   class Universe1, // Universe used in the scope of a block.
@@ -43,7 +45,7 @@ using Itv0 = Interval<ZLB<int, bt::local_memory>>;
 using Itv1 = Interval<ZLB<int, bt::atomic_memory_block>>;
 using Itv2 = Interval<ZLB<int, bt::atomic_memory_grid>>;
 using AtomicBool = B<bt::atomic_memory_block>;
-using FPEngine = BlockAsynchronousFixpointGPU;
+using FPEngine = FixpointSubsetGPU<BlockAsynchronousFixpointGPU, bt::global_allocator, BLOCK_SIZE>;
 
 // Version for non-Linux systems such as Windows where pinned memory must be used (see PR #19).
 #ifdef NO_CONCURRENT_MANAGED_MEMORY
@@ -259,6 +261,8 @@ public:
       snapshot_root = bt::make_shared<snapshot_type, bt::global_allocator>(root->search_tree->template snapshot<bt::global_allocator>());
     }
     block.sync();
+    fp_engine->init(root->ipc->num_deductions());
+    block.sync();
   }
 
   __device__ void deallocate_shared() {
@@ -346,6 +350,7 @@ __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data) {
   using BlockCP = typename S::BlockCP;
   bool is_leaf_node = false;
   BlockCP& cp = *block_data.root;
+  auto group = cooperative_groups::this_thread_block();
   auto& fp_engine = *block_data.fp_engine;
 #ifdef TURBO_PROFILE_MODE
   cuda::std::chrono::system_clock::time_point start;
@@ -356,9 +361,17 @@ __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data) {
 #endif
   auto& ipc = *cp.ipc;
   size_t iterations = fp_engine.fixpoint(
-    ipc.num_deductions(),
     [&](size_t i) { return ipc.deduce(i); },
     [&](){ return ipc.is_bot(); });
+  if(!ipc.is_bot()) {
+    fp_engine.select([&](size_t i) { return !ipc.ask(i); });
+    if(fp_engine.num_active() == 0) {
+      is_leaf_node = cp.store->template is_extractable<AtomicExtraction>(group);
+    }
+  }
+  else {
+    is_leaf_node = true;
+  }
   if(threadIdx.x == 0) {
 #ifdef TURBO_PROFILE_MODE
     auto end = cuda::std::chrono::system_clock::now();
@@ -368,11 +381,9 @@ __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data) {
     cp.stats.fixpoint_iterations += iterations;
     bool is_pruned = cp.on_node();
     if(ipc.is_bot()) {
-      is_leaf_node = true;
       cp.on_failed_node();
     }
-    else if(cp.search_tree->template is_extractable<AtomicExtraction>()) {
-      is_leaf_node = true;
+    else if(is_leaf_node) { // is_leaf_node is set to true above.
       if(cp.bab->is_satisfaction() || cp.bab->compare_bound(*cp.store, cp.bab->optimum())) {
         cp.bab->deduce();
         bool best_has_changed = update_grid_best_bound(block_data, grid_data);
@@ -390,6 +401,9 @@ __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data) {
     diff = end2 - end;
     cp.stats.search_time += diff.count();
 #endif
+  }
+  if(is_leaf_node) {
+    fp_engine.reset(cp.ipc->num_deductions());
   }
   return is_leaf_node;
 }
@@ -563,7 +577,7 @@ MemoryConfig configure_memory(CP<U>& root) {
 
   MemoryConfig mem_config;
   // Need a bit of shared memory for the fixpoint engine.
-  mem_config.shared_bytes = 100;
+  mem_config.shared_bytes = sizeof(FPEngine)+100;
   mem_config.store_bytes = sizeof_store<S>(root2) + store_alignment;
   // We add 20% extra memory due to the alignment of the shared memory which is not taken into account in the statistics.
   // From limited experiments, alignment overhead is usually around 10%.
@@ -645,7 +659,7 @@ void transfer_memory_and_run(CP<U>& root, MemoryConfig mem_config, const Timepoi
   std::thread consumer_thread(consume_kernel_solutions<S>, std::ref(*grid_data));
   gpu_solve_kernel
     <<<static_cast<unsigned int>(grid_data->root.config.or_nodes),
-      static_cast<unsigned int>(grid_data->root.config.and_nodes),
+      BLOCK_SIZE,
       grid_data->mem_config.shared_bytes>>>
     (grid_data.get());
   bool interrupted = wait_solving_ends(*grid_data, start);
