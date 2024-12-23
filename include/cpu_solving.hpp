@@ -6,7 +6,7 @@
 #include "common_solving.hpp"
 
 void cpu_solve(const Configuration<battery::standard_allocator>& config) {
-  auto start = std::chrono::high_resolution_clock::now();
+  auto start = std::chrono::steady_clock::now();
 
   CP<Itv> cp(config);
   cp.preprocess();
@@ -16,7 +16,9 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
   block_signal_ctrlc();
   while(!must_quit() && check_timeout(cp, start) && has_changed) {
     has_changed = false;
+    auto start2 = cp.stats.start_timer_host();
     cp.stats.fixpoint_iterations += fp_engine.fixpoint([&](size_t i) { return cp.ipc->deduce(i); });
+    start2 = cp.stats.stop_timer(Timer::FIXPOINT, start2);
     bool must_prune = cp.on_node();
     if(cp.ipc->is_bot()) {
       cp.on_failed_node();
@@ -24,6 +26,7 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
     }
     else {
       fp_engine.select([&](size_t i) { return !cp.ipc->ask(i); });
+      cp.stats.stop_timer(Timer::SELECT_FP_FUNCTIONS, start2);
       if(fp_engine.num_active() == 0 && cp.store->template is_extractable<AtomicExtraction>()) {
         has_changed |= cp.bab->deduce();
         must_prune |= cp.on_solution_node();
@@ -31,6 +34,7 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
       }
     }
     has_changed |= cp.search_tree->deduce();
+    cp.stats.stop_timer(Timer::SEARCH, start2);
     if(must_prune) { break; }
   }
   cp.print_final_solution();

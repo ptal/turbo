@@ -99,12 +99,11 @@ bool must_quit() {
  */
 template <class A, class Timepoint>
 bool check_timeout(A& a, const Timepoint& start) {
-  auto now = std::chrono::high_resolution_clock::now();
-  a.stats.duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
+  a.stats.update_timer(Timer::OVERALL, start);
   if(a.config.timeout_ms == 0) {
     return true;
   }
-  if(a.stats.duration >= static_cast<int64_t>(a.config.timeout_ms)) {
+  if(a.stats.time_ms_of(Timer::OVERALL) >= static_cast<int64_t>(a.config.timeout_ms)) {
     if(a.config.verbose_solving) {
       printf("%% CPU: Timeout reached.\n");
     }
@@ -281,7 +280,7 @@ struct AbstractDomains {
   SolverOutput<BasicAllocator> solver_output;
 
   Configuration<BasicAllocator> config;
-  Statistics stats;
+  Statistics<BasicAllocator> stats;
 
   CUDA void allocate(int num_vars) {
     env = VarEnv<basic_allocator_type>{basic_allocator};
@@ -422,8 +421,6 @@ public:
   using FormulaPtr = battery::shared_ptr<TFormula<basic_allocator_type>, basic_allocator_type>;
 
   FormulaPtr prepare_solver() {
-    auto start = std::chrono::high_resolution_clock::now();
-
     // I. Parse the FlatZinc model.
     FormulaPtr f;
     if(config.input_format() == InputFormat::FLATZINC) {
@@ -456,15 +453,12 @@ public:
     *f = normalize(ternarize(*f));
     allocate(num_quantified_vars(*f));
     type_and_interpret(*f);
-
-    auto interpretation_time = std::chrono::high_resolution_clock::now();
-    stats.interpretation_duration += std::chrono::duration_cast<std::chrono::milliseconds>(interpretation_time - start).count();
     return f;
   }
 
   void preprocess() {
+    auto start = stats.start_timer_host();
     auto raw_formula = prepare_solver();
-    auto start = std::chrono::high_resolution_clock::now();
     if(prepare_simplifier(*raw_formula)) {
       GaussSeidelIteration fp_engine;
       fp_engine.fixpoint(ipc->num_deductions(), [&](size_t i) { return ipc->deduce(i); });
@@ -495,8 +489,8 @@ public:
       allocate(num_quantified_vars(f));
       type_and_interpret(f);
     }
-    auto interpretation_time = std::chrono::high_resolution_clock::now();
-    stats.interpretation_duration += std::chrono::duration_cast<std::chrono::milliseconds>(interpretation_time - start).count();
+    stats.stop_timer(Timer::PREPROCESSING, start);
+    stats.print_timing_stat("preprocessing_time", Timer::PREPROCESSING);
   }
 
 private:
@@ -588,7 +582,7 @@ public:
   CUDA void print_mzn_statistics() {
     if(config.print_statistics) {
       config.print_mzn_statistics();
-      stats.print_mzn_statistics();
+      stats.print_mzn_statistics(config.or_nodes);
       if(!bab->objective_var().is_untyped() && !best->is_top()) {
         stats.print_mzn_objective(best->project(bab->objective_var()), bab->is_minimization());
       }

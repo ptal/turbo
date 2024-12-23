@@ -14,8 +14,6 @@ namespace bt = ::battery;
 #include <cuda/std/chrono>
 #include <cuda/semaphore>
 
-#define BLOCK_SIZE 256
-
 template <
   class Universe0, // Universe used locally to one thread.
   class Universe1, // Universe used in the scope of a block.
@@ -42,10 +40,10 @@ struct StateTypes {
 };
 
 using Itv0 = Interval<ZLB<int, bt::local_memory>>;
-using Itv1 = Interval<ZLB<int, bt::atomic_memory_block>>;
+using Itv1 = Interval<ZLB<int, bt::local_memory/* bt::atomic_memory_block */>>;
 using Itv2 = Interval<ZLB<int, bt::atomic_memory_grid>>;
 using AtomicBool = B<bt::atomic_memory_block>;
-using FPEngine = FixpointSubsetGPU<BlockAsynchronousFixpointGPU, bt::global_allocator, BLOCK_SIZE>;
+using FPEngine = FixpointSubsetGPU<BlockAsynchronousFixpointGPU, bt::global_allocator, CUDA_THREADS_PER_BLOCK>;
 
 // Version for non-Linux systems such as Windows where pinned memory must be used (see PR #19).
 #ifdef NO_CONCURRENT_MANAGED_MEMORY
@@ -273,7 +271,7 @@ public:
       root->deallocate();
       snapshot_root.reset();
     }
-    cooperative_groups::this_thread_block().sync();
+    __syncthreads();
   }
 
   __device__ void restore() {
@@ -281,7 +279,7 @@ public:
       root->search_tree->restore(*snapshot_root);
       root->eps_split->reset();
     }
-    cooperative_groups::this_thread_block().sync();
+    __syncthreads();
   }
 };
 
@@ -352,19 +350,15 @@ __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data) {
   BlockCP& cp = *block_data.root;
   auto group = cooperative_groups::this_thread_block();
   auto& fp_engine = *block_data.fp_engine;
-#ifdef TURBO_PROFILE_MODE
-  cuda::std::chrono::system_clock::time_point start;
-  if(threadIdx.x == 0) {
-    start = cuda::std::chrono::system_clock::now();
-  }
-  fp_engine.barrier();
-#endif
   auto& ipc = *cp.ipc;
+  auto start = cp.stats.start_timer_device();
   size_t iterations = fp_engine.fixpoint(
     [&](size_t i) { return ipc.deduce(i); },
     [&](){ return ipc.is_bot(); });
+  start = cp.stats.stop_timer(Timer::FIXPOINT, start);
   if(!ipc.is_bot()) {
     fp_engine.select([&](size_t i) { return !ipc.ask(i); });
+    start = cp.stats.stop_timer(Timer::SELECT_FP_FUNCTIONS, start);
     if(fp_engine.num_active() == 0) {
       is_leaf_node = cp.store->template is_extractable<AtomicExtraction>(group);
     }
@@ -373,11 +367,6 @@ __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data) {
     is_leaf_node = true;
   }
   if(threadIdx.x == 0) {
-#ifdef TURBO_PROFILE_MODE
-    auto end = cuda::std::chrono::system_clock::now();
-    cuda::std::chrono::duration<double> diff = end - start;
-    cp.stats.propagation_time += diff.count();
-#endif
     cp.stats.fixpoint_iterations += iterations;
     bool is_pruned = cp.on_node();
     if(ipc.is_bot()) {
@@ -396,11 +385,7 @@ __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data) {
     if(is_pruned) {
       grid_data.gpu_stop->join(true);
     }
-#ifdef TURBO_PROFILE_MODE
-    auto end2 = cuda::std::chrono::system_clock::now();
-    diff = end2 - end;
-    cp.stats.search_time += diff.count();
-#endif
+    cp.stats.stop_timer(Timer::SEARCH, start);
   }
   if(is_leaf_node) {
     fp_engine.reset(cp.ipc->num_deductions());
@@ -434,10 +419,12 @@ __device__ size_t dive(BlockData<S>& block_data, GridData<S>& grid_data) {
     else {
       remaining_depth--;
       if(threadIdx.x == 0) {
+        auto start = cp.stats.start_timer_device();
         size_t branch_idx = (block_data.subproblem_idx & (size_t{1} << remaining_depth)) >> remaining_depth;
         auto branches = cp.eps_split->split();
         assert(branches.size() == 2);
         cp.ipc->deduce(branches[branch_idx]);
+        cp.stats.stop_timer(Timer::SEARCH, start);
       }
     }
     fp_engine.barrier();
@@ -455,18 +442,22 @@ __device__ void solve_problem(BlockData<S>& block_data, GridData<S>& grid_data) 
   block_has_changed.join(true);
   stop.meet(false);
   fp_engine.barrier();
+  auto start = cp.stats.start_timer_device();
   // In the condition, we must only read variables that are local to this block.
   // Otherwise, two threads might read different values if it is changed in between by another block.
   while(block_has_changed && !stop) {
     update_block_best_bound(block_data, grid_data);
+    cp.stats.stop_timer(Timer::SEARCH, start);
     propagate(block_data, grid_data);
     if(threadIdx.x == 0) {
+      start = cp.stats.start_timer_device();
       stop.join(grid_data.cpu_stop || *(grid_data.gpu_stop));
       // propagate induces a memory fence, therefore all threads are already past the "while" condition.
       block_has_changed.meet(cp.search_tree->deduce());
     }
     fp_engine.barrier();
   }
+  cp.stats.stop_timer(Timer::SEARCH, start);
 }
 
 template <class S>
@@ -488,6 +479,7 @@ __global__ void gpu_solve_kernel(GridData<S>* grid_data)
   size_t num_subproblems = grid_data->root.stats.eps_num_subproblems;
   BlockData<S>& block_data = grid_data->blocks[blockIdx.x];
   block_data.allocate(*grid_data, shared_mem);
+  auto solve_start = block_data.root->stats.start_timer_device();
   while(block_data.subproblem_idx < num_subproblems && !*(block_data.stop)) {
     if(threadIdx.x == 0 && grid_data->root.config.verbose_solving) {
       grid_data->print_lock->acquire();
@@ -495,8 +487,10 @@ __global__ void gpu_solve_kernel(GridData<S>* grid_data)
       grid_data->print_lock->release();
     }
     block_data.restore();
-    cooperative_groups::this_thread_block().sync();
+    __syncthreads();
+    auto dive_start = block_data.root->stats.start_timer_device();
     size_t remaining_depth = dive(block_data, *grid_data);
+    block_data.root->stats.stop_timer(Timer::DIVE, dive_start);
     if(remaining_depth == 0) {
       solve_problem(block_data, *grid_data);
       if(threadIdx.x == 0 && !*(block_data.stop)) {
@@ -518,9 +512,10 @@ __global__ void gpu_solve_kernel(GridData<S>* grid_data)
       block_data.subproblem_idx = grid_data->next_subproblem->value();
       grid_data->next_subproblem->meet(ZLB<size_t, bt::local_memory>(block_data.subproblem_idx + size_t{1}));
     }
-    cooperative_groups::this_thread_block().sync();
+    __syncthreads();
   }
-  cooperative_groups::this_thread_block().sync();
+  __syncthreads();
+  block_data.root->stats.stop_timer(Timer::SOLVE, solve_start);
   if(threadIdx.x == 0 && !*(block_data.stop)) {
     block_data.root->stats.num_blocks_done = 1;
   }
@@ -650,7 +645,7 @@ void consume_kernel_solutions(GridData<S>& grid_data) {
 template <class S, class U, class Timepoint>
 void transfer_memory_and_run(CP<U>& root, MemoryConfig mem_config, const Timepoint& start) {
   using concurrent_allocator = typename S::concurrent_allocator;
-  auto grid_data = bt::make_shared<GridData<S>, concurrent_allocator>(std::move(root), mem_config);
+  auto grid_data = bt::make_shared<GridData<S>, concurrent_allocator>(root, mem_config);
   initialize_grid_data<<<1,1>>>(grid_data.get());
   CUDAEX(cudaDeviceSynchronize());
   if(grid_data->root.config.print_statistics) {
@@ -659,7 +654,7 @@ void transfer_memory_and_run(CP<U>& root, MemoryConfig mem_config, const Timepoi
   std::thread consumer_thread(consume_kernel_solutions<S>, std::ref(*grid_data));
   gpu_solve_kernel
     <<<static_cast<unsigned int>(grid_data->root.config.or_nodes),
-      BLOCK_SIZE,
+      CUDA_THREADS_PER_BLOCK,
       grid_data->mem_config.shared_bytes>>>
     (grid_data.get());
   bool interrupted = wait_solving_ends(*grid_data, start);
@@ -698,14 +693,6 @@ void configure_blocks_threads(CP<U>& root, const MemoryConfig& mem_config) {
 
   auto& config = root.config;
   config.or_nodes = (config.or_nodes == 0) ? hint_num_blocks : config.or_nodes;
-  config.and_nodes = (config.and_nodes == 0) ? hint_num_threads : config.and_nodes;
-
-  if(config.and_nodes > deviceProp.maxThreadsPerBlock) {
-    if(config.verbose_solving) {
-      printf("%% WARNING: -and %zu too high for this GPU, we use the maximum %d instead.", config.and_nodes, deviceProp.maxThreadsPerBlock);
-    }
-    config.and_nodes = deviceProp.maxThreadsPerBlock;
-  }
 
   // The stack allocated depends on the maximum number of threads per SM, not on the actual number of threads per block.
   size_t total_stack_size = num_sm * deviceProp.maxThreadsPerMultiProcessor * config.stack_kb * 1000;
@@ -726,7 +713,6 @@ void configure_blocks_threads(CP<U>& root, const MemoryConfig& mem_config) {
     print_memory_statistics("stack_memory", total_stack_size);
     print_memory_statistics("heap_memory", remaining_global_mem);
     print_memory_statistics("heap_usage_estimation", heap_usage_estimation);
-    printf("%% and_nodes=%zu\n", config.and_nodes);
     printf("%% or_nodes=%zu\n", config.or_nodes);
   }
 }
@@ -781,7 +767,7 @@ void gpu_dive_and_solve(Configuration<bt::standard_allocator>& config) {
 #else
   check_support_unified_memory();
   check_support_concurrent_managed_memory();
-  auto start = std::chrono::high_resolution_clock::now();
+  auto start = std::chrono::steady_clock::now();
   CP<Itv> root(config);
   root.preprocess();
   block_signal_ctrlc();

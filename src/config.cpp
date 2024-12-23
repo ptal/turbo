@@ -22,7 +22,6 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-p 48: On CPU, run with 48 parallel threads. On GPU, equivalent to `-or 48`." << std::endl;
   std::cout << "\t-arch <cpu|gpu|hybrid>: Choose the architecture on which the problem will be solved." << std::endl;
   std::cout << "\t-or 48: Run the subproblems on 48 streaming multiprocessors (SMs) (only for GPU architecture). Default: -or 0 for automatic selection of the number of SMs." << std::endl;
-  std::cout << "\t-and 256: Run each subproblem with 256 threads per block (only for GPU architecture). Default: -and 0 for automatic selection of the number of threads per block." << std::endl;
   std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the 'OR threads' (embarrasingly parallel search). Default: -sub 10." << std::endl;
   std::cout << "\t-stack 100: Use a maximum of 100KB of stack size per thread stored in global memory (only for GPU architectures)." << std::endl;
   std::cout << "\t-version 1.0.0: A version identifier that is printed as statistics to know which version of Turbo was used to solve an instance. It is only for documentation and replicability purposes." << std::endl;
@@ -117,7 +116,6 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
   }
   input.read_size_t("-p", config.or_nodes);
   input.read_size_t("-or", config.or_nodes);
-  input.read_size_t("-and", config.and_nodes);
   input.read_size_t("-sub", config.subproblems_power);
   input.read_size_t("-t", config.timeout_ms);
   input.read_size_t("-timeout", config.timeout_ms);

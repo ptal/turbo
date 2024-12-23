@@ -39,7 +39,6 @@ struct Configuration {
   bool noatomics;
   size_t timeout_ms;
   size_t or_nodes;
-  size_t and_nodes; // (only for GPU)
   size_t subproblems_power;
   size_t stack_kb;
   Arch arch;
@@ -58,7 +57,6 @@ struct Configuration {
     only_global_memory(false),
     noatomics(false),
     timeout_ms(0),
-    and_nodes(0),
     or_nodes(0),
     subproblems_power(SUBPROBLEMS_POWER),
     stack_kb(STACK_KB),
@@ -90,7 +88,6 @@ struct Configuration {
     noatomics(other.noatomics),
     timeout_ms(other.timeout_ms),
     or_nodes(other.or_nodes),
-    and_nodes(other.and_nodes),
     subproblems_power(other.subproblems_power),
     stack_kb(other.stack_kb),
     arch(other.arch),
@@ -111,7 +108,6 @@ struct Configuration {
     only_global_memory = other.only_global_memory;
     noatomics = other.noatomics;
     timeout_ms = other.timeout_ms;
-    and_nodes = other.and_nodes;
     or_nodes = other.or_nodes;
     subproblems_power = other.subproblems_power;
     stack_kb = other.stack_kb;
@@ -134,13 +130,13 @@ struct Configuration {
       (print_ast ? "-ast " : "")
     );
     if(arch == Arch::GPU) {
-      printf("-arch gpu -or %" PRIu64 " -and %" PRIu64 " -sub %" PRIu64 " -stack %" PRIu64 " ", or_nodes, and_nodes, subproblems_power, stack_kb);
+      printf("-arch gpu -or %" PRIu64 " -sub %" PRIu64 " -stack %" PRIu64 " ", or_nodes, subproblems_power, stack_kb);
       printf("%s%s",
         (only_global_memory ? "-globalmem " : ""),
         (noatomics ? "-noatomics " : ""));
     }
     else if(arch == Arch::HYBRID) {
-      printf("-arch hybrid -or %" PRIu64 " -and %" PRIu64 " ", or_nodes, and_nodes);
+      printf("-arch hybrid -or %" PRIu64 " ", or_nodes);
     }
     else {
       printf("-arch cpu -p %" PRIu64 " ", or_nodes);
@@ -179,7 +175,7 @@ struct Configuration {
     printf("%%%%%%mzn-stat: or_nodes=%" PRIu64 "\n", or_nodes);
     printf("%%%%%%mzn-stat: timeout_ms=%" PRIu64 "\n", timeout_ms);
     if(arch != Arch::CPU) {
-      printf("%%%%%%mzn-stat: and_nodes=%" PRIu64 "\n", and_nodes);
+      printf("%%%%%%mzn-stat: threads_per_block=%d\n", CUDA_THREADS_PER_BLOCK);
       printf("%%%%%%mzn-stat: stack_size=%" PRIu64 "\n", stack_kb * 1000);
       #ifdef CUDA_VERSION
         printf("%%%%%%mzn-stat: cuda_version=%d\n", CUDA_VERSION);

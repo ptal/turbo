@@ -95,6 +95,8 @@ struct GPUCube {
    */
   size_t fp_iterations;
 
+  TimingStatistics<bt::managed_allocator> timers;
+
   /** The CPU thread and the GPU block use those two flags to signal to each other when to work and when to wait.
    * This is necessary due to the persistent kernel design of this algorithm.
    */
@@ -251,7 +253,7 @@ void hybrid_dive_and_solve(const Configuration<battery::standard_allocator>& con
 #ifndef __CUDACC__
   std::cerr << "You must use a CUDA compiler (nvcc or clang) to compile Turbo on GPU." << std::endl;
 #else
-  auto start = std::chrono::high_resolution_clock::now();
+  auto start = std::chrono::steady_clock::now();
   /** We start with some preprocessing to reduce the number of variables and constraints. */
   CP<Itv> cp(config);
   cp.preprocess();
@@ -314,9 +316,10 @@ void hybrid_dive_and_solve(const Configuration<battery::standard_allocator>& con
 */
 void dive_and_solve(CPUData& global, size_t cube_idx)
 {
+  auto& cube = global.cpu_cubes[cube_idx].cube;
+  auto solving_start = cube.stats.start_timer_host();
   size_t num_subproblems = global.root.stats.eps_num_subproblems;
   size_t& subproblem_idx = global.cpu_cubes[cube_idx].subproblem_idx;
-  auto& cube = global.cpu_cubes[cube_idx].cube;
   /** In each iteration, we will solve one subproblem obtained after a diving phase. */
   while(subproblem_idx < num_subproblems && !global.cpu_stop.test()) {
     if(global.root.config.verbose_solving) {
@@ -324,7 +327,9 @@ void dive_and_solve(CPUData& global, size_t cube_idx)
       printf("%% Cube %zu solves subproblem num %zu\n", cube_idx, subproblem_idx);
     }
     /** The first step is to "dive" by committing to a search path. */
+    auto dive_start = cube.stats.start_timer_host();
     size_t remaining_depth = dive(global, cube_idx);
+    cube.stats.stop_timer(Timer::DIVE, dive_start);
     /** If we reached the subproblem without reaching a leaf node, we start the solving phase. */
     if(remaining_depth == 0) {
       solve(global, cube_idx);
@@ -366,8 +371,10 @@ void dive_and_solve(CPUData& global, size_t cube_idx)
       // subproblem_idx = global.next_subproblem.value();
       // global.next_subproblem.meet(ZLB<size_t, bt::local_memory>(subproblem_idx + size_t{1}));
       if(subproblem_idx < num_subproblems) {
+        auto start = cube.stats.start_timer_host();
         cube.search_tree->restore(global.cpu_cubes[cube_idx].root_snapshot);
         cube.eps_split->reset();
+        cube.stats.stop_timer(Timer::SEARCH, start);
       }
     }
   }
@@ -385,6 +392,7 @@ void dive_and_solve(CPUData& global, size_t cube_idx)
   global.gpu_cubes[cube_idx].ready_to_propagate.test_and_set(cuda::std::memory_order_seq_cst);
   global.gpu_cubes[cube_idx].ready_to_propagate.notify_one();
 
+  cube.stats.stop_timer(Timer::SOLVE, solving_start);
   /** We signal to the main thread that we have finished our work. */
   global.cpu_cubes[cube_idx].finished.test_and_set();
 }
@@ -404,6 +412,7 @@ size_t dive(CPUData& global, size_t cube_idx) {
   /** The number of iterations depends on the length of the diving path. */
   while(remaining_depth > 0 && !stop_diving && !global.cpu_stop.test()) {
     bool is_leaf_node = propagate(global, cube_idx);
+    auto start = cube.stats.start_timer_host();
     /** If we reach a leaf node before the end of the path, we stop and the remaining depth is reported to the caller. */
     if(is_leaf_node) {
       stop_diving = true;
@@ -424,6 +433,7 @@ size_t dive(CPUData& global, size_t cube_idx) {
        */
       cube.ipc->deduce(branches[branch_idx]);
     }
+    cube.stats.stop_timer(Timer::SEARCH, start);
   }
   return remaining_depth;
 }
@@ -434,14 +444,17 @@ size_t dive(CPUData& global, size_t cube_idx) {
 void solve(CPUData& global, size_t cube_idx) {
   auto& cpu_cube = global.cpu_cubes[cube_idx].cube;
   bool has_changed = true;
+  auto start = cpu_cube.stats.start_timer_host();
   while(has_changed && !global.cpu_stop.test()) {
     /** Before propagating, we update the local bound with the best known global bound. */
     update_local_best_bound(global, cube_idx);
+    cpu_cube.stats.stop_timer(Timer::SEARCH, start);
     /** We propagate on GPU, and manage the leaf nodes (solution and failed nodes). */
     propagate(global, cube_idx);
     /** We pop a new node from the search tree, ready to explore.
      * If the search tree becomes empty, `has_changed` will be `false`.
      */
+    start = cpu_cube.stats.start_timer_host();
     has_changed = cpu_cube.search_tree->deduce();
   }
 }
@@ -468,6 +481,7 @@ bool propagate(CPUData& global, size_t cube_idx) {
   gpu_cube.ready_to_search.wait(false, cuda::std::memory_order_seq_cst);
   gpu_cube.ready_to_search.clear();
 
+  auto start = cpu_cube.stats.start_timer_host();
   gpu_cube.store_cpu->prefetch(cudaCpuDeviceId);
 
   /** `on_node` updates the statistics and verifies whether we should stop (e.g. option `--cutnodes`). */
@@ -508,6 +522,7 @@ bool propagate(CPUData& global, size_t cube_idx) {
     /** We notify all threads that we must stop. */
     global.cpu_stop.test_and_set();
   }
+  cpu_cube.stats.stop_timer(Timer::SEARCH, start);
   return is_leaf_node;
 }
 
@@ -542,10 +557,12 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
   auto group = cooperative_groups::this_thread_block();
   __syncthreads();
 
+  auto start = cube.timers.start_timer_device();
   while(true) {
     /** We wait that the CPU notifies us the store is ready to be copied and propagated. */
     if(threadIdx.x == 0) {
       cube.ready_to_propagate.wait(false, cuda::std::memory_order_seq_cst);
+      cube.timers.stop_timer(Timer::WAIT_CPU, start);
       cube.ready_to_propagate.clear();
       // NOTE: Only one thread should read the atomic `cube.stop`, to avoid deadlock if one thread reads `true` and exits, while another thread reads `false`.
       stop = cube.stop.test();
@@ -555,19 +572,25 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
       break;
     }
     /** We copy the CPU store into the GPU memory. */
+    start = cube.timers.start_timer_device();
     cube.store_cpu->copy_to(group, *cube.store_gpu);
     __syncthreads();
+    start = cube.timers.stop_timer(Timer::TRANSFER_CPU2GPU, start);
     /** This is the main propagation algorithm: the current node is propagated in parallel. */
     size_t fp_iterations = fp_engine.fixpoint(
       [&](size_t i){ return ipc.deduce(i); },
       [&](){ return ipc.is_bot(); });
+    start = cube.timers.stop_timer(Timer::FIXPOINT, start);
     cube.store_gpu->copy_to(group, *cube.store_cpu);
+    __syncthreads();
+    start = cube.timers.stop_timer(Timer::TRANSFER_GPU2CPU, start);
     if(threadIdx.x == 0) {
       cube.fp_iterations += fp_iterations;
     }
     bool is_leaf_node = cube.store_gpu->is_bot();
     if(!is_leaf_node) {
       fp_engine.select([&](size_t i) { return !ipc.ask(i); });
+      cube.timers.stop_timer(Timer::SELECT_FP_FUNCTIONS, start);
       if(fp_engine.num_active() == 0) {
         is_leaf_node = cube.store_gpu->template is_extractable<AtomicExtraction>(group);
         if(threadIdx.x == 0 && is_leaf_node) {
@@ -632,6 +655,7 @@ void update_local_best_bound(CPUData& global, size_t cube_idx) {
 void reduce_cubes(CPUData& global) {
   for(int i = 0; i < global.cpu_cubes.size(); ++i) {
     /** `meet` is the merge operation. */
+    global.cpu_cubes[i].cube.stats.meet(global.gpu_cubes[i].timers);
     global.root.meet(global.cpu_cubes[i].cube);
     global.root.stats.fixpoint_iterations += global.gpu_cubes[i].fp_iterations;
   }
@@ -664,7 +688,6 @@ size_t configure_gpu(CP<Itv>& cp) {
   CUDAE(cudaOccupancyMaxPotentialBlockSize(&hint_num_blocks, &hint_num_threads, (void*) gpu_propagate, shared_mem_bytes));
   size_t total_global_mem = deviceProp.totalGlobalMem;
   size_t num_sm = deviceProp.multiProcessorCount;
-  config.and_nodes = (config.and_nodes == 0) ? hint_num_threads : config.and_nodes;
   config.or_nodes = (config.or_nodes == 0) ? hint_num_blocks : config.or_nodes;
   // The stack allocated depends on the maximum number of threads per SM, not on the actual number of threads per block.
   size_t total_stack_size = num_sm * deviceProp.maxThreadsPerMultiProcessor * config.stack_kb * 1000;
@@ -674,10 +697,9 @@ size_t configure_gpu(CP<Itv>& cp) {
   CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, remaining_global_mem));
   print_memory_statistics("stack_memory", total_stack_size);
   print_memory_statistics("heap_memory", remaining_global_mem);
-  printf("%% and_nodes=%zu\n", config.and_nodes);
   printf("%% or_nodes=%zu\n", config.or_nodes);
   int num_blocks;
-  cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, (void*) gpu_propagate, config.and_nodes, shared_mem_bytes);
+  cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, (void*) gpu_propagate, CUDA_THREADS_PER_BLOCK, shared_mem_bytes);
   printf("%% max_blocks_per_sm=%d\n", num_blocks);
   return shared_mem_bytes;
 }
