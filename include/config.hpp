@@ -36,7 +36,7 @@ struct Configuration {
   bool verbose_solving;
   bool print_ast;
   bool only_global_memory;
-  bool noatomics;
+  bool simplify;
   size_t timeout_ms;
   size_t or_nodes;
   size_t subproblems_power;
@@ -55,7 +55,7 @@ struct Configuration {
     print_ast(false),
     print_statistics(false),
     only_global_memory(false),
-    noatomics(false),
+    simplify(false),
     timeout_ms(0),
     or_nodes(0),
     subproblems_power(SUBPROBLEMS_POWER),
@@ -85,7 +85,7 @@ struct Configuration {
     verbose_solving(other.verbose_solving),
     print_ast(other.print_ast),
     only_global_memory(other.only_global_memory),
-    noatomics(other.noatomics),
+    simplify(other.simplify),
     timeout_ms(other.timeout_ms),
     or_nodes(other.or_nodes),
     subproblems_power(other.subproblems_power),
@@ -106,7 +106,7 @@ struct Configuration {
     print_ast = other.print_ast;
     print_statistics = other.print_statistics;
     only_global_memory = other.only_global_memory;
-    noatomics = other.noatomics;
+    simplify = other.simplify;
     timeout_ms = other.timeout_ms;
     or_nodes = other.or_nodes;
     subproblems_power = other.subproblems_power;
@@ -131,9 +131,8 @@ struct Configuration {
     );
     if(arch == Arch::GPU) {
       printf("-arch gpu -or %" PRIu64 " -sub %" PRIu64 " -stack %" PRIu64 " ", or_nodes, subproblems_power, stack_kb);
-      printf("%s%s",
-        (only_global_memory ? "-globalmem " : ""),
-        (noatomics ? "-noatomics " : ""));
+      if(only_global_memory) { printf("-globalmem "); }
+      if(simplify) { printf("-simplify "); }
     }
     else if(arch == Arch::HYBRID) {
       printf("-arch hybrid -or %" PRIu64 " ", or_nodes);

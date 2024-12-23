@@ -23,13 +23,13 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-arch <cpu|gpu|hybrid>: Choose the architecture on which the problem will be solved." << std::endl;
   std::cout << "\t-or 48: Run the subproblems on 48 streaming multiprocessors (SMs) (only for GPU architecture). Default: -or 0 for automatic selection of the number of SMs." << std::endl;
   std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the 'OR threads' (embarrasingly parallel search). Default: -sub 10." << std::endl;
+  std::cout << "\t-simplify: Simplify the formula in the preprocessing step to eliminate variables and constraints (deactivated by default because it might conflict with the ternary normal form)." << std::endl;
   std::cout << "\t-stack 100: Use a maximum of 100KB of stack size per thread stored in global memory (only for GPU architectures)." << std::endl;
   std::cout << "\t-version 1.0.0: A version identifier that is printed as statistics to know which version of Turbo was used to solve an instance. It is only for documentation and replicability purposes." << std::endl;
   std::cout << "\t-hardware \"Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000\": The description of the hardware on which the solver is executed (\"CPU;RAM;GPU\"). It is only for documentation and replicability purposes." << std::endl;
   std::cout << "\t-cutnodes 1000: Stop the solver when 1000 nodes have been explored in a subproblem (0 for no limit)." << std::endl;
   // These are hidden options that should only be used to benchmark GPU cards.
-  // std::cout << "\t-globalmem: Store all data abstract elements in the global memory and do not try to optimise using shared memory." << std::endl;
-  // std::cout << "\t-noatomics: Do not use atomics to store the domain of variables, this is theoretically unsafe (according to the CUDA memory consistency model)." << std::endl;
+  std::cout << "\t-globalmem: Store all data abstract elements in the global memory and do not try to optimise using shared memory." << std::endl;
   exit(EXIT_FAILURE);
 }
 
@@ -134,7 +134,7 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
   input.read_bool("-ast", config.print_ast);
   input.read_bool("-s", config.print_statistics);
   input.read_bool("-globalmem", config.only_global_memory);
-  input.read_bool("-noatomics", config.noatomics);
+  input.read_bool("-simplify", config.simplify);
 
   std::string architecture;
   if(input.read_string("-arch", architecture)) {

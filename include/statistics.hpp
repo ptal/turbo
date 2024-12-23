@@ -212,7 +212,6 @@ struct Statistics {
     return timers.time_ms_of(timer);
   }
 
-private:
   CUDA void print_stat(const char* name, size_t value) const {
     printf("%%%%%%mzn-stat: %s=%" PRIu64 "\n", name, value);
   }
@@ -221,6 +220,7 @@ private:
     printf("%%%%%%mzn-stat: %s=%lf\n", name, value);
   }
 
+private:
   CUDA double to_sec(int64_t dur) const {
     return (static_cast<double>(dur / 1000 / 1000) / 1000.);
   }

@@ -449,9 +449,14 @@ public:
     if(config.verbose_solving) {
       printf("%% Formula syntactically simplified.\n");
     }
-
+    stats.print_stat("parsed_variables", num_quantified_vars(*f));
+    stats.print_stat("parsed_constraints", num_constraints(*f));
     *f = normalize(ternarize(*f));
-    allocate(num_quantified_vars(*f));
+    size_t num_vars = num_quantified_vars(*f);
+    /** TNF = ternary normal form (apply normalize and ternarize functions). */
+    stats.print_stat("tnf_variables", num_vars);
+    stats.print_stat("tnf_constraints", num_constraints(*f));
+    allocate(num_vars);
     type_and_interpret(*f);
     return f;
   }
@@ -462,32 +467,37 @@ public:
     if(prepare_simplifier(*raw_formula)) {
       GaussSeidelIteration fp_engine;
       fp_engine.fixpoint(ipc->num_deductions(), [&](size_t i) { return ipc->deduce(i); });
-      fp_engine.fixpoint(simplifier->num_deductions(), [&](size_t i) { return simplifier->deduce(i); });
-      auto f = simplifier->deinterpret();
-      stats.eliminated_variables = simplifier->num_eliminated_variables();
-      stats.eliminated_formulas = simplifier->num_eliminated_formulas();
-      if(config.verbose_solving) {
-        printf("%% Formula simplified.\n");
-        printf("%% Ternarizing the formula...\n");
-      }
-      using F = TFormula<basic_allocator_type>;
-      f = ternarize(f);
-      if(config.verbose_solving) {
-        printf("%% Formula ternarized.\n");
-        if(config.print_ast) {
-          f.print(false);
+      if(config.simplify) {
+        fp_engine.fixpoint(simplifier->num_deductions(), [&](size_t i) { return simplifier->deduce(i); });
+        auto f = simplifier->deinterpret();
+        stats.eliminated_variables = simplifier->num_eliminated_variables();
+        stats.eliminated_formulas = simplifier->num_eliminated_formulas();
+        if(config.verbose_solving) {
+          printf("%% Formula simplified.\n");
+          printf("%% Ternarizing the formula...\n");
         }
-        printf("%% Normalizing the formula...\n");
-      }
-      f = normalize(f);
-      if(config.verbose_solving) {
-        printf("%% Formula normalized.\n");
-        if(config.print_ast) {
-          f.print(false);
+        using F = TFormula<basic_allocator_type>;
+        f = ternarize(f);
+        if(config.verbose_solving) {
+          printf("%% Formula ternarized.\n");
+          if(config.print_ast) {
+            f.print(false);
+          }
+          printf("%% Normalizing the formula...\n");
         }
+        f = normalize(f);
+        if(config.verbose_solving) {
+          printf("%% Formula normalized.\n");
+          if(config.print_ast) {
+            f.print(false);
+          }
+        }
+        size_t num_vars = num_quantified_vars(f);
+        stats.print_stat("simplified_tnf_vars", num_vars);
+        stats.print_stat("simplified_tnf_constraints", num_constraints(f));
+        allocate(num_vars);
+        type_and_interpret(f);
       }
-      allocate(num_quantified_vars(f));
-      type_and_interpret(f);
     }
     stats.stop_timer(Timer::PREPROCESSING, start);
     stats.print_timing_stat("preprocessing_time", Timer::PREPROCESSING);

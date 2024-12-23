@@ -40,7 +40,7 @@ struct StateTypes {
 };
 
 using Itv0 = Interval<ZLB<int, bt::local_memory>>;
-using Itv1 = Interval<ZLB<int, bt::local_memory/* bt::atomic_memory_block */>>;
+using Itv1 = Interval<ZLB<int, bt::atomic_memory_block>>;
 using Itv2 = Interval<ZLB<int, bt::atomic_memory_grid>>;
 using AtomicBool = B<bt::atomic_memory_block>;
 using FPEngine = FixpointSubsetGPU<BlockAsynchronousFixpointGPU, bt::global_allocator, CUDA_THREADS_PER_BLOCK>;
@@ -48,11 +48,9 @@ using FPEngine = FixpointSubsetGPU<BlockAsynchronousFixpointGPU, bt::global_allo
 // Version for non-Linux systems such as Windows where pinned memory must be used (see PR #19).
 #ifdef NO_CONCURRENT_MANAGED_MEMORY
   using ItvSolverPinned = StateTypes<Itv0, Itv1, Itv2, bt::pinned_allocator>;
-  using ItvSolverPinnedNoAtomics = StateTypes<Itv0, Itv0, Itv0, bt::pinned_allocator>;
 #else
-  using ItvSolver = StateTypes<Itv0, Itv1, Itv2, bt::managed_allocator>;
-  // Deactivate atomics for the domain of variables (for benchmarking only, it is not safe according to CUDA consistency model).
-  using ItvSolverNoAtomics = StateTypes<Itv0, Itv0, Itv0, bt::managed_allocator>;
+  // using ItvSolver = StateTypes<Itv0, Itv1, Itv2, bt::managed_allocator>;
+  using ItvSolver = StateTypes<Itv0, Itv0, Itv0, bt::managed_allocator>;
 #endif
 
 /** Depending on the problem, we can store the abstract elements in different memories.
@@ -772,19 +770,9 @@ void gpu_dive_and_solve(Configuration<bt::standard_allocator>& config) {
   root.preprocess();
   block_signal_ctrlc();
 #ifdef NO_CONCURRENT_MANAGED_MEMORY
-  if(root.config.noatomics) {
-    configure_and_run<ItvSolverPinnedNoAtomics>(root, start);
-  }
-  else {
-    configure_and_run<ItvSolverPinned>(root, start);
-  }
+  configure_and_run<ItvSolverPinned>(root, start);
 #else
-  if(root.config.noatomics) {
-    configure_and_run<ItvSolverNoAtomics>(root, start);
-  }
-  else {
-    configure_and_run<ItvSolver>(root, start);
-  }
+  configure_and_run<ItvSolver>(root, start);
 #endif
 #endif
 }
