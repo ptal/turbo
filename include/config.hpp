@@ -153,9 +153,9 @@ struct Configuration {
   CUDA const char* name_of_arch(Arch arch) const {
     switch(arch) {
       case Arch::CPU:
-        return "CPU";
+        return "cpu";
       case Arch::GPU:
-        return "GPU";
+        return "gpu";
       case Arch::HYBRID:
         return "hybrid";
       default:
