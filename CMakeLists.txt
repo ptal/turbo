@@ -19,11 +19,11 @@ else()
     LANGUAGES CXX)
 endif()
 option(LOCAL_DEPS "LOCAL_DEPS" OFF)
-option(TURBO_PROFILE_MODE "TURBO_PROFILE_MODE" OFF)
 option(TURBO_VERBOSE "Compile with verbose output" ON)
 option(WITH_ASAN "Compile with the Address Sanitizer to check for memory corruption errors" OFF)
 option(WITH_XCSP3PARSER "Add support for parsing XCSP3 .xml files" ON)
 option(NO_CONCURRENT_MANAGED_MEMORY "Add support for platform not supporting concurrent managed access to memory on GPUs (use pinned memory instead)." OFF)
+option(TURBO_BUILD_DOC "Build the documentation of Turbo." OFF)
 
 if(MSVC)
   set(WITH_XCSP3PARSER OFF)  # XCSP3-CPP-Parser has dependencies on gcc that break MSVC
@@ -44,19 +44,19 @@ else()
   FetchContent_Declare(
     lala_pc
     GIT_REPOSITORY "https://github.com/lattice-land/lala-pc.git"
-    GIT_TAG        v1.2.3
+    GIT_TAG        v1.2.4
   )
 
   FetchContent_Declare(
     lala_parsing
     GIT_REPOSITORY "https://github.com/lattice-land/lala-parsing.git"
-    GIT_TAG        v1.2.3
+    GIT_TAG        v1.2.4
   )
 
   FetchContent_Declare(
     lala_power
     GIT_REPOSITORY "https://github.com/lattice-land/lala-power.git"
-    GIT_TAG        v1.2.3
+    GIT_TAG        v1.2.4
   )
 endif()
 
@@ -88,9 +88,6 @@ target_compile_options(turbo PRIVATE
 target_compile_options(turbo PRIVATE "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:-lineinfo>")
 
 target_compile_definitions(turbo PRIVATE CUDA_THREADS_PER_BLOCK=256)
-if(TURBO_PROFILE_MODE)
-  target_compile_definitions(turbo PRIVATE TURBO_PROFILE_MODE)
-endif()
 
 if(WITH_XCSP3PARSER)
   target_compile_definitions(turbo PRIVATE WITH_XCSP3PARSER)
@@ -117,6 +114,7 @@ if(MSVC)
 endif()
 
 # Documentation
+if(TURBO_BUILD_DOC)
 
 find_package(Doxygen REQUIRED doxygen)
 
@@ -148,3 +146,4 @@ doxygen_add_docs(doc_turbo
                  "include/"
                  ALL
                  COMMENT "Generate HTML documentation")
+endif()

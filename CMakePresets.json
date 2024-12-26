@@ -91,20 +91,6 @@
       ]
     },
     {
-      "name": "gpu-profiling",
-      "displayName": "GPU Profile configuration",
-      "description": "Build the project in release mode with additional profiling measures.",
-      "inherits": [
-        "gpu-release"
-      ],
-      "cacheVariables": {
-        "TURBO_PROFILE_MODE": {
-          "type": "BOOL",
-          "value": "ON"
-        }
-      }
-    },
-    {
       "name": "cpu-debug",
       "displayName": "CPU Debug configuration",
       "description": "Build the project with a CPU compiler such as GCC.",
@@ -141,15 +127,6 @@
       ]
     },
     {
-      "name": "gpu-profiling-local",
-      "displayName": "GPU Profile Local Configuration",
-      "description": "Build the project with CUDA NVCC compiler and local dependencies.",
-      "inherits": [
-        "gpu-profiling",
-        "local"
-      ]
-    },
-    {
       "name": "cpu-debug-local",
       "displayName": "CPU Debug Local Configuration",
       "description": "Build the project with a CPU compiler such as GCC and local dependencies.",
@@ -178,10 +155,6 @@
       "configurePreset": "gpu-release"
     },
     {
-      "name": "gpu-profiling",
-      "configurePreset": "gpu-profiling"
-    },
-    {
       "name": "cpu-debug",
       "configurePreset": "cpu-debug"
     },
@@ -196,10 +169,6 @@
     {
       "name": "gpu-release-local",
       "configurePreset": "gpu-release-local"
-    },
-    {
-      "name": "gpu-profiling-local",
-      "configurePreset": "gpu-profiling-local"
     },
     {
       "name": "cpu-debug-local",
@@ -264,19 +233,6 @@
       ]
     },
     {
-      "name": "gpu-profiling",
-      "steps": [
-        {
-          "type": "configure",
-          "name": "gpu-profiling"
-        },
-        {
-          "type": "build",
-          "name": "gpu-profiling"
-        }
-      ]
-    },
-    {
       "name": "cpu-debug-local",
       "steps": [
         {
@@ -325,19 +281,6 @@
         {
           "type": "build",
           "name": "gpu-release-local"
-        }
-      ]
-    },
-    {
-      "name": "gpu-profiling-local",
-      "steps": [
-        {
-          "type": "configure",
-          "name": "gpu-profiling-local"
-        },
-        {
-          "type": "build",
-          "name": "gpu-profiling-local"
         }
       ]
     }
