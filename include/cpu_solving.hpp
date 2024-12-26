@@ -9,6 +9,7 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
   auto start = std::chrono::steady_clock::now();
 
   CP<Itv> cp(config);
+  cp.config.or_nodes = 1;
   cp.preprocess();
 
   FixpointSubsetCPU<GaussSeidelIteration> fp_engine(cp.ipc->num_deductions());
