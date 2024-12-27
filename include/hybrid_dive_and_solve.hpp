@@ -27,8 +27,6 @@ namespace bt = ::battery;
 
 #ifdef __CUDACC__
 
-#define BLOCK_SIZE 256
-
 /** By default, we don't need dynamic shared memory. */
 #define DEFAULT_SHARED_MEM_BYTES 0
 
@@ -274,8 +272,7 @@ void hybrid_dive_and_solve(const Configuration<battery::standard_allocator>& con
   /** We start the persistent kernel, that will perform the propagation. */
   gpu_propagate<<<
       static_cast<unsigned int>(global.root.config.or_nodes),
-      BLOCK_SIZE,
-      // static_cast<unsigned int>(global.root.config.and_nodes),
+      CUDA_THREADS_PER_BLOCK,
       global.shared_mem_bytes>>>
     (global.gpu_cubes.data(), global.shared_mem_bytes);
 
@@ -542,7 +539,7 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
   GPUCube::IPC& ipc = *cube.ipc_gpu;
 
   /** We start by initializing the structures in shared memory (fixpoint loop engine, store of variables). */
-  __shared__ FixpointSubsetGPU<BlockAsynchronousFixpointGPU, bt::global_allocator, BLOCK_SIZE> fp_engine;
+  __shared__ FixpointSubsetGPU<BlockAsynchronousFixpointGPU, bt::global_allocator, CUDA_THREADS_PER_BLOCK> fp_engine;
   fp_engine.init(ipc.num_deductions());
   /** This shared variable is necessary to avoid multiple threads to read into `cube.stop.test()`,
    * potentially reading different values and leading to deadlock. */
