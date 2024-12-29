@@ -558,6 +558,7 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
   while(true) {
     /** We wait that the CPU notifies us the store is ready to be copied and propagated. */
     if(threadIdx.x == 0) {
+      start = cube.timers.start_timer_device();
       cube.ready_to_propagate.wait(false, cuda::std::memory_order_seq_cst);
       cube.timers.stop_timer(Timer::WAIT_CPU, start);
       cube.ready_to_propagate.clear();
