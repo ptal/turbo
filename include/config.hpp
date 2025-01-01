@@ -37,6 +37,7 @@ struct Configuration {
   bool print_ast;
   bool only_global_memory;
   bool simplify;
+  bool network_analysis;
   size_t timeout_ms;
   size_t or_nodes;
   size_t subproblems_power;
@@ -56,6 +57,7 @@ struct Configuration {
     print_statistics(false),
     only_global_memory(false),
     simplify(false),
+    network_analysis(false),
     timeout_ms(0),
     or_nodes(0),
     subproblems_power(SUBPROBLEMS_POWER),
@@ -86,6 +88,7 @@ struct Configuration {
     print_ast(other.print_ast),
     only_global_memory(other.only_global_memory),
     simplify(other.simplify),
+    network_analysis(other.network_analysis),
     timeout_ms(other.timeout_ms),
     or_nodes(other.or_nodes),
     subproblems_power(other.subproblems_power),
@@ -107,6 +110,7 @@ struct Configuration {
     print_statistics = other.print_statistics;
     only_global_memory = other.only_global_memory;
     simplify = other.simplify;
+    network_analysis = other.network_analysis;
     timeout_ms = other.timeout_ms;
     or_nodes = other.or_nodes;
     subproblems_power = other.subproblems_power;
@@ -133,6 +137,7 @@ struct Configuration {
       printf("-arch gpu -or %" PRIu64 " -sub %" PRIu64 " -stack %" PRIu64 " ", or_nodes, subproblems_power, stack_kb);
       if(only_global_memory) { printf("-globalmem "); }
       if(simplify) { printf("-simplify "); }
+      if(network_analysis) { printf("-network_analysis "); }
     }
     else if(arch == Arch::HYBRID) {
       printf("-arch hybrid -or %" PRIu64 " ", or_nodes);

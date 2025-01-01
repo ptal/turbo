@@ -461,6 +461,103 @@ public:
     return f;
   }
 
+  struct vstat {
+    size_t num_occurrences;
+    bool infinite_domain;
+    size_t domain_size;
+    vstat() = default;
+  };
+
+  /** The constraint network must be normalized. */
+  void analyze_pir() const {
+    if(ipc->is_bot()) {
+      return;
+    }
+    if(config.verbose_solving) {
+      printf("%% Analyzing the constraint network...\n");
+    }
+    std::vector<vstat> vstats(store->vars(), vstat{});
+    for(int i = 0; i < store->vars(); ++i) {
+      auto width = (*store)[i].width().lb();
+      vstats[i].infinite_domain = width.is_top();
+      if(!vstats[i].infinite_domain) {
+        vstats[i].domain_size = width.value() + 1;
+      }
+    }
+
+    for(int i = 0; i < ipc->num_deductions(); ++i) {
+      bytecode_type bytecode = ipc->load_deduce(i);
+      vstats[bytecode.x.vid()].num_occurrences++;
+      vstats[bytecode.y.vid()].num_occurrences++;
+      vstats[bytecode.z.vid()].num_occurrences++;
+    }
+
+    size_t num_constants = 0;
+    size_t num_2bits_vars = 0;
+    size_t num_64bits_vars = 0;
+    size_t num_128bits_vars = 0;
+    size_t num_256bits_vars = 0;
+    size_t num_512bits_vars = 0;
+    size_t num_65536bits_vars = 0;
+    size_t num_infinites = 0;
+    double average_occ_vars = 0;
+    size_t sum_props_of_vars = 0;
+    size_t max_occ_vars = 0;
+    size_t num_bridge_vars = 0;
+    size_t largest_dom = 0;
+    size_t sum_domain_size = 0;
+    for(int i = 0; i < vstats.size(); ++i) {
+      if(vstats[i].infinite_domain) {
+        ++num_infinites;
+      }
+      else {
+        largest_dom = battery::max(largest_dom, vstats[i].domain_size);
+        sum_domain_size += vstats[i].domain_size;
+      }
+      if(vstats[i].domain_size == 1) {
+        ++num_constants;
+      }
+      else {
+        num_2bits_vars += vstats[i].domain_size == 2;
+        num_64bits_vars += vstats[i].domain_size <= 64;
+        num_128bits_vars += vstats[i].domain_size <= 128;
+        num_256bits_vars += vstats[i].domain_size <= 256;
+        num_512bits_vars += vstats[i].domain_size <= 512;
+        num_65536bits_vars += vstats[i].domain_size <= 65536;
+        sum_props_of_vars += vstats[i].num_occurrences;
+        max_occ_vars = battery::max(max_occ_vars, vstats[i].num_occurrences);
+      }
+      if(vstats[i].num_occurrences == 2) {
+        num_bridge_vars++;
+      }
+    }
+    average_occ_vars =  static_cast<double>(sum_props_of_vars) / static_cast<double>(vstats.size() - num_constants);
+
+    stats.print_stat("num_constants", num_constants);
+    stats.print_stat("num_infinite_domains", num_infinites);
+    // Print the number of average occurrence of variables in the constraints.
+    stats.print_stat("sum_props_of_vars", sum_props_of_vars);
+    print_memory_statistics("sum_props_of_vars", sum_props_of_vars*4); // 1 integer per propagator indexes.
+    stats.print_stat("avg_constraints_per_unassigned_var", average_occ_vars);
+    // Print the maximum number of occurrence of a single variable in the constraints.
+    stats.print_stat("max_constraints_per_unassigned_var", max_occ_vars);
+    // Print the number of "bridge variables" occurring only twice in the constraints.
+    stats.print_stat("bridge_vars", num_bridge_vars);
+    // Print the number of bits required to represent the bounded variables in a bitset.
+    stats.print_stat("sum_domain_size", sum_domain_size);
+    print_memory_statistics("sum_domain_size", sum_domain_size/8);
+    // Print the largest variable in the constraint network.
+    stats.print_stat("largest_domain", largest_dom);
+    // Print the number of variables with a width of 2, 64, 128, ... bits or less in the constraint network.
+    stats.print_stat("num_2bits_vars", num_2bits_vars);
+    stats.print_stat("num_64bits_vars", num_64bits_vars);
+    stats.print_stat("num_128bits_vars", num_128bits_vars);
+    stats.print_stat("num_256bits_vars", num_256bits_vars);
+    stats.print_stat("num_512bits_vars", num_512bits_vars);
+    stats.print_stat("num_65536bits_vars", num_65536bits_vars);
+    // For each operator, print how many times they each occur in the constraint network.
+  }
+
   void preprocess() {
     auto start = stats.start_timer_host();
     auto raw_formula = prepare_solver();
@@ -498,6 +595,9 @@ public:
         allocate(num_vars);
         type_and_interpret(f);
       }
+    }
+    if(config.network_analysis) {
+      analyze_pir();
     }
     stats.stop_timer(Timer::PREPROCESSING, start);
     stats.print_timing_stat("preprocessing_time", Timer::PREPROCESSING);
