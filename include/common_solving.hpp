@@ -503,7 +503,10 @@ public:
     double average_occ_vars = 0;
     size_t sum_props_of_vars = 0;
     size_t max_occ_vars = 0;
-    size_t num_bridge_vars = 0;
+    size_t num_vars_in_2_constraints = 0;
+    size_t num_vars_in_3_constraints = 0;
+    size_t num_vars_in_4_to_10_constraints = 0;
+    size_t num_vars_in_more_than_10_constraints = 0;
     size_t largest_dom = 0;
     size_t sum_domain_size = 0;
     for(int i = 0; i < vstats.size(); ++i) {
@@ -527,9 +530,10 @@ public:
         sum_props_of_vars += vstats[i].num_occurrences;
         max_occ_vars = battery::max(max_occ_vars, vstats[i].num_occurrences);
       }
-      if(vstats[i].num_occurrences == 2) {
-        num_bridge_vars++;
-      }
+      num_vars_in_2_constraints += vstats[i].num_occurrences == 2;
+      num_vars_in_3_constraints += vstats[i].num_occurrences == 3;
+      num_vars_in_4_to_10_constraints += vstats[i].num_occurrences > 3 && vstats[i].num_occurrences <= 10;
+      num_vars_in_more_than_10_constraints += vstats[i].num_occurrences > 10;
     }
     average_occ_vars =  static_cast<double>(sum_props_of_vars) / static_cast<double>(vstats.size() - num_constants);
 
@@ -541,8 +545,11 @@ public:
     stats.print_stat("avg_constraints_per_unassigned_var", average_occ_vars);
     // Print the maximum number of occurrence of a single variable in the constraints.
     stats.print_stat("max_constraints_per_unassigned_var", max_occ_vars);
-    // Print the number of "bridge variables" occurring only twice in the constraints.
-    stats.print_stat("bridge_vars", num_bridge_vars);
+    // Print the number of variables occurring only twice in the constraints.
+    stats.print_stat("num_vars_in_2_constraints", num_vars_in_2_constraints);
+    stats.print_stat("num_vars_in_3_constraints", num_vars_in_3_constraints);
+    stats.print_stat("num_vars_in_4_to_10_constraints", num_vars_in_4_to_10_constraints);
+    stats.print_stat("num_vars_in_more_than_10_constraints", num_vars_in_more_than_10_constraints);
     // Print the number of bits required to represent the bounded variables in a bitset.
     stats.print_stat("sum_domain_size", sum_domain_size);
     print_memory_statistics("sum_domain_size", sum_domain_size/8);

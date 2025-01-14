@@ -79,6 +79,11 @@ struct GPUCube {
    */
   abstract_ptr<IPC> ipc_gpu;
 
+  /** `events` is used in the fixpoint loop to know which variables have been modified between two iterations. */
+  battery::vector<local::B, bt::global_allocator> events;
+  battery::vector<local::B, bt::global_allocator> events2;
+  // battery::vector<local::B, bt::pinned_allocator> events_cpu;
+
   /** We also have a store of variables in managed memory to communicate the results of the propagation to the CPU.
    * Note that this store is the same than the one in the corresponding CPU cube (`cube.store`).
    * This member is initialized in `CPUData` constructor.
@@ -127,12 +132,16 @@ struct GPUCube {
     AbstractDeps<bt::global_allocator, bt::pool_allocator> deps(pc_shared, bt::global_allocator{}, pool);
     ipc_gpu = bt::allocate_shared<IPC, bt::pool_allocator>(pool, pc, deps);
     store_gpu = deps.template extract<IStore>(store.aty());
+    events.resize(store.vars());
+    events2.resize(store.vars());
   }
 
   __device__ void deallocate() {
     // NOTE: .reset() does not work because it does not reset the allocator, which is itself allocated in global memory.
     store_gpu = abstract_ptr<IStore>();
     ipc_gpu = abstract_ptr<IPC>();
+    events = battery::vector<local::B, bt::global_allocator>();
+    events2 = battery::vector<local::B, bt::global_allocator>();
   }
 };
 
@@ -572,11 +581,37 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
     /** We copy the CPU store into the GPU memory. */
     start = cube.timers.start_timer_device();
     cube.store_cpu->copy_to(group, *cube.store_gpu);
+    // for(int i = threadIdx.x; i < cube.events.size(); i += blockDim.x) {
+    //   cube.events[i].join_top();
+    //   // [cube.events_cpu[i].vid()].join_top();
+    // }
     __syncthreads();
     start = cube.timers.stop_timer(Timer::TRANSFER_CPU2GPU, start);
     /** This is the main propagation algorithm: the current node is propagated in parallel. */
     size_t fp_iterations = fp_engine.fixpoint(
       [&](size_t i){ return ipc.deduce(i); },
+      // [&](size_t i){
+      //   bytecode_type bytecode = ipc.load_deduce(i);
+      //   if(cube.events[bytecode.x.vid()] || cube.events[bytecode.y.vid()] || cube.events[bytecode.z.vid()]) {
+      //     auto ev = ipc.deduce(bytecode);
+      //     /** In case propagators with variables just modified have not been scheduled in the current iteration... */
+      //     if(ev.test(0)) cube.events[bytecode.x.vid()].join_top();
+      //     if(ev.test(1)) cube.events[bytecode.y.vid()].join_top();
+      //     if(ev.test(2)) cube.events[bytecode.z.vid()].join_top();
+      //     if(ev.test(0)) cube.events2[bytecode.x.vid()].join_top();
+      //     if(ev.test(1)) cube.events2[bytecode.y.vid()].join_top();
+      //     if(ev.test(2)) cube.events2[bytecode.z.vid()].join_top();
+      //     return ev.any();
+      //   }
+      //   return false;
+      // },
+      // [&]() {
+      //   if(threadIdx.x == 0) cube.events.swap(cube.events2);
+      //   __syncthreads();
+      //   for(int i = blockIdx.x; i < cube.events2.size(); i += blockDim.x) {
+      //     cube.events2[i].meet_bot();
+      //   }
+      // },
       [&](){ return ipc.is_bot(); });
     start = cube.timers.stop_timer(Timer::FIXPOINT, start);
     cube.store_gpu->copy_to(group, *cube.store_cpu);
