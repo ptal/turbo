@@ -18,7 +18,7 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
   while(!must_quit() && check_timeout(cp, start) && has_changed) {
     has_changed = false;
     auto start2 = cp.stats.start_timer_host();
-    cp.stats.fixpoint_iterations += fp_engine.fixpoint([&](size_t i) { return cp.ipc->deduce(i); });
+    cp.stats.fixpoint_iterations += fp_engine.fixpoint([&](int i) { return cp.ipc->deduce(i); });
     start2 = cp.stats.stop_timer(Timer::FIXPOINT, start2);
     bool must_prune = cp.on_node();
     if(cp.ipc->is_bot()) {
@@ -26,7 +26,7 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
       fp_engine.reset();
     }
     else {
-      fp_engine.select([&](size_t i) { return !cp.ipc->ask(i); });
+      fp_engine.select([&](int i) { return !cp.ipc->ask(i); });
       cp.stats.stop_timer(Timer::SELECT_FP_FUNCTIONS, start2);
       if(fp_engine.num_active() == 0 && cp.store->template is_extractable<AtomicExtraction>()) {
         has_changed |= cp.bab->deduce();

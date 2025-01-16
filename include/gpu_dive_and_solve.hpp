@@ -43,7 +43,7 @@ using Itv0 = Interval<ZLB<int, bt::local_memory>>;
 using Itv1 = Interval<ZLB<int, bt::atomic_memory_block>>;
 using Itv2 = Interval<ZLB<int, bt::atomic_memory_grid>>;
 using AtomicBool = B<bt::atomic_memory_block>;
-using FPEngine = FixpointSubsetGPU<BlockAsynchronousFixpointGPU, bt::global_allocator, CUDA_THREADS_PER_BLOCK>;
+using FPEngine = FixpointSubsetGPU<BlockAsynchronousFixpointGPU<>, bt::global_allocator, CUDA_THREADS_PER_BLOCK>;
 
 // Version for non-Linux systems such as Windows where pinned memory must be used (see PR #19).
 #ifdef NO_CONCURRENT_MANAGED_MEMORY
@@ -350,12 +350,13 @@ __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data) {
   auto& fp_engine = *block_data.fp_engine;
   auto& ipc = *cp.ipc;
   auto start = cp.stats.start_timer_device();
-  size_t iterations = fp_engine.fixpoint(
-    [&](size_t i) { return ipc.deduce(i); },
+  int iterations = fp_engine.fixpoint(
+    // [&](int i) { return ipc.deduce(i); },
+    [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(ipc, i); },
     [&](){ return ipc.is_bot(); });
   start = cp.stats.stop_timer(Timer::FIXPOINT, start);
   if(!ipc.is_bot()) {
-    fp_engine.select([&](size_t i) { return !ipc.ask(i); });
+    fp_engine.select([&](int i) { return !ipc.ask(i); });
     start = cp.stats.stop_timer(Timer::SELECT_FP_FUNCTIONS, start);
     if(fp_engine.num_active() == 0) {
       is_leaf_node = cp.store->template is_extractable<AtomicExtraction>(group);
