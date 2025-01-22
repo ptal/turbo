@@ -98,6 +98,10 @@ struct GPUCube {
    */
   size_t fp_iterations;
 
+  /** From config. */
+  FixpointKind fp_kind;
+  size_t wac1_threshold;
+
   TimingStatistics<bt::managed_allocator> timers;
 
   /** The CPU thread and the GPU block use those two flags to signal to each other when to work and when to wait.
@@ -220,6 +224,8 @@ struct CPUData {
     for(int i = 0; i < root.config.or_nodes; ++i) {
       cpu_cubes[i].subproblem_idx = i;
       gpu_cubes[i].store_cpu = cpu_cubes[i].cube.store;
+      gpu_cubes[i].fp_kind = root.config.fixpoint;
+      gpu_cubes[i].wac1_threshold = root.config.wac1_threshold;
     }
     /** This is a temporary object to initialize the first cube with the store and propagators. */
     AbstractDomains<Itv, bt::standard_allocator,
@@ -589,39 +595,24 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
     start = cube.timers.stop_timer(Timer::TRANSFER_CPU2GPU, start);
     /** This is the main propagation algorithm: the current node is propagated in parallel. */
     int fp_iterations;
-    if(fp_engine.num_active() <= 2048) {
-      fp_iterations = fp_engine.fixpoint(
-        [&](int i){ return ipc.deduce(i); },
-        [&](){ return ipc.is_bot(); }
-      );
-    }
-    else {
-      fp_iterations = fp_engine.fixpoint(
-        [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(ipc, i); },
-        // [&](int i){ return ipc.deduce(i); },
-        // [&](int i){
-        //   bytecode_type bytecode = ipc.load_deduce(i);
-        //   if(cube.events[bytecode.x.vid()] || cube.events[bytecode.y.vid()] || cube.events[bytecode.z.vid()]) {
-        //     auto ev = ipc.deduce(bytecode);
-        //     /** In case propagators with variables just modified have not been scheduled in the current iteration... */
-        //     if(ev.test(0)) cube.events[bytecode.x.vid()].join_top();
-        //     if(ev.test(1)) cube.events[bytecode.y.vid()].join_top();
-        //     if(ev.test(2)) cube.events[bytecode.z.vid()].join_top();
-        //     if(ev.test(0)) cube.events2[bytecode.x.vid()].join_top();
-        //     if(ev.test(1)) cube.events2[bytecode.y.vid()].join_top();
-        //     if(ev.test(2)) cube.events2[bytecode.z.vid()].join_top();
-        //     return ev.any();
-        //   }
-        //   return false;
-        // },
-        // [&]() {
-        //   if(threadIdx.x == 0) cube.events.swap(cube.events2);
-        //   __syncthreads();
-        //   for(int i = blockIdx.x; i < cube.events2.size(); i += blockDim.x) {
-        //     cube.events2[i].meet_bot();
-        //   }
-        // },
-        [&](){ return ipc.is_bot(); });
+    switch(cube.fp_kind) {
+      case FixpointKind::AC1:
+        fp_iterations = fp_engine.fixpoint(
+          [&](int i){ return ipc.deduce(i); },
+          [&](){ return ipc.is_bot(); });
+        break;
+      case FixpointKind::WAC1:
+        if(fp_engine.num_active() <= cube.wac1_threshold) {
+          fp_iterations = fp_engine.fixpoint(
+            [&](int i){ return ipc.deduce(i); },
+            [&](){ return ipc.is_bot(); });
+        }
+        else {
+          fp_iterations = fp_engine.fixpoint(
+            [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(ipc, i); },
+            [&](){ return ipc.is_bot(); });
+        }
+        break;
     }
     start = cube.timers.stop_timer(Timer::FIXPOINT, start);
     cube.store_gpu->copy_to(group, *cube.store_cpu);

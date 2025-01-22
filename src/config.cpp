@@ -21,8 +21,12 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-ast: Print the AST of the model (useful to debug)." << std::endl;
   std::cout << "\t-p 48: On CPU, run with 48 parallel threads. On GPU, equivalent to `-or 48`." << std::endl;
   std::cout << "\t-arch <cpu|gpu|hybrid>: Choose the architecture on which the problem will be solved." << std::endl;
+  std::cout << "\t-fp <ac1|wac1>: Choose the fixpoint strategy (default: ac1 on CPU, wac1 on GPU):" << std::endl;
+  std::cout << "\t\t ac1: All propagators are executed in parallel at each iteration." << std::endl;
+  std::cout << "\t\t wac1: Behave as ac1 when the number of active propagators is less than wac1_threshold. Otherwise,  each warp must reach a local fixpoint before executing the next 32 propagators (not compatible with -arch cpu)." << std::endl;
+  std::cout << "\t-wac1_threshold 4096: Threshold below which we select ac1 instead of wac1 (default: 4096)." << std::endl;
   std::cout << "\t-or 48: Run the subproblems on 48 streaming multiprocessors (SMs) (only for GPU architecture). Default: -or 0 for automatic selection of the number of SMs." << std::endl;
-  std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the 'OR threads' (embarrasingly parallel search). Default: -sub 10." << std::endl;
+  std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the 'OR threads' (embarrasingly parallel search). Default: -sub 12." << std::endl;
   std::cout << "\t-simplify: Simplify the formula in the preprocessing step to eliminate variables and constraints (deactivated by default because it might conflict with the ternary normal form)." << std::endl;
   std::cout << "\t-network_analysis: Analyse the constraint network and output statistics." << std::endl;
   std::cout << "\t-stack 100: Use a maximum of 100KB of stack size per thread stored in global memory (only for GPU architectures)." << std::endl;
@@ -154,6 +158,20 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
       exit(EXIT_FAILURE);
     }
   }
+  std::string fixpoint;
+  if(input.read_string("-fp", fixpoint)) {
+    if(fixpoint == "ac1") {
+      config.fixpoint = FixpointKind::AC1;
+    }
+    else if(fixpoint == "wac1") {
+      config.fixpoint = FixpointKind::WAC1;
+    }
+    else {
+      std::cerr << "Unknown fixpoint -fp " << fixpoint << std::endl;
+      exit(EXIT_FAILURE);
+    }
+  }
+  input.read_size_t("-wac1_threshold", config.wac1_threshold);
   std::string version;
   if(input.read_string("-version", version)) {
     config.version = battery::string<battery::standard_allocator>(version.data());

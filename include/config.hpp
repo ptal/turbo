@@ -20,6 +20,11 @@ enum class Arch {
   HYBRID
 };
 
+enum class FixpointKind {
+  AC1,
+  WAC1
+};
+
 enum class InputFormat {
   XCSP3,
   FLATZINC
@@ -43,6 +48,8 @@ struct Configuration {
   size_t subproblems_power;
   size_t stack_kb;
   Arch arch;
+  FixpointKind fixpoint;
+  size_t wac1_threshold;
   battery::string<allocator_type> problem_path;
   battery::string<allocator_type> version;
   battery::string<allocator_type> hardware;
@@ -69,6 +76,14 @@ struct Configuration {
         Arch::CPU
       #endif
     ),
+    fixpoint(
+      #ifdef __CUDACC__
+        FixpointKind::WAC1
+      #else
+        FixpointKind::AC1
+      #endif
+    ),
+    wac1_threshold(4096),
     problem_path(alloc),
     version(alloc),
     hardware(alloc)
@@ -94,6 +109,8 @@ struct Configuration {
     subproblems_power(other.subproblems_power),
     stack_kb(other.stack_kb),
     arch(other.arch),
+    fixpoint(other.fixpoint),
+    wac1_threshold(other.wac1_threshold),
     problem_path(other.problem_path, alloc),
     version(other.version, alloc),
     hardware(other.hardware, alloc)
@@ -116,6 +133,8 @@ struct Configuration {
     subproblems_power = other.subproblems_power;
     stack_kb = other.stack_kb;
     arch = other.arch;
+    fixpoint = other.fixpoint;
+    wac1_threshold = other.wac1_threshold;
     problem_path = other.problem_path;
     version = other.version;
     hardware = other.hardware;
@@ -145,6 +164,10 @@ struct Configuration {
     else {
       printf("-arch cpu -p %" PRIu64 " ", or_nodes);
     }
+    printf("-fp %s ", name_of_fixpoint(fixpoint));
+    if(fixpoint == FixpointKind::WAC1) {
+      printf("-wac1_threshold %" PRIu64 " ", wac1_threshold);
+    }
     if(version.size() != 0) {
       printf("-version %s ", version.data());
     }
@@ -153,6 +176,18 @@ struct Configuration {
     }
     printf("-cutnodes %" PRIu64 " ", stop_after_n_nodes == std::numeric_limits<size_t>::max() ? 0 : stop_after_n_nodes);
     printf("%s\n", problem_path.data());
+  }
+
+  CUDA const char* name_of_fixpoint(FixpointKind fixpoint) const {
+    switch(fixpoint) {
+      case FixpointKind::AC1:
+        return "ac1";
+      case FixpointKind::WAC1:
+        return "wac1";
+      default:
+        assert(0);
+        return "Unknown";
+    }
   }
 
   CUDA const char* name_of_arch(Arch arch) const {
@@ -175,6 +210,10 @@ struct Configuration {
     printf("%%%%%%mzn-stat: version=\"%s\"\n", (version.size() == 0) ? "1.2.6" : version.data());
     printf("%%%%%%mzn-stat: hardware=\"%s\"\n", (hardware.size() == 0) ? "Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000" : hardware.data());
     printf("%%%%%%mzn-stat: arch=\"%s\"\n", name_of_arch(arch));
+    printf("%%%%%%mzn-stat: fixpoint=\"%s\"\n", name_of_fixpoint(fixpoint));
+    if(fixpoint == FixpointKind::WAC1) {
+      printf("%%%%%%mzn-stat: wac1_threshold=%" PRIu64 "\n", wac1_threshold);
+    }
     printf("%%%%%%mzn-stat: free_search=\"%s\"\n", free_search ? "yes" : "no");
     printf("%%%%%%mzn-stat: or_nodes=%" PRIu64 "\n", or_nodes);
     printf("%%%%%%mzn-stat: timeout_ms=%" PRIu64 "\n", timeout_ms);
