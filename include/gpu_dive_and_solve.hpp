@@ -43,7 +43,7 @@ using Itv0 = Interval<ZLB<int, bt::local_memory>>;
 using Itv1 = Interval<ZLB<int, bt::atomic_memory_block>>;
 using Itv2 = Interval<ZLB<int, bt::atomic_memory_grid>>;
 using AtomicBool = B<bt::atomic_memory_block>;
-using FPEngine = FixpointSubsetGPU<BlockAsynchronousFixpointGPU<>, bt::global_allocator, CUDA_THREADS_PER_BLOCK>;
+using FPEngine = FixpointSubsetGPU<BlockAsynchronousFixpointGPU<true>, bt::global_allocator, CUDA_THREADS_PER_BLOCK>;
 
 // Version for non-Linux systems such as Windows where pinned memory must be used (see PR #19).
 #ifdef NO_CONCURRENT_MANAGED_MEMORY
@@ -468,7 +468,16 @@ __device__ void solve_problem(BlockData<S>& block_data, GridData<S>& grid_data) 
       start = cp.stats.start_timer_device();
       stop.join(grid_data.cpu_stop || *(grid_data.gpu_stop));
       // propagate induces a memory fence, therefore all threads are already past the "while" condition.
+      // auto t = cp.stats.start_timer_device();
       block_has_changed.meet(cp.search_tree->deduce());
+      // cp.stats.stop_timer(Timer::ST_DEDUCE, t);
+      //  auto t = cp.stats.start_timer_device();
+      //  auto s = cp.search_tree->split->split();
+      //  t = cp.stats.stop_timer(Timer::SPLIT, t);
+      //  auto P = cp.search_tree->push(std::move(s));
+      //  t = cp.stats.stop_timer(Timer::PUSH, t);
+      //  block_has_changed.meet(cp.search_tree->pop(std::move(P)));
+      //  cp.stats.stop_timer(Timer::POP, t);
     }
     fp_engine.barrier();
   }

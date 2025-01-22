@@ -28,6 +28,9 @@ enum class Timer {
   PREPROCESSING,
   SOLVE,
   SEARCH,
+  // SPLIT,
+  // PUSH,
+  // POP,
   FIXPOINT,
   TRANSFER_CPU2GPU,
   TRANSFER_GPU2CPU,
@@ -254,6 +257,9 @@ public:
     // Timing statistics
     print_timing_stat("solve_time", Timer::SOLVE, or_nodes);
     print_timing_stat("search_time", Timer::SEARCH, or_nodes);
+    // print_timing_stat("split_time", Timer::SPLIT, or_nodes);
+    // print_timing_stat("push_time", Timer::PUSH, or_nodes);
+    // print_timing_stat("pop_time", Timer::POP, or_nodes);
     print_timing_stat("fixpoint_time", Timer::FIXPOINT, or_nodes);
     print_timing_stat("transfer_cpu2gpu_time", Timer::TRANSFER_CPU2GPU, or_nodes);
     print_timing_stat("transfer_gpu2cpu_time", Timer::TRANSFER_GPU2CPU, or_nodes);
