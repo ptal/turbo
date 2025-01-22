@@ -26,6 +26,8 @@
         ["-sub", "number of EPS subproblems (value of 10 generates 2^10 subproblems)", "int", "10"],
         ["-or", "number of OR threads", "int", "0"],
         ["-arch", "architecture to use", "string", "hybrid"],
+        ["-fp", "architecture to use", "string", "wac1"],
+        ["-wac1_threshold", "architecture to use", "int", "4096"],
         ["-version", "version of the solver to be printed as statistics", "string", "1.2.6"],
         ["-hardware", "description of the hardware on which the solver is executed (CPU;RAM;GPU)", "string", "unspecified"],
         ["-timeout", "soft timeout of Turbo (do not kill the process after the timeout and wait for statistics to be printed)", "int", "0"],
