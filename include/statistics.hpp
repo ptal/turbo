@@ -9,20 +9,6 @@
 #include "battery/allocator.hpp"
 #include "lala/logic/ast.hpp"
 
-inline void print_memory_statistics(const char* key, size_t bytes) {
-  printf("%% %s=%zu [", key, bytes);
-  if(bytes < 1000 * 1000) {
-    printf("%.2fKB", static_cast<double>(bytes) / 1000);
-  }
-  else if(bytes < 1000 * 1000 * 1000) {
-    printf("%.2fMB", static_cast<double>(bytes) / (1000 * 1000));
-  }
-  else {
-    printf("%.2fGB", static_cast<double>(bytes) / (1000 * 1000 * 1000));
-  }
-  printf("]\n");
-}
-
 enum class Timer {
   OVERALL,
   PREPROCESSING,
@@ -124,6 +110,7 @@ template <class Allocator = battery::standard_allocator>
 struct Statistics {
   template <class Alloc> friend struct Statistics;
   using allocator_type = Allocator;
+  bool print_statistics; // from config.print_statistics
   size_t variables;
   size_t constraints;
   bool optimization;
@@ -131,39 +118,37 @@ struct Statistics {
   size_t fails;
   size_t solutions;
   size_t depth_max;
-  size_t exhaustive;
+  bool exhaustive;
   size_t eps_num_subproblems;
   size_t eps_solved_subproblems;
   size_t eps_skipped_subproblems;
   size_t num_blocks_done;
   size_t fixpoint_iterations;
-  size_t eliminated_variables;
-  size_t eliminated_formulas;
   TimingStatistics<Allocator> timers;
 
-  CUDA Statistics(size_t variables, size_t constraints, bool optimization):
+  CUDA Statistics(size_t variables, size_t constraints, bool optimization, bool print_statistics):
     variables(variables), constraints(constraints), optimization(optimization),
+    print_statistics(print_statistics),
     nodes(0), fails(0), solutions(0),
     depth_max(0), exhaustive(true),
     eps_solved_subproblems(0), eps_num_subproblems(1), eps_skipped_subproblems(0),
     num_blocks_done(0), fixpoint_iterations(0),
-    eliminated_variables(0), eliminated_formulas(0),
     timers()
   {}
 
-  CUDA Statistics(): Statistics(0,0,false) {}
+  CUDA Statistics(): Statistics(0,0,false,false) {}
   Statistics(const Statistics&) = default;
   Statistics(Statistics&&) = default;
 
   template <class Alloc>
   CUDA Statistics(const Statistics<Alloc>& other):
     variables(other.variables), constraints(other.constraints), optimization(other.optimization),
+    print_statistics(other.print_statistics),
     nodes(other.nodes), fails(other.fails), solutions(other.solutions),
     depth_max(other.depth_max), exhaustive(other.exhaustive),
     eps_solved_subproblems(other.eps_solved_subproblems), eps_num_subproblems(other.eps_num_subproblems),
     eps_skipped_subproblems(other.eps_skipped_subproblems), num_blocks_done(other.num_blocks_done),
     fixpoint_iterations(other.fixpoint_iterations),
-    eliminated_variables(other.eliminated_variables), eliminated_formulas(other.eliminated_formulas),
     timers(other.timers)
   {}
 
@@ -215,12 +200,39 @@ struct Statistics {
     return timers.time_ms_of(timer);
   }
 
+  CUDA void print_stat(const char* name, const char* value) const {
+    if(print_statistics) {
+      printf("%%%%%%mzn-stat: %s=%s\n", name, value);
+    }
+  }
+
   CUDA void print_stat(const char* name, size_t value) const {
-    printf("%%%%%%mzn-stat: %s=%" PRIu64 "\n", name, value);
+    if(print_statistics) {
+      printf("%%%%%%mzn-stat: %s=%" PRIu64 "\n", name, value);
+    }
   }
 
   CUDA void print_stat(const char* name, double value) const {
-    printf("%%%%%%mzn-stat: %s=%lf\n", name, value);
+    if(print_statistics) {
+      printf("%%%%%%mzn-stat: %s=%lf\n", name, value);
+    }
+  }
+
+  CUDA void print_memory_statistics(bool verbose, const char* key, size_t bytes) const {
+    print_stat(key, bytes);
+    if(verbose) {
+      printf("%%   [");
+      if(bytes < 1000 * 1000) {
+        printf("%.2fKB", static_cast<double>(bytes) / 1000);
+      }
+      else if(bytes < 1000 * 1000 * 1000) {
+        printf("%.2fMB", static_cast<double>(bytes) / (1000 * 1000));
+      }
+      else {
+        printf("%.2fGB", static_cast<double>(bytes) / (1000 * 1000 * 1000));
+      }
+      printf("]\n");
+    }
   }
 
 private:
@@ -251,8 +263,6 @@ public:
     print_stat("eps_skipped_subproblems", eps_skipped_subproblems);
     print_stat("num_blocks_done", num_blocks_done);
     print_stat("fixpoint_iterations", fixpoint_iterations);
-    print_stat("eliminated_variables", eliminated_variables);
-    print_stat("eliminated_formulas", eliminated_formulas);
 
     // Timing statistics
     print_timing_stat("solve_time", Timer::SOLVE, or_nodes);
@@ -269,10 +279,12 @@ public:
   }
 
   CUDA void print_mzn_end_stats() const {
+    if(!print_statistics) { return; }
     printf("%%%%%%mzn-stat-end\n");
   }
 
   CUDA void print_mzn_objective(const auto& obj, bool is_minimization) const {
+    if(!print_statistics) { return; }
     printf("%%%%%%mzn-stat: objective=");
     if(is_minimization) {
       obj.lb().template deinterpret<lala::TFormula<battery::standard_allocator>>().print(false);

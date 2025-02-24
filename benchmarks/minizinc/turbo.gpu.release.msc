@@ -32,6 +32,8 @@
         ["-hardware", "description of the hardware on which the solver is executed (CPU;RAM;GPU)", "string", "unspecified"],
         ["-timeout", "soft timeout of Turbo (do not kill the process after the timeout and wait for statistics to be printed)", "int", "0"],
         ["-globalmem", "store all data abstract elements in the global memory and do not try to optimise using shared memory.", "bool", "false"],
-        ["-simplify", "Simplify the formula in the preprocessing step to eliminate variables and constraints (deactivated by default because it might conflict with the ternary normal form).", "bool", "false"]
+        ["-simplify", "Simplify the formula in the preprocessing step to eliminate variables and constraints (deactivated by default because it might conflict with the ternary normal form).", "bool", "false"],
+        ["-network_analysis", "Analyze the constraint network.", "bool", "false"],
+        ["-cutnodes", "Cut the number of nodes to be explored", "int", "0"]
     ]
 }

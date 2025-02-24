@@ -39,9 +39,9 @@ struct StateTypes {
     UniqueAlloc<bt::pool_allocator, 0>>;
 };
 
-using Itv0 = Interval<ZLB<int, bt::local_memory>>;
-using Itv1 = Interval<ZLB<int, bt::atomic_memory_block>>;
-using Itv2 = Interval<ZLB<int, bt::atomic_memory_grid>>;
+using Itv0 = Interval<ZLB<bound_value_type, bt::local_memory>>;
+using Itv1 = Interval<ZLB<bound_value_type, bt::atomic_memory_block>>;
+using Itv2 = Interval<ZLB<bound_value_type, bt::atomic_memory_grid>>;
 using AtomicBool = B<bt::atomic_memory_block>;
 using FPEngine = FixpointSubsetGPU<BlockAsynchronousFixpointGPU<true>, bt::global_allocator, CUDA_THREADS_PER_BLOCK>;
 
@@ -628,11 +628,9 @@ MemoryConfig configure_memory(CP<U>& root) {
     mem_config.shared_bytes += mem_config.store_bytes;
     mem_config.mem_kind = MemoryKind::STORE_SHARED;
   }
-  if(config.verbose_solving) {
-    print_memory_statistics("store_memory_real", root2.store_allocator.total_bytes_allocated());
-    print_memory_statistics("pc_memory_real", root2.prop_allocator.total_bytes_allocated());
-    print_memory_statistics("other_memory_real", root2.basic_allocator.total_bytes_allocated());
-  }
+  root.stats.print_memory_statistics(config.verbose_solving, "store_memory_real", root2.store_allocator.total_bytes_allocated());
+  root.stats.print_memory_statistics(config.verbose_solving, "pc_memory_real", root2.prop_allocator.total_bytes_allocated());
+  root.stats.print_memory_statistics(config.verbose_solving, "other_memory_real", root2.basic_allocator.total_bytes_allocated());
   return mem_config;
 }
 
@@ -642,7 +640,7 @@ bool wait_solving_ends(GridData<S>& grid_data, const Timepoint& start) {
   cudaEvent_t event;
   cudaEventCreateWithFlags(&event,cudaEventDisableTiming);
   cudaEventRecord(event);
-  while(!must_quit() && check_timeout(grid_data.root, start) && cudaEventQuery(event) == cudaErrorNotReady) {
+  while(!must_quit(grid_data.root) && check_timeout(grid_data.root, start) && cudaEventQuery(event) == cudaErrorNotReady) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
   if(cudaEventQuery(event) == cudaErrorNotReady) {
@@ -733,10 +731,10 @@ void configure_blocks_threads(CP<U>& root, const MemoryConfig& mem_config) {
   CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, config.stack_kb*1000));
   CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, remaining_global_mem));
 
+  root.stats.print_memory_statistics(config.verbose_solving, "stack_memory", total_stack_size);
+  root.stats.print_memory_statistics(config.verbose_solving, "heap_memory", remaining_global_mem);
+  root.stats.print_memory_statistics(config.verbose_solving, "heap_usage_estimation", heap_usage_estimation);
   if(config.verbose_solving) {
-    print_memory_statistics("stack_memory", total_stack_size);
-    print_memory_statistics("heap_memory", remaining_global_mem);
-    print_memory_statistics("heap_usage_estimation", heap_usage_estimation);
     printf("%% or_nodes=%zu\n", config.or_nodes);
   }
 }
@@ -793,7 +791,7 @@ void gpu_dive_and_solve(Configuration<bt::standard_allocator>& config) {
   check_support_concurrent_managed_memory();
   auto start = std::chrono::steady_clock::now();
   CP<Itv> root(config);
-  root.preprocess();
+  root.preprocess_pir();
   block_signal_ctrlc();
 #ifdef NO_CONCURRENT_MANAGED_MEMORY
   configure_and_run<ItvSolverPinned>(root, start);

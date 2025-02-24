@@ -3,9 +3,7 @@
 #ifndef TURBO_COMMON_SOLVING_HPP
 #define TURBO_COMMON_SOLVING_HPP
 
-#ifdef _WINDOWS
 #include <atomic>
-#endif
 #include <algorithm>
 #include <chrono>
 #include <thread>
@@ -39,60 +37,45 @@
 
 using namespace lala;
 
-#ifdef _WINDOWS
-//
-// The Microsoft Windows API does not support sigprocmask() or sigpending(),
-// so we have to fall back to traditional signal handling.
-//
+#ifdef TURBO_ITV_64_BITS
+  using bound_value_type = long long int;
+#elif TURBO_ITV_16_BITS
+  using bound_value_type = short int;
+#else
+  using bound_value_type = int;
+#endif
+using Itv = Interval<ZLB<bound_value_type, battery::local_memory>>;
+
 static std::atomic<bool> got_signal;
 static void (*prev_sigint)(int);
 static void (*prev_sigterm)(int);
 
 void signal_handler(int signum)
 {
-    signal(SIGINT, signal_handler); // re-arm
-    signal(SIGTERM, signal_handler); // re-arm
-
-    got_signal = true; // volatile
-
-    if (signum == SIGINT && prev_sigint != SIG_DFL && prev_sigint != SIG_IGN) {
-        (*prev_sigint)(signum);
-    }
-    if (signum == SIGTERM && prev_sigterm != SIG_DFL && prev_sigterm != SIG_IGN) {
-        (*prev_sigterm)(signum);
-    }
-}
-
-void block_signal_ctrlc() {
-    prev_sigint = signal(SIGINT, signal_handler);
-    prev_sigterm = signal(SIGTERM, signal_handler);
-}
-
-bool must_quit() {
-    return static_cast<bool>(got_signal);
-}
-
-#else
-
-void block_signal_ctrlc() {
-  sigset_t ctrlc;
-  sigemptyset(&ctrlc);
-  sigaddset(&ctrlc, SIGINT);
-  sigaddset(&ctrlc, SIGTERM);
-  if(sigprocmask(SIG_BLOCK, &ctrlc, NULL) != 0) {
-    printf("%% ERROR: Unable to deal with CTRL-C. Therefore, we will not be able to print the latest solution before quitting.\n");
-    perror(NULL);
-    return;
+  std::signal(SIGINT, signal_handler); // re-arm
+  std::signal(SIGTERM, signal_handler); // re-arm
+  got_signal = true; // volatile
+  if (signum == SIGINT && prev_sigint != SIG_DFL && prev_sigint != SIG_IGN) {
+    (*prev_sigint)(signum);
+  }
+  if (signum == SIGTERM && prev_sigterm != SIG_DFL && prev_sigterm != SIG_IGN) {
+    (*prev_sigterm)(signum);
   }
 }
 
-bool must_quit() {
-  sigset_t pending_sigs;
-  sigemptyset(&pending_sigs);
-  sigpending(&pending_sigs);
-  return sigismember(&pending_sigs, SIGINT) == 1 || sigismember(&pending_sigs, SIGTERM) == 1;
+void block_signal_ctrlc() {
+  prev_sigint = std::signal(SIGINT, signal_handler);
+  prev_sigterm = std::signal(SIGTERM, signal_handler);
 }
-#endif
+
+template <class A>
+bool must_quit(A& a) {
+  if(static_cast<bool>(got_signal)) {
+    a.prune();
+    return true;
+  }
+  return false;
+}
 
 /** Check if the timeout of the current execution is exceeded and returns `false` otherwise.
  * It also update the statistics relevant to the solving duration and the exhaustive flag if we reach the timeout.
@@ -107,7 +90,7 @@ bool check_timeout(A& a, const Timepoint& start) {
     if(a.config.verbose_solving) {
       printf("%% CPU: Timeout reached.\n");
     }
-    a.stats.exhaustive = false;
+    a.prune();
     return false;
   }
   return true;
@@ -171,8 +154,9 @@ struct AbstractDomains {
 
   using this_type = AbstractDomains<Universe, BasicAllocator, PropAllocator, StoreAllocator>;
 
-  struct tag_copy_cons{};
+  using F = TFormula<basic_allocator_type>;
 
+  struct tag_copy_cons{};
   struct tag_gpu_block_copy{};
 
   /** We copy `other` in a new element, and ignore every variable not used in a GPU block.
@@ -242,6 +226,7 @@ struct AbstractDomains {
   , prop_allocator(prop_allocator)
   , store_allocator(store_allocator)
   , config(config, basic_allocator)
+  , stats(0,0,false,config.print_statistics)
   , env(basic_allocator)
   , solver_output(basic_allocator)
   , store(store_allocator)
@@ -288,7 +273,7 @@ struct AbstractDomains {
     ipc = battery::allocate_shared<IPC, PropAllocator>(prop_allocator, env.extends_abstract_dom(), store, prop_allocator);
     // If the simplifier is already allocated, it means we are currently reallocating the abstract domains after preprocessing.
     if(!simplifier) {
-      simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
+      simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), store->aty(), ipc, basic_allocator);
     }
     split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
     eps_split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
@@ -350,7 +335,7 @@ private:
 
 public:
   template <class F>
-  CUDA bool interpret(const F& f) {
+  CUDA bool interpret(const F& f, bool with_default_strats) {
     if(config.verbose_solving) {
       printf("%% Interpreting the formula...\n");
     }
@@ -368,9 +353,11 @@ public:
     stats.variables = store->vars();
     stats.constraints = ipc->num_deductions();
     bool can_interpret = true;
-    /** We add a search strategy by default for the variables that potentially do not occur in the previous strategies. */
-    can_interpret &= interpret_default_strategy<F>();
-    can_interpret &= interpret_default_eps_strategy<F>();
+    if(with_default_strats) {
+      /** We add a search strategy by default for the variables that potentially do not occur in the previous strategies. */
+      can_interpret &= interpret_default_strategy<F>();
+      can_interpret &= interpret_default_eps_strategy<F>();
+    }
     return can_interpret;
   }
 
@@ -395,22 +382,22 @@ public:
   }
 
   template <class F>
-  void type_and_interpret(F& f) {
-    if(config.verbose_solving) {
-      printf("%% Typing the formula...\n");
-    }
-    typing(f);
-    if(config.print_ast) {
-      printf("%% Typed AST:\n");
-      f.print(true);
-      printf("\n");
-    }
-    if(!interpret(f)) {
+  void type_and_interpret(F& f, bool with_default_strats = true) {
+    // if(config.verbose_solving) {
+    //   printf("%% Typing the formula...\n");
+    // }
+    // typing(f);
+    // if(config.print_ast) {
+    //   printf("%% Typed AST:\n");
+    //   f.print(true);
+    //   printf("\n");
+    // }
+    if(!interpret(f, with_default_strats)) {
       exit(EXIT_FAILURE);
     }
     if(config.print_ast) {
       printf("%% Interpreted AST:\n");
-      ipc->deinterpret(env).print(true);
+      ipc->deinterpret(env).print();
       printf("\n");
     }
     if(config.verbose_solving) {
@@ -420,8 +407,10 @@ public:
 
   using FormulaPtr = battery::shared_ptr<TFormula<basic_allocator_type>, basic_allocator_type>;
 
-  FormulaPtr prepare_solver() {
-    // I. Parse the FlatZinc model.
+  /** Parse a constraint network in the FlatZinc or XCSP3 format.
+   * The parsed formula is then syntactically simplified (`eval` function).
+  */
+  FormulaPtr parse_cn() {
     FormulaPtr f;
     if(config.input_format() == InputFormat::FLATZINC) {
       f = parse_flatzinc(config.problem_path.data(), solver_output);
@@ -439,25 +428,33 @@ public:
     if(config.verbose_solving) {
       printf("%% Input file parsed\n");
     }
-
     if(config.print_ast) {
       printf("%% Parsed AST:\n");
-      f->print(true);
+      f->print();
       printf("\n");
     }
+    stats.print_stat("parsed_variables", num_quantified_vars(*f));
+    stats.print_stat("parsed_constraints", num_constraints(*f));
     *f = eval(*f);
     if(config.verbose_solving) {
       printf("%% Formula syntactically simplified.\n");
     }
-    stats.print_stat("parsed_variables", num_quantified_vars(*f));
-    stats.print_stat("parsed_constraints", num_constraints(*f));
-    *f = normalize(ternarize(*f));
+    return f;
+  }
+
+  FormulaPtr prepare_solver(battery::vector<F>& extra) {
+    FormulaPtr f = parse_cn();
+    stats.print_stat("abstract_domain", "\"pir_itv_z\"");
+    // stats.print_stat("abstract_domain", "\"pc_itv_z\"");
+    *f = ternarize(*f);
+    *f = normalize(*f, extra);
     size_t num_vars = num_quantified_vars(*f);
     /** TNF = ternary normal form (apply normalize and ternarize functions). */
     stats.print_stat("tnf_variables", num_vars);
-    stats.print_stat("tnf_constraints", num_constraints(*f));
+    stats.print_stat("tnf_constraints", num_tnf_constraints(*f));
     allocate(num_vars);
-    type_and_interpret(*f);
+    /** If we don't simplify, it is our last chance to interpret the default search strategies. */
+    type_and_interpret(*f, !config.simplify);
     return f;
   }
 
@@ -468,13 +465,132 @@ public:
     vstat() = default;
   };
 
-  /** The constraint network must be normalized. */
-  void analyze_pir() const {
-    if(ipc->is_bot()) {
-      return;
+  void preprocess() {
+    auto start = stats.start_timer_host();
+    battery::vector<F> extra;
+    auto raw_formula = prepare_solver(extra);
+    if(prepare_simplifier(*raw_formula)) {
+      GaussSeidelIteration fp_engine;
+      fp_engine.fixpoint(ipc->num_deductions(), [&](size_t i) { return ipc->deduce(i); });
+      if(config.simplify) {
+        fp_engine.fixpoint(simplifier->num_deductions(), [&](size_t i) { return simplifier->deduce(i); });
+        simplifier->num_eliminate_variables();
+        auto f = simplifier->deinterpret();
+        stats.eliminated_variables = simplifier->num_eliminated_variables();
+        if(config.verbose_solving) {
+          printf("%% Formula simplified.\n");
+          printf("%% Ternarizing the formula...\n");
+        }
+        f = ternarize(f);
+        if(config.verbose_solving) {
+          printf("%% Formula ternarized.\n");
+          if(config.print_ast) {
+            f.print(false);
+          }
+          printf("%% Normalizing the formula...\n");
+        }
+        f = normalize(f);
+        if(config.verbose_solving) {
+          printf("%% Formula normalized.\n");
+          if(config.print_ast) {
+            f.print(false);
+          }
+        }
+        size_t num_vars = num_quantified_vars(f);
+        stats.print_stat("variables_after_simplification", num_vars);
+        stats.print_stat("constraints_after_simplification", num_tnf_constraints(f));
+        allocate(num_vars);
+        type_and_interpret(f, true);
+      }
     }
+    if(config.network_analysis) {
+      analyze_pir();
+    }
+    stats.stop_timer(Timer::PREPROCESSING, start);
+    stats.print_timing_stat("preprocessing_time", Timer::PREPROCESSING);
+  }
+
+  void preprocess_pir() {
+    auto start = stats.start_timer_host();
+    battery::vector<F> extra;
+    FormulaPtr raw_formula = prepare_solver(extra);
+    simplifier->init_env(env);
+    GaussSeidelIteration fp_engine;
+    fp_engine.fixpoint(ipc->num_deductions(), [&](size_t i) { return ipc->deduce(i); });
+    if(!config.simplify) {
+      /** Even when we don't simplify, we still need to initialize the equivalence classes.
+       * This is necessary to call `print_variable` on `simplifier` when finding a solution. */
+      simplifier->initialize(num_quantified_vars(*raw_formula), 0);
+    }
+    else {
+      size_t eliminated_entailed_constraints = 0;
+      auto f = ipc->deinterpret(env, true, eliminated_entailed_constraints);
+      stats.print_stat("eliminated_entailed_constraints", eliminated_entailed_constraints);
+      size_t eliminated_constraints_by_icse = 0;
+      size_t eliminated_equality_constraints = 0;
+      f = simplifier->simplify_tnf(f, eliminated_equality_constraints, eliminated_constraints_by_icse);
+      stats.print_stat("eliminated_equality_constraints", eliminated_equality_constraints);
+      stats.print_stat("eliminated_constraints_by_icse", eliminated_constraints_by_icse);
+      F extra_f = F::make_nary(AND, std::move(extra));
+      simplifier->substitute(extra_f);
+      stats.print_stat("eliminated_variables", simplifier->num_eliminated_variables());
+      if(config.verbose_solving) {
+        printf("%% Formula simplified.\n");
+      }
+      size_t num_vars = simplifier->num_vars_after_elimination();
+      F f2 = F::make_binary(std::move(f), AND, std::move(extra_f));
+      stats.print_stat("variables_after_simplification", num_vars);
+      stats.print_stat("constraints_after_simplification", num_tnf_constraints(f2));
+      allocate(num_vars);
+      type_and_interpret(f2, true);
+    }
+    if(config.network_analysis) {
+      analyze_pir();
+    }
+    stats.stop_timer(Timer::PREPROCESSING, start);
+    stats.print_timing_stat("preprocessing_time", Timer::PREPROCESSING);
+  }
+
+private:
+  template <class F>
+  CUDA bool interpret_default_strategy() {
+    config.free_search = true;
+    typename F::Sequence seq;
+    seq.push_back(F::make_nary("first_fail", {}));
+    seq.push_back(F::make_nary("indomain_min", {}));
+    for(int i = 0; i < env.num_vars(); ++i) {
+      seq.push_back(F::make_avar(env[i].avars[0]));
+    }
+    F search_strat = F::make_nary("search", std::move(seq));
+    if(!interpret_and_diagnose_and_tell(search_strat, env, *bab)) {
+      return false;
+    }
+    return true;
+  }
+
+  template <class F>
+  CUDA bool interpret_default_eps_strategy() {
+    typename F::Sequence seq;
+    seq.push_back(F::make_nary("first_fail", {}));
+    seq.push_back(F::make_nary("indomain_min", {}));
+    for(int i = 0; i < env.num_vars(); ++i) {
+      seq.push_back(F::make_avar(env[i].avars[0]));
+    }
+    F search_strat = F::make_nary("search", std::move(seq));
+    if(!interpret_and_diagnose_and_tell(search_strat, env, *eps_split)) {
+      return false;
+    }
+    return true;
+  }
+
+  /** Only for PIR abstract domain. */
+  void analyze_pir() const {
     if(config.verbose_solving) {
       printf("%% Analyzing the constraint network...\n");
+    }
+    if(ipc->is_bot()) {
+      printf("%% Constraint network UNSAT at root, analysis cancelled...\n");
+      return;
     }
     std::vector<vstat> vstats(store->vars(), vstat{});
     for(int i = 0; i < store->vars(); ++i) {
@@ -485,11 +601,32 @@ public:
       }
     }
 
+    std::map<Sig, size_t> op_stats{{{Sig::EQ,0}, {Sig::LEQ,0}, {Sig::NEQ,0}, {Sig::GT,0}, {ADD,0}, {MUL,0}, {EMOD,0}, {EDIV,0}, {MIN,0}, {MAX,0}}};
+    std::map<Sig, size_t> reified_op_stats{{{Sig::EQ,0}, {Sig::LEQ,0}}};
+
     for(int i = 0; i < ipc->num_deductions(); ++i) {
       bytecode_type bytecode = ipc->load_deduce(i);
       vstats[bytecode.x.vid()].num_occurrences++;
       vstats[bytecode.y.vid()].num_occurrences++;
       vstats[bytecode.z.vid()].num_occurrences++;
+      if(!op_stats.contains(bytecode.op)) {
+        printf("%% WARNING: operator not explicitly managed in PIR: %d\n", bytecode.op);
+        op_stats[bytecode.op] = 0;
+      }
+      auto dom = ipc->project(bytecode.x);
+      if((is_arithmetic_comparison(bytecode.op)) &&
+        (dom.lb().value() != dom.ub().value() || dom.lb().value() == 0))
+      {
+        if(dom.lb().value() != dom.ub().value()) {
+          reified_op_stats[bytecode.op]++;
+        }
+        else {
+          op_stats[negate_arithmetic_comparison(bytecode.op)]++;
+        }
+      }
+      else {
+        op_stats[bytecode.op]++;
+      }
     }
 
     size_t num_constants = 0;
@@ -541,7 +678,7 @@ public:
     stats.print_stat("num_infinite_domains", num_infinites);
     // Print the number of average occurrence of variables in the constraints.
     stats.print_stat("sum_props_of_vars", sum_props_of_vars);
-    print_memory_statistics("sum_props_of_vars", sum_props_of_vars*4); // 1 integer per propagator indexes.
+    stats.print_memory_statistics(config.verbose_solving, "sum_props_of_vars", sum_props_of_vars*4); // 1 integer per propagator indexes.
     stats.print_stat("avg_constraints_per_unassigned_var", average_occ_vars);
     // Print the maximum number of occurrence of a single variable in the constraints.
     stats.print_stat("max_constraints_per_unassigned_var", max_occ_vars);
@@ -552,7 +689,7 @@ public:
     stats.print_stat("num_vars_in_more_than_10_constraints", num_vars_in_more_than_10_constraints);
     // Print the number of bits required to represent the bounded variables in a bitset.
     stats.print_stat("sum_domain_size", sum_domain_size);
-    print_memory_statistics("sum_domain_size", sum_domain_size/8);
+    stats.print_memory_statistics(config.verbose_solving, "sum_domain_size", sum_domain_size/8);
     // Print the largest variable in the constraint network.
     stats.print_stat("largest_domain", largest_dom);
     // Print the number of variables with a width of 2, 64, 128, ... bits or less in the constraint network.
@@ -563,83 +700,16 @@ public:
     stats.print_stat("num_512bits_vars", num_512bits_vars);
     stats.print_stat("num_65536bits_vars", num_65536bits_vars);
     // For each operator, print how many times they each occur in the constraint network.
-  }
-
-  void preprocess() {
-    auto start = stats.start_timer_host();
-    auto raw_formula = prepare_solver();
-    if(prepare_simplifier(*raw_formula)) {
-      GaussSeidelIteration fp_engine;
-      fp_engine.fixpoint(ipc->num_deductions(), [&](size_t i) { return ipc->deduce(i); });
-      if(config.simplify) {
-        fp_engine.fixpoint(simplifier->num_deductions(), [&](size_t i) { return simplifier->deduce(i); });
-        auto f = simplifier->deinterpret();
-        stats.eliminated_variables = simplifier->num_eliminated_variables();
-        stats.eliminated_formulas = simplifier->num_eliminated_formulas();
-        if(config.verbose_solving) {
-          printf("%% Formula simplified.\n");
-          printf("%% Ternarizing the formula...\n");
-        }
-        using F = TFormula<basic_allocator_type>;
-        f = ternarize(f);
-        if(config.verbose_solving) {
-          printf("%% Formula ternarized.\n");
-          if(config.print_ast) {
-            f.print(false);
-          }
-          printf("%% Normalizing the formula...\n");
-        }
-        f = normalize(f);
-        if(config.verbose_solving) {
-          printf("%% Formula normalized.\n");
-          if(config.print_ast) {
-            f.print(false);
-          }
-        }
-        size_t num_vars = num_quantified_vars(f);
-        stats.print_stat("simplified_tnf_vars", num_vars);
-        stats.print_stat("simplified_tnf_constraints", num_constraints(f));
-        allocate(num_vars);
-        type_and_interpret(f);
-      }
+    for(auto& [sig,count] : op_stats) {
+      std::string stat_name("num_op_");
+      stat_name += string_of_sig_txt(sig);
+      stats.print_stat(stat_name.c_str(), count);
     }
-    if(config.network_analysis) {
-      analyze_pir();
+    for(auto& [sig,count] : reified_op_stats) {
+      std::string stat_name("num_op_reified_");
+      stat_name += string_of_sig_txt(sig);
+      stats.print_stat(stat_name.c_str(), count);
     }
-    stats.stop_timer(Timer::PREPROCESSING, start);
-    stats.print_timing_stat("preprocessing_time", Timer::PREPROCESSING);
-  }
-
-private:
-  template <class F>
-  CUDA bool interpret_default_strategy() {
-    config.free_search = true;
-    typename F::Sequence seq;
-    seq.push_back(F::make_nary("first_fail", {}));
-    seq.push_back(F::make_nary("indomain_min", {}));
-    for(int i = 0; i < env.num_vars(); ++i) {
-      seq.push_back(F::make_avar(env[i].avars[0]));
-    }
-    F search_strat = F::make_nary("search", std::move(seq));
-    if(!interpret_and_diagnose_and_tell(search_strat, env, *bab)) {
-      return false;
-    }
-    return true;
-  }
-
-  template <class F>
-  CUDA bool interpret_default_eps_strategy() {
-    typename F::Sequence seq;
-    seq.push_back(F::make_nary("first_fail", {}));
-    seq.push_back(F::make_nary("indomain_min", {}));
-    for(int i = 0; i < env.num_vars(); ++i) {
-      seq.push_back(F::make_avar(env[i].avars[0]));
-    }
-    F search_strat = F::make_nary("search", std::move(seq));
-    if(!interpret_and_diagnose_and_tell(search_strat, env, *eps_split)) {
-      return false;
-    }
-    return true;
   }
 
 public:
@@ -716,8 +786,6 @@ public:
     stats.meet(other.stats);
   }
 };
-
-using Itv = Interval<local::ZLB>;
 
 template <class Universe, class Allocator = battery::standard_allocator>
 using CP = AbstractDomains<Universe,

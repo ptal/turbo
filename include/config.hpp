@@ -155,9 +155,9 @@ struct Configuration {
     if(arch == Arch::GPU) {
       printf("-arch gpu -or %" PRIu64 " -sub %" PRIu64 " -stack %" PRIu64 " ", or_nodes, subproblems_power, stack_kb);
       if(only_global_memory) { printf("-globalmem "); }
-      if(simplify) { printf("-simplify "); }
-      if(network_analysis) { printf("-network_analysis "); }
     }
+    if(simplify) { printf("-simplify "); }
+    if(network_analysis) { printf("-network_analysis "); }
     else if(arch == Arch::HYBRID) {
       printf("-arch hybrid -or %" PRIu64 " ", or_nodes);
     }
@@ -207,7 +207,7 @@ struct Configuration {
   CUDA void print_mzn_statistics() const {
     printf("%%%%%%mzn-stat: problem_path=\"%s\"\n", problem_path.data());
     printf("%%%%%%mzn-stat: solver=\"Turbo\"\n");
-    printf("%%%%%%mzn-stat: version=\"%s\"\n", (version.size() == 0) ? "1.2.6" : version.data());
+    printf("%%%%%%mzn-stat: version=\"%s\"\n", (version.size() == 0) ? "1.2.7" : version.data());
     printf("%%%%%%mzn-stat: hardware=\"%s\"\n", (hardware.size() == 0) ? "Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000" : hardware.data());
     printf("%%%%%%mzn-stat: arch=\"%s\"\n", name_of_arch(arch));
     printf("%%%%%%mzn-stat: fixpoint=\"%s\"\n", name_of_fixpoint(fixpoint));

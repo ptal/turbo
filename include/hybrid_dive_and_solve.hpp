@@ -61,8 +61,8 @@ struct CPUCube {
 */
 struct GPUCube {
   /** We use atomic to store the interval's lower and upper bounds. */
-  // using Itv1 = Interval<ZLB<int, bt::atomic_memory_block>>;
-  using Itv1 = Interval<ZLB<int, bt::local_memory>>;
+  // using Itv1 = Interval<ZLB<bound_value_type, bt::atomic_memory_block>>;
+  using Itv1 = Interval<ZLB<bound_value_type, bt::local_memory>>;
 
   /** We use a `pool_allocator`, this allows to easily switch between global memory and shared memory, if the store of variables can fit inside. */
   using IStore = VStore<Itv1, bt::pool_allocator>;
@@ -232,8 +232,8 @@ struct CPUData {
       bt::statistics_allocator<UniqueLightAlloc<bt::managed_allocator, 0>>,
       bt::statistics_allocator<UniqueLightAlloc<bt::managed_allocator, 1>>>
     managed_cp(root);
-    printf("%%%%%%mzn-stat: store_mem=%" PRIu64 "\n", managed_cp.store.get_allocator().total_bytes_allocated());
-    printf("%%%%%%mzn-stat: propagator_mem=%" PRIu64 "\n", managed_cp.ipc.get_allocator().total_bytes_allocated());
+    root.stats.print_stat("store_mem", managed_cp.store.get_allocator().total_bytes_allocated());
+    root.stats.print_stat("propagator_mem", managed_cp.ipc.get_allocator().total_bytes_allocated());
     allocate_gpu_cubes<<<1, 1>>>(gpu_cubes.data(), gpu_cubes.size(), managed_cp.store.get(), managed_cp.ipc.get());
     CUDAEX(cudaDeviceSynchronize());
   }
@@ -269,14 +269,15 @@ void hybrid_dive_and_solve(const Configuration<battery::standard_allocator>& con
   auto start = std::chrono::steady_clock::now();
   /** We start with some preprocessing to reduce the number of variables and constraints. */
   CP<Itv> cp(config);
-  cp.preprocess();
+  cp.preprocess_pir();
   size_t shared_mem_bytes = configure_gpu(cp);
-
-  /** Block the signal CTRL-C to notify the threads if we must exit. */
-  block_signal_ctrlc();
 
   /** This is the main data structure, we create all the data for each thread and GPU block. */
   CPUData global(cp, shared_mem_bytes);
+
+  /** We wait that either the solving is interrupted, or that all threads have finished. */
+  /** Block the signal CTRL-C to notify the threads if we must exit. */
+  block_signal_ctrlc();
 
   /** Start the algorithm in parallel with as many CPU threads as GPU blocks. */
   std::vector<std::thread> threads;
@@ -291,10 +292,9 @@ void hybrid_dive_and_solve(const Configuration<battery::standard_allocator>& con
       global.shared_mem_bytes>>>
     (global.gpu_cubes.data(), global.shared_mem_bytes);
 
-  /** We wait that either the solving is interrupted, or that all threads have finished. */
   size_t terminated = 0;
   while(terminated < threads.size()) {
-    if(must_quit() || !check_timeout(global.root, start)) {
+    if(must_quit(global.root) || !check_timeout(global.root, start)) {
       global.cpu_stop.test_and_set();
       cuda::atomic_thread_fence(cuda::memory_order_seq_cst, cuda::thread_scope_system);
       break;
@@ -710,12 +710,12 @@ size_t configure_gpu(CP<Itv>& cp) {
   cudaGetDeviceProperties(&deviceProp, 0);
   if(shared_mem_bytes >= deviceProp.sharedMemPerBlock || config.only_global_memory) {
     shared_mem_bytes = DEFAULT_SHARED_MEM_BYTES;
-    printf("%%%%%%mzn-stat: memory_configuration=\"global\"\n");
+    cp.stats.print_stat("memory_configuration", "\"global\"");
   }
   else {
-    printf("%%%%%%mzn-stat: memory_configuration=\"store_shared\"\n");
+    cp.stats.print_stat("memory_configuration", "\"store_shared\"");
   }
-  printf("%%%%%%mzn-stat: shared_mem=%" PRIu64 "\n", shared_mem_bytes);
+  cp.stats.print_stat("shared_mem", shared_mem_bytes);
 
   int hint_num_blocks;
   int hint_num_threads;
@@ -729,12 +729,16 @@ size_t configure_gpu(CP<Itv>& cp) {
   remaining_global_mem -= remaining_global_mem / 10; // We leave 10% of global memory free for CUDA allocations, not sure if it is useful though.
   CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, config.stack_kb*1000));
   CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, remaining_global_mem));
-  print_memory_statistics("stack_memory", total_stack_size);
-  print_memory_statistics("heap_memory", remaining_global_mem);
-  printf("%% or_nodes=%zu\n", config.or_nodes);
+  cp.stats.print_memory_statistics(cp.config.verbose_solving, "stack_memory", total_stack_size);
+  cp.stats.print_memory_statistics(cp.config.verbose_solving, "heap_memory", remaining_global_mem);
+  if(cp.config.verbose_solving) {
+    printf("%% or_nodes=%zu\n", config.or_nodes);
+  }
   int num_blocks;
   cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, (void*) gpu_propagate, CUDA_THREADS_PER_BLOCK, shared_mem_bytes);
-  printf("%% max_blocks_per_sm=%d\n", num_blocks);
+  if(cp.config.verbose_solving) {
+    printf("%% max_blocks_per_sm=%d\n", num_blocks);
+  }
   return shared_mem_bytes;
 }
 

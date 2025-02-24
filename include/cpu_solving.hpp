@@ -10,16 +10,15 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
 
   CP<Itv> cp(config);
   cp.config.or_nodes = 1;
-  cp.preprocess();
+  cp.preprocess_pir();
 
   FixpointSubsetCPU<GaussSeidelIteration> fp_engine(cp.ipc->num_deductions());
   local::B has_changed = true;
   block_signal_ctrlc();
-  while(!must_quit() && check_timeout(cp, start) && has_changed) {
+  while(!must_quit(cp) && check_timeout(cp, start) && has_changed) {
     has_changed = false;
     auto start2 = cp.stats.start_timer_host();
     cp.stats.fixpoint_iterations += fp_engine.fixpoint([&](int i) { return cp.ipc->deduce(i); });
-    cp.store->print(); printf("\n");
     start2 = cp.stats.stop_timer(Timer::FIXPOINT, start2);
     bool must_prune = cp.on_node();
     if(cp.ipc->is_bot()) {
