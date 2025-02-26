@@ -69,7 +69,11 @@ struct GPUCube {
 
   /** The store of propagators also uses a `pool_allocator` of global memory. This was necessary due to the slow copy of propagators between CPU and GPU.
    * Indeed, a propagator is a tree-shaped object (like an AST) that contain many pointers, and thus the copy calls the allocation function a lot. */
-  using IPC = PIR<IStore, bt::pool_allocator>;
+  #ifdef TURBO_IPC_ABSTRACT_DOMAIN
+    using IProp = PC<IStore, bt::pool_allocator>;
+  #else
+    using IProp = PIR<IStore, bt::pool_allocator>;
+  #endif
 
   /** The store of variables is only accessible on GPU. */
   abstract_ptr<IStore> store_gpu;
@@ -77,7 +81,7 @@ struct GPUCube {
   /** The propagators is only accessible on GPU but the array of propagators is shared among all blocks.
    * Since the propagators are state-less, we avoid duplicating them in each block.
    */
-  abstract_ptr<IPC> ipc_gpu;
+  abstract_ptr<IProp> iprop_gpu;
 
   /** `events` is used in the fixpoint loop to know which variables have been modified between two iterations. */
   // battery::vector<local::B, bt::global_allocator> events;
@@ -134,7 +138,7 @@ struct GPUCube {
     void* mem_pool = bt::global_allocator{}.allocate(bytes);
     bt::pool_allocator pool(static_cast<unsigned char*>(mem_pool), bytes);
     AbstractDeps<bt::global_allocator, bt::pool_allocator> deps(pc_shared, bt::global_allocator{}, pool);
-    ipc_gpu = bt::allocate_shared<IPC, bt::pool_allocator>(pool, pc, deps);
+    iprop_gpu = bt::allocate_shared<IProp, bt::pool_allocator>(pool, pc, deps);
     store_gpu = deps.template extract<IStore>(store.aty());
     // events.resize(store.vars());
     // events2.resize(store.vars());
@@ -143,23 +147,23 @@ struct GPUCube {
   __device__ void deallocate() {
     // NOTE: .reset() does not work because it does not reset the allocator, which is itself allocated in global memory.
     store_gpu = abstract_ptr<IStore>();
-    ipc_gpu = abstract_ptr<IPC>();
+    iprop_gpu = abstract_ptr<IProp>();
     // events = battery::vector<local::B, bt::global_allocator>();
     // events2 = battery::vector<local::B, bt::global_allocator>();
   }
 };
 
 /** This kernel initializes the GPU cubes. See the constructor of `CPUData` for more information. */
-template <class Store, class IPC>
+template <class Store, class IProp>
 __global__ void allocate_gpu_cubes(GPUCube* gpu_cubes,
-  size_t n, Store* store, IPC* ipc)
+  size_t n, Store* store, IProp* iprop)
 {
   assert(threadIdx.x == 0 && blockIdx.x == 0);
   size_t bytes = store->get_allocator().total_bytes_allocated()
-    + sizeof(GPUCube::IStore) + sizeof(GPUCube::IPC) + 1000;
-  gpu_cubes[0].allocate(*store, *ipc, bytes + ipc->get_allocator().total_bytes_allocated(), false);
+    + sizeof(GPUCube::IStore) + sizeof(GPUCube::IProp) + 1000;
+  gpu_cubes[0].allocate(*store, *iprop, bytes + iprop->get_allocator().total_bytes_allocated(), false);
   for(int i = 1; i < n; ++i) {
-    gpu_cubes[i].allocate(*gpu_cubes[0].store_gpu, *gpu_cubes[0].ipc_gpu, bytes, true);
+    gpu_cubes[i].allocate(*gpu_cubes[0].store_gpu, *gpu_cubes[0].iprop_gpu, bytes, true);
   }
 }
 
@@ -210,7 +214,7 @@ struct CPUData {
    * Hence the next subproblem to solve is `config.or_nodes`.
    * The GPU cubes are initialized to the same state than the CPU cubes.
    * Further, we connect the CPU and GPU cubes by sharing their store of variables (`gpu_cubes[i].store_cpu` and `cpu_cubes[i].cube.store`).
-   * Also, we share the propagators of `gpu_cubes[0].ipc_gpu` with all other cubes `gpu_cubes[i].ipc_gpu` (with i >= 1).
+   * Also, we share the propagators of `gpu_cubes[0].iprop_gpu` with all other cubes `gpu_cubes[i].iprop_gpu` (with i >= 1).
   */
   CPUData(const CP<Itv>& root, size_t shared_mem_bytes)
    : next_subproblem(root.config.or_nodes)
@@ -233,8 +237,8 @@ struct CPUData {
       bt::statistics_allocator<UniqueLightAlloc<bt::managed_allocator, 1>>>
     managed_cp(root);
     root.stats.print_stat("store_mem", managed_cp.store.get_allocator().total_bytes_allocated());
-    root.stats.print_stat("propagator_mem", managed_cp.ipc.get_allocator().total_bytes_allocated());
-    allocate_gpu_cubes<<<1, 1>>>(gpu_cubes.data(), gpu_cubes.size(), managed_cp.store.get(), managed_cp.ipc.get());
+    root.stats.print_stat("propagator_mem", managed_cp.iprop.get_allocator().total_bytes_allocated());
+    allocate_gpu_cubes<<<1, 1>>>(gpu_cubes.data(), gpu_cubes.size(), managed_cp.store.get(), managed_cp.iprop.get());
     CUDAEX(cudaDeviceSynchronize());
   }
 
@@ -269,7 +273,7 @@ void hybrid_dive_and_solve(const Configuration<battery::standard_allocator>& con
   auto start = std::chrono::steady_clock::now();
   /** We start with some preprocessing to reduce the number of variables and constraints. */
   CP<Itv> cp(config);
-  cp.preprocess_pir();
+  cp.preprocess();
   size_t shared_mem_bytes = configure_gpu(cp);
 
   /** This is the main data structure, we create all the data for each thread and GPU block. */
@@ -443,7 +447,7 @@ size_t dive(CPUData& global, size_t cube_idx) {
       /** We immediately commit to the branch.
        * It has the effect of reducing the domain of the variables in `cube.store` (and `gpu_cube.store_cpu` since they are aliased).
        */
-      cube.ipc->deduce(branches[branch_idx]);
+      cube.iprop->deduce(branches[branch_idx]);
     }
     cube.stats.stop_timer(Timer::SEARCH, start);
   }
@@ -499,7 +503,7 @@ bool propagate(CPUData& global, size_t cube_idx) {
   /** `on_node` updates the statistics and verifies whether we should stop (e.g. option `--cutnodes`). */
   bool is_pruned = cpu_cube.on_node();
   /** If the abstract domain is `bottom`, we reached a leaf node where the problem is unsatisfiable. */
-  if(cpu_cube.ipc->is_bot()) {
+  if(cpu_cube.iprop->is_bot()) {
     is_leaf_node = true;
     cpu_cube.on_failed_node();
   }
@@ -551,11 +555,11 @@ bool propagate(CPUData& global, size_t cube_idx) {
 __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
   extern __shared__ unsigned char shared_mem[];
   GPUCube& cube = gpu_cubes[blockIdx.x];
-  GPUCube::IPC& ipc = *cube.ipc_gpu;
+  GPUCube::IProp& iprop = *cube.iprop_gpu;
 
   /** We start by initializing the structures in shared memory (fixpoint loop engine, store of variables). */
   __shared__ FixpointSubsetGPU<BlockAsynchronousFixpointGPU<true>, bt::global_allocator, CUDA_THREADS_PER_BLOCK> fp_engine;
-  fp_engine.init(ipc.num_deductions());
+  fp_engine.init(iprop.num_deductions());
   /** This shared variable is necessary to avoid multiple threads to read into `cube.stop.test()`,
    * potentially reading different values and leading to deadlock. */
   __shared__ bool stop;
@@ -598,19 +602,19 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
     switch(cube.fp_kind) {
       case FixpointKind::AC1:
         fp_iterations = fp_engine.fixpoint(
-          [&](int i){ return ipc.deduce(i); },
-          [&](){ return ipc.is_bot(); });
+          [&](int i){ return iprop.deduce(i); },
+          [&](){ return iprop.is_bot(); });
         break;
       case FixpointKind::WAC1:
         if(fp_engine.num_active() <= cube.wac1_threshold) {
           fp_iterations = fp_engine.fixpoint(
-            [&](int i){ return ipc.deduce(i); },
-            [&](){ return ipc.is_bot(); });
+            [&](int i){ return iprop.deduce(i); },
+            [&](){ return iprop.is_bot(); });
         }
         else {
           fp_iterations = fp_engine.fixpoint(
-            [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(ipc, i); },
-            [&](){ return ipc.is_bot(); });
+            [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(iprop, i); },
+            [&](){ return iprop.is_bot(); });
         }
         break;
     }
@@ -623,7 +627,7 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
     }
     bool is_leaf_node = cube.store_gpu->is_bot();
     if(!is_leaf_node) {
-      fp_engine.select([&](int i) { return !ipc.ask(i); });
+      fp_engine.select([&](int i) { return !iprop.ask(i); });
       cube.timers.stop_timer(Timer::SELECT_FP_FUNCTIONS, start);
       if(fp_engine.num_active() == 0) {
         is_leaf_node = cube.store_gpu->template is_extractable<AtomicExtraction>(group);
@@ -641,7 +645,7 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
     }
     // Backtrack detected.
     if(is_leaf_node) {
-      fp_engine.reset(ipc.num_deductions());
+      fp_engine.reset(iprop.num_deductions());
     }
   }
   fp_engine.destroy();

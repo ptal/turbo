@@ -41,7 +41,8 @@ struct Configuration {
   bool verbose_solving;
   bool print_ast;
   bool only_global_memory;
-  bool simplify;
+  bool force_ternarize;
+  bool disable_simplify;
   bool network_analysis;
   size_t timeout_ms;
   size_t or_nodes;
@@ -63,7 +64,8 @@ struct Configuration {
     print_ast(false),
     print_statistics(false),
     only_global_memory(false),
-    simplify(false),
+    force_ternarize(false),
+    disable_simplify(false),
     network_analysis(false),
     timeout_ms(0),
     or_nodes(0),
@@ -71,7 +73,7 @@ struct Configuration {
     stack_kb(STACK_KB),
     arch(
       #ifdef __CUDACC__
-        Arch::GPU
+        Arch::HYBRID
       #else
         Arch::CPU
       #endif
@@ -102,7 +104,8 @@ struct Configuration {
     verbose_solving(other.verbose_solving),
     print_ast(other.print_ast),
     only_global_memory(other.only_global_memory),
-    simplify(other.simplify),
+    force_ternarize(other.force_ternarize),
+    disable_simplify(other.disable_simplify),
     network_analysis(other.network_analysis),
     timeout_ms(other.timeout_ms),
     or_nodes(other.or_nodes),
@@ -126,7 +129,8 @@ struct Configuration {
     print_ast = other.print_ast;
     print_statistics = other.print_statistics;
     only_global_memory = other.only_global_memory;
-    simplify = other.simplify;
+    force_ternarize = other.force_ternarize;
+    disable_simplify = other.disable_simplify;
     network_analysis = other.network_analysis;
     timeout_ms = other.timeout_ms;
     or_nodes = other.or_nodes;
@@ -156,14 +160,15 @@ struct Configuration {
       printf("-arch gpu -or %" PRIu64 " -sub %" PRIu64 " -stack %" PRIu64 " ", or_nodes, subproblems_power, stack_kb);
       if(only_global_memory) { printf("-globalmem "); }
     }
-    if(simplify) { printf("-simplify "); }
-    if(network_analysis) { printf("-network_analysis "); }
     else if(arch == Arch::HYBRID) {
       printf("-arch hybrid -or %" PRIu64 " ", or_nodes);
     }
     else {
       printf("-arch cpu -p %" PRIu64 " ", or_nodes);
     }
+    if(disable_simplify) { printf("-disable_simplify "); }
+    if(force_ternarize) { printf("-force_ternarize "); }
+    if(network_analysis) { printf("-network_analysis "); }
     printf("-fp %s ", name_of_fixpoint(fixpoint));
     if(fixpoint == FixpointKind::WAC1) {
       printf("-wac1_threshold %" PRIu64 " ", wac1_threshold);
@@ -172,7 +177,7 @@ struct Configuration {
       printf("-version %s ", version.data());
     }
     if(hardware.size() != 0) {
-      printf("-hardware \"%s\" ", hardware.data());
+      printf("-hardware \'%s\' ", hardware.data());
     }
     printf("-cutnodes %" PRIu64 " ", stop_after_n_nodes == std::numeric_limits<size_t>::max() ? 0 : stop_after_n_nodes);
     printf("%s\n", problem_path.data());
@@ -208,7 +213,7 @@ struct Configuration {
     printf("%%%%%%mzn-stat: problem_path=\"%s\"\n", problem_path.data());
     printf("%%%%%%mzn-stat: solver=\"Turbo\"\n");
     printf("%%%%%%mzn-stat: version=\"%s\"\n", (version.size() == 0) ? "1.2.7" : version.data());
-    printf("%%%%%%mzn-stat: hardware=\"%s\"\n", (hardware.size() == 0) ? "Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000" : hardware.data());
+    printf("%%%%%%mzn-stat: hardware=\"%s\"\n", (hardware.size() == 0) ? "unspecified" : hardware.data());
     printf("%%%%%%mzn-stat: arch=\"%s\"\n", name_of_arch(arch));
     printf("%%%%%%mzn-stat: fixpoint=\"%s\"\n", name_of_fixpoint(fixpoint));
     if(fixpoint == FixpointKind::WAC1) {

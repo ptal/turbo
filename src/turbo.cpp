@@ -17,9 +17,10 @@ int main(int argc, char** argv) {
   try
   {
     Configuration<standard_allocator> config = parse_args(argc, argv);
-    if(config.verbose_solving) {
-      printf("%% ");
+    if(config.print_statistics) {
+      printf("%%%%%%mzn-stat: command_line=\"");
       config.print_commandline(argv[0]);
+      printf("\"\n");
     }
     if(config.arch == Arch::CPU) {
       cpu_solve(config);

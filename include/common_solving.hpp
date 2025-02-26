@@ -37,12 +37,18 @@
 
 using namespace lala;
 
-#ifdef TURBO_ITV_64_BITS
+#ifndef TURBO_ITV_BITS
+  #define TURBO_ITV_BITS 32
+#endif
+
+#if (TURBO_ITV_BITS == 64)
   using bound_value_type = long long int;
-#elif TURBO_ITV_16_BITS
+#elif (TURBO_ITV_BITS == 16)
   using bound_value_type = short int;
-#else
+#elif (TURBO_ITV_BITS == 32)
   using bound_value_type = int;
+#else
+  #error "Invalid value for TURBO_ITV_BITS: must be 16, 32 or 64."
 #endif
 using Itv = Interval<ZLB<bound_value_type, battery::local_memory>>;
 
@@ -142,10 +148,14 @@ struct AbstractDomains {
   using LIStore = VStore<universe_type, BasicAllocator>;
 
   using IStore = VStore<Universe, StoreAllocator>;
-  using IPC = PIR<IStore, PropAllocator>; // Interval Propagators Completion
-  using ISimplifier = Simplifier<IPC, BasicAllocator>;
-  using Split = SplitStrategy<IPC, BasicAllocator>;
-  using IST = SearchTree<IPC, Split, BasicAllocator>;
+#ifdef TURBO_IPC_ABSTRACT_DOMAIN
+  using IProp = PC<IStore, PropAllocator>; // Interval Propagators using general propagator completion.
+#else
+  using IProp = PIR<IStore, PropAllocator>; // Interval Propagators using the TNF representation of propagators.
+#endif
+  using ISimplifier = Simplifier<IProp, BasicAllocator>;
+  using Split = SplitStrategy<IProp, BasicAllocator>;
+  using IST = SearchTree<IProp, Split, BasicAllocator>;
   using IBAB = BAB<IST, LIStore>;
 
   using basic_allocator_type = BasicAllocator;
@@ -179,7 +189,7 @@ struct AbstractDomains {
    , stats(other.stats)
    , env(basic_allocator)
    , store(store_allocator)
-   , ipc(prop_allocator)
+   , iprop(prop_allocator)
    , simplifier(basic_allocator)
    , split(basic_allocator)
    , eps_split(basic_allocator)
@@ -189,7 +199,7 @@ struct AbstractDomains {
   {
     AbstractDeps<BasicAllocator, PropAllocator, StoreAllocator> deps{enable_sharing, basic_allocator, prop_allocator, store_allocator};
     store = deps.template clone<IStore>(other.store);
-    ipc = deps.template clone<IPC>(other.ipc);
+    iprop = deps.template clone<IProp>(other.iprop);
     split = deps.template clone<Split>(other.split);
     eps_split = deps.template clone<Split>(other.eps_split);
     search_tree = deps.template clone<IST>(other.search_tree);
@@ -207,7 +217,7 @@ struct AbstractDomains {
   {
     solver_output = other.solver_output;
     env = other.env;
-    simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, *other.simplifier, typename ISimplifier::light_copy_tag{}, ipc, basic_allocator);
+    simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, *other.simplifier, typename ISimplifier::light_copy_tag{}, iprop, basic_allocator);
   }
 
   CUDA AbstractDomains(const this_type& other,
@@ -230,7 +240,7 @@ struct AbstractDomains {
   , env(basic_allocator)
   , solver_output(basic_allocator)
   , store(store_allocator)
-  , ipc(prop_allocator)
+  , iprop(prop_allocator)
   , simplifier(basic_allocator)
   , split(basic_allocator)
   , eps_split(basic_allocator)
@@ -250,7 +260,7 @@ struct AbstractDomains {
   StoreAllocator store_allocator;
 
   abstract_ptr<IStore> store;
-  abstract_ptr<IPC> ipc;
+  abstract_ptr<IProp> iprop;
   abstract_ptr<ISimplifier> simplifier;
   abstract_ptr<Split> split;
   abstract_ptr<Split> eps_split;
@@ -267,17 +277,16 @@ struct AbstractDomains {
   Configuration<BasicAllocator> config;
   Statistics<BasicAllocator> stats;
 
-  CUDA void allocate(int num_vars) {
+  CUDA void allocate(int num_vars, bool with_simplifier) {
     env = VarEnv<basic_allocator_type>{basic_allocator};
     store = battery::allocate_shared<IStore, StoreAllocator>(store_allocator, env.extends_abstract_dom(), num_vars, store_allocator);
-    ipc = battery::allocate_shared<IPC, PropAllocator>(prop_allocator, env.extends_abstract_dom(), store, prop_allocator);
-    // If the simplifier is already allocated, it means we are currently reallocating the abstract domains after preprocessing.
-    if(!simplifier) {
-      simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), store->aty(), ipc, basic_allocator);
+    iprop = battery::allocate_shared<IProp, PropAllocator>(prop_allocator, env.extends_abstract_dom(), store, prop_allocator);
+    if(with_simplifier) {
+      simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), store->aty(), iprop, basic_allocator);
     }
-    split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
-    eps_split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, basic_allocator);
-    search_tree = battery::allocate_shared<IST, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), ipc, split, basic_allocator);
+    split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), iprop, basic_allocator);
+    eps_split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), iprop, basic_allocator);
+    search_tree = battery::allocate_shared<IST, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), iprop, split, basic_allocator);
     // Note that `best` must have the same abstract type then store (otherwise projection of the variables will fail).
     best = battery::allocate_shared<LIStore, BasicAllocator>(basic_allocator, store->aty(), num_vars, basic_allocator);
     bab = battery::allocate_shared<IBAB, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), search_tree, best);
@@ -289,7 +298,7 @@ struct AbstractDomains {
   // This force the deallocation of shared memory inside a kernel.
   CUDA void deallocate() {
     store = nullptr;
-    ipc = nullptr;
+    iprop = nullptr;
     simplifier = nullptr;
     split = nullptr;
     eps_split = nullptr;
@@ -298,28 +307,36 @@ struct AbstractDomains {
     env = VarEnv<BasicAllocator>{basic_allocator}; // this is to release the memory used by `VarEnv`.
   }
 
-  // Mainly to interpret the IN constraint in IPC instead of only over-approximating in intervals.
+private:
+  // Mainly to interpret the IN constraint in IProp instead of only over-approximating in intervals.
   template <class F>
-  CUDA void typing(F& f) const {
+  CUDA void typing(F& f, bool toplevel = true) const {
+    if(toplevel && config.verbose_solving) {
+      printf("%% Typing the formula...\n");
+    }
     switch(f.index()) {
       case F::Seq:
         if(f.sig() == ::lala::IN && f.seq(1).is(F::S) && f.seq(1).s().size() > 1) {
-          f.type_as(ipc->aty());
+          f.type_as(iprop->aty());
           return;
         }
         for(int i = 0; i < f.seq().size(); ++i) {
-          typing(f.seq(i));
+          typing(f.seq(i), false);
         }
         break;
       case F::ESeq:
         for(int i = 0; i < f.eseq().size(); ++i) {
-          typing(f.eseq(i));
+          typing(f.eseq(i), false);
         }
         break;
     }
+    if(toplevel && config.print_ast) {
+      printf("%% Typed AST:\n");
+      f.print(true);
+      printf("\n");
+    }
   }
 
-private:
   // We first try to interpret, and if it does not work, we interpret again with the diagnostics mode turned on.
   template <class F, class Env, class A>
   CUDA bool interpret_and_diagnose_and_tell(const F& f, Env& env, A& a) {
@@ -342,6 +359,14 @@ public:
     if(!interpret_and_diagnose_and_tell(f, env, *bab)) {
       return false;
     }
+    if(config.print_ast) {
+      printf("%% Interpreted AST:\n");
+      iprop->deinterpret(env).print();
+      printf("\n");
+    }
+    if(config.verbose_solving) {
+      printf("%% Formula has been interpreted.\n");
+    }
     /** If some variables were added during the interpretation, we must resize `best` as well.
      * If we don't do it now, it will be done during the solving (when calling bab.extract) which will lead to a resize of the underlying store.
      * The problem is that the resize will be done on the device! If it was allocated in managed memory, it will be now reallocated in device memory, leading to a segfault later on.
@@ -351,7 +376,7 @@ public:
       best->join_top();
     }
     stats.variables = store->vars();
-    stats.constraints = ipc->num_deductions();
+    stats.constraints = iprop->num_deductions();
     bool can_interpret = true;
     if(with_default_strats) {
       /** We add a search strategy by default for the variables that potentially do not occur in the previous strategies. */
@@ -359,50 +384,6 @@ public:
       can_interpret &= interpret_default_eps_strategy<F>();
     }
     return can_interpret;
-  }
-
-  template <class F>
-  CUDA bool prepare_simplifier(F& f) {
-    if(config.verbose_solving) {
-      printf("%% Simplifying the formula...\n");
-    }
-    IDiagnostics diagnostics;
-    typename ISimplifier::template tell_type<basic_allocator_type> tell{basic_allocator};
-    if(top_level_ginterpret_in<IKind::TELL>(*simplifier, f, env, tell, diagnostics)) {
-      simplifier->deduce(std::move(tell));
-      return true;
-    }
-    else if(config.verbose_solving) {
-      printf("WARNING: Could not simplify the formula because:\n");
-      IDiagnostics diagnostics2;
-      top_level_ginterpret_in<IKind::TELL, true>(*simplifier, f, env, tell, diagnostics2);
-      diagnostics2.print();
-    }
-    return false;
-  }
-
-  template <class F>
-  void type_and_interpret(F& f, bool with_default_strats = true) {
-    // if(config.verbose_solving) {
-    //   printf("%% Typing the formula...\n");
-    // }
-    // typing(f);
-    // if(config.print_ast) {
-    //   printf("%% Typed AST:\n");
-    //   f.print(true);
-    //   printf("\n");
-    // }
-    if(!interpret(f, with_default_strats)) {
-      exit(EXIT_FAILURE);
-    }
-    if(config.print_ast) {
-      printf("%% Interpreted AST:\n");
-      ipc->deinterpret(env).print();
-      printf("\n");
-    }
-    if(config.verbose_solving) {
-      printf("%% Formula has been interpreted.\n");
-    }
   }
 
   using FormulaPtr = battery::shared_ptr<TFormula<basic_allocator_type>, basic_allocator_type>;
@@ -442,113 +423,132 @@ public:
     return f;
   }
 
-  FormulaPtr prepare_solver(battery::vector<F>& extra) {
-    FormulaPtr f = parse_cn();
-    stats.print_stat("abstract_domain", "\"pir_itv_z\"");
-    // stats.print_stat("abstract_domain", "\"pc_itv_z\"");
-    *f = ternarize(*f);
-    *f = normalize(*f, extra);
-    size_t num_vars = num_quantified_vars(*f);
-    /** TNF = ternary normal form (apply normalize and ternarize functions). */
-    stats.print_stat("tnf_variables", num_vars);
-    stats.print_stat("tnf_constraints", num_tnf_constraints(*f));
-    allocate(num_vars);
-    /** If we don't simplify, it is our last chance to interpret the default search strategies. */
-    type_and_interpret(*f, !config.simplify);
-    return f;
+  template <class F>
+  void initialize_simplifier(const F& f) {
+    IDiagnostics diagnostics;
+    typename ISimplifier::template tell_type<basic_allocator_type> tell{basic_allocator};
+    if(!top_level_ginterpret_in<IKind::TELL>(*simplifier, f, env, tell, diagnostics)) {
+      printf("%% ERROR: Could not simplify the formula because:\n");
+      IDiagnostics diagnostics2;
+      top_level_ginterpret_in<IKind::TELL, true>(*simplifier, f, env, tell, diagnostics2);
+      diagnostics2.print();
+      exit(EXIT_FAILURE);
+    }
+    simplifier->deduce(std::move(tell));
   }
 
-  struct vstat {
-    size_t num_occurrences;
-    bool infinite_domain;
-    size_t domain_size;
-    vstat() = default;
-  };
+  void preprocess_ipc(F& f) {
+    size_t num_vars = num_quantified_vars(f);
+    allocate(num_vars, true);
+    typing(f);
+    /** If we don't simplify, it is our last chance to interpret the default search strategies. */
+    if(!interpret(f, config.disable_simplify)) {
+      exit(EXIT_FAILURE);
+    }
+    GaussSeidelIteration fp_engine;
+    fp_engine.fixpoint(iprop->num_deductions(), [&](size_t i) { return iprop->deduce(i); });
+    /* We need to initialize the simplifier even if we don't simplify.
+       This is because the simplifier equivalence classes is used in SolverOutput. */
+    initialize_simplifier(f);
+    if(config.disable_simplify) {
+      return;
+    }
+    if(config.verbose_solving) {
+      printf("%% Simplifying the formula...\n");
+    }
+    fp_engine.fixpoint(simplifier->num_deductions(), [&](size_t i) { return simplifier->deduce(i); });
+    f = simplifier->deinterpret();
+    if(config.verbose_solving) {
+      printf("%% Formula simplified.\n");
+    }
+    f = normalize(f);
+    num_vars = num_quantified_vars(f);
+    stats.print_stat("variables_after_simplification", num_vars);
+    stats.print_stat("constraints_after_simplification", num_constraints(f));
+    allocate(num_vars, false);
+    typing(f);
+    if(!interpret(f, true)) {
+      exit(EXIT_FAILURE);
+    }
+  }
+
+  void preprocess_pir(F& f) {
+    f = ternarize(f);
+    battery::vector<F> extra;
+    f = normalize(f, extra);
+    size_t num_vars = num_quantified_vars(f);
+    stats.print_stat("tnf_variables", num_vars);
+    stats.print_stat("tnf_constraints", num_tnf_constraints(f));
+    allocate(num_vars, true);
+    if(!interpret(f, config.disable_simplify)) {
+      exit(EXIT_FAILURE);
+    }
+    simplifier->init_env(env);
+    GaussSeidelIteration fp_engine;
+    fp_engine.fixpoint(iprop->num_deductions(), [&](size_t i) { return iprop->deduce(i); });
+    if(config.disable_simplify) {
+      /** Even when we don't simplify, we still need to initialize the equivalence classes.
+       * This is necessary to call `print_variable` on `simplifier` when finding a solution. */
+      simplifier->initialize(num_quantified_vars(f), 0);
+      return;
+    }
+    size_t eliminated_entailed_constraints = 0;
+    f = iprop->deinterpret(env, true, eliminated_entailed_constraints);
+    stats.print_stat("eliminated_entailed_constraints", eliminated_entailed_constraints);
+    size_t eliminated_constraints_by_icse = 0;
+    size_t icse_fixpoint_iterations = 0;
+    size_t eliminated_equality_constraints = 0;
+    f = simplifier->simplify_tnf(f, eliminated_equality_constraints, eliminated_constraints_by_icse, icse_fixpoint_iterations);
+    stats.print_stat("eliminated_equality_constraints", eliminated_equality_constraints);
+    stats.print_stat("eliminated_constraints_by_icse", eliminated_constraints_by_icse);
+    stats.print_stat("icse_fixpoint_iterations", icse_fixpoint_iterations);
+    F extra_f = F::make_nary(AND, std::move(extra));
+    simplifier->substitute(extra_f);
+    stats.print_stat("eliminated_variables", simplifier->num_eliminated_variables());
+    if(config.verbose_solving) {
+      printf("%% Formula simplified.\n");
+    }
+    num_vars = simplifier->num_vars_after_elimination();
+    F f2 = F::make_binary(std::move(f), AND, std::move(extra_f));
+    stats.print_stat("variables_after_simplification", num_vars);
+    stats.print_stat("constraints_after_simplification", num_tnf_constraints(f2));
+    allocate(num_vars, false);
+    if(!interpret(f2, true)) {
+      exit(EXIT_FAILURE);
+    }
+  }
+
+  const char* name_of_abstract_domain() const {
+    #define STR_(x) #x
+    #define STR(x) STR_(x)
+    #ifdef TURBO_IPC_ABSTRACT_DOMAIN
+      return "ipc_itv" STR(TURBO_ITV_BITS) "_z";
+    #else
+      return "pir_itv" STR(TURBO_ITV_BITS) "_z";
+    #endif
+  }
 
   void preprocess() {
     auto start = stats.start_timer_host();
-    battery::vector<F> extra;
-    auto raw_formula = prepare_solver(extra);
-    if(prepare_simplifier(*raw_formula)) {
-      GaussSeidelIteration fp_engine;
-      fp_engine.fixpoint(ipc->num_deductions(), [&](size_t i) { return ipc->deduce(i); });
-      if(config.simplify) {
-        fp_engine.fixpoint(simplifier->num_deductions(), [&](size_t i) { return simplifier->deduce(i); });
-        simplifier->num_eliminate_variables();
-        auto f = simplifier->deinterpret();
-        stats.eliminated_variables = simplifier->num_eliminated_variables();
-        if(config.verbose_solving) {
-          printf("%% Formula simplified.\n");
-          printf("%% Ternarizing the formula...\n");
-        }
-        f = ternarize(f);
-        if(config.verbose_solving) {
-          printf("%% Formula ternarized.\n");
-          if(config.print_ast) {
-            f.print(false);
-          }
-          printf("%% Normalizing the formula...\n");
-        }
-        f = normalize(f);
-        if(config.verbose_solving) {
-          printf("%% Formula normalized.\n");
-          if(config.print_ast) {
-            f.print(false);
-          }
-        }
-        size_t num_vars = num_quantified_vars(f);
-        stats.print_stat("variables_after_simplification", num_vars);
-        stats.print_stat("constraints_after_simplification", num_tnf_constraints(f));
-        allocate(num_vars);
-        type_and_interpret(f, true);
-      }
-    }
-    if(config.network_analysis) {
-      analyze_pir();
-    }
-    stats.stop_timer(Timer::PREPROCESSING, start);
-    stats.print_timing_stat("preprocessing_time", Timer::PREPROCESSING);
-  }
-
-  void preprocess_pir() {
-    auto start = stats.start_timer_host();
-    battery::vector<F> extra;
-    FormulaPtr raw_formula = prepare_solver(extra);
-    simplifier->init_env(env);
-    GaussSeidelIteration fp_engine;
-    fp_engine.fixpoint(ipc->num_deductions(), [&](size_t i) { return ipc->deduce(i); });
-    if(!config.simplify) {
-      /** Even when we don't simplify, we still need to initialize the equivalence classes.
-       * This is necessary to call `print_variable` on `simplifier` when finding a solution. */
-      simplifier->initialize(num_quantified_vars(*raw_formula), 0);
+    FormulaPtr f_ptr = parse_cn();
+    stats.print_stat("abstract_domain", name_of_abstract_domain());
+    if(TURBO_IPC_ABSTRACT_DOMAIN && !config.force_ternarize) {
+      preprocess_ipc(*f_ptr);
     }
     else {
-      size_t eliminated_entailed_constraints = 0;
-      auto f = ipc->deinterpret(env, true, eliminated_entailed_constraints);
-      stats.print_stat("eliminated_entailed_constraints", eliminated_entailed_constraints);
-      size_t eliminated_constraints_by_icse = 0;
-      size_t eliminated_equality_constraints = 0;
-      f = simplifier->simplify_tnf(f, eliminated_equality_constraints, eliminated_constraints_by_icse);
-      stats.print_stat("eliminated_equality_constraints", eliminated_equality_constraints);
-      stats.print_stat("eliminated_constraints_by_icse", eliminated_constraints_by_icse);
-      F extra_f = F::make_nary(AND, std::move(extra));
-      simplifier->substitute(extra_f);
-      stats.print_stat("eliminated_variables", simplifier->num_eliminated_variables());
-      if(config.verbose_solving) {
-        printf("%% Formula simplified.\n");
+      preprocess_pir(*f_ptr);
+    #ifndef TURBO_IPC_ABSTRACT_DOMAIN
+      if(config.network_analysis) {
+        analyze_pir();
       }
-      size_t num_vars = simplifier->num_vars_after_elimination();
-      F f2 = F::make_binary(std::move(f), AND, std::move(extra_f));
-      stats.print_stat("variables_after_simplification", num_vars);
-      stats.print_stat("constraints_after_simplification", num_tnf_constraints(f2));
-      allocate(num_vars);
-      type_and_interpret(f2, true);
+    #endif
     }
-    if(config.network_analysis) {
-      analyze_pir();
+    if(TURBO_IPC_ABSTRACT_DOMAIN && config.network_analysis) {
+      printf("%% WARNING: -network_analysis option is only valid with the PIR abstract domain.\n");
     }
     stats.stop_timer(Timer::PREPROCESSING, start);
     stats.print_timing_stat("preprocessing_time", Timer::PREPROCESSING);
+    stats.print_mzn_end_stats();
   }
 
 private:
@@ -583,12 +583,19 @@ private:
     return true;
   }
 
+  struct vstat {
+    size_t num_occurrences;
+    bool infinite_domain;
+    size_t domain_size;
+    vstat() = default;
+  };
+
   /** Only for PIR abstract domain. */
   void analyze_pir() const {
     if(config.verbose_solving) {
       printf("%% Analyzing the constraint network...\n");
     }
-    if(ipc->is_bot()) {
+    if(iprop->is_bot()) {
       printf("%% Constraint network UNSAT at root, analysis cancelled...\n");
       return;
     }
@@ -604,8 +611,8 @@ private:
     std::map<Sig, size_t> op_stats{{{Sig::EQ,0}, {Sig::LEQ,0}, {Sig::NEQ,0}, {Sig::GT,0}, {ADD,0}, {MUL,0}, {EMOD,0}, {EDIV,0}, {MIN,0}, {MAX,0}}};
     std::map<Sig, size_t> reified_op_stats{{{Sig::EQ,0}, {Sig::LEQ,0}}};
 
-    for(int i = 0; i < ipc->num_deductions(); ++i) {
-      bytecode_type bytecode = ipc->load_deduce(i);
+    for(int i = 0; i < iprop->num_deductions(); ++i) {
+      bytecode_type bytecode = iprop->load_deduce(i);
       vstats[bytecode.x.vid()].num_occurrences++;
       vstats[bytecode.y.vid()].num_occurrences++;
       vstats[bytecode.z.vid()].num_occurrences++;
@@ -613,7 +620,7 @@ private:
         printf("%% WARNING: operator not explicitly managed in PIR: %d\n", bytecode.op);
         op_stats[bytecode.op] = 0;
       }
-      auto dom = ipc->project(bytecode.x);
+      auto dom = iprop->project(bytecode.x);
       if((is_arithmetic_comparison(bytecode.op)) &&
         (dom.lb().value() != dom.ub().value() || dom.lb().value() == 0))
       {

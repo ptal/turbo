@@ -257,7 +257,7 @@ public:
       snapshot_root = bt::make_shared<snapshot_type, bt::global_allocator>(root->search_tree->template snapshot<bt::global_allocator>());
     }
     block.sync();
-    fp_engine->init(root->ipc->num_deductions());
+    fp_engine->init(root->iprop->num_deductions());
     block.sync();
   }
 
@@ -348,31 +348,31 @@ __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data) {
   BlockCP& cp = *block_data.root;
   auto group = cooperative_groups::this_thread_block();
   auto& fp_engine = *block_data.fp_engine;
-  auto& ipc = *cp.ipc;
+  auto& iprop = *cp.iprop;
   auto start = cp.stats.start_timer_device();
   int fp_iterations;
   switch(cp.config.fixpoint) {
     case FixpointKind::AC1:
       fp_iterations = fp_engine.fixpoint(
-        [&](int i){ return ipc.deduce(i); },
-        [&](){ return ipc.is_bot(); });
+        [&](int i){ return iprop.deduce(i); },
+        [&](){ return iprop.is_bot(); });
       break;
     case FixpointKind::WAC1:
       if(fp_engine.num_active() <= cp.config.wac1_threshold) {
         fp_iterations = fp_engine.fixpoint(
-          [&](int i){ return ipc.deduce(i); },
-          [&](){ return ipc.is_bot(); });
+          [&](int i){ return iprop.deduce(i); },
+          [&](){ return iprop.is_bot(); });
       }
       else {
         fp_iterations = fp_engine.fixpoint(
-          [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(ipc, i); },
-          [&](){ return ipc.is_bot(); });
+          [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(iprop, i); },
+          [&](){ return iprop.is_bot(); });
       }
       break;
   }
   start = cp.stats.stop_timer(Timer::FIXPOINT, start);
-  if(!ipc.is_bot()) {
-    fp_engine.select([&](int i) { return !ipc.ask(i); });
+  if(!iprop.is_bot()) {
+    fp_engine.select([&](int i) { return !iprop.ask(i); });
     start = cp.stats.stop_timer(Timer::SELECT_FP_FUNCTIONS, start);
     if(fp_engine.num_active() == 0) {
       is_leaf_node = cp.store->template is_extractable<AtomicExtraction>(group);
@@ -384,7 +384,7 @@ __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data) {
   if(threadIdx.x == 0) {
     cp.stats.fixpoint_iterations += fp_iterations;
     bool is_pruned = cp.on_node();
-    if(ipc.is_bot()) {
+    if(iprop.is_bot()) {
       cp.on_failed_node();
     }
     else if(is_leaf_node) { // is_leaf_node is set to true above.
@@ -403,7 +403,7 @@ __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data) {
     cp.stats.stop_timer(Timer::SEARCH, start);
   }
   if(is_leaf_node) {
-    fp_engine.reset(cp.ipc->num_deductions());
+    fp_engine.reset(cp.iprop->num_deductions());
   }
   return is_leaf_node;
 }
@@ -438,7 +438,7 @@ __device__ size_t dive(BlockData<S>& block_data, GridData<S>& grid_data) {
         size_t branch_idx = (block_data.subproblem_idx & (size_t{1} << remaining_depth)) >> remaining_depth;
         auto branches = cp.eps_split->split();
         assert(branches.size() == 2);
-        cp.ipc->deduce(branches[branch_idx]);
+        cp.iprop->deduce(branches[branch_idx]);
         cp.stats.stop_timer(Timer::SEARCH, start);
       }
     }
@@ -791,7 +791,7 @@ void gpu_dive_and_solve(Configuration<bt::standard_allocator>& config) {
   check_support_concurrent_managed_memory();
   auto start = std::chrono::steady_clock::now();
   CP<Itv> root(config);
-  root.preprocess_pir();
+  root.preprocess();
   block_signal_ctrlc();
 #ifdef NO_CONCURRENT_MANAGED_MEMORY
   configure_and_run<ItvSolverPinned>(root, start);
