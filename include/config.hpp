@@ -180,7 +180,7 @@ struct Configuration {
       printf("-hardware \'%s\' ", hardware.data());
     }
     printf("-cutnodes %" PRIu64 " ", stop_after_n_nodes == std::numeric_limits<size_t>::max() ? 0 : stop_after_n_nodes);
-    printf("%s\n", problem_path.data());
+    printf("%s", problem_path.data());
   }
 
   CUDA const char* name_of_fixpoint(FixpointKind fixpoint) const {
