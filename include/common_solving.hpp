@@ -532,19 +532,23 @@ public:
     auto start = stats.start_timer_host();
     FormulaPtr f_ptr = parse_cn();
     stats.print_stat("abstract_domain", name_of_abstract_domain());
-    if(TURBO_IPC_ABSTRACT_DOMAIN && !config.force_ternarize) {
+    bool use_ipc = false;
+  #ifdef TURBO_IPC_ABSTRACT_DOMAIN
+    use_ipc = true;
+  #endif
+    if(use_ipc && !config.force_ternarize) {
       preprocess_ipc(*f_ptr);
     }
     else {
       preprocess_pir(*f_ptr);
-    #ifndef TURBO_IPC_ABSTRACT_DOMAIN
-      if(config.network_analysis) {
+    }
+    if(config.network_analysis) {
+      if(use_ipc) {
+        printf("%% WARNING: -network_analysis option is only valid with the PIR abstract domain.\n");
+      }
+      else {
         analyze_pir();
       }
-    #endif
-    }
-    if(TURBO_IPC_ABSTRACT_DOMAIN && config.network_analysis) {
-      printf("%% WARNING: -network_analysis option is only valid with the PIR abstract domain.\n");
     }
     stats.stop_timer(Timer::PREPROCESSING, start);
     stats.print_timing_stat("preprocessing_time", Timer::PREPROCESSING);
