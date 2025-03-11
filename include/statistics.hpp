@@ -202,7 +202,7 @@ struct Statistics {
 
   CUDA void print_stat(const char* name, const char* value) const {
     if(print_statistics) {
-      printf("%%%%%%mzn-stat: %s=%s\n", name, value);
+      printf("%%%%%%mzn-stat: %s=\"%s\"\n", name, value);
     }
   }
 
