@@ -672,6 +672,7 @@ void transfer_memory_and_run(CP<U>& root, MemoryConfig mem_config, const Timepoi
   CUDAEX(cudaDeviceSynchronize());
   if(grid_data->root.config.print_statistics) {
     mem_config.print_mzn_statistics();
+    root.stats.print_mzn_end_stats();
   }
   std::thread consumer_thread(consume_kernel_solutions<S>, std::ref(*grid_data));
   gpu_solve_kernel

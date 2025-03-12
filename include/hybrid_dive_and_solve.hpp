@@ -238,6 +238,7 @@ struct CPUData {
     managed_cp(root);
     root.stats.print_stat("store_mem", managed_cp.store.get_allocator().total_bytes_allocated());
     root.stats.print_stat("propagator_mem", managed_cp.iprop.get_allocator().total_bytes_allocated());
+    root.stats.print_mzn_end_stats();
     allocate_gpu_cubes<<<1, 1>>>(gpu_cubes.data(), gpu_cubes.size(), managed_cp.store.get(), managed_cp.iprop.get());
     CUDAEX(cudaDeviceSynchronize());
   }
@@ -714,10 +715,10 @@ size_t configure_gpu(CP<Itv>& cp) {
   cudaGetDeviceProperties(&deviceProp, 0);
   if(shared_mem_bytes >= deviceProp.sharedMemPerBlock || config.only_global_memory) {
     shared_mem_bytes = DEFAULT_SHARED_MEM_BYTES;
-    cp.stats.print_stat("memory_configuration", "\"global\"");
+    cp.stats.print_stat("memory_configuration", "global");
   }
   else {
-    cp.stats.print_stat("memory_configuration", "\"store_shared\"");
+    cp.stats.print_stat("memory_configuration", "store_shared");
   }
   cp.stats.print_stat("shared_mem", shared_mem_bytes);
 
