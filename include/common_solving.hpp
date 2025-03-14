@@ -532,9 +532,10 @@ public:
     auto start = stats.start_timer_host();
     FormulaPtr f_ptr = parse_cn();
     stats.print_stat("abstract_domain", name_of_abstract_domain());
-    bool use_ipc = false;
   #ifdef TURBO_IPC_ABSTRACT_DOMAIN
-    use_ipc = true;
+    constexpr bool use_ipc = true;
+  #else
+    constexpr bool use_ipc = false;
   #endif
     if(use_ipc && !config.force_ternarize) {
       preprocess_ipc(*f_ptr);
@@ -543,7 +544,7 @@ public:
       preprocess_pir(*f_ptr);
     }
     if(config.network_analysis) {
-      if(use_ipc) {
+      if constexpr(use_ipc) {
         printf("%% WARNING: -network_analysis option is only valid with the PIR abstract domain.\n");
       }
       else {
