@@ -339,13 +339,17 @@ void dive_and_solve(CPUData& global, size_t cube_idx)
   size_t& subproblem_idx = global.cpu_cubes[cube_idx].subproblem_idx;
   /** In each iteration, we will solve one subproblem obtained after a diving phase. */
   while(subproblem_idx < num_subproblems && !global.cpu_stop.test()) {
-    // if(global.root.config.verbose_solving) {
-    //   std::lock_guard<std::mutex> print_guard(global.print_lock);
-    //   printf("%% Cube %zu solves subproblem num %zu\n", cube_idx, subproblem_idx);
-    // }
+    if(global.root.config.verbose_solving) {
+      std::lock_guard<std::mutex> print_guard(global.print_lock);
+      printf("%% Cube %zu solves subproblem num %zu\n", cube_idx, subproblem_idx);
+    }
     /** The first step is to "dive" by committing to a search path. */
     auto dive_start = cube.stats.start_timer_host();
     size_t remaining_depth = dive(global, cube_idx);
+    if(global.root.config.verbose_solving) {
+      std::lock_guard<std::mutex> print_guard(global.print_lock);
+      printf("%% Cube %zu exit diving (remaining_depth = %zu)\n", cube_idx, remaining_depth);
+    }
     cube.stats.stop_timer(Timer::DIVE, dive_start);
     /** If we reached the subproblem without reaching a leaf node, we start the solving phase. */
     if(remaining_depth == 0) {
@@ -578,6 +582,7 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
   }
 
   auto group = cooperative_groups::this_thread_block();
+  if(threadIdx.x == 0) printf("Block started %d\n", blockIdx.x);
   __syncthreads();
 
   auto start = cube.timers.start_timer_device();
