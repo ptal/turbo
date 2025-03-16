@@ -1,7 +1,7 @@
 #!/bin/bash -l
 #SBATCH --time=03:00:00
-#SBATCH -p gpu
-#SBATCH -A tutorial
+#SBATCH -p plgrid-gpu-gh200
+#SBATCH -A plgturbo-gpu-gh200
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1 # 4 GPUs so 4 tasks per nodes.
@@ -14,7 +14,8 @@
 set -e
 set -x # useful for debugging.
 
-source $1
+cd /net/scratch/hscra/plgrid/plgptalbot/lattice-land/turbo
+source helios.sh
 
 #cd ~/lattice-land/turbo/build/gpu-release-local
 #ptxas -arch=sm_90 -v --suppress-stack-size-warning --allow-expensive-optimizations false -O0  "turbo.ptx"  -o "turbo.cubin"
