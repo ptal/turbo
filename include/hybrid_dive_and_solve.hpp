@@ -499,9 +499,9 @@ bool propagate(CPUData& global, size_t cube_idx) {
   cuda::atomic_thread_fence(cuda::memory_order_seq_cst, cuda::thread_scope_system);
   gpu_cube.ready_to_propagate.test_and_set(cuda::std::memory_order_seq_cst);
   gpu_cube.ready_to_propagate.notify_one();
-  if(threadIdx.x == 0 && blockIdx.x == 0) printf("wait GPU\n");
+  if(cube_idx == 0) printf("wait GPU\n");
   gpu_cube.ready_to_search.wait(false, cuda::std::memory_order_seq_cst);
-  if(threadIdx.x == 0 && blockIdx.x == 0) printf("stop waiting GPU\n");
+  if(cube_idx == 0) printf("stop waiting GPU\n");
   gpu_cube.ready_to_search.clear();
 
   auto start = cpu_cube.stats.start_timer_host();
