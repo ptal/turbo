@@ -495,7 +495,7 @@ bool propagate(CPUData& global, size_t cube_idx) {
   auto& gpu_cube = global.gpu_cubes[cube_idx];
   bool is_leaf_node = false;
 
-  gpu_cube.store_cpu->prefetch(0);
+  // gpu_cube.store_cpu->prefetch(0);
 
   /** We signal to the GPU that it can propagate the current node.
    * Thereafter, we immediately wait for the GPU to finish the propagation before performing the search step.
@@ -503,13 +503,19 @@ bool propagate(CPUData& global, size_t cube_idx) {
   cuda::atomic_thread_fence(cuda::memory_order_seq_cst, cuda::thread_scope_system);
   gpu_cube.ready_to_propagate.test_and_set(cuda::std::memory_order_seq_cst);
   gpu_cube.ready_to_propagate.notify_one();
-  if(cube_idx == 0) printf("wait GPU\n");
+  if(global.root.config.verbose_solving) {
+    std::lock_guard<std::mutex> print_guard(global.print_lock);
+    printf("%% Cube %zu starts waiting GPU..\n", cube_idx);
+  }
   gpu_cube.ready_to_search.wait(false, cuda::std::memory_order_seq_cst);
-  if(cube_idx == 0) printf("stop waiting GPU\n");
+  if(global.root.config.verbose_solving) {
+    std::lock_guard<std::mutex> print_guard(global.print_lock);
+    printf("%% Cube %zu resumes..\n", cube_idx);
+  }
   gpu_cube.ready_to_search.clear();
 
   auto start = cpu_cube.stats.start_timer_host();
-  gpu_cube.store_cpu->prefetch(cudaCpuDeviceId);
+  // gpu_cube.store_cpu->prefetch(cudaCpuDeviceId);
 
   /** `on_node` updates the statistics and verifies whether we should stop (e.g. option `--cutnodes`). */
   bool is_pruned = cpu_cube.on_node();
