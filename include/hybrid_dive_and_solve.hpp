@@ -339,10 +339,10 @@ void dive_and_solve(CPUData& global, size_t cube_idx)
   size_t& subproblem_idx = global.cpu_cubes[cube_idx].subproblem_idx;
   /** In each iteration, we will solve one subproblem obtained after a diving phase. */
   while(subproblem_idx < num_subproblems && !global.cpu_stop.test()) {
-    if(global.root.config.verbose_solving) {
-      std::lock_guard<std::mutex> print_guard(global.print_lock);
-      printf("%% Cube %zu solves subproblem num %zu\n", cube_idx, subproblem_idx);
-    }
+    // if(global.root.config.verbose_solving) {
+    //   std::lock_guard<std::mutex> print_guard(global.print_lock);
+    //   printf("%% Cube %zu solves subproblem num %zu\n", cube_idx, subproblem_idx);
+    // }
     /** The first step is to "dive" by committing to a search path. */
     auto dive_start = cube.stats.start_timer_host();
     size_t remaining_depth = dive(global, cube_idx);
@@ -394,6 +394,10 @@ void dive_and_solve(CPUData& global, size_t cube_idx)
         cube.stats.stop_timer(Timer::SEARCH, start);
       }
     }
+  }
+  if(global.root.config.verbose_solving) {
+    std::lock_guard<std::mutex> print_guard(global.print_lock);
+    printf("%% Cube %zu stops\n", cube_idx);
   }
   /** If we did not get interrupted, this thread has explored all available subproblems.
    * We record this information in `num_blocks_done` simply because it helps to detect unbalanced workloads (many threads finished but not some others).
@@ -495,7 +499,9 @@ bool propagate(CPUData& global, size_t cube_idx) {
   cuda::atomic_thread_fence(cuda::memory_order_seq_cst, cuda::thread_scope_system);
   gpu_cube.ready_to_propagate.test_and_set(cuda::std::memory_order_seq_cst);
   gpu_cube.ready_to_propagate.notify_one();
+  if(threadIdx.x == 0 && blockIdx.x == 0) printf("wait GPU\n");
   gpu_cube.ready_to_search.wait(false, cuda::std::memory_order_seq_cst);
+  if(threadIdx.x == 0 && blockIdx.x == 0) printf("stop waiting GPU\n");
   gpu_cube.ready_to_search.clear();
 
   auto start = cpu_cube.stats.start_timer_host();
@@ -579,7 +585,9 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
     /** We wait that the CPU notifies us the store is ready to be copied and propagated. */
     if(threadIdx.x == 0) {
       start = cube.timers.start_timer_device();
+      if(blockIdx.x == 0) printf("wait CPU\n");
       cube.ready_to_propagate.wait(false, cuda::std::memory_order_seq_cst);
+      if(blockIdx.x == 0) printf("wait CPU done\n");
       cube.timers.stop_timer(Timer::WAIT_CPU, start);
       cube.ready_to_propagate.clear();
       // NOTE: Only one thread should read the atomic `cube.stop`, to avoid deadlock if one thread reads `true` and exits, while another thread reads `false`.
