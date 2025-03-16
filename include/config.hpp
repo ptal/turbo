@@ -156,12 +156,9 @@ struct Configuration {
       (verbose_solving ? "-v " : ""),
       (print_ast ? "-ast " : "")
     );
-    if(arch == Arch::GPU) {
-      printf("-arch gpu -or %" PRIu64 " -sub %" PRIu64 " -stack %" PRIu64 " ", or_nodes, subproblems_power, stack_kb);
+    if(arch == Arch::GPU || arch == Arch::HYBRID) {
+      printf("-arch %s -or %" PRIu64 " -sub %" PRIu64 " -stack %" PRIu64 " ", name_of_arch(arch), or_nodes, subproblems_power, stack_kb);
       if(only_global_memory) { printf("-globalmem "); }
-    }
-    else if(arch == Arch::HYBRID) {
-      printf("-arch hybrid -or %" PRIu64 " ", or_nodes);
     }
     else {
       printf("-arch cpu -p %" PRIu64 " ", or_nodes);
