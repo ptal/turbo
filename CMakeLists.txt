@@ -24,7 +24,7 @@ option(WITH_ASAN "Compile with the Address Sanitizer to check for memory corrupt
 option(WITH_XCSP3PARSER "Add support for parsing XCSP3 .xml files" ON)
 option(NO_CONCURRENT_MANAGED_MEMORY "Add support for platform not supporting concurrent managed access to memory on GPUs (use pinned memory instead)." OFF)
 option(TURBO_BUILD_DOC "Build the documentation of Turbo." OFF)
-option(TURBO_IPC_ABSTRACT_DOMAIN "Use the interval propagator completion (PC) abstract domain instead of PIR." ON)
+option(TURBO_IPC_ABSTRACT_DOMAIN "Use the interval propagator completion (PC) abstract domain instead of PIR." OFF)
 
 if(MSVC)
   set(WITH_XCSP3PARSER OFF)  # XCSP3-CPP-Parser has dependencies on gcc that break MSVC
@@ -85,7 +85,7 @@ target_compile_options(turbo PRIVATE
     "$<$<AND:$<BOOL:${WITH_ASAN}>,$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:Clang>>:-fsanitize=address>"
     "$<$<AND:$<BOOL:${WITH_ASAN}>,$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:SHELL:--compiler-options -fsanitize=address>"
 )
-# target_compile_definitions(turbo PRIVATE DISABLE_FULL_GPU_SOLVING)
+target_compile_definitions(turbo PRIVATE DISABLE_FULL_GPU_SOLVING)
 target_compile_options(turbo PRIVATE "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:-lineinfo>")
 
 target_compile_definitions(turbo PRIVATE CUDA_THREADS_PER_BLOCK=256)

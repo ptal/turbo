@@ -54,6 +54,12 @@ struct CPUCube {
    : cube(root)
    , root_snapshot(cube.search_tree->template snapshot<bt::standard_allocator>())
   {}
+
+  /** We share the common data among the CPU cubes (e.g., propagators, simplifier, environment, ...). */
+  CPUCube(const CPUCube& other)
+   : cube(typename cube_type::tag_gpu_block_copy{}, true, other.cube)
+   , root_snapshot(cube.search_tree->template snapshot<bt::standard_allocator>())
+  {}
 };
 
 /** A GPU cube is the data used by a GPU block to solve a subproblem.
@@ -221,11 +227,15 @@ struct CPUData {
    , best_bound(Itv::top())
    , root(root)
    , shared_mem_bytes(shared_mem_bytes)
-   , cpu_cubes(root.config.or_nodes, this->root)
    , gpu_cubes(root.config.or_nodes)
   {
     cpu_stop.clear();
+    cpu_cubes.reserve(root.config.or_nodes);
+    cpu_cubes.emplace_back(root);
     for(int i = 0; i < root.config.or_nodes; ++i) {
+      if(i > 0) {
+        cpu_cubes.emplace_back(cpu_cubes[0]);
+      }
       cpu_cubes[i].subproblem_idx = i;
       gpu_cubes[i].store_cpu = cpu_cubes[i].cube.store;
       gpu_cubes[i].fp_kind = root.config.fixpoint;
@@ -520,7 +530,6 @@ bool propagate(CPUData& global, size_t cube_idx) {
      */
     if(cpu_cube.bab->is_satisfaction() || cpu_cube.bab->compare_bound(*cpu_cube.store, cpu_cube.bab->optimum())) {
       cpu_cube.bab->deduce();
-
       bool print_solution = cpu_cube.is_printing_intermediate_sol();
       if(cpu_cube.bab->is_optimization()) {
         /** We share the new best bound with the other cubes. */
@@ -529,7 +538,7 @@ bool propagate(CPUData& global, size_t cube_idx) {
       /** If we print all intermediate solutions, and really found a better bound (no other thread found a better one meanwhile), we print the current solution. */
       if(print_solution) {
         std::lock_guard<std::mutex> print_guard(global.print_lock);
-        cpu_cube.print_solution();
+        global.root.print_solution(*cpu_cube.best);
       }
       /** We update the statistics, and check if we must terminate (e.g. we stop after N solutions). */
       is_pruned |= cpu_cube.update_solution_stats();

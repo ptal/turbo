@@ -740,7 +740,12 @@ public:
   }
 
   CUDA void print_solution() {
-    solver_output.print_solution(env, *best, *simplifier);
+    print_solution(*best);
+  }
+
+  template <class BestStore>
+  CUDA void print_solution(const BestStore& best_store) {
+    solver_output.print_solution(env, best_store, *simplifier);
     stats.print_mzn_separator();
   }
 
