@@ -472,7 +472,7 @@ public:
     }
   }
 
-  void preprocess_pir(F& f) {
+  void preprocess_tcn(F& f) {
     f = ternarize(f);
     battery::vector<F> extra;
     f = normalize(f, extra);
@@ -484,34 +484,55 @@ public:
       exit(EXIT_FAILURE);
     }
     simplifier->init_env(env);
-    GaussSeidelIteration fp_engine;
-    fp_engine.fixpoint(iprop->num_deductions(), [&](size_t i) { return iprop->deduce(i); });
     if(config.disable_simplify) {
       /** Even when we don't simplify, we still need to initialize the equivalence classes.
        * This is necessary to call `print_variable` on `simplifier` when finding a solution. */
-      simplifier->initialize(num_quantified_vars(f), 0);
+      simplifier->initialize(num_vars, 0);
       return;
     }
-    size_t eliminated_entailed_constraints = 0;
-    f = iprop->deinterpret(env, true, eliminated_entailed_constraints);
-    stats.print_stat("eliminated_entailed_constraints", eliminated_entailed_constraints);
-    size_t eliminated_constraints_by_icse = 0;
-    size_t icse_fixpoint_iterations = 0;
-    size_t eliminated_equality_constraints = 0;
-    f = simplifier->simplify_tnf(f, eliminated_equality_constraints, eliminated_constraints_by_icse, icse_fixpoint_iterations);
-    stats.print_stat("eliminated_equality_constraints", eliminated_equality_constraints);
-    stats.print_stat("eliminated_constraints_by_icse", eliminated_constraints_by_icse);
-    stats.print_stat("icse_fixpoint_iterations", icse_fixpoint_iterations);
+    auto& tnf = f.seq();
+    simplifier->initialize_tnf(num_vars, tnf);
+    size_t preprocessing_fixpoint_iterations = 0;
+    SimplifierStats preprocessing_stats;
+    size_t eliminated_variables = 0;
+    local::B has_changed = true;
+    GaussSeidelIteration fp_engine;
+    /** We apply several preprocessing steps until we reach a fixpoint. */
+    while(!iprop->is_bot() && has_changed) {
+      has_changed = false;
+      preprocessing_fixpoint_iterations++;
+      SimplifierStats local_preprocessing_stats;
+      fp_engine.fixpoint(iprop->num_deductions(), [&](size_t i) { return iprop->deduce(i); }, has_changed);
+      if(has_changed) {
+        simplifier->meet_equivalence_classes();
+      }
+      has_changed |= simplifier->algebraic_simplify(tnf, local_preprocessing_stats);
+      simplifier->eliminate_entailed_constraints(*iprop, tnf, local_preprocessing_stats);
+      has_changed |= simplifier->i_cse(tnf, local_preprocessing_stats);
+      if(has_changed) {
+        simplifier->meet_equivalence_classes();
+        local_preprocessing_stats.print(stats, preprocessing_fixpoint_iterations);
+      }
+      preprocessing_stats.merge(local_preprocessing_stats);
+    }
+    // simplifier->eliminate_entailed_constraints(*iprop, tnf, preprocessing_stats);
+    simplifier->eliminate_useless_variables(tnf, eliminated_variables);
+    f = simplifier->deinterpret(tnf, true);
     F extra_f = F::make_nary(AND, std::move(extra));
     simplifier->substitute(extra_f);
-    stats.print_stat("eliminated_variables", simplifier->num_eliminated_variables());
     if(config.verbose_solving) {
       printf("%% Formula simplified.\n");
     }
-    num_vars = simplifier->num_vars_after_elimination();
     F f2 = F::make_binary(std::move(f), AND, std::move(extra_f));
+    num_vars = num_quantified_vars(f2);
+    preprocessing_stats.print(stats);
+    stats.print_stat("eliminated_variables", eliminated_variables);
+    stats.print_stat("preprocessing_fixpoint_iterations", preprocessing_fixpoint_iterations);
     stats.print_stat("variables_after_simplification", num_vars);
     stats.print_stat("constraints_after_simplification", num_tnf_constraints(f2));
+    if(iprop->is_bot()) {
+      return;
+    }
     allocate(num_vars, false);
     if(!interpret(f2, true)) {
       exit(EXIT_FAILURE);
@@ -541,7 +562,7 @@ public:
       preprocess_ipc(*f_ptr);
     }
     else {
-      preprocess_pir(*f_ptr);
+      preprocess_tcn(*f_ptr);
     }
     if(config.network_analysis) {
       if constexpr(use_ipc) {

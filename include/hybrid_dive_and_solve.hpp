@@ -285,6 +285,11 @@ void hybrid_dive_and_solve(const Configuration<battery::standard_allocator>& con
   /** We start with some preprocessing to reduce the number of variables and constraints. */
   CP<Itv> cp(config);
   cp.preprocess();
+  if(cp.iprop->is_bot()) {
+    cp.print_final_solution();
+    cp.print_mzn_statistics();
+    return;
+  }
   size_t shared_mem_bytes = configure_gpu(cp);
 
   /** This is the main data structure, we create all the data for each thread and GPU block. */

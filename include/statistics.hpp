@@ -212,6 +212,12 @@ struct Statistics {
     }
   }
 
+  CUDA void print_stat_fp_iter(const char* name, size_t num_iterations, size_t value) const {
+    if(print_statistics) {
+      printf("%%%%%%mzn-stat: %s_fp_iter_%" PRIu64 "=%" PRIu64 "\n", name, num_iterations, value);
+    }
+  }
+
   CUDA void print_stat(const char* name, double value) const {
     if(print_statistics) {
       printf("%%%%%%mzn-stat: %s=%lf\n", name, value);

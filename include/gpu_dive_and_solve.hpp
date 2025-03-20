@@ -793,6 +793,10 @@ void gpu_dive_and_solve(Configuration<bt::standard_allocator>& config) {
   auto start = std::chrono::steady_clock::now();
   CP<Itv> root(config);
   root.preprocess();
+  if(root.iprop->is_bot()) {
+    root.print_final_solution();
+    return;
+  }
   block_signal_ctrlc();
 #ifdef NO_CONCURRENT_MANAGED_MEMORY
   configure_and_run<ItvSolverPinned>(root, start);
