@@ -1,6 +1,0 @@
-{configuration: turbo-gpu-profiling_tower_tower_070_070_15_085-09, data_file: ../mzn-challenge/2022/tower/tower_070_070_15_085-09.dzn,
-  evaluatedReifiedConstraints: 10281, flatBoolConstraints: 85, flatBoolVars: 5351,
-  flatIntConstraints: 14021, flatIntVars: 6235, flatTime: 1.28777, memory_configuration: global,
-  method: maximize, model: ../mzn-challenge/2022/tower/tower.mzn, mzn_solver: turbo.gpu.profiling,
-  nSolutions: 0, paths: 0, problem: tower, propagator_mem: 9991329, shared_mem: 100,
-  status: UNKNOWN, store_mem: 71856}

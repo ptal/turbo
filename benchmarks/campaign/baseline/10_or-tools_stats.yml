@@ -1,6 +1,0 @@
-{boolVariables: 6442, configuration: or-tools, data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn,
-  evaluatedHalfReifiedConstraints: 40, evaluatedReifiedConstraints: 8020, failures: 38897,
-  flatBoolConstraints: 100, flatBoolVars: 4260, flatIntConstraints: 9011, flatIntVars: 2871,
-  flatTime: 0.221268, method: maximize, model: ../mzn-challenge/2022/tower/tower.mzn,
-  nSolutions: 61, objective: 64, objectiveBound: 100, paths: 0, problem: tower, propagations: 54383095,
-  solveTime: 286.004, status: SATISFIED, time: 300.18096211399825}

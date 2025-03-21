@@ -1,6 +1,0 @@
-{configuration: turbo-gpu-release_evmopt-generic_isolated_block_6_0_input, data_file: ../mzn-challenge/2023/evm-super-compilation/isolated_block_6_0_input.dzn,
-  eliminatedImplications: 16, evaluatedReifiedConstraints: 2409, flatBoolConstraints: 1504,
-  flatBoolVars: 2576, flatIntConstraints: 3150, flatIntVars: 1203, flatTime: 0.977714,
-  memory_configuration: store_shared, method: minimize, model: ../mzn-challenge/2023/evm-super-compilation/evmopt-generic.mzn,
-  mzn_solver: turbo.gpu.release, nSolutions: 0, paths: 0, problem: evm-super-compilation,
-  propagator_mem: 3089544, shared_mem: 23908, status: UNKNOWN, store_mem: 23808}

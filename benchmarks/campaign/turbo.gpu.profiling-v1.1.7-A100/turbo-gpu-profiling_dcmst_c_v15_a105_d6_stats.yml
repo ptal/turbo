@@ -1,6 +1,0 @@
-{configuration: turbo-gpu-profiling_dcmst_c_v15_a105_d6, data_file: ../mzn-challenge/2022/diameterc-mst/c_v15_a105_d6.dzn,
-  evaluatedReifiedConstraints: 880, flatBoolConstraints: 1675, flatBoolVars: 1195,
-  flatIntConstraints: 1004, flatIntVars: 152, flatTime: 0.279067, memory_configuration: store_shared,
-  method: minimize, model: ../mzn-challenge/2022/diameterc-mst/dcmst.mzn, mzn_solver: turbo.gpu.profiling,
-  nSolutions: 0, paths: 0, problem: diameterc-mst, propagator_mem: 1493054, shared_mem: 10284,
-  status: UNKNOWN, store_mem: 10184}

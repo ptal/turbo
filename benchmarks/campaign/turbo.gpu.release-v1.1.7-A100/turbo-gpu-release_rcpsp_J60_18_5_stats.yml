@@ -1,6 +1,0 @@
-{configuration: turbo-gpu-release_rcpsp_J60_18_5, data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j60/J60_18_5.dzn,
-  evaluatedReifiedConstraints: 38446, flatBoolConstraints: 18903, flatBoolVars: 57325,
-  flatIntConstraints: 59391, flatIntVars: 19580, flatTime: 2.33, memory_configuration: global,
-  method: minimize, model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn, mzn_solver: turbo.gpu.release,
-  nSolutions: 0, paths: 0, problem: rcpsp, propagator_mem: 32262648, shared_mem: 100,
-  status: UNKNOWN, store_mem: 374960}

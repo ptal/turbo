@@ -1,6 +1,0 @@
-{boolVariables: 4941, configuration: or-tools.noglobal, data_file: ../mzn-challenge/2022/generalized-peacable-queens/n8_q3.json,
-  evaluatedReifiedConstraints: 1384, failures: 25270, flatBoolConstraints: 1679, flatBoolVars: 1795,
-  flatIntConstraints: 1796, flatIntVars: 839, flatTime: 0.156022, method: maximize,
-  model: ../mzn-challenge/2022/generalized-peacable-queens/peaceable_queens.mzn, nSolutions: 5,
-  objective: 4, objectiveBound: 19, paths: 0, problem: generalized-peacable-queens,
-  propagations: 25476951, solveTime: 81.5244, status: SATISFIED, time: 300.20649126399803}

@@ -1,6 +1,0 @@
-{configuration: choco, constraints: 5091, data_file: ../mzn-challenge/2022/tower/100_100_20_100-04.dzn,
-  evaluatedHalfReifiedConstraints: 40, evaluatedReifiedConstraints: 2020, failures: 1095944,
-  flatBoolConstraints: 100, flatBoolVars: 2260, flatIntConstraints: 4991, flatIntVars: 2751,
-  flatTime: 0.18732, initTime: 0.337, method: maximize, model: ../mzn-challenge/2022/tower/tower.mzn,
-  nSolutions: 69, nodes: 1096134, objective: 77, paths: 0, problem: tower, restarts: 0,
-  solutions: 69, solveTime: 299.81, status: SATISFIED, time: 300.77609652700266, variables: 5059}

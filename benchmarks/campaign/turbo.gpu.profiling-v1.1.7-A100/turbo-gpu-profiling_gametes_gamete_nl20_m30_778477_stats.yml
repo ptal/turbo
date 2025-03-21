@@ -1,6 +1,0 @@
-{configuration: turbo-gpu-profiling_gametes_gamete_nl20_m30_778477, data_file: ../mzn-challenge/2023/gametes/gamete_nl20_m30_778477.json,
-  eliminatedImplications: 39, evaluatedReifiedConstraints: 15624, flatBoolConstraints: 11665,
-  flatBoolVars: 18974, flatIntConstraints: 19339, flatIntVars: 9745, flatTime: 1.31923,
-  memory_configuration: global, method: minimize, model: ../mzn-challenge/2023/gametes/gametes.mzn,
-  mzn_solver: turbo.gpu.profiling, nSolutions: 0, paths: 0, problem: gametes, propagator_mem: 59771400,
-  shared_mem: 100, status: UNKNOWN, store_mem: 216704}

@@ -1,7 +1,0 @@
-{configuration: turbo-gpu-release_evmopt-generic_PlaylinkAirdrop_run_code_of_0_block_216_0_input_noatomics,
-  data_file: ../mzn-challenge/2023/evm-super-compilation/PlaylinkAirdrop_run_code_of_0_block_216_0_input.dzn,
-  eliminatedImplications: 39, evaluatedReifiedConstraints: 8466, flatBoolConstraints: 5213,
-  flatBoolVars: 8969, flatIntConstraints: 10905, flatIntVars: 3612, flatTime: 1.25639,
-  memory_configuration: global, method: minimize, model: ../mzn-challenge/2023/evm-super-compilation/evmopt-generic.mzn,
-  mzn_solver: turbo.gpu.release, nSolutions: 0, paths: 0, problem: evm-super-compilation,
-  propagator_mem: 11736292, shared_mem: 100, status: UNKNOWN, store_mem: 85512}

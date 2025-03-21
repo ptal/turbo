@@ -1,5 +1,0 @@
-{boolVariables: 466, configuration: or-tools, data_file: ../mzn-challenge/2022/accap/accap_a4_f30_t15.json,
-  failures: 15489, flatIntConstraints: 230, flatIntVars: 36, flatTime: 0.034718, method: minimize,
-  model: ../mzn-challenge/2022/accap/accap.mzn, nSolutions: 67, objective: 103, objectiveBound: 62,
-  paths: 0, problem: accap, propagations: 2954290, solveTime: 2.1679, status: SATISFIED,
-  time: 300.0943037289999}

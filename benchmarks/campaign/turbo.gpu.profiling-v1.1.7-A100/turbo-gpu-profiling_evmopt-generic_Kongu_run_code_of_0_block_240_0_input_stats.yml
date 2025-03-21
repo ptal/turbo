@@ -1,7 +1,0 @@
-{configuration: turbo-gpu-profiling_evmopt-generic_Kongu_run_code_of_0_block_240_0_input,
-  data_file: ../mzn-challenge/2023/evm-super-compilation/Kongu_run_code_of_0_block_240_0_input.dzn,
-  eliminatedImplications: 57, evaluatedReifiedConstraints: 17610, flatBoolConstraints: 10426,
-  flatBoolVars: 18399, flatIntConstraints: 22436, flatIntVars: 7220, flatTime: 1.7763,
-  memory_configuration: global, method: minimize, model: ../mzn-challenge/2023/evm-super-compilation/evmopt-generic.mzn,
-  mzn_solver: turbo.gpu.profiling, nSolutions: 0, paths: 0, problem: evm-super-compilation,
-  propagator_mem: 25120680, shared_mem: 100, status: UNKNOWN, store_mem: 172040}

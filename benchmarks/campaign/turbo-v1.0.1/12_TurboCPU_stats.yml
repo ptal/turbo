@@ -1,9 +1,0 @@
-{arch: cpu, configuration: TurboCPU, data_file: ../mzn-challenge/2022/generalized-peacable-queens/n8_q3.json,
-  eps_num_subproblems: 1, eps_skipped_subproblems: 0, eps_solved_subproblems: 0, evaluatedReifiedConstraints: 1384,
-  failures: 21113, fixpoint_iterations: 0, flatBoolConstraints: 1679, flatBoolVars: 1795,
-  flatIntConstraints: 1796, flatIntVars: 839, flatTime: 0.151863, free_search: no,
-  initTime: 0.687, method: maximize, model: ../mzn-challenge/2022/generalized-peacable-queens/peaceable_queens.mzn,
-  nSolutions: 1, nodes: 42276, num_blocks_done: 0, num_solutions: 3, objective: 2,
-  or_nodes: 0, paths: 0, peakDepth: 66, problem: generalized-peacable-queens, problem_path: /tmp/mznfilexXNgvw.fzn,
-  propagators: 7589, solveTime: 299.848, solver: Turbo, status: SATISFIED, time: 300.10145732599995,
-  timeout_ms: 299847.0, variables: 2896, version: 1.0.1}

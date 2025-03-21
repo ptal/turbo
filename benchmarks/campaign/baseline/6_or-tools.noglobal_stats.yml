@@ -1,5 +1,0 @@
-{boolVariables: 1521, configuration: or-tools.noglobal, data_file: ../mzn-challenge/2022/triangular/n39.dzn,
-  failures: 533684, flatIntConstraints: 101271, flatIntVars: 781, flatTime: 2.35631,
-  method: maximize, model: ../mzn-challenge/2022/triangular/triangular.mzn, nSolutions: 9,
-  objective: 83, objectiveBound: 780, paths: 0, problem: triangular, propagations: 19548013,
-  solveTime: 67.1715, status: SATISFIED, time: 300.6902905429997}

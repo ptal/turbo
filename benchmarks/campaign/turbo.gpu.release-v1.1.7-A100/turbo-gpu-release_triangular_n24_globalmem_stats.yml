@@ -1,5 +1,0 @@
-{configuration: turbo-gpu-release_triangular_n24_globalmem, data_file: ../mzn-challenge/2022/triangular/n24.dzn,
-  flatIntConstraints: 14951, flatIntVars: 301, flatTime: 0.599926, memory_configuration: global,
-  method: maximize, model: ../mzn-challenge/2022/triangular/triangular.mzn, mzn_solver: turbo.gpu.release,
-  nSolutions: 0, paths: 0, problem: triangular, propagator_mem: 5207390, shared_mem: 100,
-  status: UNKNOWN, store_mem: 2656}

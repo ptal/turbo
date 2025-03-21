@@ -1,6 +1,0 @@
-{configuration: turbo-gpu-profiling_vrplc_service_vrplc10_5_20_s3, data_file: ../mzn-challenge/2023/vrplc/vrplc10_5_20_s3.dzn,
-  evaluatedReifiedConstraints: 3410, flatBoolConstraints: 1207, flatBoolVars: 4440,
-  flatIntConstraints: 12710, flatIntVars: 2824, flatTime: 0.538009, memory_configuration: store_shared,
-  method: minimize, model: ../mzn-challenge/2023/vrplc/vrplc_service.mzn, mzn_solver: turbo.gpu.profiling,
-  nSolutions: 0, paths: 0, problem: vrplc, propagator_mem: 17092612, shared_mem: 40972,
-  status: UNKNOWN, store_mem: 40872}

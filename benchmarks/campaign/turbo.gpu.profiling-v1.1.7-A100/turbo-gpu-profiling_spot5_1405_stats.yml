@@ -1,4 +1,0 @@
-{configuration: turbo-gpu-profiling_spot5_1405, data_file: ../mzn-challenge/2022/spot5/1405.dzn,
-  evaluatedReifiedConstraints: 855, flatBoolVars: 855, flatIntConstraints: 41217,
-  flatIntVars: 19114, flatTime: 5.15564, method: minimize, model: ../mzn-challenge/2022/spot5/spot5.mzn,
-  mzn_solver: turbo.gpu.profiling, nSolutions: 0, paths: 0, problem: spot5, status: UNKNOWN}

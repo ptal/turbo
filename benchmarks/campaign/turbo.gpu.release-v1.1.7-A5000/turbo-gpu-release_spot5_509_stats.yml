@@ -1,4 +1,0 @@
-{configuration: turbo-gpu-release_spot5_509, data_file: ../mzn-challenge/2022/spot5/509.dzn,
-  evaluatedReifiedConstraints: 348, flatBoolVars: 348, flatIntConstraints: 21176,
-  flatIntVars: 8973, flatTime: 1.96992, method: minimize, model: ../mzn-challenge/2022/spot5/spot5.mzn,
-  mzn_solver: turbo.gpu.release, nSolutions: 0, paths: 0, problem: spot5, status: UNKNOWN}

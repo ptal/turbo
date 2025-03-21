@@ -1,5 +1,0 @@
-{configuration: turbo-gpu-release_TableLayout_p2000_m10_r500_c20_noatomics, data_file: ../mzn-challenge/2023/table-layout/p2000_m10_r500_c20.dzn,
-  flatIntConstraints: 39852, flatIntVars: 30521, flatTime: 2.25923, memory_configuration: global,
-  method: minimize, model: ../mzn-challenge/2023/table-layout/TableLayout.mzn, mzn_solver: turbo.gpu.release,
-  nSolutions: 0, paths: 0, problem: table-layout, propagator_mem: 86491665, shared_mem: 100,
-  status: UNKNOWN, store_mem: 241056}

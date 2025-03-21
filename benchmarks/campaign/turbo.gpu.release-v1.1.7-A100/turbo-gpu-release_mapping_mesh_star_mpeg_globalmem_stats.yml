@@ -1,6 +1,0 @@
-{configuration: turbo-gpu-release_mapping_mesh_star_mpeg_globalmem, data_file: ../mzn-challenge/2021/mapping/mesh_star_mpeg.dzn,
-  evaluatedReifiedConstraints: 2088, flatBoolVars: 1044, flatIntConstraints: 3031,
-  flatIntVars: 2542, flatTime: 0.644315, memory_configuration: global, method: minimize,
-  model: ../mzn-challenge/2021/mapping/mapping.mzn, mzn_solver: turbo.gpu.release,
-  nSolutions: 0, paths: 0, problem: mapping, propagator_mem: 1856232, shared_mem: 100,
-  status: UNKNOWN, store_mem: 23240}

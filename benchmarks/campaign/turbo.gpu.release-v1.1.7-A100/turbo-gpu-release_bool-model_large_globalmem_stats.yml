@@ -1,5 +1,0 @@
-{configuration: turbo-gpu-release_bool-model_large_globalmem, data_file: ../mzn-challenge/2023/roster-shifts-bool/large.dzn,
-  flatBoolVars: 6831, flatIntConstraints: 468252, flatIntVars: 6880, flatTime: 21.4974,
-  method: maximize, model: ../mzn-challenge/2023/roster-shifts-bool/bool-model.mzn,
-  mzn_solver: turbo.gpu.release, nSolutions: 0, paths: 0, problem: roster-shifts-bool,
-  status: UNKNOWN}

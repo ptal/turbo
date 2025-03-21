@@ -1,5 +1,0 @@
-{configuration: turbo-gpu-release_test-scheduling_t500m50r10-8, data_file: ../mzn-challenge/2023/test-scheduling/t500m50r10-8.dzn,
-  evaluatedReifiedConstraints: 4279483, flatBoolConstraints: 2127685, flatBoolVars: 6397410,
-  flatIntConstraints: 18074014, flatIntVars: 13771409, flatTime: 724.912, method: minimize,
-  model: ../mzn-challenge/2023/test-scheduling/test-scheduling.mzn, mzn_solver: turbo.gpu.release,
-  nSolutions: 0, paths: 0, problem: test-scheduling, status: UNKNOWN}

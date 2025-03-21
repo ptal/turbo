@@ -1,9 +1,0 @@
-{arch: cpu, configuration: TurboCPU, data_file: ../minizinc-benchmarks/rcpsp/data_psplib/j30/J30_15_5.dzn,
-  eps_num_subproblems: 1, eps_skipped_subproblems: 0, eps_solved_subproblems: 0, evaluatedReifiedConstraints: 11640,
-  failures: 3125, fixpoint_iterations: 0, flatBoolConstraints: 5625, flatBoolVars: 17265,
-  flatIntConstraints: 18516, flatIntVars: 6046, flatTime: 0.744298, free_search: no,
-  initTime: 44.278, method: minimize, model: ../minizinc-benchmarks/rcpsp/rcpsp.mzn,
-  nSolutions: 1, nodes: 6271, num_blocks_done: 0, num_solutions: 5, objective: 58,
-  or_nodes: 0, paths: 0, peakDepth: 39, problem: rcpsp, problem_path: /tmp/mznfilekRAcuV.fzn,
-  propagators: 40584, solveTime: 299.253, solver: Turbo, status: SATISFIED, time: 300.2922792819991,
-  timeout_ms: 299251.0, variables: 39754, version: 1.0.1}

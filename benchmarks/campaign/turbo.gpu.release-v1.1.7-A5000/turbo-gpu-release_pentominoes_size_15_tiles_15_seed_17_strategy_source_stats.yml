@@ -1,5 +1,0 @@
-{configuration: turbo-gpu-release_pentominoes_size_15_tiles_15_seed_17_strategy_source,
-  data_file: ../mzn-challenge/2021/pentominoes-zayenz/size_15_tiles_15_seed_17_strategy_source.dzn,
-  flatIntConstraints: 7185, flatIntVars: 7410, flatTime: 3.19498, method: satisfy,
-  model: ../mzn-challenge/2021/pentominoes-zayenz/pentominoes.mzn, mzn_solver: turbo.gpu.release,
-  nSolutions: 0, paths: 0, problem: pentominoes-zayenz, status: UNKNOWN}

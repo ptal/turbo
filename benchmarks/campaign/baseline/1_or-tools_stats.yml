@@ -1,6 +1,0 @@
-{boolVariables: 23596, configuration: or-tools, data_file: ../mzn-challenge/2022/wordpress/Wordpress7_Offers500.dzn,
-  evaluatedHalfReifiedConstraints: 1, evaluatedReifiedConstraints: 35, failures: 53199,
-  flatBoolConstraints: 20, flatBoolVars: 36, flatIntConstraints: 300, flatIntVars: 182,
-  flatTime: 0.064431, method: minimize, model: ../mzn-challenge/2022/wordpress/wordpress.mzn,
-  nSolutions: 2692, objective: 2022, objectiveBound: 0, paths: 0, problem: wordpress,
-  propagations: 221338203, solveTime: 95.8706, status: SATISFIED, time: 300.2164754219998}

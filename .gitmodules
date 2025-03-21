@@ -1,6 +1,0 @@
-[submodule "benchmarks/minizinc-benchmarks"]
-	path = benchmarks/minizinc-benchmarks
-	url = git@github.com:MiniZinc/minizinc-benchmarks.git
-[submodule "benchmarks/mzn-challenge"]
-	path = benchmarks/mzn-challenge
-	url = git@github.com:MiniZinc/mzn-challenge.git

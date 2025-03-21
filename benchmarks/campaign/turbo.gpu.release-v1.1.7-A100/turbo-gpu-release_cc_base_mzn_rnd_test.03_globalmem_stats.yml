@@ -1,5 +1,0 @@
-{configuration: turbo-gpu-release_cc_base_mzn_rnd_test.03_globalmem, data_file: ../mzn-challenge/2021/carpet-cutting/mzn_rnd_test.03.dzn,
-  evaluatedReifiedConstraints: 92428, flatBoolConstraints: 39087, flatBoolVars: 131399,
-  flatIntConstraints: 191518, flatIntVars: 95254, flatTime: 5.26343, method: minimize,
-  model: ../mzn-challenge/2021/carpet-cutting/cc_base.mzn, mzn_solver: turbo.gpu.release,
-  nSolutions: 0, paths: 0, problem: carpet-cutting, status: ERROR}

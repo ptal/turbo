@@ -1,5 +1,0 @@
-{configuration: choco.noglobal, constraints: 101298, data_file: ../mzn-challenge/2022/triangular/n39.dzn,
-  failures: 85302639, flatIntConstraints: 101271, flatIntVars: 781, flatTime: 2.39799,
-  initTime: 1.121, method: maximize, model: ../mzn-challenge/2022/triangular/triangular.mzn,
-  nSolutions: 10, nodes: 85302626, objective: 84, paths: 0, problem: triangular, restarts: 0,
-  solutions: 10, solveTime: 297.374, status: SATISFIED, time: 301.6836870669995, variables: 810}

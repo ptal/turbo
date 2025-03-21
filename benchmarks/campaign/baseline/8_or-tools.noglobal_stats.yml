@@ -1,6 +1,0 @@
-{boolVariables: 48488, configuration: or-tools.noglobal, data_file: ../mzn-challenge/2022/accap/accap_a40_f800_t180.json,
-  evaluatedReifiedConstraints: 26770, failures: 51, flatBoolConstraints: 13385, flatBoolVars: 26770,
-  flatIntConstraints: 43503, flatIntVars: 842, flatTime: 6.73299, method: minimize,
-  model: ../mzn-challenge/2022/accap/accap.mzn, nSolutions: 179, objective: 2544,
-  objectiveBound: 169, paths: 0, problem: accap, propagations: 44831685, solveTime: 292.797,
-  status: SATISFIED, time: 300.58954219899897}

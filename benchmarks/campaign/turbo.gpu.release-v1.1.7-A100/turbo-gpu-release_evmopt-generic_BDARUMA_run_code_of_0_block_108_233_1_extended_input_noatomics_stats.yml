@@ -1,7 +1,0 @@
-{configuration: turbo-gpu-release_evmopt-generic_BDARUMA_run_code_of_0_block_108_233_1_extended_input_noatomics,
-  data_file: ../mzn-challenge/2023/evm-super-compilation/BDARUMA_run_code_of_0_block_108_233_1_extended_input.dzn,
-  eliminatedImplications: 40, evaluatedReifiedConstraints: 11915, flatBoolConstraints: 7058,
-  flatBoolVars: 12466, flatIntConstraints: 15059, flatIntVars: 5170, flatTime: 1.54698,
-  memory_configuration: global, method: minimize, model: ../mzn-challenge/2023/evm-super-compilation/evmopt-generic.mzn,
-  mzn_solver: turbo.gpu.release, nSolutions: 0, paths: 0, problem: evm-super-compilation,
-  propagator_mem: 16155028, shared_mem: 100, status: UNKNOWN, store_mem: 118880}

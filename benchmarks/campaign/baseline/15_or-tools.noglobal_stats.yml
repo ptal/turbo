@@ -1,6 +1,0 @@
-{boolVariables: 3319, configuration: or-tools.noglobal, data_file: ../mzn-challenge/2022/diameterc-mst/c_v20_a190_d4.dzn,
-  evaluatedReifiedConstraints: 1571, failures: 3394, flatBoolConstraints: 3852, flatBoolVars: 2141,
-  flatIntConstraints: 1785, flatIntVars: 252, flatTime: 0.161274, method: minimize,
-  model: ../mzn-challenge/2022/diameterc-mst/dcmst.mzn, nSolutions: 70, objective: 349,
-  objectiveBound: 349, paths: 0, problem: diameterc-mst, propagations: 6170924, solveTime: 6.62039,
-  status: OPTIMAL_SOLUTION, time: 6.92392917899997}

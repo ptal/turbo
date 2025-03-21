@@ -1,6 +1,0 @@
-{configuration: turbo-gpu-release_stripboard_envelope-detector, data_file: ../mzn-challenge/2022/stripboard/envelope-detector.dzn,
-  eliminatedImplications: 6, evaluatedReifiedConstraints: 2351, flatBoolConstraints: 938,
-  flatBoolVars: 2339, flatIntConstraints: 3114, flatIntVars: 388, flatTime: 0.921023,
-  memory_configuration: store_shared, method: minimize, model: ../mzn-challenge/2022/stripboard/stripboard.mzn,
-  mzn_solver: turbo.gpu.release, nSolutions: 0, paths: 0, problem: stripboard, propagator_mem: 4783819,
-  shared_mem: 21548, status: UNKNOWN, store_mem: 21448}

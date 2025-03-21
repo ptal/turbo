@@ -1,9 +1,0 @@
-{arch: cpu, configuration: TurboCPU, data_file: ../mzn-challenge/2022/wordpress/Wordpress7_Offers500.dzn,
-  eps_num_subproblems: 1, eps_skipped_subproblems: 0, eps_solved_subproblems: 0, evaluatedReifiedConstraints: 36,
-  failures: 1646, fixpoint_iterations: 0, flatBoolConstraints: 20, flatBoolVars: 36,
-  flatIntConstraints: 300, flatIntVars: 182, flatTime: 0.043393, free_search: no,
-  initTime: 6.615, method: minimize, model: ../mzn-challenge/2022/wordpress/wordpress.mzn,
-  nSolutions: 1, nodes: 3891, num_blocks_done: 0, num_solutions: 273, objective: 68857,
-  or_nodes: 0, paths: 0, peakDepth: 132, problem: wordpress, problem_path: /tmp/mznfileRTZX0S.fzn,
-  propagators: 30665, solveTime: 299.979, solver: Turbo, status: SATISFIED, time: 300.13027276899993,
-  timeout_ms: 299955.0, variables: 623, version: 1.0.1}

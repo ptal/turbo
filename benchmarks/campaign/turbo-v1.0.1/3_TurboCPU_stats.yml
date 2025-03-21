@@ -1,9 +1,0 @@
-{arch: cpu, configuration: TurboCPU, data_file: ../mzn-challenge/2022/blocks-world/16-4-5.dzn,
-  eliminatedImplications: 249, eps_num_subproblems: 1, eps_skipped_subproblems: 0,
-  eps_solved_subproblems: 0, evaluatedReifiedConstraints: 21436, failures: 478, fixpoint_iterations: 0,
-  flatBoolConstraints: 5228, flatBoolVars: 23139, flatIntConstraints: 39757, flatIntVars: 20179,
-  flatTime: 0.649414, free_search: no, initTime: 84.545, method: minimize, model: ../mzn-challenge/2022/blocks-world/blocks.mzn,
-  nSolutions: 0, nodes: 1026, num_blocks_done: 0, num_solutions: 0, or_nodes: 0, paths: 0,
-  peakDepth: 82, problem: blocks-world, problem_path: /tmp/mznfileoTbFtz.fzn, propagators: 52999,
-  solveTime: 299.388, solver: Turbo, status: UNKNOWN, time: 300.44372284900055, timeout_ms: 299345.0,
-  variables: 49639, version: 1.0.1}

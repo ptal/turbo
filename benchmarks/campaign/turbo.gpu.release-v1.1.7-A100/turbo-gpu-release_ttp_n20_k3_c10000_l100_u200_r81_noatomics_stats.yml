@@ -1,6 +1,0 @@
-{configuration: turbo-gpu-release_ttp_n20_k3_c10000_l100_u200_r81_noatomics, data_file: ../mzn-challenge/2023/travelling-thief/data/n20_k3_c10000_l100_u200_r81.dzn,
-  evaluatedReifiedConstraints: 285, flatBoolConstraints: 800, flatBoolVars: 459, flatIntConstraints: 1164,
-  flatIntVars: 574, flatTime: 0.885457, memory_configuration: store_shared, method: maximize,
-  model: ../mzn-challenge/2023/travelling-thief/ttp.mzn, mzn_solver: turbo.gpu.release,
-  nSolutions: 0, paths: 0, problem: travelling-thief, propagator_mem: 13947163, shared_mem: 7700,
-  status: UNKNOWN, store_mem: 7600}

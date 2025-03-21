@@ -1,6 +1,0 @@
-{configuration: turbo-gpu-release_dcmst_c_v20_a190_d9, data_file: ../mzn-challenge/2022/diameterc-mst/c_v20_a190_d9.dzn,
-  evaluatedReifiedConstraints: 1649, flatBoolConstraints: 4373, flatBoolVars: 2409,
-  flatIntConstraints: 1868, flatIntVars: 254, flatTime: 0.321885, memory_configuration: store_shared,
-  method: minimize, model: ../mzn-challenge/2022/diameterc-mst/dcmst.mzn, mzn_solver: turbo.gpu.release,
-  nSolutions: 0, paths: 0, problem: diameterc-mst, propagator_mem: 3693585, shared_mem: 20132,
-  status: UNKNOWN, store_mem: 20032}

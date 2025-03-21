@@ -1,5 +1,0 @@
-{configuration: turbo-gpu-release_ccmcp_3_20_0.30_4_noatomics, data_file: ../mzn-challenge/2023/kidney-exchange/3_20_0.30_4.dzn,
-  evaluatedReifiedConstraints: 400, flatBoolVars: 400, flatIntConstraints: 1089, flatIntVars: 480,
-  flatTime: 0.851723, memory_configuration: store_shared, method: maximize, model: ../mzn-challenge/2023/kidney-exchange/ccmcp.mzn,
-  mzn_solver: turbo.gpu.release, nSolutions: 0, paths: 0, problem: kidney-exchange,
-  propagator_mem: 574497, shared_mem: 4020, status: UNKNOWN, store_mem: 3920}

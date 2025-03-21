@@ -1,6 +1,0 @@
-{configuration: choco, constraints: 11683, data_file: ../mzn-challenge/2022/blocks-world/16-4-5.dzn,
-  eliminatedImplications: 375, evaluatedHalfReifiedConstraints: 1260, evaluatedReifiedConstraints: 5090,
-  failures: 1505971, flatBoolConstraints: 4037, flatBoolVars: 7932, flatIntConstraints: 7582,
-  flatIntVars: 4211, flatTime: 0.219112, initTime: 0.446, method: minimize, model: ../mzn-challenge/2022/blocks-world/blocks.mzn,
-  nSolutions: 6, nodes: 1506041, objective: 51, paths: 0, problem: blocks-world, restarts: 0,
-  solutions: 6, solveTime: 299.782, status: SATISFIED, time: 300.79596898100044, variables: 14187}

@@ -1,5 +1,0 @@
-{configuration: turbo-gpu-release_sudoku_fixed_sudoku_p48_noatomics, data_file: ../mzn-challenge/2023/sudoku_fixed/sudoku_p48.dzn,
-  flatIntConstraints: 1474, flatIntVars: 140, flatTime: 0.940332, memory_configuration: store_shared,
-  method: satisfy, model: ../mzn-challenge/2023/sudoku_fixed/sudoku_fixed.mzn, mzn_solver: turbo.gpu.release,
-  nSolutions: 0, paths: 0, problem: sudoku_fixed, propagator_mem: 364968, shared_mem: 1436,
-  status: ERROR, store_mem: 1336}

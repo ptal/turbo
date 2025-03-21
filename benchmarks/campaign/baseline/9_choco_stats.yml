@@ -1,5 +1,0 @@
-{configuration: choco, constraints: 230, data_file: ../mzn-challenge/2022/accap/accap_a4_f30_t15.json,
-  failures: 5328485, flatIntConstraints: 230, flatIntVars: 36, flatTime: 0.033343,
-  initTime: 0.17, method: minimize, model: ../mzn-challenge/2022/accap/accap.mzn,
-  nSolutions: 34, nodes: 5328576, objective: 140, paths: 0, problem: accap, restarts: 0,
-  solutions: 34, solveTime: 299.968, status: SATISFIED, time: 300.4746860619998, variables: 119}

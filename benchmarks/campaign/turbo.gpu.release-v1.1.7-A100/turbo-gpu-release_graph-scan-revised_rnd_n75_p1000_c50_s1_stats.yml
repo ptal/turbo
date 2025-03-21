@@ -1,6 +1,0 @@
-{configuration: turbo-gpu-release_graph-scan-revised_rnd_n75_p1000_c50_s1, data_file: ../mzn-challenge/2023/multi-agent-graph-coverage/rnd_n75_p1000_c50_s1.dzn,
-  evaluatedReifiedConstraints: 5420, flatBoolConstraints: 5149, flatBoolVars: 6504,
-  flatIntConstraints: 302981, flatIntVars: 4341, flatTime: 5.44998, memory_configuration: global,
-  method: minimize, model: ../mzn-challenge/2023/multi-agent-graph-coverage/graph-scan-revised.mzn,
-  mzn_solver: turbo.gpu.release, nSolutions: 0, paths: 0, problem: multi-agent-graph-coverage,
-  propagator_mem: 242747179, shared_mem: 100, status: ERROR, store_mem: 78336}

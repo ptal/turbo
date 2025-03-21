@@ -1,6 +1,0 @@
-{configuration: choco, constraints: 1401, data_file: ../mzn-challenge/2022/roster-sickness/small-4.dzn,
-  failures: 34664625, flatBoolVars: 309, flatIntConstraints: 1383, flatIntVars: 344,
-  flatTime: 0.942096, initTime: 0.266, method: maximize, model: ../mzn-challenge/2022/roster-sickness/bool-model-sickness.mzn,
-  nSolutions: 8, nodes: 34664640, objective: 14457, paths: 0, problem: roster-sickness,
-  restarts: 0, solutions: 8, solveTime: 193.598, status: OPTIMAL_SOLUTION, time: 195.10889215800125,
-  variables: 689}

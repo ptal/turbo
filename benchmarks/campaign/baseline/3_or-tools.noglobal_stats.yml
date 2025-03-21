@@ -1,6 +1,0 @@
-{boolVariables: 38017, configuration: or-tools.noglobal, data_file: ../mzn-challenge/2022/blocks-world/16-4-5.dzn,
-  eliminatedImplications: 249, evaluatedReifiedConstraints: 21436, failures: 20856,
-  flatBoolConstraints: 5228, flatBoolVars: 23139, flatIntConstraints: 39757, flatIntVars: 20179,
-  flatTime: 0.610851, method: minimize, model: ../mzn-challenge/2022/blocks-world/blocks.mzn,
-  nSolutions: 6, objective: 51, objectiveBound: 21, paths: 0, problem: blocks-world,
-  propagations: 40288159, solveTime: 203.844, status: SATISFIED, time: 300.47239403799995}

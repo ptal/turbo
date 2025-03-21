@@ -1,5 +1,0 @@
-{configuration: turbo-gpu-release_nfc_24_4_2, data_file: ../mzn-challenge/2022/nfc/24_4_2.dzn,
-  flatIntConstraints: 49, flatIntVars: 49, flatTime: 0.22827, memory_configuration: store_pc_shared,
-  method: minimize, model: ../mzn-challenge/2022/nfc/nfc.mzn, mzn_solver: turbo.gpu.release,
-  nSolutions: 0, paths: 0, problem: nfc, propagator_mem: 34276, shared_mem: 35008,
-  status: ERROR, store_mem: 632}

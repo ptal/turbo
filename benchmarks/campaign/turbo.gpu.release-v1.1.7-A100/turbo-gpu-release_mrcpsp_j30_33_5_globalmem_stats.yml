@@ -1,6 +1,0 @@
-{configuration: turbo-gpu-release_mrcpsp_j30_33_5_globalmem, data_file: ../mzn-challenge/2023/mrcpsp/j30_33_5.dzn,
-  evaluatedReifiedConstraints: 21212, flatBoolConstraints: 13044, flatBoolVars: 34081,
-  flatIntConstraints: 48835, flatIntVars: 27052, flatTime: 1.26891, memory_configuration: global,
-  method: minimize, model: ../mzn-challenge/2023/mrcpsp/mrcpsp.mzn, mzn_solver: turbo.gpu.release,
-  nSolutions: 0, paths: 0, problem: mrcpsp, propagator_mem: 30266654, shared_mem: 100,
-  status: UNKNOWN, store_mem: 340208}

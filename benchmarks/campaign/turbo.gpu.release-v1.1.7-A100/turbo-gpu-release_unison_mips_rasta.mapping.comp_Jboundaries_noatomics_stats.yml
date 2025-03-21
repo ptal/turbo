@@ -1,6 +1,0 @@
-{configuration: turbo-gpu-release_unison_mips_rasta.mapping.comp_Jboundaries_noatomics,
-  data_file: ../mzn-challenge/2023/code-generator/mips_rasta.mapping.comp_Jboundaries.dzn,
-  evaluatedReifiedConstraints: 134846, flatBoolConstraints: 57608, flatBoolVars: 176645,
-  flatIntConstraints: 292857, flatIntVars: 157371, flatTime: 10.5112, method: minimize,
-  model: ../mzn-challenge/2023/code-generator/unison.mzn, mzn_solver: turbo.gpu.release,
-  nSolutions: 0, paths: 0, problem: code-generator, status: ERROR}

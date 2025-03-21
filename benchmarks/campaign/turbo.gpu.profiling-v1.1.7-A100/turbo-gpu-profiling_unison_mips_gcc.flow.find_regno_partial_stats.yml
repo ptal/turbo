@@ -1,6 +1,0 @@
-{configuration: turbo-gpu-profiling_unison_mips_gcc.flow.find_regno_partial, data_file: ../mzn-challenge/2023/code-generator/mips_gcc.flow.find_regno_partial.dzn,
-  evaluatedReifiedConstraints: 105409, flatBoolConstraints: 41875, flatBoolVars: 131044,
-  flatIntConstraints: 225278, flatIntVars: 120072, flatTime: 9.45946, memory_configuration: global,
-  method: minimize, model: ../mzn-challenge/2023/code-generator/unison.mzn, mzn_solver: turbo.gpu.profiling,
-  nSolutions: 0, paths: 0, problem: code-generator, propagator_mem: 218182017, shared_mem: 100,
-  status: UNKNOWN, store_mem: 1298776}

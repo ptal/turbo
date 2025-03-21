@@ -1,6 +1,0 @@
-{configuration: choco, constraints: 333, data_file: ../mzn-challenge/2022/wordpress/Wordpress7_Offers500.dzn,
-  evaluatedReifiedConstraints: 35, failures: 2262725, flatBoolConstraints: 17, flatBoolVars: 35,
-  flatIntConstraints: 300, flatIntVars: 182, flatTime: 0.061273, initTime: 0.237,
-  method: minimize, model: ../mzn-challenge/2022/wordpress/wordpress.mzn, nSolutions: 2795,
-  nodes: 2268338, objective: 2022, paths: 0, problem: wordpress, restarts: 0, solutions: 2795,
-  solveTime: 299.936, status: SATISFIED, time: 300.4968921740001, variables: 746}

@@ -1,5 +1,0 @@
-{configuration: turbo-gpu-release_flowshop-workers_real_ex2, data_file: ../mzn-challenge/2021/flowshop-workers/real_ex2.dzn,
-  evaluatedReifiedConstraints: 12291, flatBoolConstraints: 6287, flatBoolVars: 12231,
-  flatIntConstraints: 12734, flatIntVars: 939, flatTime: 1.05227, method: minimize,
-  model: ../mzn-challenge/2021/flowshop-workers/flowshop-workers.mzn, mzn_solver: turbo.gpu.release,
-  nSolutions: 0, paths: 0, problem: flowshop-workers, status: UNKNOWN}

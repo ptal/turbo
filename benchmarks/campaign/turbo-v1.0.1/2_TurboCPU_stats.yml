@@ -1,9 +1,0 @@
-{arch: cpu, configuration: TurboCPU, data_file: ../mzn-challenge/2022/stripboard/common-emitter-simple.dzn,
-  eliminatedImplications: 6, eps_num_subproblems: 1, eps_skipped_subproblems: 0, eps_solved_subproblems: 0,
-  evaluatedReifiedConstraints: 1676, failures: 38031, fixpoint_iterations: 0, flatBoolConstraints: 665,
-  flatBoolVars: 1664, flatIntConstraints: 2234, flatIntVars: 306, flatTime: 0.137398,
-  free_search: no, initTime: 0.525, method: minimize, model: ../mzn-challenge/2022/stripboard/stripboard.mzn,
-  nSolutions: 0, nodes: 76118, num_blocks_done: 0, num_solutions: 0, or_nodes: 0,
-  paths: 0, peakDepth: 73, problem: stripboard, problem_path: /tmp/mznfilenaZs9v.fzn,
-  propagators: 4625, solveTime: 299.869, solver: Turbo, status: UNKNOWN, time: 300.16265248199943,
-  timeout_ms: 299861.0, variables: 2180, version: 1.0.1}

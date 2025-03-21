@@ -1,6 +1,0 @@
-{configuration: turbo-gpu-profiling_test-scheduling_t30m20r3-20, data_file: ../mzn-challenge/2023/test-scheduling/t30m20r3-20.dzn,
-  evaluatedReifiedConstraints: 5948, flatBoolConstraints: 2715, flatBoolVars: 8628,
-  flatIntConstraints: 22845, flatIntVars: 16436, flatTime: 1.52269, memory_configuration: global,
-  method: minimize, model: ../mzn-challenge/2023/test-scheduling/test-scheduling.mzn,
-  mzn_solver: turbo.gpu.profiling, nSolutions: 0, paths: 0, problem: test-scheduling,
-  propagator_mem: 12158078, shared_mem: 100, status: UNKNOWN, store_mem: 174704}

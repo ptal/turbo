@@ -1,6 +1,0 @@
-{configuration: turbo-gpu-release_cvrptw_w_reload_A_7v_48l_globalmem, data_file: ../mzn-challenge/2021/vrp-submission/A_7v_48l.json,
-  evaluatedReifiedConstraints: 366, flatBoolConstraints: 244, flatBoolVars: 366, flatIntConstraints: 8521,
-  flatIntVars: 796, flatTime: 0.265003, memory_configuration: global, method: minimize,
-  model: ../mzn-challenge/2021/vrp-submission/cvrptw_w_reload.mzn, mzn_solver: turbo.gpu.release,
-  nSolutions: 0, paths: 0, problem: vrp-submission, propagator_mem: 13722705, shared_mem: 100,
-  status: UNKNOWN, store_mem: 9208}

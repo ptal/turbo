@@ -1,7 +1,0 @@
-{configuration: choco.noglobal, constraints: 3475, data_file: ../mzn-challenge/2022/generalized-peacable-queens/n8_q3.json,
-  evaluatedReifiedConstraints: 1384, failures: 1374555, flatBoolConstraints: 1679,
-  flatBoolVars: 1795, flatIntConstraints: 1796, flatIntVars: 839, flatTime: 0.152159,
-  initTime: 0.282, method: maximize, model: ../mzn-challenge/2022/generalized-peacable-queens/peaceable_queens.mzn,
-  nSolutions: 5, nodes: 1374586, objective: 4, paths: 0, problem: generalized-peacable-queens,
-  restarts: 0, solutions: 5, solveTime: 299.849, status: SATISFIED, time: 300.5862629519979,
-  variables: 3807}

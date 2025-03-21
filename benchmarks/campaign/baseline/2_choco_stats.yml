@@ -1,6 +1,0 @@
-{configuration: choco, constraints: 2383, data_file: ../mzn-challenge/2022/stripboard/common-emitter-simple.dzn,
-  eliminatedImplications: 12, evaluatedHalfReifiedConstraints: 1461, evaluatedReifiedConstraints: 32,
-  failures: 4760451, flatBoolConstraints: 611, flatBoolVars: 1475, flatIntConstraints: 1771,
-  flatIntVars: 296, flatTime: 0.15523, initTime: 0.334, method: minimize, model: ../mzn-challenge/2022/stripboard/stripboard.mzn,
-  nSolutions: 0, nodes: 4760476, paths: 0, problem: stripboard, restarts: 0, solutions: 0,
-  solveTime: 299.846, status: UNKNOWN, time: 300.6752961660004, variables: 1830}

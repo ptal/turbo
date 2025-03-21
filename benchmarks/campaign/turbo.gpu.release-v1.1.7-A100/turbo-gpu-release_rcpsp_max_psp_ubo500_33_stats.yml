@@ -1,5 +1,0 @@
-{configuration: turbo-gpu-release_rcpsp_max_psp_ubo500_33, data_file: ../minizinc-benchmarks/rcpsp-max/psp_ubo500_33.dzn,
-  evaluatedReifiedConstraints: 1380474, flatBoolConstraints: 818067, flatBoolVars: 2099177,
-  flatIntConstraints: 2012923, flatIntVars: 619840, flatTime: 877.213, method: minimize,
-  model: ../minizinc-benchmarks/rcpsp-max/rcpsp_max.mzn, mzn_solver: turbo.gpu.release,
-  nSolutions: 0, paths: 0, problem: rcpsp-max, status: UNKNOWN}

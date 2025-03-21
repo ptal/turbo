@@ -1,9 +1,0 @@
-{arch: cpu, configuration: TurboCPU, data_file: ../mzn-challenge/2022/accap/accap_a40_f800_t180.json,
-  eps_num_subproblems: 1, eps_skipped_subproblems: 0, eps_solved_subproblems: 0, evaluatedReifiedConstraints: 26770,
-  failures: 1823, fixpoint_iterations: 0, flatBoolConstraints: 13385, flatBoolVars: 26770,
-  flatIntConstraints: 43503, flatIntVars: 842, flatTime: 6.7584, free_search: no,
-  initTime: 44.713, method: minimize, model: ../mzn-challenge/2022/accap/accap.mzn,
-  nSolutions: 1, nodes: 4497, num_blocks_done: 0, num_solutions: 46, objective: 3619,
-  or_nodes: 0, paths: 0, peakDepth: 845, problem: accap, problem_path: /tmp/mznfilegOXxKp.fzn,
-  propagators: 57770, solveTime: 293.266, solver: Turbo, status: SATISFIED, time: 300.81059824600015,
-  timeout_ms: 293240.0, variables: 28494, version: 1.0.1}

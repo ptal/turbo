@@ -1,6 +1,0 @@
-{configuration: turbo-gpu-release_tower_tower_300_300_40_200-00_globalmem, data_file: ../mzn-challenge/2022/tower/tower_300_300_40_200-00.dzn,
-  evaluatedReifiedConstraints: 19317, flatBoolConstraints: 199, flatBoolVars: 12309,
-  flatIntConstraints: 36734, flatIntVars: 16703, flatTime: 2.10127, memory_configuration: global,
-  method: maximize, model: ../mzn-challenge/2022/tower/tower.mzn, mzn_solver: turbo.gpu.release,
-  nSolutions: 0, paths: 0, problem: tower, propagator_mem: 22543540, shared_mem: 100,
-  status: UNKNOWN, store_mem: 164160}

@@ -1,5 +1,0 @@
-{configuration: turbo-gpu-profiling_bool-model_s50_e50_c3, data_file: ../mzn-challenge/2023/roster-shifts-bool/s50_e50_c3.json,
-  flatBoolVars: 1159, flatIntConstraints: 5125, flatIntVars: 1218, flatTime: 0.554812,
-  memory_configuration: store_shared, method: maximize, model: ../mzn-challenge/2023/roster-shifts-bool/bool-model.mzn,
-  mzn_solver: turbo.gpu.profiling, nSolutions: 0, paths: 0, problem: roster-shifts-bool,
-  propagator_mem: 1821336, shared_mem: 10028, status: UNKNOWN, store_mem: 9928}
