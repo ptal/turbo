@@ -473,7 +473,7 @@ public:
   }
 
   void preprocess_tcn(F& f) {
-    f = ternarize(f);
+    f = ternarize(f, VarEnv<BasicAllocator>(), {0,1,2});
     battery::vector<F> extra;
     f = normalize(f, extra);
     size_t num_vars = num_quantified_vars(f);

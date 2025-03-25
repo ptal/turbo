@@ -4,6 +4,7 @@
 #define TURBO_GPU_DIVE_AND_SOLVE_HPP
 
 #include "common_solving.hpp"
+#include "memory_gpu.hpp"
 #include <thread>
 #include <algorithm>
 
@@ -19,8 +20,8 @@ template <
   class Universe1, // Universe used in the scope of a block.
   class Universe2, // Universe used in the scope of a grid.
   class ConcurrentAllocator> // This allocator allocates memory that can be both accessed by the CPU and the GPU. See PR #18 for the reason (basically, non-Linux systems do not support concurrent managed memory (accessed from CPU and GPU) and must rely on pinned memory instead).
-struct StateTypes {
-
+struct StateTypes
+{
   using U0 = Universe0;
   using U1 = Universe1;
   using U2 = Universe2;
@@ -53,63 +54,6 @@ using FPEngine = FixpointSubsetGPU<BlockAsynchronousFixpointGPU<true>, bt::globa
   using ItvSolver = StateTypes<Itv0, Itv0, Itv0, bt::managed_allocator>;
 #endif
 
-/** Depending on the problem, we can store the abstract elements in different memories.
- * The "worst" is everything in global memory (GLOBAL) when the problem is too large for the shared memory.
- * The "best" is when both the store of variables and the propagators (STORE_PC_SHARED) can be stored in shared memory.
- * A third possibility is to store only the variables' domains in the shared memory (STORE_SHARED).
-*/
-enum class MemoryKind {
-  GLOBAL,
-  STORE_SHARED,
-  STORE_PC_SHARED
-};
-
-/** The shared memory must be configured by hand before the kernel is launched.
- * This class encapsulates information about the size of each relevant abstract elements, and help creating the allocators accordingly.
-*/
-struct MemoryConfig {
-  MemoryKind mem_kind;
-  size_t shared_bytes;
-  size_t store_bytes;
-  size_t pc_bytes;
-
-  CUDA bt::pool_allocator make_global_pool(size_t bytes) {
-    void* mem_pool = bt::global_allocator{}.allocate(bytes);
-    return bt::pool_allocator(static_cast<unsigned char*>(mem_pool), bytes);
-  }
-
-  CUDA bt::pool_allocator make_shared_pool(unsigned char* shared_mem) {
-    return bt::pool_allocator(shared_mem, shared_bytes);
-  }
-
-  CUDA bt::pool_allocator make_pc_pool(bt::pool_allocator shared_mem) {
-    if(mem_kind == MemoryKind::STORE_PC_SHARED) {
-      return shared_mem;
-    }
-    else {
-      return make_global_pool(pc_bytes);
-    }
-  }
-
-  CUDA bt::pool_allocator make_store_pool(bt::pool_allocator shared_mem) {
-    if(mem_kind == MemoryKind::STORE_PC_SHARED || mem_kind == MemoryKind::STORE_SHARED) {
-      return shared_mem;
-    }
-    else {
-      return make_global_pool(store_bytes);
-    }
-  }
-
-  CUDA void print_mzn_statistics() const {
-    printf("%%%%%%mzn-stat: memory_configuration=\"%s\"\n",
-      mem_kind == MemoryKind::GLOBAL ? "global" : (
-      mem_kind == MemoryKind::STORE_SHARED ? "store_shared" : "store_pc_shared"));
-    printf("%%%%%%mzn-stat: shared_mem=%" PRIu64 "\n", shared_bytes);
-    printf("%%%%%%mzn-stat: store_mem=%" PRIu64 "\n", store_bytes);
-    printf("%%%%%%mzn-stat: propagator_mem=%" PRIu64 "\n", pc_bytes);
-  }
-};
-
 template <class S>
 struct BlockData;
 
@@ -126,7 +70,7 @@ struct GridData {
   // This is helpful to share immutable data among blocks (for instance the propagators).
   bt::shared_ptr<BlockCP, bt::global_allocator> blocks_root;
   // Stop from the CPU, for instance because of a timeout.
-  volatile bool cpu_stop;
+  cuda::std::atomic_flag cpu_stop;
   // Boolean indicating that the blocks have been reduced, and the CPU can now print the statistics.
   volatile bool blocks_reduced;
   MemoryConfig mem_config;
@@ -196,7 +140,7 @@ struct GridData {
       false, // Due to different allocators between BlockCP and GridCP, it won't be able to share data anyways.
       root,
       bt::global_allocator{},
-      root_mem_config.make_pc_pool(bt::pool_allocator(nullptr,0)),
+      root_mem_config.make_prop_pool(bt::pool_allocator(nullptr,0)),
       root_mem_config.make_store_pool(bt::pool_allocator(nullptr,0)));
     blocks = bt::vector<BlockData<S>, bt::global_allocator>(root.config.or_nodes);
     gpu_stop = bt::make_shared<B<bt::atomic_memory_grid>, bt::global_allocator>(false);
@@ -249,10 +193,10 @@ public:
       has_changed = bt::allocate_shared<AtomicBool, bt::pool_allocator>(shared_mem_pool, true);
       stop = bt::allocate_shared<AtomicBool, bt::pool_allocator>(shared_mem_pool, false);
       root = bt::make_shared<BlockCP, bt::global_allocator>(typename BlockCP::tag_gpu_block_copy{},
-        (mem_config.mem_kind != MemoryKind::STORE_PC_SHARED),
+        (mem_config.mem_kind != MemoryKind::TCN_SHARED),
         *(grid_data.blocks_root),
         bt::global_allocator{},
-        mem_config.make_pc_pool(shared_mem_pool),
+        mem_config.make_prop_pool(shared_mem_pool),
         mem_config.make_store_pool(shared_mem_pool));
       snapshot_root = bt::make_shared<snapshot_type, bt::global_allocator>(root->search_tree->template snapshot<bt::global_allocator>());
     }
@@ -566,15 +510,6 @@ __global__ void gpu_solve_kernel(GridData<S>* grid_data)
   block_data.deallocate_shared();
 }
 
-template <class T> __global__ void gpu_sizeof_kernel(size_t* size) { *size = sizeof(T); }
-template <class T>
-size_t gpu_sizeof() {
-  auto s = bt::make_unique<size_t, bt::managed_allocator>();
-  gpu_sizeof_kernel<T><<<1, 1>>>(s.get());
-  CUDAEX(cudaDeviceSynchronize());
-  return *s;
-}
-
 template <class S, class U>
 size_t sizeof_store(const CP<U>& root) {
   return gpu_sizeof<typename S::BlockCP::IStore>()
@@ -600,8 +535,8 @@ MemoryConfig configure_memory(CP<U>& root) {
   mem_config.store_bytes = sizeof_store<S>(root2) + store_alignment;
   // We add 20% extra memory due to the alignment of the shared memory which is not taken into account in the statistics.
   // From limited experiments, alignment overhead is usually around 10%.
-  mem_config.pc_bytes = root2.prop_allocator.total_bytes_allocated();
-  mem_config.pc_bytes += mem_config.pc_bytes / 5;
+  mem_config.prop_bytes = root2.prop_allocator.total_bytes_allocated();
+  mem_config.prop_bytes += mem_config.prop_bytes / 5;
   if(config.only_global_memory || shared_mem_capacity < mem_config.shared_bytes + mem_config.store_bytes) {
     if(!config.only_global_memory && config.verbose_solving) {
       printf("%% The store of variables (%zuKB) cannot be stored in the shared memory of the GPU (%zuKB), therefore we use the global memory.\n",
@@ -610,14 +545,14 @@ MemoryConfig configure_memory(CP<U>& root) {
     }
     mem_config.mem_kind = MemoryKind::GLOBAL;
   }
-  else if(shared_mem_capacity > mem_config.shared_bytes + mem_config.store_bytes + mem_config.pc_bytes) {
+  else if(shared_mem_capacity > mem_config.shared_bytes + mem_config.store_bytes + mem_config.prop_bytes) {
     if(config.verbose_solving) {
       printf("%% The store of variables and the propagators (%zuKB) are stored in the shared memory of the GPU (%zuKB).\n",
-      (mem_config.shared_bytes + mem_config.store_bytes + mem_config.pc_bytes) / 1000,
+      (mem_config.shared_bytes + mem_config.store_bytes + mem_config.prop_bytes) / 1000,
       shared_mem_capacity / 1000);
     }
-    mem_config.shared_bytes += mem_config.store_bytes + mem_config.pc_bytes;
-    mem_config.mem_kind = MemoryKind::STORE_PC_SHARED;
+    mem_config.shared_bytes += mem_config.store_bytes + mem_config.prop_bytes;
+    mem_config.mem_kind = MemoryKind::TCN_SHARED;
   }
   else {
     if(config.verbose_solving) {
@@ -629,34 +564,9 @@ MemoryConfig configure_memory(CP<U>& root) {
     mem_config.mem_kind = MemoryKind::STORE_SHARED;
   }
   root.stats.print_memory_statistics(config.verbose_solving, "store_memory_real", root2.store_allocator.total_bytes_allocated());
-  root.stats.print_memory_statistics(config.verbose_solving, "pc_memory_real", root2.prop_allocator.total_bytes_allocated());
+  root.stats.print_memory_statistics(config.verbose_solving, "prop_memory_real", root2.prop_allocator.total_bytes_allocated());
   root.stats.print_memory_statistics(config.verbose_solving, "other_memory_real", root2.basic_allocator.total_bytes_allocated());
   return mem_config;
-}
-
-/** Wait the solving ends because of a timeout, CTRL-C or because the kernel finished. */
-template<class S, class Timepoint>
-bool wait_solving_ends(GridData<S>& grid_data, const Timepoint& start) {
-  cudaEvent_t event;
-  cudaEventCreateWithFlags(&event,cudaEventDisableTiming);
-  cudaEventRecord(event);
-  while(!must_quit(grid_data.root) && check_timeout(grid_data.root, start) && cudaEventQuery(event) == cudaErrorNotReady) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  }
-  if(cudaEventQuery(event) == cudaErrorNotReady) {
-    grid_data.cpu_stop = true;
-    grid_data.root.prune();
-    return true;
-  }
-  else {
-    cudaError error = cudaDeviceSynchronize();
-    if(error == cudaErrorIllegalAddress) {
-      printf("%% ERROR: CUDA kernel failed due to an illegal memory access. This might be due to a stack overflow because it is too small. Try increasing the stack size with the options -stack. If it does not work, please report it as a bug.\n");
-      exit(EXIT_FAILURE);
-    }
-    CUDAEX(error);
-    return false;
-  }
 }
 
 template <class S>
@@ -671,8 +581,7 @@ void transfer_memory_and_run(CP<U>& root, MemoryConfig mem_config, const Timepoi
   initialize_grid_data<<<1,1>>>(grid_data.get());
   CUDAEX(cudaDeviceSynchronize());
   if(grid_data->root.config.print_statistics) {
-    mem_config.print_mzn_statistics();
-    root.stats.print_mzn_end_stats();
+    mem_config.print_mzn_statistics(root.config, root.stats);
   }
   std::thread consumer_thread(consume_kernel_solutions<S>, std::ref(*grid_data));
   gpu_solve_kernel
@@ -680,7 +589,7 @@ void transfer_memory_and_run(CP<U>& root, MemoryConfig mem_config, const Timepoi
       CUDA_THREADS_PER_BLOCK,
       grid_data->mem_config.shared_bytes>>>
     (grid_data.get());
-  bool interrupted = wait_solving_ends(*grid_data, start);
+  bool interrupted = wait_solving_ends(grid_data->cpu_stop, grid_data->root, start);
   consumer_thread.join();
   CUDAEX(cudaDeviceSynchronize());
   deallocate_grid_data<<<1,1>>>(grid_data.get());
@@ -718,19 +627,21 @@ void configure_blocks_threads(CP<U>& root, const MemoryConfig& mem_config) {
   config.or_nodes = (config.or_nodes == 0) ? hint_num_blocks : config.or_nodes;
 
   // The stack allocated depends on the maximum number of threads per SM, not on the actual number of threads per block.
-  size_t total_stack_size = num_sm * deviceProp.maxThreadsPerMultiProcessor * config.stack_kb * 1000;
+  size_t total_stack_size = num_sm * deviceProp.maxThreadsPerMultiProcessor * (config.stack_kb == 0 ? 1 : config.stack_kb) * 1000;
   size_t remaining_global_mem = total_global_mem - total_stack_size;
   remaining_global_mem -= remaining_global_mem / 10; // We leave 10% of global memory free for CUDA allocations, not sure if it is useful though.
 
   // Basically the size of the store and propagator, and 100 bytes per variable.
   // +1 for the root node in GridCP.
-  size_t heap_usage_estimation = (config.or_nodes + 1) * (mem_config.pc_bytes + mem_config.store_bytes + 100 * root.store->vars());
+  size_t heap_usage_estimation = (config.or_nodes + 1) * (mem_config.prop_bytes + mem_config.store_bytes + 100 * root.store->vars());
   while(heap_usage_estimation > remaining_global_mem) {
     config.or_nodes--;
   }
 
-  CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, config.stack_kb*1000));
-  CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, remaining_global_mem));
+  if(config.stack_kb != 0) {
+    CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, config.stack_kb*1000));
+  }
+  CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, remaining_global_mem/15));
 
   root.stats.print_memory_statistics(config.verbose_solving, "stack_memory", total_stack_size);
   root.stats.print_memory_statistics(config.verbose_solving, "heap_memory", remaining_global_mem);
@@ -747,48 +658,13 @@ void configure_and_run(CP<U>& root, const Timepoint& start) {
   transfer_memory_and_run<S>(root, mem_config, start);
 }
 
-void check_support_unified_memory() {
-  int attr = 0;
-  int dev = 0;
-  CUDAEX(cudaDeviceGetAttribute(&attr, cudaDevAttrManagedMemory, dev));
-  if (!attr) {
-    std::cerr << "The GPU does not support unified memory." << std::endl;
-    exit(EXIT_FAILURE);
-  }
-}
-
-void check_support_concurrent_managed_memory() {
-  int attr = 0;
-  int dev = 0;
-  CUDAEX(cudaDeviceGetAttribute(&attr, cudaDevAttrConcurrentManagedAccess, dev));
-  if (!attr) {
-#ifdef NO_CONCURRENT_MANAGED_MEMORY
-    printf("%% WARNING: The GPU does not support concurrent access to managed memory, hence we fall back on pinned memory.\n");
-  /** Set cudaDeviceMapHost to allow cudaMallocHost() to allocate pinned memory
-   * for concurrent access between the device and the host. It must be called
-   * early, before any CUDA management functions, so that we can fall back to
-   * using the pinned_allocator instead of the managed_allocator.
-   * This is required on Windows, WSL, macOS, and NVIDIA GRID.
-   * See also PR #18.
-   */
-    unsigned int flags = 0;
-    CUDAEX(cudaGetDeviceFlags(&flags));
-    flags |= cudaDeviceMapHost;
-    CUDAEX(cudaSetDeviceFlags(flags));
-#else
-    printf("%% To run Turbo on this GPU you need to build Turbo with the option NO_CONCURRENT_MANAGED_MEMORY.\n");
-    exit(EXIT_FAILURE);
-#endif
-  }
-}
-
 #endif // __CUDACC__
 
 void gpu_dive_and_solve(Configuration<bt::standard_allocator>& config) {
 #ifndef __CUDACC__
   std::cerr << "You must use a CUDA compiler (nvcc or clang) to compile Turbo on GPU." << std::endl;
 #else
-  check_support_unified_memory();
+  check_support_managed_memory();
   check_support_concurrent_managed_memory();
   auto start = std::chrono::steady_clock::now();
   CP<Itv> root(config);

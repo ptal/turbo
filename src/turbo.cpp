@@ -3,13 +3,19 @@
 #include <iostream>
 #include "cpu_solving.hpp"
 
-#ifdef REDUCE_PTX_SIZE
-#ifndef DISABLE_FULL_GPU_SOLVING
-#include "gpu_dive_and_solve.hpp"
+/** IPC abstract domain only works when REDUCE_PTX_SIZE is activated due to numerous nested recursive calls. */
+#ifdef TURBO_IPC_ABSTRACT_DOMAIN
+#ifndef REDUCE_PTX_SIZE
+#define DISABLE_FULL_GPU_SOLVING
 #endif
 #endif
 
+#ifndef DISABLE_FULL_GPU_SOLVING
+#include "gpu_dive_and_solve.hpp"
+#endif
+
 #include "hybrid_dive_and_solve.hpp"
+#include "barebones_dive_and_solve.hpp"
 
 using namespace battery;
 
@@ -25,13 +31,14 @@ int main(int argc, char** argv) {
     if(config.arch == Arch::CPU) {
       cpu_solve(config);
     }
-#ifdef REDUCE_PTX_SIZE
 #ifndef DISABLE_FULL_GPU_SOLVING
     else if(config.arch == Arch::GPU) {
       gpu_dive_and_solve(config);
     }
 #endif
-#endif
+    else if(config.arch == Arch::BAREBONES) {
+      barebones::barebones_dive_and_solve(config);
+    }
     else if(config.arch == Arch::HYBRID) {
       hybrid_dive_and_solve(config);
     }

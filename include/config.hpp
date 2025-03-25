@@ -12,11 +12,12 @@
 #endif
 
 #define SUBPROBLEMS_POWER 12 // 2^N
-#define STACK_KB 32
+#define STACK_KB 0
 
 enum class Arch {
   CPU,
   GPU,
+  BAREBONES,
   HYBRID
 };
 
@@ -73,7 +74,7 @@ struct Configuration {
     stack_kb(STACK_KB),
     arch(
       #ifdef __CUDACC__
-        Arch::HYBRID
+        Arch::BAREBONES
       #else
         Arch::CPU
       #endif
@@ -156,7 +157,7 @@ struct Configuration {
       (verbose_solving ? "-v " : ""),
       (print_ast ? "-ast " : "")
     );
-    if(arch == Arch::GPU || arch == Arch::HYBRID) {
+    if(arch != Arch::CPU) {
       printf("-arch %s -or %" PRIu64 " -sub %" PRIu64 " -stack %" PRIu64 " ", name_of_arch(arch), or_nodes, subproblems_power, stack_kb);
       if(only_global_memory) { printf("-globalmem "); }
     }
@@ -198,6 +199,8 @@ struct Configuration {
         return "cpu";
       case Arch::GPU:
         return "gpu";
+      case Arch::BAREBONES:
+        return "barebones";
       case Arch::HYBRID:
         return "hybrid";
       default:

@@ -734,7 +734,7 @@ size_t configure_gpu(CP<Itv>& cp) {
   else {
     cp.stats.print_stat("memory_configuration", "store_shared");
   }
-  cp.stats.print_stat("shared_mem", shared_mem_bytes);
+  cp.stats.print_memory_statistics(config.verbose_solving, "shared_mem", shared_mem_bytes);
 
   int hint_num_blocks;
   int hint_num_threads;
@@ -743,10 +743,12 @@ size_t configure_gpu(CP<Itv>& cp) {
   size_t num_sm = deviceProp.multiProcessorCount;
   config.or_nodes = (config.or_nodes == 0) ? hint_num_blocks : config.or_nodes;
   // The stack allocated depends on the maximum number of threads per SM, not on the actual number of threads per block.
-  size_t total_stack_size = num_sm * deviceProp.maxThreadsPerMultiProcessor * config.stack_kb * 1000;
+  size_t total_stack_size = num_sm * deviceProp.maxThreadsPerMultiProcessor * (config.stack_kb == 0 ? 1 : config.stack_kb) * 1000;
   size_t remaining_global_mem = total_global_mem - total_stack_size;
   remaining_global_mem -= remaining_global_mem / 10; // We leave 10% of global memory free for CUDA allocations, not sure if it is useful though.
-  CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, config.stack_kb*1000));
+  if(config.stack_kb != 0) {
+    CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, config.stack_kb*1000));
+  }
   CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, remaining_global_mem));
   cp.stats.print_memory_statistics(cp.config.verbose_solving, "stack_memory", total_stack_size);
   cp.stats.print_memory_statistics(cp.config.verbose_solving, "heap_memory", remaining_global_mem);
