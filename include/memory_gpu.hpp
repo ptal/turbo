@@ -64,16 +64,16 @@ struct MemoryConfig {
     }
   }
 
-  CUDA bt::pool_allocator make_global_pool(size_t bytes) {
+  CUDA bt::pool_allocator make_global_pool(size_t bytes) const {
     void* mem_pool = bt::global_allocator{}.allocate(bytes);
     return bt::pool_allocator(static_cast<unsigned char*>(mem_pool), bytes);
   }
 
-  CUDA bt::pool_allocator make_shared_pool(unsigned char* shared_mem) {
+  CUDA bt::pool_allocator make_shared_pool(unsigned char* shared_mem) const {
     return bt::pool_allocator(shared_mem, shared_bytes);
   }
 
-  CUDA bt::pool_allocator make_prop_pool(bt::pool_allocator shared_mem) {
+  CUDA bt::pool_allocator make_prop_pool(bt::pool_allocator shared_mem) const {
     if(mem_kind == MemoryKind::TCN_SHARED) {
       return shared_mem;
     }
@@ -82,7 +82,7 @@ struct MemoryConfig {
     }
   }
 
-  CUDA bt::pool_allocator make_store_pool(bt::pool_allocator shared_mem) {
+  CUDA bt::pool_allocator make_store_pool(bt::pool_allocator shared_mem) const {
     if(mem_kind == MemoryKind::TCN_SHARED || mem_kind == MemoryKind::STORE_SHARED) {
       return shared_mem;
     }

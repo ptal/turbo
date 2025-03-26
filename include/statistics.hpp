@@ -117,7 +117,7 @@ struct Statistics {
   size_t nodes;
   size_t fails;
   size_t solutions;
-  size_t depth_max;
+  int depth_max;
   bool exhaustive;
   size_t eps_num_subproblems;
   size_t eps_solved_subproblems;
@@ -209,6 +209,12 @@ struct Statistics {
   CUDA void print_stat(const char* name, size_t value) const {
     if(print_statistics) {
       printf("%%%%%%mzn-stat: %s=%" PRIu64 "\n", name, value);
+    }
+  }
+
+  CUDA void print_stat(const char* name, int value) const {
+    if(print_statistics) {
+      printf("%%%%%%mzn-stat: %s=%d\n", name, value);
     }
   }
 
