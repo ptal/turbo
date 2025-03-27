@@ -22,6 +22,11 @@ namespace bt = ::battery;
  * We propose a new "barebones" version which contains less abstractions than the GPU and hybrid versions, but have the same functionalities.
  * In particular, we directly implement the branch-and-bound algorithm here and avoid using `lala::BAB` and `lala::SearchTree` which are nice from a software engineering perspective but bring significant overhead.
  * This version is intended to reach the best possible performance.
+ *
+ * Terminology:
+ *  * unified data: data available to both the CPU and GPU.
+ *  * block data: data used within a single block.
+ *  * grid data: data shared among all blocks in the grid.
  */
 
 #ifdef __CUDACC__
@@ -75,6 +80,7 @@ struct GridData;
 using IStore = VStore<Itv, bt::pool_allocator>;
 using IProp = PIR<IStore, bt::pool_allocator>;
 using UB = ZUB<typename Itv::LB::value_type, bt::atomic_memory_grid>;
+using strategies_type = bt::vector<StrategyType<bt::global_allocator>, bt::global_allocator>;
 
 /** Data private to a single block. */
 struct BlockData {
@@ -104,6 +110,7 @@ struct BlockData {
 
   /** The best bound found so far by this block.
    * We always seek to minimize.
+   * Note that if `GridData::appx_best_bound` is better than `best_bound` the current block does not necessarily record its best store in `best_store`.
    */
   UB best_bound;
 
@@ -117,11 +124,14 @@ struct BlockData {
    */
   int next_unassigned_var;
 
+  /** On backtracking, the value to restore `current_strategy`. */
+  int snapshot_root_strategy;
+
+  /** On backtracking, the value to restore `next_unassigned_var`. */
+  int snapshot_next_unassigned_var;
+
   /** The decision taken when exploring the tree. */
   bt::vector<LightBranch<Itv>, bt::global_allocator> decisions;
-
-  /** This is used for fast backtracking: `ropes[decisions.size()-1]` is the depth we need to backtrack to. */
-  bt::vector<int, bt::global_allocator> ropes;
 
   /** Current depth of the search tree. */
   int depth;
@@ -134,7 +144,6 @@ struct BlockData {
    , current_strategy(0)
    , next_unassigned_var(0)
    , decisions(5000)
-   , ropes(5000)
    , depth(0)
   {}
 
@@ -160,6 +169,200 @@ struct BlockData {
       // NOTE: .reset() does not work because it does not reset the allocator, which is itself allocated in global memory.
       store = abstract_ptr<IStore>();
       iprop = abstract_ptr<IProp>();
+    }
+  }
+
+  /** Add a new decision on the `decisions` stack and increase depth.
+   * \param has_changed: A Boolean in shared memory.
+   * \param strategies: A sequence of non-empty strategies.
+   * \precondition: We must not be on a leaf node.
+   */
+  __device__ INLINE void split(bool& has_changed, const strategies_type& strategies) {
+    using LB2 = typename Itv::LB::local_type;
+    using UB2 = typename Itv::UB::local_type;
+    __shared__ local::ZUB idx;
+    decisions[depth].var = AVar{};
+    int currentDepth = depth;
+    for(int i = current_strategy; i < strategies.size(); ++i) {
+      assert(strategies[i].vars.size() > 0);
+      switch(strategies[i].var_order) {
+        case VariableOrder::INPUT_ORDER: {
+          input_order_split(has_changed, idx, strategies[i].val_order, strategies[i].vars.size(),
+            [&](int j) { return strategies[i].vars[j]; });
+          break;
+        }
+        case VariableOrder::FIRST_FAIL: {
+          lattice_smallest_split(has_changed, idx, strategies[i],
+            [](const Itv& u) { return UB2(u.ub().value() - u.lb().value()); });
+          break;
+        }
+        case VariableOrder::ANTI_FIRST_FAIL: {
+          lattice_smallest_split(has_changed, idx, strategies[i],
+            [](const Itv& u) { return LB2(u.ub().value() - u.lb().value()); });
+          break;
+        }
+        case VariableOrder::LARGEST: {
+          lattice_smallest_split(has_changed, idx, strategies[i],
+            [](const Itv& u) { return LB2(u.ub().value()); });
+          break;
+        }
+        case VariableOrder::SMALLEST: {
+          lattice_smallest_split(has_changed, idx, strategies[i],
+            [](const Itv& u) { return UB2(u.lb().value()); });
+        }
+        default: assert(false);
+      }
+      __syncthreads();
+      if(!decisions[currentDepth].var.is_untyped()) {
+        return;
+      }
+      if(threadIdx.x == 0) {
+        current_strategy++;
+        next_unassigned_var = 0;
+      }
+      // `input_order_split` and `lattice_smallest_split` have a `__syncthreads()` before reading next_unassigned_var.
+    }
+    // Split on the remaining unassigned variables in the store, if any.
+    // This is in case the search strategy is not complete.
+    AType aty = store->aty();
+    input_order_split(has_changed, idx, ValueOrder::MIN, store->vars(), [aty](int j) { return AVar(aty, j); });
+  }
+
+  /** Select the next unassigned variable with a finite interval in the array `strategy.vars()`.
+   * We ignore infinite variables as splitting on them do not guarantee termination.
+   * \param has_changed is a Boolean in shared memory.
+   * \param idx is a decreasing integer in shared memory.
+   */
+  template <class F>
+  __device__ INLINE void input_order_split(bool& has_changed, local::ZUB& idx, ValueOrder val_order,
+    int num_vars, const F& f)
+  {
+    has_changed = true;
+    if(threadIdx.x == 0) {
+      idx = num_vars;
+    }
+    while(has_changed) {
+      __syncthreads();
+      // int n = idx.value();
+      // __syncthreads();
+      has_changed = false;
+      for(int i = next_unassigned_var + threadIdx.x; i < num_vars; i += blockDim.x) {
+        const auto& dom = store->project(f(i));
+        if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()) {
+          has_changed |= idx.meet(local::ZUB(i));
+        }
+      }
+      __syncthreads();
+    }
+    if(threadIdx.x == 0) {
+      next_unassigned_var = idx.value();
+    }
+    if(idx.value() != num_vars) {
+      push_decision(val_order, f(idx.value()));
+    }
+  }
+
+  /** Given an array of variable, select the variable `x` with the smallest value `f(store[x])` where "smallest" is defined according to the lattice order of the return type of `f`.
+   * \param has_changed is a Boolean in shared memory.
+   * \param idx is a decreasing integer in shared memory.
+   * */
+  template <class F>
+  __device__ INLINE void lattice_smallest_split(bool& has_changed, local::ZUB& idx,
+    const StrategyType<bt::global_allocator>& strategy, F f)
+  {
+    using T = decltype(f(Itv{}));
+    __shared__ T value;
+    has_changed = true;
+    if(threadIdx.x == 0) {
+      value = T::top();
+      idx = strategy.vars.size();
+    }
+    /** This fixpoint loop seeks for the smallest `x` according to `f(x)` and the next unassigned variable. */
+    while(has_changed) {
+      __syncthreads();
+      has_changed = false;
+      for(int i = next_unassigned_var + threadIdx.x; i < strategy.vars.size(); i += blockDim.x) {
+        const auto& dom = store->project(strategy.vars[i]);
+        if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()) {
+          has_changed |= value.meet(f(dom));
+          has_changed |= idx.meet(local::ZUB(i));
+        }
+      }
+      __syncthreads();
+    }
+    /** If we found a value, we traverse again the variables' array to find its index. */
+    if(!value.is_top()) {
+      if(threadIdx.x == 0) {
+        next_unassigned_var = idx.value();
+        idx = strategy.vars.size();
+      }
+      __syncthreads();
+      has_changed = true;
+      // This fixpoint loop is not strictly necessary.
+      // We keep it for determinism: the variable with the smallest index is selected first.
+      while(has_changed) {
+        int n = idx.value();
+        __syncthreads();
+        has_changed = false;
+        for(int i = next_unassigned_var + threadIdx.x; i < strategy.vars.size(); i += blockDim.x) {
+          const auto& dom = store->project(strategy.vars[i]);
+          if(f(dom) == value) {
+            has_changed |= idx.meet(local::ZUB(i));
+          }
+        }
+        __syncthreads();
+      }
+      assert(idx.value() < strategy.vars.size());
+      push_decision(strategy.val_order, strategy.vars[idx.value()]);
+    }
+  }
+
+  /** Push a new decision onto the decisions stack.
+   *  \precondition The domain of the variable `var` must not be empty, be a singleton or contain infinite bounds.
+  */
+  __device__ INLINE void push_decision(ValueOrder val_order, AVar var) {
+    using value_type = typename Itv::LB::value_type;
+    if(threadIdx.x == 0) {
+      decisions[depth].var = var;
+      decisions[depth].current_idx = -1;
+      const auto& dom = store->project(decisions[depth].var);
+      switch(val_order) {
+        case ValueOrder::MIN: {
+          decisions[depth].children[0] = Itv(dom.lb().value());
+          decisions[depth].children[1] = Itv(dom.lb().value() + value_type{1}, dom.ub());
+          break;
+        }
+        case ValueOrder::MAX: {
+          decisions[depth].children[0] = Itv(dom.ub().value());
+          decisions[depth].children[1] = Itv(dom.lb(), dom.ub().value() - value_type{1});
+          break;
+        }
+        case ValueOrder::SPLIT: {
+          auto mid = dom.lb().value() +  (dom.ub().value() - dom.lb().value()) / value_type{2};
+          decisions[depth].children[0] = Itv(dom.lb(), mid);
+          decisions[depth].children[1] = Itv(mid + value_type{1}, dom.ub());
+          break;
+        }
+        case ValueOrder::REVERSE_SPLIT: {
+          auto mid = dom.lb().value() +  (dom.ub().value() - dom.lb().value()) / value_type{2};
+          decisions[depth].children[0] = Itv(mid + value_type{1}, dom.ub());
+          decisions[depth].children[1] = Itv(dom.lb(), mid);
+          break;
+        }
+        // ValueOrder::MEDIAN is not possible with interval.
+        default: assert(false);
+      }
+      /** Ropes are a mechanisme for fast backtracking.
+       * The rope of a left node is always the depth of the right node (also its depth), because after completing the exploration of the left subtree, we must visit the right subtree (rooted at the current depth).
+       * The rope of the right node is inherited from its parent, we set -1 if there is no next node to visit.
+       */
+      decisions[depth].ropes[0] = depth + 1;
+      decisions[depth].ropes[1] = depth > 0 ? decisions[depth-1].ropes[decisions[depth-1].current_idx] : -1;
+      ++depth;
+      // Reallocate decisions if needed.
+      if(decisions.size() == depth) {
+        decisions.resize(decisions.size() * 2);
+      }
     }
   }
 };
@@ -190,10 +393,10 @@ struct GridData {
   cuda::binary_semaphore<cuda::thread_scope_device> print_lock;
 
   /** The search strategy is immutable and shared among the blocks. */
-  bt::vector<StrategyType<bt::global_allocator>, bt::global_allocator> dive_strategies;
+  strategies_type dive_strategies;
 
   /** The search strategy is immutable and shared among the blocks. */
-  bt::vector<StrategyType<bt::global_allocator>, bt::global_allocator> solve_strategies;
+  strategies_type solve_strategies;
 
   /** The objective variable to minimize.
    * Maximization problem are transformed into minimization problems by negating the objective variable.
@@ -249,11 +452,19 @@ void barebones_dive_and_solve(const Configuration<battery::standard_allocator>& 
   CUDAEX(cudaDeviceSynchronize());
   reduce_blocks<<<1,1>>>(unified_data.get(), grid_data->get());
   CUDAEX(cudaDeviceSynchronize());
-  if(unified_data->root.stats.solutions > 0) {
-    cp.print_solution(*unified_data->root.best);
+  auto& uroot = unified_data->root;
+  if(uroot.stats.solutions > 0) {
+    cp.print_solution(*uroot.best);
   }
-  unified_data->root.stats.print_mzn_final_separator();
-  unified_data->root.print_mzn_statistics();
+  uroot.stats.print_mzn_final_separator();
+  if(uroot.config.print_statistics) {
+    uroot.config.print_mzn_statistics();
+    uroot.stats.print_mzn_statistics(uroot.config.or_nodes);
+    if(uroot.bab->is_optimization() && uroot.stats.solutions > 0) {
+      uroot.stats.print_mzn_objective(uroot.best->project(uroot.bab->objective_var()), true);
+    }
+    unified_data->root.stats.print_mzn_end_stats();
+  }
   deallocate_global_data<<<1,1>>>(grid_data.get());
   CUDAEX(cudaDeviceSynchronize());
 }
@@ -352,9 +563,13 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
   /** This shared variable is necessary to avoid multiple threads to read into `unified_data.stop.test()`,
    * potentially reading different values and leading to deadlock. */
   __shared__ bool stop;
+  __shared__ bool has_changed;
   __shared__ bool is_leaf_node;
   stop = false;
   auto group = cooperative_groups::this_thread_block();
+  if(threadIdx.x == 0) {
+    block_data.timer = block_data.stats.start_timer_device();
+  }
   __syncthreads();
 
   /** II. Start the main solving loop. */
@@ -371,70 +586,170 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
 
     block_data.current_strategy = 0;
     block_data.next_unassigned_var = 0;
+    block_data.depth = 0;
     unified_data->root.store->copy_to(group, *block_data.store);
     fp_engine.reset(iprop.num_deductions());
+    __syncthreads();
 
-    // B. Propagate the current node.
+    // B. Dive into the search tree until we reach the target subproblem.
 
-    if(threadIdx.x == 0) {
-      block_data.timer = block_data.stats.start_timer_device();
-    }
-    int fp_iterations;
-    switch(config.fixpoint) {
-      case FixpointKind::AC1: {
-        fp_iterations = fp_engine.fixpoint(
-          [&](int i){ return iprop.deduce(i); },
-          [&](){ return iprop.is_bot(); });
+    // C. Solve the current subproblem.
+
+    while(!stop) {
+
+      // D. Optimize the objective variable.
+
+      if(threadIdx.x == 0 && !grid_data->obj_var.is_untyped()) {
+        /** Before propagating, we update the local bound with the best known global bound.
+         * Strenghten the objective variable to get a better objective next time.
+         */
+        block_data.best_bound.meet(grid_data->appx_best_bound);
+        if(!block_data.best_bound.is_top()) {
+          block_data.store->embed(grid_data->obj_var,
+            Itv(Itv::LB::top(), Itv::UB(block_data.best_bound.value() - 1)));
+        }
+      }
+      __syncthreads();
+      // Unconstrained objective, can terminate, we will not find a better solution.
+      if(block_data.best_bound.is_bot()) {
+        stop = true;
         break;
       }
-      case FixpointKind::WAC1: {
-        if(fp_engine.num_active() <= config.wac1_threshold) {
+      TIMEPOINT(SEARCH);
+      is_leaf_node = false;
+
+      // E. Propagate the current node.
+
+      int fp_iterations;
+      switch(config.fixpoint) {
+        case FixpointKind::AC1: {
           fp_iterations = fp_engine.fixpoint(
             [&](int i){ return iprop.deduce(i); },
             [&](){ return iprop.is_bot(); });
+          break;
         }
-        else {
-          fp_iterations = fp_engine.fixpoint(
-            [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(iprop, i); },
-            [&](){ return iprop.is_bot(); });
+        case FixpointKind::WAC1: {
+          if(fp_engine.num_active() <= config.wac1_threshold) {
+            fp_iterations = fp_engine.fixpoint(
+              [&](int i){ return iprop.deduce(i); },
+              [&](){ return iprop.is_bot(); });
+          }
+          else {
+            fp_iterations = fp_engine.fixpoint(
+              [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(iprop, i); },
+              [&](){ return iprop.is_bot(); });
+          }
+          break;
         }
-        break;
       }
-    }
-    TIMEPOINT(FIXPOINT);
+      TIMEPOINT(FIXPOINT);
 
-    // C. Analyze the result of propagation
+      // F. Analyze the result of propagation
 
-    if(!iprop.is_bot()) {
-      fp_engine.select([&](int i) { return !iprop.ask(i); });
-      TIMEPOINT(SELECT_FP_FUNCTIONS);
-      if(fp_engine.num_active() == 0) {
+      if(!iprop.is_bot()) {
+        fp_engine.select([&](int i) { return !iprop.ask(i); });
+        TIMEPOINT(SELECT_FP_FUNCTIONS);
+        if(fp_engine.num_active() == 0) {
+          is_leaf_node = true;
+          if(threadIdx.x == 0) {
+            block_data.best_bound.meet(Itv::UB(block_data.store->project(grid_data->obj_var).lb().value()));
+            has_changed = grid_data->appx_best_bound.meet(block_data.best_bound);
+          }
+          __syncthreads();
+          // When two blocks find the same bound, we avoid copying the store twice (although it can still happen if they concurrently meet the same bound in `appx_best_bound`).
+          if(has_changed) {
+            block_data.store->copy_to(group, *block_data.best_store);
+            if(threadIdx.x == 0) {
+              block_data.stats.solutions++;
+              if(config.verbose_solving) {
+                grid_data->print_lock.acquire();
+                printf("%% objective="); block_data.best_bound.print(); printf("\n");
+                grid_data->print_lock.release();
+              }
+            }
+          }
+        }
+      }
+      else {
         is_leaf_node = true;
-        // TODO: update global best.
-        // TODO: copy the solution to best_store, and update stats if global best was updated.
-        if(threadIdx.x == 0) block_data.stats.solutions++;
       }
-    }
-    else {
-      is_leaf_node = true;
-    }
 
-    if(threadIdx.x == 0) {
-      block_data.stats.fixpoint_iterations += fp_iterations;
-      block_data.stats.nodes++;
-      block_data.stats.fails += (iprop.is_bot() ? 1 : 0);
-      block_data.stats.depth_max = battery::max(block_data.stats.depth_max, block_data.depth);
-      // D. Checking stopping conditions.
-      if(block_data.stats.nodes >= config.stop_after_n_nodes
-       || unified_data->stop.test())
-      {
-        block_data.stats.exhaustive = false;
-        stop = true;
+      if(threadIdx.x == 0) {
+        block_data.stats.fixpoint_iterations += fp_iterations;
+        block_data.stats.nodes++;
+        block_data.stats.fails += (iprop.is_bot() ? 1 : 0);
+        block_data.stats.depth_max = battery::max(block_data.stats.depth_max, block_data.depth);
+
+        // G. Checking stopping conditions.
+
+        if(block_data.stats.nodes >= config.stop_after_n_nodes
+         || unified_data->stop.test())
+        {
+          block_data.stats.exhaustive = false;
+          stop = true;
+        }
+      }
+      __syncthreads();
+
+      // H. Branching
+
+      if(!is_leaf_node) {
+        // If we are at the root of the current subproblem, we create a snapshot for future backtracking.
+        if(block_data.depth == 0) {
+          block_data.store->copy_to(group, *block_data.root_store);
+        }
+        block_data.split(has_changed, grid_data->solve_strategies);
+        __syncthreads();
+        // Split was not able to split a domain. It means that the search strategy is not complete due to unsplittable infinite domains.
+        // We trigger backtracking, and set exhaustive to `false`.
+        if(block_data.decisions[block_data.depth - 1].var.is_untyped()) {
+          is_leaf_node = true;
+          block_data.stats.exhaustive = false;
+        }
+        else if(threadIdx.x == 0) {
+          // depth == 1 for root node because we just increased it in `block_data.split`.
+          if(block_data.depth == 1) {
+            block_data.snapshot_root_strategy = block_data.current_strategy;
+            block_data.snapshot_next_unassigned_var = block_data.next_unassigned_var;
+          }
+          // Apply the decision.
+          block_data.store->embed(block_data.decisions[block_data.depth-1].var, block_data.decisions[block_data.depth-1].next());
+        }
+      }
+
+      // I. Backtracking
+
+      if(is_leaf_node) {
+        // Leaf node at root.
+        if(block_data.depth == 0) {
+          break;
+        }
+        __syncthreads();
+        block_data.depth = block_data.decisions[block_data.depth-1].ropes[block_data.decisions[block_data.depth-1].current_idx];
+        // Check if there is no more node to visit.
+        if(block_data.depth == -1) {
+          break;
+        }
+        // Restore from root by copying the store and re-applying all decisions from root to block_data.depth-1.
+        fp_engine.reset(iprop.num_deductions());
+        block_data.root_store->copy_to(group, *block_data.store);
+        has_changed = true;
+        while(has_changed) {
+          __syncthreads();
+          has_changed = false;
+          for(int i = threadIdx.x; i < block_data.depth - 1; i += blockDim.x) {
+            has_changed |= block_data.store->embed(block_data.decisions[i].var, block_data.decisions[i].current());
+          }
+          __syncthreads();
+        }
+        if(threadIdx.x == 0) {
+          block_data.store->embed(block_data.decisions[block_data.depth - 1].var, block_data.decisions[block_data.depth - 1].next());
+          block_data.current_strategy = block_data.snapshot_root_strategy;
+          block_data.next_unassigned_var = block_data.snapshot_next_unassigned_var;
+        }
       }
     }
-    __syncthreads();
   }
-
   __syncthreads();
   fp_engine.destroy();
   block_data.deallocate_shared_data();
@@ -461,8 +776,10 @@ __global__ void reduce_blocks(UnifiedData* unified_data, GridData* grid_data) {
   if(!grid_data->appx_best_bound.is_top()) {
     for(int i = 0; i < grid_data->blocks.size(); ++i) {
       auto& block = grid_data->blocks[i];
-      if(block.best_bound == grid_data->appx_best_bound) {
-        block.best_store->extract(*root.best);
+      if(block.best_bound == grid_data->appx_best_bound
+       && block.best_store->project(grid_data->obj_var).lb() == block.best_bound)
+      {
+        block.best_store->copy_to(*root.best);
         break;
       }
     }

@@ -262,6 +262,7 @@ public:
   }
 
   CUDA void print_mzn_statistics(size_t or_nodes = 1) const {
+    assert(or_nodes != 0);
     print_stat("nodes", nodes);
     print_stat("failures", fails);
     print_stat("variables", variables);
