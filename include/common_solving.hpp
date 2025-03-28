@@ -188,6 +188,7 @@ struct AbstractDomains {
    , config(other.config, basic_allocator)
    , stats(other.stats)
    , env(basic_allocator)
+   , minimize_obj_var(other.minimize_obj_var)
    , store(store_allocator)
    , iprop(prop_allocator)
    , simplifier(basic_allocator)
@@ -273,6 +274,10 @@ struct AbstractDomains {
 
   // Information about the output of the solutions expected by MiniZinc.
   SolverOutput<BasicAllocator> solver_output;
+
+  // The barebones architecture only supports minimization.
+  // In case of maximization, we create a new objective variable that is the negation of the original one.
+  AVar minimize_obj_var;
 
   Configuration<BasicAllocator> config;
   Statistics<BasicAllocator> stats;
@@ -375,11 +380,24 @@ public:
       store->extract(*best);
       best->join_top();
     }
+    if(config.arch == Arch::BAREBONES) {
+      if(bab->is_minimization()) {
+        minimize_obj_var = bab->objective_var();
+      }
+      else if(bab->is_maximization()) {
+        auto minobj = env.variable_of("__MINIMIZE_OBJ");
+        assert(minobj.has_value());
+        assert(minobj->get().avar_of(store->aty()).has_value());
+        minimize_obj_var = minobj->get().avar_of(store->aty()).value();
+      }
+    }
     stats.variables = store->vars();
     stats.constraints = iprop->num_deductions();
     bool can_interpret = true;
-    if(with_default_strats) {
-      /** We add a search strategy by default for the variables that potentially do not occur in the previous strategies. */
+    /** We add a search strategy by default for the variables that potentially do not occur in the previous strategies.
+     * Note necessary with barebones architecture: it is taken into account by the algorithm.
+     */
+    if(with_default_strats && config.arch != Arch::BAREBONES) {
       can_interpret &= interpret_default_strategy<F>();
       can_interpret &= interpret_default_eps_strategy<F>();
     }
@@ -472,6 +490,29 @@ public:
     }
   }
 
+  // Given maximize(x), add the variable __MINIMIZE_OBJ with constraint __MINIMIZE_OBJ = -x.
+  void add_minimize_objective_var(F& f, const F::Existential& max_var) {
+    if(f.is(F::Seq)) {
+      if(f.sig() == Sig::MAXIMIZE && f.seq(0).is_variable()) {
+        LVar<basic_allocator_type> minimize_obj("__MINIMIZE_OBJ");
+        f = F::make_binary(f,
+          Sig::AND,
+          F::make_binary(
+            F::make_exists(f.seq(0).type(), minimize_obj, battery::get<1>(max_var)),
+            Sig::AND,
+            F::make_binary(
+              F::make_lvar(f.seq(0).type(), minimize_obj),
+              Sig::EQ,
+              F::make_unary(Sig::NEG, f.seq(0)))));
+      }
+      else if(f.sig() == Sig::AND) {
+        for(int i = 0; i < f.seq().size(); ++i) {
+          add_minimize_objective_var(f.seq(i), max_var);
+        }
+      }
+    }
+  }
+
   void preprocess_tcn(F& f) {
     f = ternarize(f, VarEnv<BasicAllocator>(), {0,1,2});
     battery::vector<F> extra;
@@ -553,6 +594,15 @@ public:
     auto start = stats.start_timer_host();
     FormulaPtr f_ptr = parse_cn();
     stats.print_stat("abstract_domain", name_of_abstract_domain());
+    if(config.arch == Arch::BAREBONES) {
+      auto max_var = find_maximize_var(*f_ptr);
+      if(max_var.has_value()) {
+        auto max_var_decl = find_existential_of(*f_ptr, max_var.value());
+        if(max_var_decl.has_value()) {
+          add_minimize_objective_var(*f_ptr, max_var_decl.value());
+        }
+      }
+    }
   #ifdef TURBO_IPC_ABSTRACT_DOMAIN
     constexpr bool use_ipc = true;
   #else

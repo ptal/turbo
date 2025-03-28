@@ -110,7 +110,7 @@ struct BlockData {
 
   /** The best bound found so far by this block.
    * We always seek to minimize.
-   * Note that if `GridData::appx_best_bound` is better than `best_bound` the current block does not necessarily record its best store in `best_store`.
+   * Invariant: `best_bound == best_store.project(obj_var).lb()`
    */
   UB best_bound;
 
@@ -410,7 +410,7 @@ struct GridData {
    , print_lock(1)
    , dive_strategies(root.eps_split->strategies_())
    , solve_strategies(root.split->strategies_())
-   , obj_var(root.bab->objective_var())
+   , obj_var(root.minimize_obj_var)
   {}
 };
 
@@ -461,7 +461,7 @@ void barebones_dive_and_solve(const Configuration<battery::standard_allocator>& 
     uroot.config.print_mzn_statistics();
     uroot.stats.print_mzn_statistics(uroot.config.or_nodes);
     if(uroot.bab->is_optimization() && uroot.stats.solutions > 0) {
-      uroot.stats.print_mzn_objective(uroot.best->project(uroot.bab->objective_var()), true);
+      uroot.stats.print_mzn_objective(uroot.best->project(uroot.bab->objective_var()), uroot.bab->is_minimization());
     }
     unified_data->root.stats.print_mzn_end_stats();
   }
@@ -603,15 +603,16 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
         /** Before propagating, we update the local bound with the best known global bound.
          * Strenghten the objective variable to get a better objective next time.
          */
-        block_data.best_bound.meet(grid_data->appx_best_bound);
-        if(!block_data.best_bound.is_top()) {
+        if(!grid_data->appx_best_bound.is_top()) {
+          block_data.store->embed(grid_data->obj_var,
+            Itv(Itv::LB::top(), Itv::UB(grid_data->appx_best_bound.value() - 1)));
           block_data.store->embed(grid_data->obj_var,
             Itv(Itv::LB::top(), Itv::UB(block_data.best_bound.value() - 1)));
         }
       }
       __syncthreads();
       // Unconstrained objective, can terminate, we will not find a better solution.
-      if(block_data.best_bound.is_bot()) {
+      if(grid_data->appx_best_bound.is_bot()) {
         stop = true;
         break;
       }
@@ -653,19 +654,15 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
           is_leaf_node = true;
           if(threadIdx.x == 0) {
             block_data.best_bound.meet(Itv::UB(block_data.store->project(grid_data->obj_var).lb().value()));
-            has_changed = grid_data->appx_best_bound.meet(block_data.best_bound);
+            grid_data->appx_best_bound.meet(block_data.best_bound);
           }
-          __syncthreads();
-          // When two blocks find the same bound, we avoid copying the store twice (although it can still happen if they concurrently meet the same bound in `appx_best_bound`).
-          if(has_changed) {
-            block_data.store->copy_to(group, *block_data.best_store);
-            if(threadIdx.x == 0) {
-              block_data.stats.solutions++;
-              if(config.verbose_solving) {
-                grid_data->print_lock.acquire();
-                printf("%% objective="); block_data.best_bound.print(); printf("\n");
-                grid_data->print_lock.release();
-              }
+          block_data.store->copy_to(group, *block_data.best_store);
+          if(threadIdx.x == 0) {
+            block_data.stats.solutions++;
+            if(config.verbose_solving) {
+              grid_data->print_lock.acquire();
+              printf("%% objective="); block_data.best_bound.print(); printf("\n");
+              grid_data->print_lock.release();
             }
           }
         }
