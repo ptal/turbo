@@ -100,7 +100,7 @@ struct GridData {
   template <class BlockBAB>
   __device__ void produce_solution(const BlockBAB& bab) {
     print_lock->acquire();
-    if(!cpu_stop) {
+    if(!cpu_stop.test()) {
       bab.extract(*(root.bab));
       cuda::atomic_thread_fence(cuda::memory_order_seq_cst, cuda::thread_scope_system);
       ready_to_consume.test_and_set(cuda::std::memory_order_seq_cst);
@@ -369,7 +369,7 @@ __device__ size_t dive(BlockData<S>& block_data, GridData<S>& grid_data) {
   size_t remaining_depth = grid_data.root.config.subproblems_power;
   while(remaining_depth > 0 && !stop_diving && !stop) {
     bool is_leaf_node = propagate(block_data, grid_data);
-    stop.join(grid_data.cpu_stop || *(grid_data.gpu_stop));
+    stop.join(grid_data.cpu_stop.test() || *(grid_data.gpu_stop));
     if(is_leaf_node) {
       if(threadIdx.x == 0) {
         stop_diving.join(true);
@@ -410,7 +410,7 @@ __device__ void solve_problem(BlockData<S>& block_data, GridData<S>& grid_data) 
     propagate(block_data, grid_data);
     if(threadIdx.x == 0) {
       start = cp.stats.start_timer_device();
-      stop.join(grid_data.cpu_stop || *(grid_data.gpu_stop));
+      stop.join(grid_data.cpu_stop.test() || *(grid_data.gpu_stop));
       // propagate induces a memory fence, therefore all threads are already past the "while" condition.
       // auto t = cp.stats.start_timer_device();
       block_has_changed.meet(cp.search_tree->deduce());
@@ -449,7 +449,7 @@ __global__ void gpu_solve_kernel(GridData<S>* grid_data)
   block_data.allocate(*grid_data, shared_mem);
   auto solve_start = block_data.root->stats.start_timer_device();
   while(block_data.subproblem_idx < num_subproblems && !*(block_data.stop)) {
-    if(threadIdx.x == 0 && grid_data->root.config.verbose_solving) {
+    if(threadIdx.x == 0 && grid_data->root.config.verbose_solving >= 2) {
       grid_data->print_lock->acquire();
       printf("%% Block %d solves subproblem num %" PRIu64 "\n", blockIdx.x, block_data.subproblem_idx);
       grid_data->print_lock->release();

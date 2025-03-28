@@ -354,7 +354,7 @@ void dive_and_solve(CPUData& global, size_t cube_idx)
   size_t& subproblem_idx = global.cpu_cubes[cube_idx].subproblem_idx;
   /** In each iteration, we will solve one subproblem obtained after a diving phase. */
   while(subproblem_idx < num_subproblems && !global.cpu_stop.test()) {
-    if(global.root.config.verbose_solving) {
+    if(global.root.config.verbose_solving >= 2) {
       std::lock_guard<std::mutex> print_guard(global.print_lock);
       printf("%% Cube %zu solves subproblem num %zu\n", cube_idx, subproblem_idx);
     }

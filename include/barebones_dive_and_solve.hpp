@@ -417,6 +417,9 @@ struct GridData {
 MemoryConfig configure_gpu_barebones(CP<Itv>&);
 __global__ void initialize_global_data(UnifiedData*, bt::unique_ptr<GridData, bt::global_allocator>*);
 __global__ void gpu_barebones_solve(UnifiedData*, GridData*);
+template <class FPEngine>
+__device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data, BlockData& block_data,
+   FPEngine& fp_engine, bool& stop, bool& has_changed, bool& is_leaf_node);
 __global__ void reduce_blocks(UnifiedData*, GridData*);
 __global__ void deallocate_global_data(bt::unique_ptr<GridData, bt::global_allocator>*);
 
@@ -553,7 +556,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
     printf("%% GPU kernel started, starting solving...\n");
   }
 
-  /** I. Initialization the block data and the fixpoint engine. */
+  /** A. Initialization the block data and the fixpoint engine. */
 
   block_data.allocate(*unified_data, *grid_data, shared_mem);
   __syncthreads();
@@ -565,6 +568,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
   __shared__ bool stop;
   __shared__ bool has_changed;
   __shared__ bool is_leaf_node;
+  __shared__ int remaining_depth;
   stop = false;
   auto group = cooperative_groups::this_thread_block();
   if(threadIdx.x == 0) {
@@ -572,17 +576,17 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
   }
   __syncthreads();
 
-  /** II. Start the main solving loop. */
+  /** B. Start the main dive and solve loop. */
 
   size_t num_subproblems = unified_data->root.stats.eps_num_subproblems;
   while(block_data.subproblem_idx < num_subproblems && !stop) {
-    if(config.verbose_solving && threadIdx.x == 0) {
+    if(config.verbose_solving >= 2 && threadIdx.x == 0) {
       grid_data->print_lock.acquire();
       printf("%% Block %d solves subproblem num %" PRIu64 "\n", blockIdx.x, block_data.subproblem_idx);
       grid_data->print_lock.release();
     }
 
-    // A. Restoring the current state to the root node.
+    // C. Restoring the current state to the root node.
 
     block_data.current_strategy = 0;
     block_data.next_unassigned_var = 0;
@@ -591,165 +595,262 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
     fp_engine.reset(iprop.num_deductions());
     __syncthreads();
 
-    // B. Dive into the search tree until we reach the target subproblem.
+    // D. Dive into the search tree until we reach the target subproblem.
 
-    // C. Solve the current subproblem.
-
-    while(!stop) {
-
-      // D. Optimize the objective variable.
-
-      if(threadIdx.x == 0 && !grid_data->obj_var.is_untyped()) {
-        /** Before propagating, we update the local bound with the best known global bound.
-         * Strenghten the objective variable to get a better objective next time.
-         */
-        if(!grid_data->appx_best_bound.is_top()) {
-          block_data.store->embed(grid_data->obj_var,
-            Itv(Itv::LB::top(), Itv::UB(grid_data->appx_best_bound.value() - 1)));
-          block_data.store->embed(grid_data->obj_var,
-            Itv(Itv::LB::top(), Itv::UB(block_data.best_bound.value() - 1)));
-        }
-      }
+    remaining_depth = config.subproblems_power;
+    is_leaf_node = false;
+    while(remaining_depth > 0 && !is_leaf_node && !stop) {
+      propagate(*unified_data, *grid_data, block_data, fp_engine, stop, has_changed, is_leaf_node);
       __syncthreads();
-      // Unconstrained objective, can terminate, we will not find a better solution.
-      if(grid_data->appx_best_bound.is_bot()) {
-        stop = true;
-        break;
-      }
-      TIMEPOINT(SEARCH);
-      is_leaf_node = false;
-
-      // E. Propagate the current node.
-
-      int fp_iterations;
-      switch(config.fixpoint) {
-        case FixpointKind::AC1: {
-          fp_iterations = fp_engine.fixpoint(
-            [&](int i){ return iprop.deduce(i); },
-            [&](){ return iprop.is_bot(); });
-          break;
-        }
-        case FixpointKind::WAC1: {
-          if(fp_engine.num_active() <= config.wac1_threshold) {
-            fp_iterations = fp_engine.fixpoint(
-              [&](int i){ return iprop.deduce(i); },
-              [&](){ return iprop.is_bot(); });
-          }
-          else {
-            fp_iterations = fp_engine.fixpoint(
-              [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(iprop, i); },
-              [&](){ return iprop.is_bot(); });
-          }
-          break;
-        }
-      }
-      TIMEPOINT(FIXPOINT);
-
-      // F. Analyze the result of propagation
-
-      if(!iprop.is_bot()) {
-        fp_engine.select([&](int i) { return !iprop.ask(i); });
-        TIMEPOINT(SELECT_FP_FUNCTIONS);
-        if(fp_engine.num_active() == 0) {
-          is_leaf_node = true;
-          if(threadIdx.x == 0) {
-            block_data.best_bound.meet(Itv::UB(block_data.store->project(grid_data->obj_var).lb().value()));
-            grid_data->appx_best_bound.meet(block_data.best_bound);
-          }
-          block_data.store->copy_to(group, *block_data.best_store);
-          if(threadIdx.x == 0) {
-            block_data.stats.solutions++;
-            if(config.verbose_solving) {
-              grid_data->print_lock.acquire();
-              printf("%% objective="); block_data.best_bound.print(); printf("\n");
-              grid_data->print_lock.release();
-            }
-          }
-        }
-      }
-      else {
-        is_leaf_node = true;
-      }
-
-      if(threadIdx.x == 0) {
-        block_data.stats.fixpoint_iterations += fp_iterations;
-        block_data.stats.nodes++;
-        block_data.stats.fails += (iprop.is_bot() ? 1 : 0);
-        block_data.stats.depth_max = battery::max(block_data.stats.depth_max, block_data.depth);
-
-        // G. Checking stopping conditions.
-
-        if(block_data.stats.nodes >= config.stop_after_n_nodes
-         || unified_data->stop.test())
-        {
-          block_data.stats.exhaustive = false;
-          stop = true;
-        }
-      }
-      __syncthreads();
-
-      // H. Branching
-
       if(!is_leaf_node) {
-        // If we are at the root of the current subproblem, we create a snapshot for future backtracking.
-        if(block_data.depth == 0) {
-          block_data.store->copy_to(group, *block_data.root_store);
-        }
-        block_data.split(has_changed, grid_data->solve_strategies);
+        block_data.split(has_changed, grid_data->dive_strategies);
         __syncthreads();
         // Split was not able to split a domain. It means that the search strategy is not complete due to unsplittable infinite domains.
-        // We trigger backtracking, and set exhaustive to `false`.
-        if(block_data.decisions[block_data.depth - 1].var.is_untyped()) {
+        // We skip the subtree, and set exhaustive to `false`.
+        if(block_data.decisions[0].var.is_untyped()) {
           is_leaf_node = true;
           block_data.stats.exhaustive = false;
         }
         else if(threadIdx.x == 0) {
-          // depth == 1 for root node because we just increased it in `block_data.split`.
-          if(block_data.depth == 1) {
-            block_data.snapshot_root_strategy = block_data.current_strategy;
-            block_data.snapshot_next_unassigned_var = block_data.next_unassigned_var;
-          }
-          // Apply the decision.
-          block_data.store->embed(block_data.decisions[block_data.depth-1].var, block_data.decisions[block_data.depth-1].next());
+          --remaining_depth;
+          // We do not record the decisions when diving.
+          --block_data.depth;
+          /** We commit to one of the branches depending on the current value on the path.
+           * Suppose the depth is 3, the path is "010" we are currently at `remaining_depth = 1`.
+           * We must extract the bit "1", and we do so by standard bitwise manipulation.
+           * Whenever the branch_idx is 0 means to take the left branch, and 1 means to take the right branch.
+           */
+          size_t branch_idx = (block_data.subproblem_idx & (size_t{1} << remaining_depth)) >> remaining_depth;
+          /** We immediately commit to the branch. */
+          block_data.store->embed(block_data.decisions[0].var, block_data.decisions[0].children[branch_idx]);
         }
       }
+      __syncthreads();
+    }
 
-      // I. Backtracking
+    // E. Skip subproblems that are not reachable.
 
-      if(is_leaf_node) {
-        // Leaf node at root.
-        if(block_data.depth == 0) {
-          break;
+    /** If we reached a leaf node before the subproblem was reached, then it means a whole subtree should be skipped. */
+    if(is_leaf_node && !stop) {
+       /** To skip all the paths of the subtree obtained, we perform bitwise operations.
+       * Suppose the current path is "00" turn left two times, and the following search tree:
+       *         *         depth = 0
+       *        / \
+       *      0    1       depth = 1
+       *    / \   / \
+       *   00 01 10 11     depth = 2
+       *
+       * If we detect a leaf node at depth 1, after only one left turn, we must skip the remaining of the subtree, in particular to avoid exploring the path "01".
+       * To achieve that, we take the current path "00", shift it to the right by 1 (essentially erasing the path that has not been explored), increment it to go to the next subtree (at the same depth), and shift it back to the left to reach the first subproblem of the subtree.
+       * Cool huh?
+       */
+      if(threadIdx.x == 0) {
+        size_t next_subproblem_idx = ((block_data.subproblem_idx >> remaining_depth) + size_t{1}) << remaining_depth;
+        // Make sure the subtree is skipped.
+        while(grid_data->next_subproblem.meet(ZLB<size_t, bt::local_memory>(next_subproblem_idx))) {}
+        /** It is possible that other blocks skip similar subtrees.
+          * Hence, we only count the subproblems skipped by the block solving the left most subproblem. */
+        if((block_data.subproblem_idx & ((size_t{1} << remaining_depth) - size_t{1})) == size_t{0}) {
+          block_data.stats.eps_skipped_subproblems += next_subproblem_idx - block_data.subproblem_idx;
         }
+      }
+    }
+    else if(!stop) {
+
+      // F. Solve the current subproblem.
+
+      while(!stop) {
+
+        // I. Propagate the current node.
+
+        propagate(*unified_data, *grid_data, block_data, fp_engine, stop, has_changed, is_leaf_node);
         __syncthreads();
-        block_data.depth = block_data.decisions[block_data.depth-1].ropes[block_data.decisions[block_data.depth-1].current_idx];
-        // Check if there is no more node to visit.
-        if(block_data.depth == -1) {
-          break;
-        }
-        // Restore from root by copying the store and re-applying all decisions from root to block_data.depth-1.
-        fp_engine.reset(iprop.num_deductions());
-        block_data.root_store->copy_to(group, *block_data.store);
-        has_changed = true;
-        while(has_changed) {
+
+        // II. Branching
+
+        if(!is_leaf_node) {
+          // If we are at the root of the current subproblem, we create a snapshot for future backtracking.
+          if(block_data.depth == 0) {
+            block_data.store->copy_to(group, *block_data.root_store);
+          }
+          block_data.split(has_changed, grid_data->solve_strategies);
           __syncthreads();
-          has_changed = false;
-          for(int i = threadIdx.x; i < block_data.depth - 1; i += blockDim.x) {
-            has_changed |= block_data.store->embed(block_data.decisions[i].var, block_data.decisions[i].current());
+          // Split was not able to split a domain. It means that the search strategy is not complete due to unsplittable infinite domains.
+          // We trigger backtracking, and set exhaustive to `false`.
+          if(block_data.decisions[block_data.depth - 1].var.is_untyped()) {
+            is_leaf_node = true;
+            block_data.stats.exhaustive = false;
+          }
+          else if(threadIdx.x == 0) {
+            // depth == 1 for root node because we just increased it in `block_data.split`.
+            if(block_data.depth == 1) {
+              block_data.snapshot_root_strategy = block_data.current_strategy;
+              block_data.snapshot_next_unassigned_var = block_data.next_unassigned_var;
+            }
+            // Apply the decision.
+            block_data.store->embed(block_data.decisions[block_data.depth-1].var, block_data.decisions[block_data.depth-1].next());
+          }
+        }
+
+        // III. Backtracking
+
+        if(is_leaf_node) {
+          // Leaf node at root.
+          if(block_data.depth == 0) {
+            break;
           }
           __syncthreads();
+          block_data.depth = block_data.decisions[block_data.depth-1].ropes[block_data.decisions[block_data.depth-1].current_idx];
+          // Check if there is no more node to visit.
+          if(block_data.depth == -1) {
+            break;
+          }
+          // Restore from root by copying the store and re-applying all decisions from root to block_data.depth-1.
+          fp_engine.reset(iprop.num_deductions());
+          block_data.root_store->copy_to(group, *block_data.store);
+          has_changed = true;
+          while(has_changed) {
+            __syncthreads();
+            has_changed = false;
+            for(int i = threadIdx.x; i < block_data.depth - 1; i += blockDim.x) {
+              has_changed |= block_data.store->embed(block_data.decisions[i].var, block_data.decisions[i].current());
+            }
+            __syncthreads();
+          }
+          if(threadIdx.x == 0) {
+            block_data.store->embed(block_data.decisions[block_data.depth - 1].var, block_data.decisions[block_data.depth - 1].next());
+            block_data.current_strategy = block_data.snapshot_root_strategy;
+            block_data.next_unassigned_var = block_data.snapshot_next_unassigned_var;
+          }
         }
-        if(threadIdx.x == 0) {
-          block_data.store->embed(block_data.decisions[block_data.depth - 1].var, block_data.decisions[block_data.depth - 1].next());
-          block_data.current_strategy = block_data.snapshot_root_strategy;
-          block_data.next_unassigned_var = block_data.snapshot_next_unassigned_var;
+      }
+      /** If we didn't stop solving because of an external interruption, we increase the number of subproblems solved. */
+      if(threadIdx.x == 0 && block_data.stats.nodes < config.stop_after_n_nodes
+        && !unified_data->stop.test())
+      {
+        block_data.stats.eps_solved_subproblems += 1;
+      }
+    }
+
+    // G. Move to the next subproblem.
+
+    /** We prepare the block to solve the next problem.
+     * We update the subproblem index to the next subproblem to solve. */
+    if(threadIdx.x == 0 && !stop) {
+      /** To avoid that several blocks solve the same subproblem, we use an atomic post-increment. */
+      block_data.subproblem_idx = grid_data->next_subproblem.atomic()++;
+      /** The following commented code is completely valid and does not use atomic post-increment.
+       * But honestly, we kinda need more performance so... let's avoid reexploring subproblems. */
+      // subproblem_idx = grid_data->next_subproblem.value();
+      // grid_data->next_subproblem.meet(ZLB<size_t, bt::local_memory>(subproblem_idx + size_t{1}));
+    }
+    __syncthreads();
+  }
+  if(threadIdx.x == 0 && block_data.stats.nodes < config.stop_after_n_nodes
+      && !unified_data->stop.test())
+  {
+    block_data.stats.num_blocks_done = 1;
+  }
+  fp_engine.destroy();
+  block_data.deallocate_shared_data();
+}
+
+template <class FPEngine>
+__device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data, BlockData& block_data,
+   FPEngine& fp_engine, bool& stop, bool& has_changed, bool& is_leaf_node)
+{
+  auto& config = unified_data.root.config;
+  IProp& iprop = *block_data.iprop;
+  auto group = cooperative_groups::this_thread_block();
+
+  // I. Optimize the objective variable.
+
+  if(threadIdx.x == 0 && !grid_data.obj_var.is_untyped()) {
+    /** Before propagating, we update the local bound with the best known global bound.
+     * Strenghten the objective variable to get a better objective next time.
+     */
+    if(!grid_data.appx_best_bound.is_top()) {
+      block_data.store->embed(grid_data.obj_var,
+        Itv(Itv::LB::top(), Itv::UB(grid_data.appx_best_bound.value() - 1)));
+      block_data.store->embed(grid_data.obj_var,
+        Itv(Itv::LB::top(), Itv::UB(block_data.best_bound.value() - 1)));
+    }
+  }
+  __syncthreads();
+  // Unconstrained objective, can terminate, we will not find a better solution.
+  if(grid_data.appx_best_bound.is_bot()) {
+    stop = true;
+    return;
+  }
+  TIMEPOINT(SEARCH);
+  is_leaf_node = false;
+
+  // II. Compute the fixpoint of the current node.
+  int fp_iterations;
+  switch(config.fixpoint) {
+    case FixpointKind::AC1: {
+      fp_iterations = fp_engine.fixpoint(
+        [&](int i){ return iprop.deduce(i); },
+        [&](){ return iprop.is_bot(); });
+      break;
+    }
+    case FixpointKind::WAC1: {
+      if(fp_engine.num_active() <= config.wac1_threshold) {
+        fp_iterations = fp_engine.fixpoint(
+          [&](int i){ return iprop.deduce(i); },
+          [&](){ return iprop.is_bot(); });
+      }
+      else {
+        fp_iterations = fp_engine.fixpoint(
+          [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(iprop, i); },
+          [&](){ return iprop.is_bot(); });
+      }
+      break;
+    }
+  }
+  TIMEPOINT(FIXPOINT);
+
+  // III. Analyze the result of propagation
+
+  if(!iprop.is_bot()) {
+    fp_engine.select([&](int i) { return !iprop.ask(i); });
+    TIMEPOINT(SELECT_FP_FUNCTIONS);
+    if(fp_engine.num_active() == 0) {
+      is_leaf_node = true;
+      if(threadIdx.x == 0) {
+        block_data.best_bound.meet(Itv::UB(block_data.store->project(grid_data.obj_var).lb().value()));
+        grid_data.appx_best_bound.meet(block_data.best_bound);
+      }
+      block_data.store->copy_to(group, *block_data.best_store);
+      if(threadIdx.x == 0) {
+        block_data.stats.solutions++;
+        if(config.verbose_solving >= 2) {
+          grid_data.print_lock.acquire();
+          printf("%% objective="); block_data.best_bound.print(); printf("\n");
+          grid_data.print_lock.release();
         }
       }
     }
   }
-  __syncthreads();
-  fp_engine.destroy();
-  block_data.deallocate_shared_data();
+  else {
+    is_leaf_node = true;
+  }
+
+  if(threadIdx.x == 0) {
+    block_data.stats.fixpoint_iterations += fp_iterations;
+    block_data.stats.nodes++;
+    block_data.stats.fails += (iprop.is_bot() ? 1 : 0);
+    block_data.stats.depth_max = battery::max(block_data.stats.depth_max, block_data.depth);
+
+    // IV. Checking stopping conditions.
+
+    if(block_data.stats.nodes >= config.stop_after_n_nodes
+      || unified_data.stop.test())
+    {
+      block_data.stats.exhaustive = false;
+      stop = true;
+    }
+  }
 }
 
 __global__ void reduce_blocks(UnifiedData* unified_data, GridData* grid_data) {

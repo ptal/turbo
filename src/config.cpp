@@ -95,6 +95,15 @@ public:
     return false;
   }
 
+  bool read_occurrence(const std::string& option, int& result) {
+    result = std::count(tokens.begin(), tokens.end(), option);
+    if(result > 0) {
+      ++tokens_read;
+      return true;
+    }
+    return false;
+  }
+
   bool read_string(const std::string& option, std::string& result) {
     result = getCmdOption(option);
     if(!result.empty()) {
@@ -136,7 +145,8 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
     config.print_intermediate_solutions = true;
   }
   input.read_bool("-f", config.free_search);
-  input.read_bool("-v", config.verbose_solving);
+
+  input.read_occurrence("-v", config.verbose_solving);
   input.read_bool("-ast", config.print_ast);
   input.read_bool("-s", config.print_statistics);
   input.read_bool("-globalmem", config.only_global_memory);

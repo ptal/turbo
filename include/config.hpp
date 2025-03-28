@@ -39,7 +39,7 @@ struct Configuration {
   size_t stop_after_n_nodes; // size_t MAX values for all nodes.
   bool free_search;
   bool print_statistics;
-  bool verbose_solving;
+  int verbose_solving;
   bool print_ast;
   bool only_global_memory;
   bool force_ternarize;
@@ -61,7 +61,7 @@ struct Configuration {
     stop_after_n_solutions(1),
     stop_after_n_nodes(std::numeric_limits<size_t>::max()),
     free_search(false),
-    verbose_solving(false),
+    verbose_solving(0),
     print_ast(false),
     print_statistics(false),
     only_global_memory(false),
@@ -146,7 +146,7 @@ struct Configuration {
   }
 
   CUDA void print_commandline(const char* program_name) {
-    printf("%s -t %" PRIu64 " %s-n %" PRIu64 " %s%s%s%s%s",
+    printf("%s -t %" PRIu64 " %s-n %" PRIu64 " %s%s%s%s",
       program_name,
       timeout_ms,
       (print_intermediate_solutions ? "-a ": ""),
@@ -154,9 +154,11 @@ struct Configuration {
       (print_intermediate_solutions ? "-i ": ""),
       (free_search ? "-f " : ""),
       (print_statistics ? "-s " : ""),
-      (verbose_solving ? "-v " : ""),
       (print_ast ? "-ast " : "")
     );
+    for(int i = 0; i < verbose_solving; ++i) {
+      printf("-v ");
+    }
     if(arch != Arch::CPU) {
       printf("-arch %s -or %" PRIu64 " -sub %" PRIu64 " -stack %" PRIu64 " ", name_of_arch(arch), or_nodes, subproblems_power, stack_kb);
       if(only_global_memory) { printf("-globalmem "); }
@@ -212,7 +214,7 @@ struct Configuration {
   CUDA void print_mzn_statistics() const {
     printf("%%%%%%mzn-stat: problem_path=\"%s\"\n", problem_path.data());
     printf("%%%%%%mzn-stat: solver=\"Turbo\"\n");
-    printf("%%%%%%mzn-stat: version=\"%s\"\n", (version.size() == 0) ? "1.2.7" : version.data());
+    printf("%%%%%%mzn-stat: version=\"%s\"\n", (version.size() == 0) ? "1.2.8" : version.data());
     printf("%%%%%%mzn-stat: hardware=\"%s\"\n", (hardware.size() == 0) ? "unspecified" : hardware.data());
     printf("%%%%%%mzn-stat: arch=\"%s\"\n", name_of_arch(arch));
     printf("%%%%%%mzn-stat: fixpoint=\"%s\"\n", name_of_fixpoint(fixpoint));
