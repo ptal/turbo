@@ -22,7 +22,7 @@
         },
         "REDUCE_PTX_SIZE": {
           "type": "BOOL",
-          "value": "ON"
+          "value": "OFF"
         }
       }
     },
