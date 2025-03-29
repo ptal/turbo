@@ -98,7 +98,7 @@ public:
   bool read_occurrence(const std::string& option, int& result) {
     result = std::count(tokens.begin(), tokens.end(), option);
     if(result > 0) {
-      ++tokens_read;
+      tokens_read += result;
       return true;
     }
     return false;

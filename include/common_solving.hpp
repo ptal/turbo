@@ -193,7 +193,6 @@ struct AbstractDomains {
    , iprop(prop_allocator)
    , simplifier(basic_allocator)
    , split(basic_allocator)
-   , eps_split(basic_allocator)
    , search_tree(basic_allocator)
    , best(basic_allocator)
    , bab(basic_allocator)
@@ -202,7 +201,6 @@ struct AbstractDomains {
     store = deps.template clone<IStore>(other.store);
     iprop = deps.template clone<IProp>(other.iprop);
     split = deps.template clone<Split>(other.split);
-    eps_split = deps.template clone<Split>(other.eps_split);
     search_tree = deps.template clone<IST>(other.search_tree);
     bab = deps.template clone<IBAB>(other.bab);
     best = bab->optimum_ptr();
@@ -244,7 +242,6 @@ struct AbstractDomains {
   , iprop(prop_allocator)
   , simplifier(basic_allocator)
   , split(basic_allocator)
-  , eps_split(basic_allocator)
   , search_tree(basic_allocator)
   , best(basic_allocator)
   , bab(basic_allocator)
@@ -264,7 +261,6 @@ struct AbstractDomains {
   abstract_ptr<IProp> iprop;
   abstract_ptr<ISimplifier> simplifier;
   abstract_ptr<Split> split;
-  abstract_ptr<Split> eps_split;
   abstract_ptr<IST> search_tree;
   abstract_ptr<LIStore> best;
   abstract_ptr<IBAB> bab;
@@ -290,7 +286,6 @@ struct AbstractDomains {
       simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), store->aty(), iprop, basic_allocator);
     }
     split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), iprop, basic_allocator);
-    eps_split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), iprop, basic_allocator);
     search_tree = battery::allocate_shared<IST, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), iprop, split, basic_allocator);
     // Note that `best` must have the same abstract type then store (otherwise projection of the variables will fail).
     best = battery::allocate_shared<LIStore, BasicAllocator>(basic_allocator, store->aty(), num_vars, basic_allocator);
@@ -306,7 +301,6 @@ struct AbstractDomains {
     iprop = nullptr;
     simplifier = nullptr;
     split = nullptr;
-    eps_split = nullptr;
     search_tree = nullptr;
     bab = nullptr;
     env = VarEnv<BasicAllocator>{basic_allocator}; // this is to release the memory used by `VarEnv`.
@@ -357,7 +351,7 @@ private:
 
 public:
   template <class F>
-  CUDA bool interpret(const F& f, bool with_default_strats) {
+  CUDA bool interpret(const F& f) {
     if(config.verbose_solving) {
       printf("%% Interpreting the formula...\n");
     }
@@ -397,10 +391,7 @@ public:
     /** We add a search strategy by default for the variables that potentially do not occur in the previous strategies.
      * Note necessary with barebones architecture: it is taken into account by the algorithm.
      */
-    if(with_default_strats && config.arch != Arch::BAREBONES) {
-      can_interpret &= interpret_default_strategy<F>();
-      can_interpret &= interpret_default_eps_strategy<F>();
-    }
+    can_interpret &= interpret_default_strategy<F>();
     return can_interpret;
   }
 
@@ -459,8 +450,7 @@ public:
     size_t num_vars = num_quantified_vars(f);
     allocate(num_vars, true);
     typing(f);
-    /** If we don't simplify, it is our last chance to interpret the default search strategies. */
-    if(!interpret(f, config.disable_simplify)) {
+    if(!interpret(f)) {
       exit(EXIT_FAILURE);
     }
     GaussSeidelIteration fp_engine;
@@ -485,7 +475,7 @@ public:
     stats.print_stat("constraints_after_simplification", num_constraints(f));
     allocate(num_vars, false);
     typing(f);
-    if(!interpret(f, true)) {
+    if(!interpret(f)) {
       exit(EXIT_FAILURE);
     }
   }
@@ -521,7 +511,7 @@ public:
     stats.print_stat("tnf_variables", num_vars);
     stats.print_stat("tnf_constraints", num_tnf_constraints(f));
     allocate(num_vars, true);
-    if(!interpret(f, config.disable_simplify)) {
+    if(!interpret(f)) {
       exit(EXIT_FAILURE);
     }
     simplifier->init_env(env);
@@ -575,7 +565,7 @@ public:
       return;
     }
     allocate(num_vars, false);
-    if(!interpret(f2, true)) {
+    if(!interpret(f2)) {
       exit(EXIT_FAILURE);
     }
   }
@@ -630,30 +620,11 @@ public:
 private:
   template <class F>
   CUDA bool interpret_default_strategy() {
-    config.free_search = true;
     typename F::Sequence seq;
     seq.push_back(F::make_nary("first_fail", {}));
     seq.push_back(F::make_nary("indomain_min", {}));
-    for(int i = 0; i < env.num_vars(); ++i) {
-      seq.push_back(F::make_avar(env[i].avars[0]));
-    }
     F search_strat = F::make_nary("search", std::move(seq));
     if(!interpret_and_diagnose_and_tell(search_strat, env, *bab)) {
-      return false;
-    }
-    return true;
-  }
-
-  template <class F>
-  CUDA bool interpret_default_eps_strategy() {
-    typename F::Sequence seq;
-    seq.push_back(F::make_nary("first_fail", {}));
-    seq.push_back(F::make_nary("indomain_min", {}));
-    for(int i = 0; i < env.num_vars(); ++i) {
-      seq.push_back(F::make_avar(env[i].avars[0]));
-    }
-    F search_strat = F::make_nary("search", std::move(seq));
-    if(!interpret_and_diagnose_and_tell(search_strat, env, *eps_split)) {
       return false;
     }
     return true;

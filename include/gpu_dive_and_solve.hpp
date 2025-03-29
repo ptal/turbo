@@ -219,7 +219,6 @@ public:
   __device__ void restore() {
     if(threadIdx.x == 0) {
       root->search_tree->restore(*snapshot_root);
-      root->eps_split->reset();
     }
     __syncthreads();
   }
@@ -380,7 +379,7 @@ __device__ size_t dive(BlockData<S>& block_data, GridData<S>& grid_data) {
       if(threadIdx.x == 0) {
         auto start = cp.stats.start_timer_device();
         size_t branch_idx = (block_data.subproblem_idx & (size_t{1} << remaining_depth)) >> remaining_depth;
-        auto branches = cp.eps_split->split();
+        auto branches = cp.split->split();
         assert(branches.size() == 2);
         cp.iprop->deduce(branches[branch_idx]);
         cp.stats.stop_timer(Timer::SEARCH, start);
@@ -626,8 +625,10 @@ void configure_blocks_threads(CP<U>& root, const MemoryConfig& mem_config) {
   auto& config = root.config;
   config.or_nodes = (config.or_nodes == 0) ? hint_num_blocks : config.or_nodes;
 
+  config.stack_kb = config.stack_kb == 0 ? 32 : config.stack_kb;
+
   // The stack allocated depends on the maximum number of threads per SM, not on the actual number of threads per block.
-  size_t total_stack_size = num_sm * deviceProp.maxThreadsPerMultiProcessor * (config.stack_kb == 0 ? 1 : config.stack_kb) * 1000;
+  size_t total_stack_size = num_sm * deviceProp.maxThreadsPerMultiProcessor * config.stack_kb * 1000;
   size_t remaining_global_mem = total_global_mem - total_stack_size;
   remaining_global_mem -= remaining_global_mem / 10; // We leave 10% of global memory free for CUDA allocations, not sure if it is useful though.
 
@@ -638,9 +639,8 @@ void configure_blocks_threads(CP<U>& root, const MemoryConfig& mem_config) {
     config.or_nodes--;
   }
 
-  if(config.stack_kb != 0) {
-    CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, config.stack_kb*1000));
-  }
+  // The stack always need to be modified for this algorithm due to recursive function calls.
+  CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, config.stack_kb*1000));
   CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, remaining_global_mem/15));
 
   root.stats.print_memory_statistics(config.verbose_solving, "stack_memory", total_stack_size);

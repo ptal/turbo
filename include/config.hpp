@@ -11,8 +11,7 @@
   #include <cuda.h>
 #endif
 
-#define SUBPROBLEMS_POWER 12 // 2^N
-#define STACK_KB 0
+#define SUBPROBLEMS_POWER 15 // 2^N
 
 enum class Arch {
   CPU,
@@ -71,7 +70,7 @@ struct Configuration {
     timeout_ms(0),
     or_nodes(0),
     subproblems_power(SUBPROBLEMS_POWER),
-    stack_kb(STACK_KB),
+    stack_kb(0),
     arch(
       #ifdef __CUDACC__
         Arch::BAREBONES

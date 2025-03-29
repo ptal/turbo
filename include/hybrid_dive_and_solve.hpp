@@ -405,7 +405,6 @@ void dive_and_solve(CPUData& global, size_t cube_idx)
       if(subproblem_idx < num_subproblems) {
         auto start = cube.stats.start_timer_host();
         cube.search_tree->restore(global.cpu_cubes[cube_idx].root_snapshot);
-        cube.eps_split->reset();
         cube.stats.stop_timer(Timer::SEARCH, start);
       }
     }
@@ -452,7 +451,7 @@ size_t dive(CPUData& global, size_t cube_idx) {
     else {
       remaining_depth--;
       /** We create two branches according to the EPS search strategy. */
-      auto branches = cube.eps_split->split();
+      auto branches = cube.split->split();
       assert(branches.size() == 2);
       /** We commit to one of the branches depending on the current value on the path.
        * Suppose the depth is 3, the path is "010" we are currently at `remaining_depth = 1`.

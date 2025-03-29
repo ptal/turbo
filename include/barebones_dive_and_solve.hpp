@@ -174,7 +174,7 @@ struct BlockData {
 
   /** Add a new decision on the `decisions` stack and increase depth.
    * \param has_changed: A Boolean in shared memory.
-   * \param strategies: A sequence of non-empty strategies.
+   * \param strategies: A sequence of strategies.
    * \precondition: We must not be on a leaf node.
    */
   __device__ INLINE void split(bool& has_changed, const strategies_type& strategies) {
@@ -184,11 +184,9 @@ struct BlockData {
     decisions[depth].var = AVar{};
     int currentDepth = depth;
     for(int i = current_strategy; i < strategies.size(); ++i) {
-      assert(strategies[i].vars.size() > 0);
       switch(strategies[i].var_order) {
         case VariableOrder::INPUT_ORDER: {
-          input_order_split(has_changed, idx, strategies[i].val_order, strategies[i].vars.size(),
-            [&](int j) { return strategies[i].vars[j]; });
+          input_order_split(has_changed, idx, strategies[i]);
           break;
         }
         case VariableOrder::FIRST_FAIL: {
@@ -209,10 +207,12 @@ struct BlockData {
         case VariableOrder::SMALLEST: {
           lattice_smallest_split(has_changed, idx, strategies[i],
             [](const Itv& u) { return UB2(u.lb().value()); });
+          break;
         }
         default: assert(false);
       }
       __syncthreads();
+      // If we could find a variable with the current strategy, we return.
       if(!decisions[currentDepth].var.is_untyped()) {
         return;
       }
@@ -222,34 +222,32 @@ struct BlockData {
       }
       // `input_order_split` and `lattice_smallest_split` have a `__syncthreads()` before reading next_unassigned_var.
     }
-    // Split on the remaining unassigned variables in the store, if any.
-    // This is in case the search strategy is not complete.
-    AType aty = store->aty();
-    input_order_split(has_changed, idx, ValueOrder::MIN, store->vars(), [aty](int j) { return AVar(aty, j); });
   }
 
-  /** Select the next unassigned variable with a finite interval in the array `strategy.vars()`.
+  /** Select the next unassigned variable with a finite interval in the array `strategy.vars()` or `store` if the previous one is empty.
    * We ignore infinite variables as splitting on them do not guarantee termination.
    * \param has_changed is a Boolean in shared memory.
    * \param idx is a decreasing integer in shared memory.
    */
-  template <class F>
-  __device__ INLINE void input_order_split(bool& has_changed, local::ZUB& idx, ValueOrder val_order,
-    int num_vars, const F& f)
+  __device__ INLINE void input_order_split(bool& has_changed, local::ZUB& idx, const StrategyType<bt::global_allocator>& strategy)
   {
+    bool split_in_store = strategy.vars.empty();
+    int n = split_in_store ? store->vars() : strategy.vars.size();
     has_changed = true;
     if(threadIdx.x == 0) {
-      idx = num_vars;
+      idx = n;
     }
     while(has_changed) {
       __syncthreads();
       // int n = idx.value();
       // __syncthreads();
       has_changed = false;
-      for(int i = next_unassigned_var + threadIdx.x; i < num_vars; i += blockDim.x) {
-        const auto& dom = store->project(f(i));
+      for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
+        const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
         if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()) {
-          has_changed |= idx.meet(local::ZUB(i));
+          if(idx.meet(local::ZUB(i))) {
+            has_changed = true;
+          }
         }
       }
       __syncthreads();
@@ -257,8 +255,8 @@ struct BlockData {
     if(threadIdx.x == 0) {
       next_unassigned_var = idx.value();
     }
-    if(idx.value() != num_vars) {
-      push_decision(val_order, f(idx.value()));
+    if(idx.value() != n) {
+      push_decision(strategy.val_order, split_in_store ? AVar{store->aty(), idx.value()} : strategy.vars[idx.value()]);
     }
   }
 
@@ -272,20 +270,26 @@ struct BlockData {
   {
     using T = decltype(f(Itv{}));
     __shared__ T value;
+    bool split_in_store = strategy.vars.empty();
+    int n = split_in_store ? store->vars() : strategy.vars.size();
     has_changed = true;
     if(threadIdx.x == 0) {
       value = T::top();
-      idx = strategy.vars.size();
+      idx = n;
     }
     /** This fixpoint loop seeks for the smallest `x` according to `f(x)` and the next unassigned variable. */
     while(has_changed) {
       __syncthreads();
       has_changed = false;
-      for(int i = next_unassigned_var + threadIdx.x; i < strategy.vars.size(); i += blockDim.x) {
-        const auto& dom = store->project(strategy.vars[i]);
+      for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
+        const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
         if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()) {
-          has_changed |= value.meet(f(dom));
-          has_changed |= idx.meet(local::ZUB(i));
+          if(value.meet(f(dom))) {
+            has_changed = true;
+          }
+          if(idx.meet(local::ZUB(i))) {
+            has_changed = true;
+          }
         }
       }
       __syncthreads();
@@ -294,7 +298,7 @@ struct BlockData {
     if(!value.is_top()) {
       if(threadIdx.x == 0) {
         next_unassigned_var = idx.value();
-        idx = strategy.vars.size();
+        idx = n;
       }
       __syncthreads();
       has_changed = true;
@@ -304,16 +308,18 @@ struct BlockData {
         int n = idx.value();
         __syncthreads();
         has_changed = false;
-        for(int i = next_unassigned_var + threadIdx.x; i < strategy.vars.size(); i += blockDim.x) {
-          const auto& dom = store->project(strategy.vars[i]);
+        for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
+          const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
           if(f(dom) == value) {
-            has_changed |= idx.meet(local::ZUB(i));
+            if(idx.meet(local::ZUB(i))) {
+              has_changed = true;
+            }
           }
         }
         __syncthreads();
       }
-      assert(idx.value() < strategy.vars.size());
-      push_decision(strategy.val_order, strategy.vars[idx.value()]);
+      assert(idx.value() < n);
+      push_decision(strategy.val_order, split_in_store ? AVar{store->aty(), idx.value()} : strategy.vars[idx.value()]);
     }
   }
 
@@ -393,10 +399,7 @@ struct GridData {
   cuda::binary_semaphore<cuda::thread_scope_device> print_lock;
 
   /** The search strategy is immutable and shared among the blocks. */
-  strategies_type dive_strategies;
-
-  /** The search strategy is immutable and shared among the blocks. */
-  strategies_type solve_strategies;
+  strategies_type search_strategies;
 
   /** The objective variable to minimize.
    * Maximization problem are transformed into minimization problems by negating the objective variable.
@@ -408,8 +411,7 @@ struct GridData {
    : blocks(root.config.or_nodes)
    , next_subproblem(root.config.or_nodes)
    , print_lock(1)
-   , dive_strategies(root.eps_split->strategies_())
-   , solve_strategies(root.split->strategies_())
+   , search_strategies(root.split->strategies_())
    , obj_var(root.minimize_obj_var)
   {}
 };
@@ -603,7 +605,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
       propagate(*unified_data, *grid_data, block_data, fp_engine, stop, has_changed, is_leaf_node);
       __syncthreads();
       if(!is_leaf_node) {
-        block_data.split(has_changed, grid_data->dive_strategies);
+        block_data.split(has_changed, grid_data->search_strategies);
         __syncthreads();
         // Split was not able to split a domain. It means that the search strategy is not complete due to unsplittable infinite domains.
         // We skip the subtree, and set exhaustive to `false`.
@@ -673,7 +675,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
           if(block_data.depth == 0) {
             block_data.store->copy_to(group, *block_data.root_store);
           }
-          block_data.split(has_changed, grid_data->solve_strategies);
+          block_data.split(has_changed, grid_data->search_strategies);
           __syncthreads();
           // Split was not able to split a domain. It means that the search strategy is not complete due to unsplittable infinite domains.
           // We trigger backtracking, and set exhaustive to `false`.
@@ -713,7 +715,9 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
             __syncthreads();
             has_changed = false;
             for(int i = threadIdx.x; i < block_data.depth - 1; i += blockDim.x) {
-              has_changed |= block_data.store->embed(block_data.decisions[i].var, block_data.decisions[i].current());
+              if(block_data.store->embed(block_data.decisions[i].var, block_data.decisions[i].current())) {
+                has_changed = true;
+              }
             }
             __syncthreads();
           }
