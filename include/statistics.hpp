@@ -214,6 +214,26 @@ struct Statistics {
     }
   }
 
+  CUDA void print_human_stat(int verbose, const char* name, size_t value) const {
+    if(print_statistics) {
+      printf("%%%%%%mzn-stat: %s=%" PRIu64 "\n", name, value);
+      if(verbose) {
+        printf("%%   [");
+        size_t M = 1000 * 1000;
+        if(value < M * 1000) {
+          printf("%.2fM", static_cast<double>(value) / M);
+        }
+        else if(value < M * 1000 * 1000) {
+          printf("%.2fG", static_cast<double>(value) / (M * 1000));
+        }
+        else {
+          printf("%.2fT", static_cast<double>(value) / (M * 1000 * 1000));
+        }
+        printf("]\n");
+      }
+    }
+  }
+
   CUDA void print_stat(const char* name, int value) const {
     if(print_statistics) {
       printf("%%%%%%mzn-stat: %s=%d\n", name, value);
@@ -232,7 +252,7 @@ struct Statistics {
     }
   }
 
-  CUDA void print_memory_statistics(bool verbose, const char* key, size_t bytes) const {
+  CUDA void print_memory_statistics(int verbose, const char* key, size_t bytes) const {
     print_stat(key, bytes);
     if(verbose) {
       printf("%%   [");
@@ -263,9 +283,9 @@ public:
     print_stat(name, to_sec(timers.time_of(timer)));
   }
 
-  CUDA void print_mzn_statistics(size_t or_nodes = 1) const {
+  CUDA void print_mzn_statistics(size_t or_nodes = 1, int verbose = 0) const {
     assert(or_nodes != 0);
-    print_stat("nodes", nodes);
+    print_human_stat(verbose, "nodes", nodes);
     print_stat("failures", fails);
     print_stat("variables", variables);
     print_stat("propagators", constraints);
@@ -277,8 +297,8 @@ public:
     print_stat("eps_solved_subproblems", eps_solved_subproblems);
     print_stat("eps_skipped_subproblems", eps_skipped_subproblems);
     print_stat("num_blocks_done", num_blocks_done);
-    print_stat("fixpoint_iterations", fixpoint_iterations);
-    print_stat("num_deductions", num_deductions);
+    print_human_stat(verbose, "fixpoint_iterations", fixpoint_iterations);
+    print_human_stat(verbose, "num_deductions", num_deductions);
 
     // Timing statistics
     print_timing_stat("solve_time", Timer::SOLVE, or_nodes);

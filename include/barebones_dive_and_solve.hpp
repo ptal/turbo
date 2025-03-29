@@ -310,7 +310,7 @@ struct BlockData {
         has_changed = false;
         for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
           const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-          if(f(dom) == value) {
+          if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top() && f(dom) == value) {
             if(idx.meet(local::ZUB(i))) {
               has_changed = true;
             }
@@ -332,6 +332,7 @@ struct BlockData {
       decisions[depth].var = var;
       decisions[depth].current_idx = -1;
       const auto& dom = store->project(decisions[depth].var);
+      assert(dom.lb().value() != dom.ub().value());
       switch(val_order) {
         case ValueOrder::MIN: {
           decisions[depth].children[0] = Itv(dom.lb().value());
@@ -367,6 +368,7 @@ struct BlockData {
       ++depth;
       // Reallocate decisions if needed.
       if(decisions.size() == depth) {
+        printf("resize to %d\n", (int)decisions.size() * 2);
         decisions.resize(decisions.size() * 2);
       }
     }
@@ -464,7 +466,7 @@ void barebones_dive_and_solve(const Configuration<battery::standard_allocator>& 
   uroot.stats.print_mzn_final_separator();
   if(uroot.config.print_statistics) {
     uroot.config.print_mzn_statistics();
-    uroot.stats.print_mzn_statistics(uroot.config.or_nodes);
+    uroot.stats.print_mzn_statistics(uroot.config.or_nodes, uroot.config.verbose_solving);
     if(uroot.bab->is_optimization() && uroot.stats.solutions > 0) {
       uroot.stats.print_mzn_objective(uroot.best->project(uroot.bab->objective_var()), uroot.bab->is_minimization());
     }
@@ -511,12 +513,13 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
    * The estimation is very conservative, normally we should not run out of memory.
    * */
   size_t required_global_mem =
-    /** Memory shared among all blocks. Use store_bytes to estimate the strategies. */
+    /** Memory shared among all blocks. */
     gpu_sizeof<UnifiedData>() + store_bytes * 5 + iprop_bytes +
     gpu_sizeof<GridData>() +
     config.or_nodes * gpu_sizeof<BlockData>() +
     config.or_nodes * store_bytes * 3 + // current, root, best.
     config.or_nodes * iprop_bytes +
+    config.or_nodes * cp.iprop->num_deductions() * 4 * gpu_sizeof<int>()  + // fixpoint engine
     config.or_nodes * (gpu_sizeof<int>() + gpu_sizeof<LightBranch<Itv>>()) * MAX_SEARCH_DEPTH;
   CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, required_global_mem));
   cp.stats.print_memory_statistics(cp.config.verbose_solving, "heap_memory", required_global_mem);
@@ -691,12 +694,17 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
             }
             // Apply the decision.
             block_data.store->embed(block_data.decisions[block_data.depth-1].var, block_data.decisions[block_data.depth-1].next());
+            // printf("left decision: %d [", block_data.decisions[block_data.depth - 1].var.vid()); block_data.decisions[block_data.depth - 1].current().print(); printf("]\n");
           }
         }
 
         // III. Backtracking
 
         if(is_leaf_node) {
+
+          // if(threadIdx.x == 0) {
+          //   printf("backtracking\n");
+          // }
           // Leaf node at root.
           if(block_data.depth == 0) {
             break;
@@ -725,6 +733,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
           }
           if(threadIdx.x == 0) {
             block_data.store->embed(block_data.decisions[block_data.depth - 1].var, block_data.decisions[block_data.depth - 1].next());
+            // printf("right decision: %d [", block_data.decisions[block_data.depth - 1].var.vid()); block_data.decisions[block_data.depth - 1].current().print(); printf("]\n");
             block_data.current_strategy = block_data.snapshot_root_strategy;
             block_data.next_unassigned_var = block_data.snapshot_next_unassigned_var;
           }
