@@ -124,6 +124,7 @@ struct Statistics {
   size_t eps_skipped_subproblems;
   size_t num_blocks_done;
   size_t fixpoint_iterations;
+  size_t num_deductions;
   TimingStatistics<Allocator> timers;
 
   CUDA Statistics(size_t variables, size_t constraints, bool optimization, bool print_statistics):
@@ -132,7 +133,7 @@ struct Statistics {
     nodes(0), fails(0), solutions(0),
     depth_max(0), exhaustive(true),
     eps_solved_subproblems(0), eps_num_subproblems(1), eps_skipped_subproblems(0),
-    num_blocks_done(0), fixpoint_iterations(0),
+    num_blocks_done(0), fixpoint_iterations(0), num_deductions(0),
     timers()
   {}
 
@@ -148,7 +149,7 @@ struct Statistics {
     depth_max(other.depth_max), exhaustive(other.exhaustive),
     eps_solved_subproblems(other.eps_solved_subproblems), eps_num_subproblems(other.eps_num_subproblems),
     eps_skipped_subproblems(other.eps_skipped_subproblems), num_blocks_done(other.num_blocks_done),
-    fixpoint_iterations(other.fixpoint_iterations),
+    fixpoint_iterations(other.fixpoint_iterations), num_deductions(other.num_deductions),
     timers(other.timers)
   {}
 
@@ -163,6 +164,7 @@ struct Statistics {
     eps_skipped_subproblems += other.eps_skipped_subproblems;
     num_blocks_done += other.num_blocks_done;
     fixpoint_iterations += other.fixpoint_iterations;
+    num_deductions += other.num_deductions;
     timers.meet(other.timers);
   }
 
@@ -276,6 +278,7 @@ public:
     print_stat("eps_skipped_subproblems", eps_skipped_subproblems);
     print_stat("num_blocks_done", num_blocks_done);
     print_stat("fixpoint_iterations", fixpoint_iterations);
+    print_stat("num_deductions", num_deductions);
 
     // Timing statistics
     print_timing_stat("solve_time", Timer::SOLVE, or_nodes);

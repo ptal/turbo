@@ -287,6 +287,8 @@ __device__ void update_block_best_bound(BlockData<S>& block_data, GridData<S>& g
 template <class S>
 __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data) {
   using BlockCP = typename S::BlockCP;
+  __shared__ int warp_iterations[CUDA_THREADS_PER_BLOCK/32];
+  warp_iterations[threadIdx.x / 32] = 0;
   bool is_leaf_node = false;
   BlockCP& cp = *block_data.root;
   auto group = cooperative_groups::this_thread_block();
@@ -295,24 +297,38 @@ __device__ bool propagate(BlockData<S>& block_data, GridData<S>& grid_data) {
   auto start = cp.stats.start_timer_device();
   int fp_iterations;
   switch(cp.config.fixpoint) {
-    case FixpointKind::AC1:
+    case FixpointKind::AC1: {
       fp_iterations = fp_engine.fixpoint(
         [&](int i){ return iprop.deduce(i); },
         [&](){ return iprop.is_bot(); });
+      if(threadIdx.x == 0) {
+        cp.stats.num_deductions += fp_iterations * fp_engine.num_active();
+      }
       break;
-    case FixpointKind::WAC1:
+    }
+    case FixpointKind::WAC1: {
       if(fp_engine.num_active() <= cp.config.wac1_threshold) {
         fp_iterations = fp_engine.fixpoint(
           [&](int i){ return iprop.deduce(i); },
           [&](){ return iprop.is_bot(); });
+        if(threadIdx.x == 0) {
+          cp.stats.num_deductions += fp_iterations * fp_engine.num_active();
+        }
       }
       else {
         fp_iterations = fp_engine.fixpoint(
-          [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(iprop, i); },
+          [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(iprop, i, warp_iterations); },
           [&](){ return iprop.is_bot(); });
+        if(threadIdx.x == 0) {
+          for(int i = 0; i < CUDA_THREADS_PER_BLOCK/32; ++i) {
+            cp.stats.num_deductions += warp_iterations[i] * 32;
+          }
+        }
       }
       break;
+    }
   }
+
   start = cp.stats.stop_timer(Timer::FIXPOINT, start);
   if(!iprop.is_bot()) {
     fp_engine.select([&](int i) { return !iprop.ask(i); });

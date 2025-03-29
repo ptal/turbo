@@ -763,6 +763,8 @@ template <class FPEngine>
 __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data, BlockData& block_data,
    FPEngine& fp_engine, bool& stop, bool& has_changed, bool& is_leaf_node)
 {
+  __shared__ int warp_iterations[CUDA_THREADS_PER_BLOCK/32];
+  warp_iterations[threadIdx.x / 32] = 0;
   auto& config = unified_data.root.config;
   IProp& iprop = *block_data.iprop;
   auto group = cooperative_groups::this_thread_block();
@@ -796,6 +798,9 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
       fp_iterations = fp_engine.fixpoint(
         [&](int i){ return iprop.deduce(i); },
         [&](){ return iprop.is_bot(); });
+      if(threadIdx.x == 0) {
+        block_data.stats.num_deductions += fp_iterations * fp_engine.num_active();
+      }
       break;
     }
     case FixpointKind::WAC1: {
@@ -803,11 +808,19 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
         fp_iterations = fp_engine.fixpoint(
           [&](int i){ return iprop.deduce(i); },
           [&](){ return iprop.is_bot(); });
+        if(threadIdx.x == 0) {
+          block_data.stats.num_deductions += fp_iterations * fp_engine.num_active();
+        }
       }
       else {
         fp_iterations = fp_engine.fixpoint(
-          [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(iprop, i); },
+          [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(iprop, i, warp_iterations); },
           [&](){ return iprop.is_bot(); });
+        if(threadIdx.x == 0) {
+          for(int i = 0; i < CUDA_THREADS_PER_BLOCK/32; ++i) {
+            block_data.stats.num_deductions += warp_iterations[i] * 32;
+          }
+        }
       }
       break;
     }

@@ -107,6 +107,7 @@ struct GPUCube {
    * By dividing this statistic by the number of nodes, we get the average number of iterations per node.
    */
   size_t fp_iterations;
+  size_t num_deductions;
 
   /** From config. */
   FixpointKind fp_kind;
@@ -123,7 +124,9 @@ struct GPUCube {
   /** A flag to notify the kernel it must stop. */
   cuda::std::atomic_flag stop;
 
-  GPUCube() {
+  GPUCube() :
+    fp_iterations(0), num_deductions(0), wac1_threshold(0)
+  {
     /** Initially, we are not ready to propagate or to search. */
     ready_to_search.clear();
     ready_to_propagate.clear();
@@ -570,7 +573,7 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
   extern __shared__ unsigned char shared_mem[];
   GPUCube& cube = gpu_cubes[blockIdx.x];
   GPUCube::IProp& iprop = *cube.iprop_gpu;
-
+  __shared__ int warp_iterations[CUDA_THREADS_PER_BLOCK/32];
   /** We start by initializing the structures in shared memory (fixpoint loop engine, store of variables). */
   __shared__ FixpointSubsetGPU<BlockAsynchronousFixpointGPU<true>, bt::global_allocator, CUDA_THREADS_PER_BLOCK> fp_engine;
   fp_engine.init(iprop.num_deductions());
@@ -613,24 +616,38 @@ __global__ void gpu_propagate(GPUCube* gpu_cubes, size_t shared_bytes) {
     start = cube.timers.stop_timer(Timer::TRANSFER_CPU2GPU, start);
     /** This is the main propagation algorithm: the current node is propagated in parallel. */
     int fp_iterations;
+    warp_iterations[threadIdx.x / 32] = 0;
     switch(cube.fp_kind) {
-      case FixpointKind::AC1:
+      case FixpointKind::AC1: {
         fp_iterations = fp_engine.fixpoint(
           [&](int i){ return iprop.deduce(i); },
           [&](){ return iprop.is_bot(); });
+        if(threadIdx.x == 0) {
+          cube.num_deductions += fp_iterations * fp_engine.num_active();
+        }
         break;
-      case FixpointKind::WAC1:
+      }
+      case FixpointKind::WAC1: {
         if(fp_engine.num_active() <= cube.wac1_threshold) {
           fp_iterations = fp_engine.fixpoint(
             [&](int i){ return iprop.deduce(i); },
             [&](){ return iprop.is_bot(); });
+          if(threadIdx.x == 0) {
+            cube.num_deductions += fp_iterations * fp_engine.num_active();
+          }
         }
         else {
           fp_iterations = fp_engine.fixpoint(
-            [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(iprop, i); },
+            [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(iprop, i, warp_iterations); },
             [&](){ return iprop.is_bot(); });
+          if(threadIdx.x == 0) {
+            for(int i = 0; i < CUDA_THREADS_PER_BLOCK/32; ++i) {
+              cube.num_deductions += warp_iterations[i] * 32;
+            }
+          }
         }
         break;
+      }
     }
     start = cube.timers.stop_timer(Timer::FIXPOINT, start);
     cube.store_gpu->copy_to(group, *cube.store_cpu);
@@ -710,6 +727,7 @@ void reduce_cubes(CPUData& global) {
     global.cpu_cubes[i].cube.stats.meet(global.gpu_cubes[i].timers);
     global.root.meet(global.cpu_cubes[i].cube);
     global.root.stats.fixpoint_iterations += global.gpu_cubes[i].fp_iterations;
+    global.root.stats.num_deductions += global.gpu_cubes[i].num_deductions;
   }
 }
 
