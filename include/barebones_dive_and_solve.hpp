@@ -358,7 +358,7 @@ struct BlockData {
         // ValueOrder::MEDIAN is not possible with interval.
         default: assert(false);
       }
-      /** Ropes are a mechanisme for fast backtracking.
+      /** Ropes are a mechanism for fast backtracking.
        * The rope of a left node is always the depth of the right node (also its depth), because after completing the exploration of the left subtree, we must visit the right subtree (rooted at the current depth).
        * The rope of the right node is inherited from its parent, we set -1 if there is no next node to visit.
        */
@@ -491,7 +491,7 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
     mem_config = MemoryConfig(store_bytes, iprop_bytes);
   }
   else {
-    mem_config = MemoryConfig((void*) gpu_barebones_solve, store_bytes, iprop_bytes);
+    mem_config = MemoryConfig((void*) gpu_barebones_solve, config.verbose_solving, store_bytes, iprop_bytes);
   }
   mem_config.print_mzn_statistics(config, cp.stats);
 
@@ -701,8 +701,10 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
           if(block_data.depth == 0) {
             break;
           }
+          if(threadIdx.x == 0) {
+            block_data.depth = block_data.decisions[block_data.depth-1].ropes[block_data.decisions[block_data.depth-1].current_idx];
+          }
           __syncthreads();
-          block_data.depth = block_data.decisions[block_data.depth-1].ropes[block_data.decisions[block_data.depth-1].current_idx];
           // Check if there is no more node to visit.
           if(block_data.depth == -1) {
             break;

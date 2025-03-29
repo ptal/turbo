@@ -40,18 +40,25 @@ struct MemoryConfig {
     prop_bytes(prop_bytes)
   {}
 
-  MemoryConfig(const void* kernel, size_t store_bytes, size_t prop_bytes):
+  MemoryConfig(const void* kernel, int verbose, size_t store_bytes, size_t prop_bytes):
     store_bytes(store_bytes),
     prop_bytes(prop_bytes)
   {
     int maxSharedMemPerSM;
     cudaDeviceGetAttribute(&maxSharedMemPerSM, cudaDevAttrMaxSharedMemoryPerMultiprocessor, 0);
+    cudaFuncAttributes attr;
+    cudaFuncGetAttributes(&attr, kernel);
+    if(verbose >= 1) {
+      printf("%% max_shared_memory=%d\n", maxSharedMemPerSM);
+      printf("%% static_shared_memory=%zu\n", attr.sharedSizeBytes);
+    }
+
     int alignment = 128; // just in case...
-    if(store_bytes + prop_bytes + alignment < maxSharedMemPerSM) {
+    if(store_bytes + prop_bytes + alignment + attr.sharedSizeBytes < maxSharedMemPerSM) {
       shared_bytes = store_bytes + prop_bytes + alignment;
       mem_kind = MemoryKind::TCN_SHARED;
     }
-    else if(store_bytes + alignment < maxSharedMemPerSM) {
+    else if(store_bytes + alignment + attr.sharedSizeBytes < maxSharedMemPerSM) {
       shared_bytes = store_bytes + alignment;
       mem_kind = MemoryKind::STORE_SHARED;
     }
