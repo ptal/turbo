@@ -83,8 +83,8 @@ target_compile_options(turbo PRIVATE
     "$<$<AND:$<BOOL:${WITH_ASAN}>,$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:Clang>>:-fsanitize=address>"
     "$<$<AND:$<BOOL:${WITH_ASAN}>,$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:SHELL:--compiler-options -fsanitize=address>"
 )
-# target_compile_definitions(turbo PRIVATE DISABLE_FULL_GPU_SOLVING)
-target_compile_definitions(turbo PRIVATE REDUCE_PTX_SIZE)
+target_compile_definitions(turbo PRIVATE DISABLE_FULL_GPU_SOLVING)
+# target_compile_definitions(turbo PRIVATE REDUCE_PTX_SIZE)
 target_compile_options(turbo PRIVATE "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:-lineinfo>")
 
 target_compile_definitions(turbo PRIVATE CUDA_THREADS_PER_BLOCK=256)
