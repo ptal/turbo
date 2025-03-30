@@ -512,15 +512,15 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
   /** III. Size of the heap global memory.
    * The estimation is very conservative, normally we should not run out of memory.
    * */
-  size_t required_global_mem = deviceProp.totalGlobalMem / 2;
+  size_t required_global_mem = std::max(deviceProp.totalGlobalMem / 2,
     /** Memory shared among all blocks. */
-    // gpu_sizeof<UnifiedData>() + store_bytes * 5 + iprop_bytes +
-    // gpu_sizeof<GridData>() +
-    // config.or_nodes * gpu_sizeof<BlockData>() +
-    // config.or_nodes * store_bytes * size_t{3} + // current, root, best.
-    // config.or_nodes * iprop_bytes +
-    // config.or_nodes * cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<int>()  + // fixpoint engine
-    // config.or_nodes * (gpu_sizeof<int>() + gpu_sizeof<LightBranch<Itv>>()) * size_t{MAX_SEARCH_DEPTH};
+    gpu_sizeof<UnifiedData>() + store_bytes * 5 + iprop_bytes +
+    gpu_sizeof<GridData>() +
+    config.or_nodes * gpu_sizeof<BlockData>() +
+    config.or_nodes * store_bytes * size_t{3} + // current, root, best.
+    config.or_nodes * iprop_bytes * size_t{2} +
+    config.or_nodes * cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<int>()  + // fixpoint engine
+    config.or_nodes * (gpu_sizeof<int>() + gpu_sizeof<LightBranch<Itv>>()) * size_t{MAX_SEARCH_DEPTH});
   CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, required_global_mem));
   cp.stats.print_memory_statistics(cp.config.verbose_solving, "heap_memory", required_global_mem);
   if(cp.config.verbose_solving) {
