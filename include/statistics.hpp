@@ -114,6 +114,7 @@ struct Statistics {
   size_t variables;
   size_t constraints;
   bool optimization;
+  int num_blocks; // The real count of config.or_nodes on GPU.
   size_t nodes;
   size_t fails;
   size_t solutions;
@@ -129,7 +130,7 @@ struct Statistics {
 
   CUDA Statistics(size_t variables, size_t constraints, bool optimization, bool print_statistics):
     variables(variables), constraints(constraints), optimization(optimization),
-    print_statistics(print_statistics),
+    print_statistics(print_statistics), num_blocks(1),
     nodes(0), fails(0), solutions(0),
     depth_max(0), exhaustive(true),
     eps_solved_subproblems(0), eps_num_subproblems(1), eps_skipped_subproblems(0),
@@ -144,7 +145,7 @@ struct Statistics {
   template <class Alloc>
   CUDA Statistics(const Statistics<Alloc>& other):
     variables(other.variables), constraints(other.constraints), optimization(other.optimization),
-    print_statistics(other.print_statistics),
+    print_statistics(other.print_statistics), num_blocks(other.num_blocks),
     nodes(other.nodes), fails(other.fails), solutions(other.solutions),
     depth_max(other.depth_max), exhaustive(other.exhaustive),
     eps_solved_subproblems(other.eps_solved_subproblems), eps_num_subproblems(other.eps_num_subproblems),
@@ -275,22 +276,22 @@ private:
   }
 
 public:
-  CUDA void print_timing_stat(const char* name, Timer timer, size_t or_nodes) const {
-    print_stat(name, to_sec(timers.time_of(timer) / or_nodes));
+  CUDA void print_block_timing_stat(const char* name, Timer timer) const {
+    print_stat(name, to_sec(timers.time_of(timer) / num_blocks));
   }
 
   CUDA void print_timing_stat(const char* name, Timer timer) const {
     print_stat(name, to_sec(timers.time_of(timer)));
   }
 
-  CUDA void print_mzn_statistics(size_t or_nodes = 1, int verbose = 0) const {
-    assert(or_nodes != 0);
+  CUDA void print_mzn_statistics(int verbose = 0) const {
+    print_stat("num_blocks", num_blocks);
     print_human_stat(verbose, "nodes", nodes);
     print_stat("failures", fails);
     print_stat("variables", variables);
     print_stat("propagators", constraints);
     print_stat("peakDepth", depth_max);
-    print_timing_stat("initTime", Timer::PREPROCESSING, or_nodes);
+    print_timing_stat("initTime", Timer::PREPROCESSING);
     print_timing_stat("solveTime", Timer::OVERALL);
     print_stat("num_solutions", solutions);
     print_stat("eps_num_subproblems", eps_num_subproblems);
@@ -301,17 +302,17 @@ public:
     print_human_stat(verbose, "num_deductions", num_deductions);
 
     // Timing statistics
-    print_timing_stat("solve_time", Timer::SOLVE, or_nodes);
-    print_timing_stat("search_time", Timer::SEARCH, or_nodes);
-    // print_timing_stat("split_time", Timer::SPLIT, or_nodes);
-    // print_timing_stat("push_time", Timer::PUSH, or_nodes);
-    // print_timing_stat("pop_time", Timer::POP, or_nodes);
-    print_timing_stat("fixpoint_time", Timer::FIXPOINT, or_nodes);
-    print_timing_stat("transfer_cpu2gpu_time", Timer::TRANSFER_CPU2GPU, or_nodes);
-    print_timing_stat("transfer_gpu2cpu_time", Timer::TRANSFER_GPU2CPU, or_nodes);
-    print_timing_stat("select_fp_functions_time", Timer::SELECT_FP_FUNCTIONS, or_nodes);
-    print_timing_stat("wait_cpu_time", Timer::WAIT_CPU, or_nodes);
-    print_timing_stat("dive_time", Timer::DIVE, or_nodes);
+    print_block_timing_stat("solve_time", Timer::SOLVE);
+    print_block_timing_stat("search_time", Timer::SEARCH);
+    // print_block_timing_stat("split_time", Timer::SPLIT);
+    // print_block_timing_stat("push_time", Timer::PUSH);
+    // print_block_timing_stat("pop_time", Timer::POP);
+    print_block_timing_stat("fixpoint_time", Timer::FIXPOINT);
+    print_block_timing_stat("transfer_cpu2gpu_time", Timer::TRANSFER_CPU2GPU);
+    print_block_timing_stat("transfer_gpu2cpu_time", Timer::TRANSFER_GPU2CPU);
+    print_block_timing_stat("select_fp_functions_time", Timer::SELECT_FP_FUNCTIONS);
+    print_block_timing_stat("wait_cpu_time", Timer::WAIT_CPU);
+    print_block_timing_stat("dive_time", Timer::DIVE);
   }
 
   CUDA void print_mzn_end_stats() const {

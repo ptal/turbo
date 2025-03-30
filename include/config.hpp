@@ -70,7 +70,13 @@ struct Configuration {
     timeout_ms(0),
     or_nodes(0),
     subproblems_power(SUBPROBLEMS_POWER),
-    stack_kb(0),
+    stack_kb(
+      #ifdef TURBO_IPC_ABSTRACT_DOMAIN
+        32
+      #else
+        0
+      #endif
+    ),
     arch(
       #ifdef __CUDACC__
         Arch::BAREBONES

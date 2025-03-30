@@ -39,6 +39,7 @@ namespace bt = ::battery;
 namespace barebones {
 
 #ifdef __CUDACC__
+#ifndef TURBO_IPC_ABSTRACT_DOMAIN
 
 /** `ConcurrentAllocator` allocates memory available both on CPU and GPU. For non-Linux systems such as Windows pinned memory must be used (see PR #19). */
 #ifdef NO_CONCURRENT_MANAGED_MEMORY
@@ -410,8 +411,8 @@ struct GridData {
   AVar obj_var;
 
   __device__ GridData(const GridCP& root)
-   : blocks(root.config.or_nodes)
-   , next_subproblem(root.config.or_nodes)
+   : blocks(root.stats.num_blocks)
+   , next_subproblem(root.stats.num_blocks)
    , print_lock(1)
    , search_strategies(root.split->strategies_())
    , obj_var(root.minimize_obj_var)
@@ -451,7 +452,7 @@ void barebones_dive_and_solve(const Configuration<battery::standard_allocator>& 
   /** Block the signal CTRL-C to notify the threads if we must exit. */
   block_signal_ctrlc();
   gpu_barebones_solve
-    <<<static_cast<unsigned int>(cp.config.or_nodes),
+    <<<static_cast<unsigned int>(cp.stats.num_blocks),
       CUDA_THREADS_PER_BLOCK,
       mem_config.shared_bytes>>>
     (unified_data.get(), grid_data->get());
@@ -466,7 +467,7 @@ void barebones_dive_and_solve(const Configuration<battery::standard_allocator>& 
   uroot.stats.print_mzn_final_separator();
   if(uroot.config.print_statistics) {
     uroot.config.print_mzn_statistics();
-    uroot.stats.print_mzn_statistics(uroot.config.or_nodes, uroot.config.verbose_solving);
+    uroot.stats.print_mzn_statistics(uroot.config.verbose_solving);
     if(uroot.bab->is_optimization() && uroot.stats.solutions > 0) {
       uroot.stats.print_mzn_objective(uroot.best->project(uroot.bab->objective_var()), uroot.bab->is_minimization());
     }
@@ -477,15 +478,35 @@ void barebones_dive_and_solve(const Configuration<battery::standard_allocator>& 
 }
 
 /** We configure the GPU according to the user configuration:
- * 1) Configure the size of the shared memory.
- * 2) Guess the "best" number of blocks per SM, if not provided.
+ * 1) Guess the "best" number of blocks per SM, if not provided.
+ * 2) Configure the size of the shared memory.
  * 3) Increase the global heap memory.
  * 4) Increase the stack size if requested by the user.
  */
 MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
   auto& config = cp.config;
 
-  /** I. Configure the shared memory size. */
+  /** I. Number of blocks per SM. */
+
+  cudaDeviceProp deviceProp;
+  cudaGetDeviceProperties(&deviceProp, 0);
+  int max_block_per_sm;
+  cudaOccupancyMaxActiveBlocksPerMultiprocessor(&max_block_per_sm, (void*) gpu_barebones_solve, CUDA_THREADS_PER_BLOCK, 0);
+  if(cp.config.verbose_solving) {
+    printf("%% max_blocks_per_sm=%d\n", max_block_per_sm);
+  }
+  if(cp.config.or_nodes != 0) {
+    cp.stats.num_blocks = std::min(max_block_per_sm * deviceProp.multiProcessorCount, (int)cp.config.or_nodes);
+    if(cp.config.verbose_solving >= 1 && cp.stats.num_blocks < cp.config.or_nodes) {
+      printf("%% WARNING: -or %d is too high on your GPU architecture, it has been reduced to %d.\n", (int)cp.config.or_nodes, cp.stats.num_blocks);
+    }
+  }
+  else {
+    cp.stats.num_blocks = max_block_per_sm * deviceProp.multiProcessorCount;
+  }
+  int blocks_per_sm = (cp.stats.num_blocks + deviceProp.multiProcessorCount) / deviceProp.multiProcessorCount;
+
+  /** II. Configure the shared memory size. */
   size_t store_bytes = gpu_sizeof<IStore>() + gpu_sizeof<abstract_ptr<IStore>>() + cp.store->vars() * gpu_sizeof<Itv>();
   size_t iprop_bytes = gpu_sizeof<IProp>() + gpu_sizeof<abstract_ptr<IProp>>() + cp.iprop->num_deductions() * gpu_sizeof<bytecode_type>() + gpu_sizeof<typename IProp::bytecodes_type>();
   MemoryConfig mem_config;
@@ -493,38 +514,25 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
     mem_config = MemoryConfig(store_bytes, iprop_bytes);
   }
   else {
-    mem_config = MemoryConfig((void*) gpu_barebones_solve, config.verbose_solving, store_bytes, iprop_bytes);
+    mem_config = MemoryConfig((void*) gpu_barebones_solve, config.verbose_solving, blocks_per_sm, store_bytes, iprop_bytes);
   }
   mem_config.print_mzn_statistics(config, cp.stats);
-
-  /** II. Number of blocks per SM. */
-  cudaDeviceProp deviceProp;
-  cudaGetDeviceProperties(&deviceProp, 0);
-  if(config.or_nodes == 0) {
-    config.or_nodes = deviceProp.multiProcessorCount;
-  }
-  if(cp.config.verbose_solving) {
-    int num_blocks;
-    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, (void*) gpu_barebones_solve, CUDA_THREADS_PER_BLOCK, mem_config.shared_bytes);
-    printf("%% max_blocks_per_sm=%d\n", num_blocks);
-  }
 
   /** III. Size of the heap global memory.
    * The estimation is very conservative, normally we should not run out of memory.
    * */
   size_t required_global_mem = std::max(deviceProp.totalGlobalMem / 2,
-    /** Memory shared among all blocks. */
     gpu_sizeof<UnifiedData>() + store_bytes * 5 + iprop_bytes +
     gpu_sizeof<GridData>() +
-    config.or_nodes * gpu_sizeof<BlockData>() +
-    config.or_nodes * store_bytes * size_t{3} + // current, root, best.
-    config.or_nodes * iprop_bytes * size_t{2} +
-    config.or_nodes * cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<int>()  + // fixpoint engine
-    config.or_nodes * (gpu_sizeof<int>() + gpu_sizeof<LightBranch<Itv>>()) * size_t{MAX_SEARCH_DEPTH});
+    cp.stats.num_blocks * gpu_sizeof<BlockData>() +
+    cp.stats.num_blocks * store_bytes * size_t{3} + // current, root, best.
+    cp.stats.num_blocks * iprop_bytes * size_t{2} +
+    cp.stats.num_blocks * cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<int>()  + // fixpoint engine
+    cp.stats.num_blocks * (gpu_sizeof<int>() + gpu_sizeof<LightBranch<Itv>>()) * size_t{MAX_SEARCH_DEPTH});
   CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, required_global_mem));
   cp.stats.print_memory_statistics(cp.config.verbose_solving, "heap_memory", required_global_mem);
   if(cp.config.verbose_solving) {
-    printf("%% or_nodes=%zu\n", config.or_nodes);
+    printf("%% num_blocks=%d\n", cp.stats.num_blocks);
   }
   if(deviceProp.totalGlobalMem < required_global_mem) {
     printf("%% WARNING: The total global memory available is less than the required global memory.\n\
@@ -533,7 +541,7 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
 
   /** IV. Increase the stack if requested by the user. */
   if(config.stack_kb != 0) {
-    CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, config.stack_kb*1024));
+    CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, config.stack_kb*1000));
     // The stack allocated depends on the maximum number of threads per SM, not on the actual number of threads per block.
     size_t total_stack_size = deviceProp.multiProcessorCount * deviceProp.maxThreadsPerMultiProcessor * config.stack_kb * 1000;
     cp.stats.print_memory_statistics(cp.config.verbose_solving, "stack_memory", total_stack_size);
@@ -916,11 +924,21 @@ __global__ void deallocate_global_data(bt::unique_ptr<GridData, bt::global_alloc
   grid_data->reset();
 }
 
-#else
-void barebones_dive_and_solve(const Configuration<battery::standard_allocator>& config) {
-  std::cerr << "You must use a CUDA compiler (nvcc or clang) to compile Turbo on GPU." << std::endl;
-}
+#endif // TURBO_IPC_ABSTRACT_DOMAIN
 #endif // __CUDACC__
+
+#if defined(TURBO_IPC_ABSTRACT_DOMAIN) || !defined(__CUDACC__)
+
+void barebones_dive_and_solve(const Configuration<battery::standard_allocator>& config) {
+#ifdef TURBO_IPC_ABSTRACT_DOMAIN
+  std::cerr << "-arch barebones does not support IPC abstract domain." << std::endl;
+#else
+  std::cerr << "You must use a CUDA compiler (nvcc or clang) to compile Turbo on GPU." << std::endl;
+#endif
+}
+
+#endif
+
 } // namespace barebones
 
 #endif // TURBO_BAREBONES_DIVE_AND_SOLVE_HPP

@@ -142,7 +142,7 @@ struct GridData {
       bt::global_allocator{},
       root_mem_config.make_prop_pool(bt::pool_allocator(nullptr,0)),
       root_mem_config.make_store_pool(bt::pool_allocator(nullptr,0)));
-    blocks = bt::vector<BlockData<S>, bt::global_allocator>(root.config.or_nodes);
+    blocks = bt::vector<BlockData<S>, bt::global_allocator>(root.stats.num_blocks);
     gpu_stop = bt::make_shared<B<bt::atomic_memory_grid>, bt::global_allocator>(false);
     print_lock = bt::make_shared<cuda::binary_semaphore<cuda::thread_scope_device>, bt::global_allocator>(1);
     next_subproblem = bt::make_shared<ZLB<size_t, bt::atomic_memory_grid>, bt::global_allocator>(0);
@@ -229,7 +229,7 @@ __global__ void initialize_grid_data(GridData<S>* grid_data) {
   grid_data->allocate();
   size_t num_subproblems = 1;
   num_subproblems <<= grid_data->root.config.subproblems_power;
-  grid_data->next_subproblem->meet(ZLB<size_t, bt::local_memory>(grid_data->root.config.or_nodes));
+  grid_data->next_subproblem->meet(ZLB<size_t, bt::local_memory>(grid_data->root.stats.num_blocks));
   grid_data->root.stats.eps_num_subproblems = num_subproblems;
 }
 
@@ -600,7 +600,7 @@ void transfer_memory_and_run(CP<U>& root, MemoryConfig mem_config, const Timepoi
   }
   std::thread consumer_thread(consume_kernel_solutions<S>, std::ref(*grid_data));
   gpu_solve_kernel
-    <<<static_cast<unsigned int>(grid_data->root.config.or_nodes),
+    <<<static_cast<unsigned int>(grid_data->root.stats.num_blocks),
       CUDA_THREADS_PER_BLOCK,
       grid_data->mem_config.shared_bytes>>>
     (grid_data.get());
@@ -627,9 +627,11 @@ int threads_per_sm(cudaDeviceProp devProp) {
 
 template <class S, class U>
 void configure_blocks_threads(CP<U>& root, const MemoryConfig& mem_config) {
-  int hint_num_blocks;
-  int hint_num_threads;
-  CUDAE(cudaOccupancyMaxPotentialBlockSize(&hint_num_blocks, &hint_num_threads, (void*) gpu_solve_kernel<S>, (int)mem_config.shared_bytes));
+  int max_block_per_sm;
+  cudaOccupancyMaxActiveBlocksPerMultiprocessor(&max_block_per_sm, (void*) gpu_solve_kernel<S>, CUDA_THREADS_PER_BLOCK, (int)mem_config.shared_bytes);
+  if(root.config.verbose_solving) {
+    printf("%% max_blocks_per_sm=%d\n", max_block_per_sm);
+  }
 
   cudaDeviceProp deviceProp;
   cudaGetDeviceProperties(&deviceProp, 0);
@@ -639,7 +641,7 @@ void configure_blocks_threads(CP<U>& root, const MemoryConfig& mem_config) {
   size_t num_threads_per_sm = threads_per_sm(deviceProp);
 
   auto& config = root.config;
-  config.or_nodes = (config.or_nodes == 0) ? hint_num_blocks : config.or_nodes;
+  root.stats.num_blocks = (config.or_nodes == 0) ? max_block_per_sm : config.or_nodes;
 
   config.stack_kb = config.stack_kb == 0 ? 32 : config.stack_kb;
 
@@ -650,9 +652,9 @@ void configure_blocks_threads(CP<U>& root, const MemoryConfig& mem_config) {
 
   // Basically the size of the store and propagator, and 100 bytes per variable.
   // +1 for the root node in GridCP.
-  size_t heap_usage_estimation = (config.or_nodes + 1) * (mem_config.prop_bytes + mem_config.store_bytes + 100 * root.store->vars());
+  size_t heap_usage_estimation = (root.stats.num_blocks + 1) * (mem_config.prop_bytes + mem_config.store_bytes + 100 * root.store->vars());
   while(heap_usage_estimation > remaining_global_mem) {
-    config.or_nodes--;
+    root.stats.num_blocks--;
   }
 
   // The stack always need to be modified for this algorithm due to recursive function calls.
@@ -663,7 +665,7 @@ void configure_blocks_threads(CP<U>& root, const MemoryConfig& mem_config) {
   root.stats.print_memory_statistics(config.verbose_solving, "heap_memory", remaining_global_mem);
   root.stats.print_memory_statistics(config.verbose_solving, "heap_usage_estimation", heap_usage_estimation);
   if(config.verbose_solving) {
-    printf("%% or_nodes=%zu\n", config.or_nodes);
+    printf("%% num_blocks=%d\n", root.stats.num_blocks);
   }
 }
 

@@ -13,7 +13,7 @@ namespace bt = ::battery;
 /**
  * "Dive and solve" is a new algorithm to parallelize the standard "propagate and search" algorithm of constraint programming.
  * Given a depth `d`, we create `2^d` subproblems that we solve in parallel.
- * We create as many CPU threads as blocks on the GPU (option `config.or_nodes`).
+ * We create as many CPU threads as blocks on the GPU (option `cp.stats.num_blocks`).
  * A CPU thread takes the next subproblem available and run the "propagate and search" algorithm on it.
  * The CPU thread offloads the propagation to the GPU, but take care of splitting and backtracking in the search tree, as well as maintaining the best bound found, and the statistics.
  * Therefore, a kernel with only 1 block is executed each time we propagate a node.
@@ -22,7 +22,7 @@ namespace bt = ::battery;
  * We call a task solving a subproblem a "cube" (this loosely follows the terminology of SAT solving with "cube and conquer").
  * By CPU cube, we refer to the local state of a CPU thread for solving a subproblem.
  * By GPU cube, we refer to the local state of a GPU block for solving a subproblem.
- * Note that at each moment, there are at most `config.or_nodes` cubes active in parallel.
+ * Note that at each moment, there are at most `cp.stats.num_blocks` cubes active in parallel.
  */
 
 #ifdef __CUDACC__
@@ -218,24 +218,24 @@ struct CPUData {
   /** Each GPU block has its own local state to solve a subproblem, called a cube. */
   bt::vector<GPUCube, bt::managed_allocator> gpu_cubes;
 
-  /** We create as many cubes as CPU threads and GPU blocks (option `config.or_nodes`).
-   * All CPU cubes are initialized to different subproblems, from 0 to `config.or_nodes - 1`.
-   * Hence the next subproblem to solve is `config.or_nodes`.
+  /** We create as many cubes as CPU threads and GPU blocks (option `cp.stats.num_blocks`).
+   * All CPU cubes are initialized to different subproblems, from 0 to `cp.stats.num_blocks - 1`.
+   * Hence the next subproblem to solve is `cp.stats.num_blocks`.
    * The GPU cubes are initialized to the same state than the CPU cubes.
    * Further, we connect the CPU and GPU cubes by sharing their store of variables (`gpu_cubes[i].store_cpu` and `cpu_cubes[i].cube.store`).
    * Also, we share the propagators of `gpu_cubes[0].iprop_gpu` with all other cubes `gpu_cubes[i].iprop_gpu` (with i >= 1).
   */
   CPUData(const CP<Itv>& root, size_t shared_mem_bytes)
-   : next_subproblem(root.config.or_nodes)
+   : next_subproblem(root.stats.num_blocks)
    , best_bound(Itv::top())
    , root(root)
    , shared_mem_bytes(shared_mem_bytes)
-   , gpu_cubes(root.config.or_nodes)
+   , gpu_cubes(root.stats.num_blocks)
   {
     cpu_stop.clear();
-    cpu_cubes.reserve(root.config.or_nodes);
+    cpu_cubes.reserve(root.stats.num_blocks);
     cpu_cubes.emplace_back(root);
-    for(int i = 0; i < root.config.or_nodes; ++i) {
+    for(int i = 0; i < root.stats.num_blocks; ++i) {
       if(i > 0) {
         cpu_cubes.emplace_back(cpu_cubes[0]);
       }
@@ -304,13 +304,13 @@ void hybrid_dive_and_solve(const Configuration<battery::standard_allocator>& con
 
   /** Start the algorithm in parallel with as many CPU threads as GPU blocks. */
   std::vector<std::thread> threads;
-  for(int i = 0; i < global.root.config.or_nodes; ++i) {
+  for(int i = 0; i < global.root.stats.num_blocks; ++i) {
     threads.push_back(std::thread(dive_and_solve, std::ref(global), i));
   }
 
   /** We start the persistent kernel, that will perform the propagation. */
   gpu_propagate<<<
-      static_cast<unsigned int>(global.root.config.or_nodes),
+      static_cast<unsigned int>(global.root.stats.num_blocks),
       CUDA_THREADS_PER_BLOCK,
       global.shared_mem_bytes>>>
     (global.gpu_cubes.data(), global.shared_mem_bytes);
@@ -758,7 +758,7 @@ size_t configure_gpu(CP<Itv>& cp) {
   CUDAE(cudaOccupancyMaxPotentialBlockSize(&hint_num_blocks, &hint_num_threads, (void*) gpu_propagate, shared_mem_bytes));
   size_t total_global_mem = deviceProp.totalGlobalMem;
   size_t num_sm = deviceProp.multiProcessorCount;
-  config.or_nodes = (config.or_nodes == 0) ? hint_num_blocks : config.or_nodes;
+  cp.stats.num_blocks = (config.or_nodes == 0) ? hint_num_blocks : config.or_nodes;
   // The stack allocated depends on the maximum number of threads per SM, not on the actual number of threads per block.
   size_t total_stack_size = num_sm * deviceProp.maxThreadsPerMultiProcessor * (config.stack_kb == 0 ? 1 : config.stack_kb) * 1000;
   size_t remaining_global_mem = total_global_mem - total_stack_size;
@@ -770,7 +770,7 @@ size_t configure_gpu(CP<Itv>& cp) {
   cp.stats.print_memory_statistics(cp.config.verbose_solving, "stack_memory", total_stack_size);
   cp.stats.print_memory_statistics(cp.config.verbose_solving, "heap_memory", remaining_global_mem);
   if(cp.config.verbose_solving) {
-    printf("%% or_nodes=%zu\n", config.or_nodes);
+    printf("%% num_blocks=%d\n", cp.stats.num_blocks);
   }
   int num_blocks;
   cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, (void*) gpu_propagate, CUDA_THREADS_PER_BLOCK, shared_mem_bytes);
