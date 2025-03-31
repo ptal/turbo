@@ -530,6 +530,11 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
     nblocks * cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<int>()  + // fixpoint engine
     nblocks * (gpu_sizeof<int>() + gpu_sizeof<LightBranch<Itv>>()) * size_t{MAX_SEARCH_DEPTH};
   size_t required_global_mem = std::max(deviceProp.totalGlobalMem / 2, estimated_global_mem);
+  if(estimated_global_mem > deviceProp.totalGlobalMem / 2) {
+    printf("%% WARNING: The estimated global memory is larger than half of the total global memory.\n\
+    We reduce the number of blocks to avoid running out of memory.\n");
+    cp.stats.num_blocks = deviceProp.multiProcessorCount;
+  }
   CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, required_global_mem));
   cp.stats.print_memory_statistics(cp.config.verbose_solving, "heap_memory", required_global_mem);
   if(cp.config.verbose_solving) {
