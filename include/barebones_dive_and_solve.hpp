@@ -504,11 +504,16 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
   else {
     cp.stats.num_blocks = max_block_per_sm * deviceProp.multiProcessorCount;
   }
-  int blocks_per_sm = (cp.stats.num_blocks + deviceProp.multiProcessorCount - 1) / deviceProp.multiProcessorCount;
 
   /** II. Configure the shared memory size. */
   size_t store_bytes = gpu_sizeof<IStore>() + gpu_sizeof<abstract_ptr<IStore>>() + cp.store->vars() * gpu_sizeof<Itv>();
   size_t iprop_bytes = gpu_sizeof<IProp>() + gpu_sizeof<abstract_ptr<IProp>>() + cp.iprop->num_deductions() * gpu_sizeof<bytecode_type>() + gpu_sizeof<typename IProp::bytecodes_type>();
+  // If large problem, minimal amount of blocks.
+  if(cp.iprop->num_deductions() + cp.store->vars() > 1000000) {
+    cp.stats.num_blocks = deviceProp.multiProcessorCount;
+    printf("%% WARNING: Large problem detected, reducing to 1 block per SM.\n");
+  }
+  int blocks_per_sm = (cp.stats.num_blocks + deviceProp.multiProcessorCount - 1) / deviceProp.multiProcessorCount;
   MemoryConfig mem_config;
   if(config.only_global_memory) {
     mem_config = MemoryConfig(store_bytes, iprop_bytes);
