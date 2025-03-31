@@ -586,8 +586,12 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
   block_data.allocate(*unified_data, *grid_data, shared_mem);
   __syncthreads();
   IProp& iprop = *block_data.iprop;
+#ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
+  __shared__ BlockAsynchronousFixpointGPU<true> fp_engine;
+#else
   __shared__ FixpointSubsetGPU<BlockAsynchronousFixpointGPU<true>, bt::global_allocator, CUDA_THREADS_PER_BLOCK> fp_engine;
   fp_engine.init(iprop.num_deductions());
+#endif
   /** This shared variable is necessary to avoid multiple threads to read into `unified_data.stop.test()`,
    * potentially reading different values and leading to deadlock. */
   __shared__ bool stop;
@@ -617,7 +621,9 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
     block_data.next_unassigned_var = 0;
     block_data.depth = 0;
     unified_data->root.store->copy_to(group, *block_data.store);
+#ifndef TURBO_NO_ENTAILED_PROP_REMOVAL
     fp_engine.reset(iprop.num_deductions());
+#endif
     __syncthreads();
 
     // D. Dive into the search tree until we reach the target subproblem.
@@ -738,7 +744,9 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
             break;
           }
           // Restore from root by copying the store and re-applying all decisions from root to block_data.depth-1.
+#ifndef TURBO_NO_ENTAILED_PROP_REMOVAL
           fp_engine.reset(iprop.num_deductions());
+#endif
           block_data.root_store->copy_to(group, *block_data.store);
           has_changed = true;
           while(has_changed) {
@@ -787,7 +795,9 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
     block_data.stats.num_blocks_done = 1;
   }
   __syncthreads();
+#ifndef TURBO_NO_ENTAILED_PROP_REMOVAL
   fp_engine.destroy();
+#endif
   block_data.deallocate_shared_data();
   __syncthreads();
 }
@@ -826,27 +836,41 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
 
   // II. Compute the fixpoint of the current node.
   int fp_iterations;
+#ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
+  int num_active = iprop.num_deductions();
+#else
+  int num_active = fp_engine.num_active();
+#endif
   switch(config.fixpoint) {
     case FixpointKind::AC1: {
       fp_iterations = fp_engine.fixpoint(
+#ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
+        iprop.num_deductions(),
+#endif
         [&](int i){ return iprop.deduce(i); },
         [&](){ return iprop.is_bot(); });
       if(threadIdx.x == 0) {
-        block_data.stats.num_deductions += fp_iterations * fp_engine.num_active();
+        block_data.stats.num_deductions += fp_iterations * num_active;
       }
       break;
     }
     case FixpointKind::WAC1: {
-      if(fp_engine.num_active() <= config.wac1_threshold) {
+      if(num_active <= config.wac1_threshold) {
         fp_iterations = fp_engine.fixpoint(
+#ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
+        iprop.num_deductions(),
+#endif
           [&](int i){ return iprop.deduce(i); },
           [&](){ return iprop.is_bot(); });
         if(threadIdx.x == 0) {
-          block_data.stats.num_deductions += fp_iterations * fp_engine.num_active();
+          block_data.stats.num_deductions += fp_iterations * num_active;
         }
       }
       else {
         fp_iterations = fp_engine.fixpoint(
+#ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
+          iprop.num_deductions(),
+#endif
           [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(iprop, i, warp_iterations); },
           [&](){ return iprop.is_bot(); });
         if(threadIdx.x == 0) {
@@ -863,9 +887,21 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
   // III. Analyze the result of propagation
 
   if(!iprop.is_bot()) {
+#ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
+    has_changed = false;
+    for(int i = threadIdx.x; !has_changed && i < iprop.num_deductions(); i += blockDim.x) {
+      if(!iprop.ask(i)) {
+        has_changed = true;
+      }
+    }
+    __syncthreads();
+    num_active = has_changed;
+#else
     fp_engine.select([&](int i) { return !iprop.ask(i); });
+    num_active = fp_engine.num_active();
+#endif
     TIMEPOINT(SELECT_FP_FUNCTIONS);
-    if(fp_engine.num_active() == 0) {
+    if(num_active == 0) {
       is_leaf_node = true;
       if(threadIdx.x == 0) {
         block_data.best_bound.meet(Itv::UB(block_data.store->project(grid_data.obj_var).lb().value()));

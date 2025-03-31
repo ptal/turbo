@@ -580,10 +580,19 @@ public:
     #endif
   }
 
+  const char* name_of_entailed_removal() const {
+    #ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
+      return "deactivated";
+    #else
+      return "by_indexes_scan";
+    #endif
+  }
+
   void preprocess() {
     auto start = stats.start_timer_host();
     FormulaPtr f_ptr = parse_cn();
     stats.print_stat("abstract_domain", name_of_abstract_domain());
+    stats.print_stat("entailed_prop_removal", name_of_entailed_removal());
     if(config.arch == Arch::BAREBONES) {
       auto max_var = find_maximize_var(*f_ptr);
       if(max_var.has_value()) {
