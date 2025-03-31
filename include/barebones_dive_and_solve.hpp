@@ -11,7 +11,7 @@
 #include <chrono>
 
 /** This is required in order to guess the usage of global memory, and increase it. */
-#define MAX_SEARCH_DEPTH 100000
+#define MAX_SEARCH_DEPTH 10000
 
 namespace bt = ::battery;
 
@@ -521,17 +521,19 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
   /** III. Size of the heap global memory.
    * The estimation is very conservative, normally we should not run out of memory.
    * */
-  size_t required_global_mem = std::max(deviceProp.totalGlobalMem / 2,
-    gpu_sizeof<UnifiedData>() + store_bytes * 5 + iprop_bytes +
+  size_t nblocks = static_cast<size_t>(cp.stats.num_blocks);
+  size_t estimated_global_mem = gpu_sizeof<UnifiedData>() + store_bytes * size_t{5} + iprop_bytes +
     gpu_sizeof<GridData>() +
-    cp.stats.num_blocks * gpu_sizeof<BlockData>() +
-    cp.stats.num_blocks * store_bytes * size_t{3} + // current, root, best.
-    cp.stats.num_blocks * iprop_bytes * size_t{2} +
-    cp.stats.num_blocks * cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<int>()  + // fixpoint engine
-    cp.stats.num_blocks * (gpu_sizeof<int>() + gpu_sizeof<LightBranch<Itv>>()) * size_t{MAX_SEARCH_DEPTH});
+    nblocks * gpu_sizeof<BlockData>() +
+    nblocks * store_bytes * size_t{3} + // current, root, best.
+    nblocks * iprop_bytes * size_t{2} +
+    nblocks * cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<int>()  + // fixpoint engine
+    nblocks * (gpu_sizeof<int>() + gpu_sizeof<LightBranch<Itv>>()) * size_t{MAX_SEARCH_DEPTH};
+  size_t required_global_mem = std::max(deviceProp.totalGlobalMem / 2, estimated_global_mem);
   CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, required_global_mem));
   cp.stats.print_memory_statistics(cp.config.verbose_solving, "heap_memory", required_global_mem);
   if(cp.config.verbose_solving) {
+    printf("%% estimated_global_mem=%zu\n", estimated_global_mem);
     printf("%% num_blocks=%d\n", cp.stats.num_blocks);
   }
   if(deviceProp.totalGlobalMem < required_global_mem) {
