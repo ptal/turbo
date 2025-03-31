@@ -54,11 +54,11 @@ struct MemoryConfig {
     }
 
     int alignment = 128; // just in case...
-    if(blocks_per_sm * (store_bytes + prop_bytes + alignment) < maxSharedMemPerSM) {
+    if(blocks_per_sm * (store_bytes + prop_bytes + alignment + attr.sharedSizeBytes) < maxSharedMemPerSM) {
       shared_bytes = store_bytes + prop_bytes + alignment;
       mem_kind = MemoryKind::TCN_SHARED;
     }
-    else if(blocks_per_sm * (store_bytes + alignment) < maxSharedMemPerSM) {
+    else if(blocks_per_sm * (store_bytes + alignment + attr.sharedSizeBytes) < maxSharedMemPerSM) {
       shared_bytes = store_bytes + alignment;
       mem_kind = MemoryKind::STORE_SHARED;
     }

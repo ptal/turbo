@@ -504,7 +504,7 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
   else {
     cp.stats.num_blocks = max_block_per_sm * deviceProp.multiProcessorCount;
   }
-  int blocks_per_sm = (cp.stats.num_blocks + deviceProp.multiProcessorCount) / deviceProp.multiProcessorCount;
+  int blocks_per_sm = (cp.stats.num_blocks + deviceProp.multiProcessorCount - 1) / deviceProp.multiProcessorCount;
 
   /** II. Configure the shared memory size. */
   size_t store_bytes = gpu_sizeof<IStore>() + gpu_sizeof<abstract_ptr<IStore>>() + cp.store->vars() * gpu_sizeof<Itv>();
@@ -774,8 +774,10 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
   {
     block_data.stats.num_blocks_done = 1;
   }
+  __syncthreads();
   fp_engine.destroy();
   block_data.deallocate_shared_data();
+  __syncthreads();
 }
 
 template <class FPEngine>
