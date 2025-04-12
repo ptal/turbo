@@ -91,7 +91,7 @@ struct Configuration {
         FixpointKind::AC1
       #endif
     ),
-    wac1_threshold(4096),
+    wac1_threshold(0),
     problem_path(alloc),
     version(alloc),
     hardware(alloc)
