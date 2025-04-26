@@ -219,7 +219,7 @@ struct Configuration {
   CUDA void print_mzn_statistics() const {
     printf("%%%%%%mzn-stat: problem_path=\"%s\"\n", problem_path.data());
     printf("%%%%%%mzn-stat: solver=\"Turbo\"\n");
-    printf("%%%%%%mzn-stat: version=\"%s\"\n", (version.size() == 0) ? "1.2.8" : version.data());
+    printf("%%%%%%mzn-stat: version=\"%s\"\n", (version.size() == 0) ? "1.2.9" : version.data());
     printf("%%%%%%mzn-stat: hardware=\"%s\"\n", (hardware.size() == 0) ? "unspecified" : hardware.data());
     printf("%%%%%%mzn-stat: arch=\"%s\"\n", name_of_arch(arch));
     printf("%%%%%%mzn-stat: fixpoint=\"%s\"\n", name_of_fixpoint(fixpoint));

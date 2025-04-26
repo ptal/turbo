@@ -11,6 +11,11 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
   CP<Itv> cp(config);
   cp.config.or_nodes = 1;
   cp.preprocess();
+  if(cp.iprop->is_bot()) {
+    cp.print_final_solution();
+    cp.print_mzn_statistics();
+    return;
+  }
 
   FixpointSubsetCPU<GaussSeidelIteration> fp_engine(cp.iprop->num_deductions());
   local::B has_changed = true;

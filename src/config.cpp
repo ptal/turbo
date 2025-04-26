@@ -9,7 +9,7 @@
 #include <algorithm>
 
 void usage_and_exit(const std::string& program_name) {
-  std::cout << "usage: " << program_name << " [-t 2000] [-a] [-n 10] [-i] [-f] [-s] [-v] [-p <i>] [-arch <cpu|hybrid|gpu|barebones>] [-p 48] [-or 48] [-sub 12] [-stack 100] [-fp <ac1|wac1>] [-wac1_threshold 4096]  [-network_analysis] [-cutnodes 0] [-disable_simplify] [-force_ternarize] [-globalmem] [-version 1.0.0] [xcsp3instance.xml | fzninstance.fzn]" << std::endl;
+  std::cout << "usage: " << program_name << " [-t 2000] [-a] [-n 10] [-i] [-f] [-s] [-v] [-p <i>] [-arch <cpu|hybrid|gpu|barebones>] [-p 48] [-or 48] [-sub 12] [-stack 100] [-fp <ac1|wac1>] [-wac1_threshold 0] [-network_analysis] [-cutnodes 0] [-disable_simplify] [-force_ternarize] [-globalmem] [-version 1.0.0] [xcsp3instance.xml | fzninstance.fzn]" << std::endl;
   std::cout << "\t-t 2000: Run the solver with a timeout of 2000 milliseconds." << std::endl;
   std::cout << "\t-timeout 2000: Same as -t, but if both -t and -timeout are specified, -timeout overrides -t." << std::endl;
   std::cout << "\t-a: Instructs the solver to report all solutions in the case of satisfaction problems, or print intermediate solutions of increasing quality in the case of optimisation problems." << std::endl;
@@ -24,9 +24,9 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-fp <ac1|wac1>: Choose the fixpoint strategy (default: ac1 on CPU, wac1 on GPU):" << std::endl;
   std::cout << "\t\t ac1: All propagators are executed in parallel at each iteration." << std::endl;
   std::cout << "\t\t wac1: Behave as ac1 when the number of active propagators is less than wac1_threshold. Otherwise,  each warp must reach a local fixpoint before executing the next 32 propagators (not compatible with -arch cpu)." << std::endl;
-  std::cout << "\t-wac1_threshold 4096: Threshold below which we select ac1 instead of wac1 (default: 4096)." << std::endl;
+  std::cout << "\t-wac1_threshold 4096: Threshold below which we select AC1 instead of WAC1 (default: 0)." << std::endl;
   std::cout << "\t-or 48: Run the subproblems on 48 streaming multiprocessors (SMs) (only for GPU architecture). Default: -or 0 for automatic selection of the number of SMs." << std::endl;
-  std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the 'OR threads' (embarrasingly parallel search). Default: -sub 12." << std::endl;
+  std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the 'OR threads' (embarrasingly parallel search). Default: -sub 15." << std::endl;
   std::cout << "\t-network_analysis: Analyse the constraint network and output statistics." << std::endl;
   std::cout << "\t-stack 100: Use a maximum of 100KB of stack size per thread stored in global memory (only for GPU architectures)." << std::endl;
   std::cout << "\t-version 1.0.0: A version identifier that is printed as statistics to know which version of Turbo was used to solve an instance. It is only for documentation and replicability purposes." << std::endl;
