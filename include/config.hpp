@@ -6,6 +6,7 @@
 #include "battery/allocator.hpp"
 #include "battery/string.hpp"
 #include <cinttypes>
+#include <optional>
 
 #ifdef __CUDACC__
   #include <cuda.h>
@@ -51,6 +52,8 @@ struct Configuration {
   Arch arch;
   FixpointKind fixpoint;
   size_t wac1_threshold;
+  battery::string<allocator_type> eps_var_order;
+  battery::string<allocator_type> eps_value_order;
   battery::string<allocator_type> problem_path;
   battery::string<allocator_type> version;
   battery::string<allocator_type> hardware;
@@ -92,6 +95,8 @@ struct Configuration {
       #endif
     ),
     wac1_threshold(0),
+    eps_value_order("default", alloc),
+    eps_var_order("default", alloc),
     problem_path(alloc),
     version(alloc),
     hardware(alloc)
@@ -120,6 +125,8 @@ struct Configuration {
     arch(other.arch),
     fixpoint(other.fixpoint),
     wac1_threshold(other.wac1_threshold),
+    eps_var_order(other.eps_var_order, alloc),
+    eps_value_order(other.eps_value_order, alloc),
     problem_path(other.problem_path, alloc),
     version(other.version, alloc),
     hardware(other.hardware, alloc)
@@ -145,6 +152,8 @@ struct Configuration {
     arch = other.arch;
     fixpoint = other.fixpoint;
     wac1_threshold = other.wac1_threshold;
+    eps_var_order = other.eps_var_order;
+    eps_value_order = other.eps_value_order;
     problem_path = other.problem_path;
     version = other.version;
     hardware = other.hardware;
@@ -178,6 +187,8 @@ struct Configuration {
     if(fixpoint == FixpointKind::WAC1) {
       printf("-wac1_threshold %" PRIu64 " ", wac1_threshold);
     }
+    printf("-eps_var_order %s ", eps_var_order.data());
+    printf("-eps_value_order %s ", eps_value_order.data());
     if(version.size() != 0) {
       printf("-version %s ", version.data());
     }
@@ -226,6 +237,8 @@ struct Configuration {
     if(fixpoint == FixpointKind::WAC1) {
       printf("%%%%%%mzn-stat: wac1_threshold=%" PRIu64 "\n", wac1_threshold);
     }
+    printf("%%%%%%mzn-stat: eps_var_order=\"%s\"\n", eps_var_order.data());
+    printf("%%%%%%mzn-stat: eps_value_order=\"%s\"\n", eps_value_order.data());
     printf("%%%%%%mzn-stat: free_search=\"%s\"\n", free_search ? "yes" : "no");
     printf("%%%%%%mzn-stat: or_nodes=%" PRIu64 "\n", or_nodes);
     printf("%%%%%%mzn-stat: timeout_ms=%" PRIu64 "\n", timeout_ms);

@@ -389,7 +389,7 @@ public:
     stats.constraints = iprop->num_deductions();
     bool can_interpret = true;
     /** We add a search strategy by default for the variables that potentially do not occur in the previous strategies.
-     * Note necessary with barebones architecture: it is taken into account by the algorithm.
+     * Not necessary with barebones architecture: it is taken into account by the algorithm.
      */
     can_interpret &= interpret_default_strategy<F>();
     return can_interpret;
@@ -613,6 +613,7 @@ public:
     else {
       preprocess_tcn(*f_ptr);
     }
+    push_eps_strategy();
     if(config.network_analysis) {
       if constexpr(use_ipc) {
         printf("%% WARNING: -network_analysis option is only valid with the PIR abstract domain.\n");
@@ -637,6 +638,23 @@ private:
       return false;
     }
     return true;
+  }
+
+  void push_eps_strategy() {
+    if(config.eps_var_order == "default") {
+      return;
+    }
+    auto var_strat = variable_order_of_string(config.eps_var_order);
+    if(!var_strat.has_value()) {
+      printf("Unrecognized option `-eps_var_order %s`\n", config.eps_var_order.data());
+      exit(EXIT_FAILURE);
+    }
+    auto value_strat = value_order_of_string(config.eps_value_order);
+    if(!value_strat.has_value()) {
+      printf("Unrecognized option `-eps_value_order %s`\n", config.eps_value_order.data());
+      exit(EXIT_FAILURE);
+    }
+    split->push_eps_strategy(var_strat.value(), value_strat.value());
   }
 
   struct vstat {

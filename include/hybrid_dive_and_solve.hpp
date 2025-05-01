@@ -367,6 +367,9 @@ void dive_and_solve(CPUData& global, size_t cube_idx)
     cube.stats.stop_timer(Timer::DIVE, dive_start);
     /** If we reached the subproblem without reaching a leaf node, we start the solving phase. */
     if(remaining_depth == 0) {
+      if(cube.config.eps_var_order != "default") {
+        cube.split->skip_eps_strategy();
+      }
       solve(global, cube_idx);
       /** If we didn't stop solving because of an external interruption, we increase the number of subproblems solved. */
       if(!global.cpu_stop.test()) {

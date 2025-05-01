@@ -401,6 +401,9 @@ struct GridData {
   */
   cuda::binary_semaphore<cuda::thread_scope_device> print_lock;
 
+  /** A specific strategy is used for the subproblem decomposition during the diving phase. */
+  bool has_eps_strategy;
+
   /** The search strategy is immutable and shared among the blocks. */
   strategies_type search_strategies;
 
@@ -414,6 +417,7 @@ struct GridData {
    : blocks(root.stats.num_blocks)
    , next_subproblem(root.stats.num_blocks)
    , print_lock(1)
+   , has_eps_strategy(root.config.eps_var_order != "default")
    , search_strategies(root.split->strategies_())
    , obj_var(root.minimize_obj_var)
   {}
@@ -689,6 +693,12 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
     else if(!stop) {
 
       // F. Solve the current subproblem.
+
+      // We skip the remaining of the EPS strategy if there is any.
+      if(threadIdx.x == 0 && grid_data->has_eps_strategy) {
+        block_data.current_strategy++;
+        block_data.next_unassigned_var = 0;
+      }
 
       while(!stop) {
 
