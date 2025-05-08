@@ -498,7 +498,6 @@ __global__ void gpu_solve_kernel(GridData<S>* grid_data)
     __syncthreads();
   }
   __syncthreads();
-  block_data.root->stats.stop_timer(Timer::SOLVE, solve_start);
   if(threadIdx.x == 0 && !*(block_data.stop)) {
     block_data.root->stats.num_blocks_done = 1;
   }

@@ -429,7 +429,6 @@ void dive_and_solve(CPUData& global, size_t cube_idx)
   global.gpu_cubes[cube_idx].ready_to_propagate.test_and_set(cuda::std::memory_order_seq_cst);
   global.gpu_cubes[cube_idx].ready_to_propagate.notify_one();
 
-  cube.stats.stop_timer(Timer::SOLVE, solving_start);
   /** We signal to the main thread that we have finished our work. */
   global.cpu_cubes[cube_idx].finished.test_and_set();
 }

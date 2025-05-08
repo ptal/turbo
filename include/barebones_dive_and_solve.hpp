@@ -10,7 +10,7 @@
 #include <thread>
 #include <chrono>
 
-/** This is required in order to guess the usage of global memory, and increase it. */
+/** This is required in order to guess the usage of global memory, and increase the CUDA default limit. */
 #define MAX_SEARCH_DEPTH 10000
 
 namespace bt = ::battery;
@@ -139,6 +139,9 @@ struct BlockData {
 
   /** A timer used for computing time statistics. */
   cuda::std::chrono::system_clock::time_point timer;
+
+  /** The time at which the kernel was started, useful to compute the time of the best bound. */
+  cuda::std::chrono::system_clock::time_point start_time;
 
   __device__ BlockData()
    : subproblem_idx(0)
@@ -460,12 +463,19 @@ void barebones_dive_and_solve(const Configuration<battery::standard_allocator>& 
       CUDA_THREADS_PER_BLOCK,
       mem_config.shared_bytes>>>
     (unified_data.get(), grid_data->get());
+  auto now = std::chrono::steady_clock::now();
+  int64_t time_to_kernel_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now - start).count();
   bool interrupted = wait_solving_ends(unified_data->stop, unified_data->root, start);
   CUDAEX(cudaDeviceSynchronize());
   reduce_blocks<<<1,1>>>(unified_data.get(), grid_data->get());
   CUDAEX(cudaDeviceSynchronize());
   auto& uroot = unified_data->root;
   if(uroot.stats.solutions > 0) {
+    // We add the time before the kernel starts to the time needed to find the best bound.
+    uroot.stats.timers.time_of(Timer::LATEST_BEST_OBJ_FOUND) += time_to_kernel_start;
+    if(uroot.stats.timers.time_of(Timer::FIRST_BLOCK_IDLE) != 0) {
+      uroot.stats.timers.time_of(Timer::FIRST_BLOCK_IDLE) += time_to_kernel_start;
+    }
     cp.print_solution(*uroot.best);
   }
   uroot.stats.print_mzn_final_separator();
@@ -606,6 +616,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
   auto group = cooperative_groups::this_thread_block();
   if(threadIdx.x == 0) {
     block_data.timer = block_data.stats.start_timer_device();
+    block_data.start_time = block_data.timer;
   }
   __syncthreads();
 
@@ -803,6 +814,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
       && !unified_data->stop.test())
   {
     block_data.stats.num_blocks_done = 1;
+    block_data.stats.timers.update_timer(Timer::FIRST_BLOCK_IDLE, block_data.start_time);
   }
   __syncthreads();
 #ifndef TURBO_NO_ENTAILED_PROP_REMOVAL
@@ -916,6 +928,7 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
       if(threadIdx.x == 0) {
         block_data.best_bound.meet(Itv::UB(block_data.store->project(grid_data.obj_var).lb().value()));
         grid_data.appx_best_bound.meet(block_data.best_bound);
+        block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);
       }
       block_data.store->copy_to(group, *block_data.best_store);
       if(threadIdx.x == 0) {
@@ -953,7 +966,13 @@ __global__ void reduce_blocks(UnifiedData* unified_data, GridData* grid_data) {
   auto& root = unified_data->root;
   for(int i = 0; i < grid_data->blocks.size(); ++i) {
     root.stats.meet(grid_data->blocks[i].stats);
+    int64_t& grid_first_block_idle = root.stats.timers.time_of(Timer::FIRST_BLOCK_IDLE);
+    int64_t block_idle = grid_data->blocks[i].stats.timers.time_of(Timer::FIRST_BLOCK_IDLE);
+    if(grid_first_block_idle > block_idle) {
+      grid_first_block_idle = block_idle;
+    }
   }
+  int best_block_idx = 0;
   for(int i = 0; i < grid_data->blocks.size(); ++i) {
     auto& block = grid_data->blocks[i];
     if(block.stats.solutions > 0) {
@@ -962,21 +981,20 @@ __global__ void reduce_blocks(UnifiedData* unified_data, GridData* grid_data) {
         break;
       }
       else {
-        grid_data->appx_best_bound.meet(block.best_bound);
+        bool equal_bound = (grid_data->appx_best_bound == block.best_bound);
+        bool is_better = grid_data->appx_best_bound.meet(block.best_bound);
+        int64_t& grid_best_time = root.stats.timers.time_of(Timer::LATEST_BEST_OBJ_FOUND);
+        int64_t block_best_time = block.stats.timers.time_of(Timer::LATEST_BEST_OBJ_FOUND);
+        if(is_better || (equal_bound && block_best_time < grid_best_time)) {
+          grid_best_time = block_best_time;
+          best_block_idx = i;
+        }
       }
     }
   }
   // If we found a bound, we copy the best store into the unified data.
   if(!grid_data->appx_best_bound.is_top()) {
-    for(int i = 0; i < grid_data->blocks.size(); ++i) {
-      auto& block = grid_data->blocks[i];
-      if(block.best_bound == grid_data->appx_best_bound
-       && block.best_store->project(grid_data->obj_var).lb() == block.best_bound)
-      {
-        block.best_store->copy_to(*root.best);
-        break;
-      }
-    }
+    grid_data->blocks[best_block_idx].best_store->copy_to(*root.best);
   }
 }
 

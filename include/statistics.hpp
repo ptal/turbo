@@ -12,7 +12,6 @@
 enum class Timer {
   OVERALL,
   PREPROCESSING,
-  SOLVE,
   SEARCH,
   // SPLIT,
   // PUSH,
@@ -23,6 +22,8 @@ enum class Timer {
   SELECT_FP_FUNCTIONS,
   WAIT_CPU,
   DIVE,
+  LATEST_BEST_OBJ_FOUND,
+  FIRST_BLOCK_IDLE,
   NUM_TIMERS
 };
 
@@ -88,6 +89,14 @@ public:
       return now;
     }
     return cuda::std::chrono::system_clock::time_point{};
+  }
+
+  __device__ void update_timer(Timer timer, cuda::std::chrono::system_clock::time_point start) {
+    if(threadIdx.x == 0) {
+      auto now = cuda::std::chrono::system_clock::now();
+      time_of(timer) = cuda::std::chrono::duration_cast<cuda::std::chrono::nanoseconds>(
+        now - start).count();
+    }
   }
 #endif
 
@@ -302,7 +311,7 @@ public:
     print_human_stat(verbose, "num_deductions", num_deductions);
 
     // Timing statistics
-    print_block_timing_stat("solve_time", Timer::SOLVE);
+    print_block_timing_stat("solve_time", Timer::OVERALL);
     print_block_timing_stat("search_time", Timer::SEARCH);
     // print_block_timing_stat("split_time", Timer::SPLIT);
     // print_block_timing_stat("push_time", Timer::PUSH);
@@ -313,6 +322,8 @@ public:
     print_block_timing_stat("select_fp_functions_time", Timer::SELECT_FP_FUNCTIONS);
     print_block_timing_stat("wait_cpu_time", Timer::WAIT_CPU);
     print_block_timing_stat("dive_time", Timer::DIVE);
+    print_timing_stat("best_obj_time", Timer::LATEST_BEST_OBJ_FOUND);
+    print_timing_stat("first_block_idle_time", Timer::FIRST_BLOCK_IDLE);
   }
 
   CUDA void print_mzn_end_stats() const {
