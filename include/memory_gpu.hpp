@@ -67,7 +67,7 @@ struct MemoryConfig {
       mem_kind = MemoryKind::GLOBAL;
     }
     if(shared_bytes != 0) {
-      cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, shared_bytes);
+      cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, blocks_per_sm * shared_bytes);
     }
   }
 

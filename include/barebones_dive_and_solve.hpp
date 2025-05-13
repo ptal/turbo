@@ -237,15 +237,16 @@ struct BlockData {
   {
     bool split_in_store = strategy.vars.empty();
     int n = split_in_store ? store->vars() : strategy.vars.size();
-    has_changed = true;
     if(threadIdx.x == 0) {
+      has_changed = true;
       idx = n;
     }
+    __syncthreads();
     while(has_changed) {
       __syncthreads();
       // int n = idx.value();
-      // __syncthreads();
       has_changed = false;
+      __syncthreads();
       for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
         if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()) {
@@ -258,9 +259,9 @@ struct BlockData {
     }
     if(threadIdx.x == 0) {
       next_unassigned_var = idx.value();
-    }
-    if(idx.value() != n) {
-      push_decision(strategy.val_order, split_in_store ? AVar{store->aty(), idx.value()} : strategy.vars[idx.value()]);
+      if(next_unassigned_var != n) {
+        push_decision(strategy.val_order, split_in_store ? AVar{store->aty(), next_unassigned_var} : strategy.vars[next_unassigned_var]);
+      }
     }
   }
 
@@ -274,107 +275,138 @@ struct BlockData {
   {
     using T = decltype(f(Itv{}));
     __shared__ T value;
-    bool split_in_store = strategy.vars.empty();
-    int n = split_in_store ? store->vars() : strategy.vars.size();
-    has_changed = true;
+    __syncthreads();
     if(threadIdx.x == 0) {
+      bool split_in_store = strategy.vars.empty();
+      int n = split_in_store ? store->vars() : strategy.vars.size();
       value = T::top();
-      idx = n;
-    }
-    /** This fixpoint loop seeks for the smallest `x` according to `f(x)` and the next unassigned variable. */
-    while(has_changed) {
-      __syncthreads();
-      has_changed = false;
-      for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
+      for(int i = next_unassigned_var; i < n; i++) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
         if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()) {
           if(value.meet(f(dom))) {
-            has_changed = true;
-          }
-          if(idx.meet(local::ZUB(i))) {
-            has_changed = true;
+            idx = i;
           }
         }
       }
-      __syncthreads();
-    }
-    /** If we found a value, we traverse again the variables' array to find its index. */
-    if(!value.is_top()) {
-      if(threadIdx.x == 0) {
-        next_unassigned_var = idx.value();
-        idx = n;
-      }
-      __syncthreads();
-      has_changed = true;
-      // This fixpoint loop is not strictly necessary.
-      // We keep it for determinism: the variable with the smallest index is selected first.
-      while(has_changed) {
-        int n = idx.value();
-        __syncthreads();
-        has_changed = false;
-        for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
-          const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-          if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top() && f(dom) == value) {
-            if(idx.meet(local::ZUB(i))) {
-              has_changed = true;
-            }
-          }
+      if(!value.is_top()) {
+        if(split_in_store) {
+          push_decision(strategy.val_order, AVar{store->aty(), idx.value()});
         }
-        __syncthreads();
+        else {
+          push_decision(strategy.val_order, strategy.vars[idx.value()]);
+        }
       }
-      assert(idx.value() < n);
-      push_decision(strategy.val_order, split_in_store ? AVar{store->aty(), idx.value()} : strategy.vars[idx.value()]);
     }
+    __syncthreads();
+    // if(threadIdx.x == 0) {
+    //   has_changed = true;
+    //   value = T::top();
+    //   idx = n;
+    // }
+    // __syncthreads();
+    // /** This fixpoint loop seeks for the smallest `x` according to `f(x)` and the next unassigned variable. */
+    // while(has_changed) {
+    //   __syncthreads();
+    //   has_changed = false;
+    //   __syncthreads();
+    //   for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
+    //     const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
+    //     if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()) {
+    //       if(value.meet(f(dom))) {
+    //         has_changed = true;
+    //       }
+    //       if(idx.meet(local::ZUB(i))) {
+    //         has_changed = true;
+    //       }
+    //     }
+    //   }
+    //   __syncthreads();
+    // }
+    // /** If we found a value, we traverse again the variables' array to find its index. */
+    // if(!value.is_top()) {
+    //   if(threadIdx.x == 0) {
+    //     next_unassigned_var = idx.value();
+    //     idx = n;
+    //     has_changed = true;
+    //   }
+    //   __syncthreads();
+    //   // This fixpoint loop is not strictly necessary.
+    //   // We keep it for determinism: the variable with the smallest index is selected first.
+    //   while(has_changed) {
+    //     // int n = idx.value();
+    //     __syncthreads();
+    //     has_changed = false;
+    //     __syncthreads();
+    //     for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
+    //       const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
+    //       if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top() && f(dom) == value) {
+    //         if(idx.meet(local::ZUB(i))) {
+    //           has_changed = true;
+    //         }
+    //       }
+    //     }
+    //     __syncthreads();
+    //   }
+    //   assert(idx.value() < n);
+    //   if(threadIdx.x == 0) {
+    //     if(split_in_store) {
+    //       push_decision(strategy.val_order, AVar{store->aty(), idx.value()});
+    //     }
+    //     else {
+    //       push_decision(strategy.val_order, strategy.vars[idx.value()]);
+    //     }
+    //   }
+    // }
   }
 
   /** Push a new decision onto the decisions stack.
    *  \precondition The domain of the variable `var` must not be empty, be a singleton or contain infinite bounds.
+   *  \precondition Must be executed by thread 0 only.
   */
   __device__ INLINE void push_decision(ValueOrder val_order, AVar var) {
     using value_type = typename Itv::LB::value_type;
-    if(threadIdx.x == 0) {
-      decisions[depth].var = var;
-      decisions[depth].current_idx = -1;
-      const auto& dom = store->project(decisions[depth].var);
-      assert(dom.lb().value() != dom.ub().value());
-      switch(val_order) {
-        case ValueOrder::MIN: {
-          decisions[depth].children[0] = Itv(dom.lb().value());
-          decisions[depth].children[1] = Itv(dom.lb().value() + value_type{1}, dom.ub());
-          break;
-        }
-        case ValueOrder::MAX: {
-          decisions[depth].children[0] = Itv(dom.ub().value());
-          decisions[depth].children[1] = Itv(dom.lb(), dom.ub().value() - value_type{1});
-          break;
-        }
-        case ValueOrder::SPLIT: {
-          auto mid = dom.lb().value() +  (dom.ub().value() - dom.lb().value()) / value_type{2};
-          decisions[depth].children[0] = Itv(dom.lb(), mid);
-          decisions[depth].children[1] = Itv(mid + value_type{1}, dom.ub());
-          break;
-        }
-        case ValueOrder::REVERSE_SPLIT: {
-          auto mid = dom.lb().value() +  (dom.ub().value() - dom.lb().value()) / value_type{2};
-          decisions[depth].children[0] = Itv(mid + value_type{1}, dom.ub());
-          decisions[depth].children[1] = Itv(dom.lb(), mid);
-          break;
-        }
-        // ValueOrder::MEDIAN is not possible with interval.
-        default: assert(false);
+    assert(threadIdx.x == 0);
+    decisions[depth].var = var;
+    decisions[depth].current_idx = -1;
+    const auto& dom = store->project(decisions[depth].var);
+    assert(dom.lb().value() != dom.ub().value());
+    switch(val_order) {
+      case ValueOrder::MIN: {
+        decisions[depth].children[0] = Itv(dom.lb().value());
+        decisions[depth].children[1] = Itv(dom.lb().value() + value_type{1}, dom.ub());
+        break;
       }
-      /** Ropes are a mechanism for fast backtracking.
-       * The rope of a left node is always the depth of the right node (also its depth), because after completing the exploration of the left subtree, we must visit the right subtree (rooted at the current depth).
-       * The rope of the right node is inherited from its parent, we set -1 if there is no next node to visit.
-       */
-      decisions[depth].ropes[0] = depth + 1;
-      decisions[depth].ropes[1] = depth > 0 ? decisions[depth-1].ropes[decisions[depth-1].current_idx] : -1;
-      ++depth;
-      // Reallocate decisions if needed.
-      if(decisions.size() == depth) {
-        printf("resize to %d\n", (int)decisions.size() * 2);
-        decisions.resize(decisions.size() * 2);
+      case ValueOrder::MAX: {
+        decisions[depth].children[0] = Itv(dom.ub().value());
+        decisions[depth].children[1] = Itv(dom.lb(), dom.ub().value() - value_type{1});
+        break;
       }
+      case ValueOrder::SPLIT: {
+        auto mid = dom.lb().value() +  (dom.ub().value() - dom.lb().value()) / value_type{2};
+        decisions[depth].children[0] = Itv(dom.lb(), mid);
+        decisions[depth].children[1] = Itv(mid + value_type{1}, dom.ub());
+        break;
+      }
+      case ValueOrder::REVERSE_SPLIT: {
+        auto mid = dom.lb().value() +  (dom.ub().value() - dom.lb().value()) / value_type{2};
+        decisions[depth].children[0] = Itv(mid + value_type{1}, dom.ub());
+        decisions[depth].children[1] = Itv(dom.lb(), mid);
+        break;
+      }
+      // ValueOrder::MEDIAN is not possible with interval.
+      default: assert(false);
+    }
+    /** Ropes are a mechanism for fast backtracking.
+     * The rope of a left node is always the depth of the right node (also its depth), because after completing the exploration of the left subtree, we must visit the right subtree (rooted at the current depth).
+     * The rope of the right node is inherited from its parent, we set -1 if there is no next node to visit.
+     */
+    decisions[depth].ropes[0] = depth + 1;
+    decisions[depth].ropes[1] = depth > 0 ? decisions[depth-1].ropes[decisions[depth-1].current_idx] : -1;
+    ++depth;
+    // Reallocate decisions if needed.
+    if(decisions.size() == depth) {
+      printf("resize to %d\n", (int)decisions.size() * 2);
+      decisions.resize(decisions.size() * 2);
     }
   }
 };
@@ -724,7 +756,12 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
           // If we are at the root of the current subproblem, we create a snapshot for future backtracking.
           if(block_data.depth == 0) {
             block_data.store->copy_to(group, *block_data.root_store);
+            if(threadIdx.x == 0) {
+              block_data.snapshot_root_strategy = block_data.current_strategy;
+              block_data.snapshot_next_unassigned_var = block_data.next_unassigned_var;
+            }
           }
+          __syncthreads();
           block_data.split(has_changed, grid_data->search_strategies);
           __syncthreads();
           // Split was not able to split a domain. It means that the search strategy is not complete due to unsplittable infinite domains.
@@ -732,13 +769,14 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
           if(block_data.decisions[block_data.depth - 1].var.is_untyped()) {
             is_leaf_node = true;
             block_data.stats.exhaustive = false;
+            if(threadIdx.x == 0) { printf("%% WARNING: infinite element detected during branching, search is not exhaustive\n");}
           }
           else if(threadIdx.x == 0) {
             // depth == 1 for root node because we just increased it in `block_data.split`.
-            if(block_data.depth == 1) {
-              block_data.snapshot_root_strategy = block_data.current_strategy;
-              block_data.snapshot_next_unassigned_var = block_data.next_unassigned_var;
-            }
+            // if(block_data.depth == 1) {
+            //   block_data.snapshot_root_strategy = block_data.current_strategy;
+            //   block_data.snapshot_next_unassigned_var = block_data.next_unassigned_var;
+            // }
             // Apply the decision.
             block_data.store->embed(block_data.decisions[block_data.depth-1].var, block_data.decisions[block_data.depth-1].next());
             // printf("left decision: %d [", block_data.decisions[block_data.depth - 1].var.vid()); block_data.decisions[block_data.depth - 1].current().print(); printf("]\n");
@@ -917,7 +955,7 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
       }
     }
     __syncthreads();
-    num_active = has_changed;
+    num_active = has_changed ? 1 : 0;
 #else
     fp_engine.select([&](int i) { return !iprop.ask(i); });
     num_active = fp_engine.num_active();
@@ -931,6 +969,7 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
         block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);
       }
       block_data.store->copy_to(group, *block_data.best_store);
+      __syncthreads();
       if(threadIdx.x == 0) {
         block_data.stats.solutions++;
         if(config.verbose_solving >= 2) {
@@ -985,7 +1024,7 @@ __global__ void reduce_blocks(UnifiedData* unified_data, GridData* grid_data) {
         bool is_better = grid_data->appx_best_bound.meet(block.best_bound);
         int64_t& grid_best_time = root.stats.timers.time_of(Timer::LATEST_BEST_OBJ_FOUND);
         int64_t block_best_time = block.stats.timers.time_of(Timer::LATEST_BEST_OBJ_FOUND);
-        if(is_better || (equal_bound && block_best_time < grid_best_time)) {
+        if(is_better || (equal_bound && block_best_time <= grid_best_time)) {
           grid_best_time = block_best_time;
           best_block_idx = i;
         }
