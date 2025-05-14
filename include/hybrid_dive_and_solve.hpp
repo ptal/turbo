@@ -448,6 +448,7 @@ size_t dive(CPUData& global, size_t cube_idx) {
   /** The number of iterations depends on the length of the diving path. */
   while(remaining_depth > 0 && !stop_diving && !global.cpu_stop.test()) {
     bool is_leaf_node = propagate(global, cube_idx);
+    // printf("[dive] %d: ", (int)remaining_depth); cube.store->print();
     auto start = cube.stats.start_timer_host();
     /** If we reach a leaf node before the end of the path, we stop and the remaining depth is reported to the caller. */
     if(is_leaf_node) {

@@ -224,8 +224,8 @@ struct BlockData {
         current_strategy++;
         next_unassigned_var = 0;
       }
-      // `input_order_split` and `lattice_smallest_split` have a `__syncthreads()` before reading next_unassigned_var.
     }
+    // `input_order_split` and `lattice_smallest_split` have a `__syncthreads()` before reading next_unassigned_var.
   }
 
   /** Select the next unassigned variable with a finite interval in the array `strategy.vars()` or `store` if the previous one is empty.
@@ -245,7 +245,9 @@ struct BlockData {
     while(has_changed) {
       __syncthreads();
       // int n = idx.value();
-      has_changed = false;
+      if(threadIdx.x == 0) {
+        has_changed = false;
+      }
       __syncthreads();
       for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
@@ -275,20 +277,63 @@ struct BlockData {
   {
     using T = decltype(f(Itv{}));
     __shared__ T value;
+    bool split_in_store = strategy.vars.empty();
+    int n = split_in_store ? store->vars() : strategy.vars.size();
     __syncthreads();
     if(threadIdx.x == 0) {
-      bool split_in_store = strategy.vars.empty();
-      int n = split_in_store ? store->vars() : strategy.vars.size();
+      has_changed = true;
       value = T::top();
-      for(int i = next_unassigned_var; i < n; i++) {
+      idx = n;
+    }
+    __syncthreads();
+    /** This fixpoint loop seeks for the smallest `x` according to `f(x)` and the next unassigned variable. */
+    while(has_changed) {
+      __syncthreads();
+      if(threadIdx.x == 0) {
+        has_changed = false;
+      }
+      __syncthreads();
+      for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
         if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()) {
           if(value.meet(f(dom))) {
-            idx = i;
+            has_changed = true;
+          }
+          if(idx.meet(local::ZUB(i))) {
+            has_changed = true;
           }
         }
       }
-      if(!value.is_top()) {
+      __syncthreads();
+    }
+    /** If we found a value, we traverse again the variables' array to find its index. */
+    if(!value.is_top()) {
+      __syncthreads();
+      if(threadIdx.x == 0) {
+        next_unassigned_var = idx.value();
+        idx = n;
+        has_changed = true;
+      }
+      __syncthreads();
+      // This fixpoint loop is not strictly necessary.
+      // We keep it for determinism: the variable with the smallest index is selected first.
+      while(has_changed) {
+        // int n = idx.value();
+        __syncthreads();
+        has_changed = false;
+        __syncthreads();
+        for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
+          const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
+          if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top() && f(dom) == value) {
+            if(idx.meet(local::ZUB(i))) {
+              has_changed = true;
+            }
+          }
+        }
+        __syncthreads();
+      }
+      assert(idx.value() < n);
+      if(threadIdx.x == 0) {
         if(split_in_store) {
           push_decision(strategy.val_order, AVar{store->aty(), idx.value()});
         }
@@ -297,66 +342,6 @@ struct BlockData {
         }
       }
     }
-    __syncthreads();
-    // if(threadIdx.x == 0) {
-    //   has_changed = true;
-    //   value = T::top();
-    //   idx = n;
-    // }
-    // __syncthreads();
-    // /** This fixpoint loop seeks for the smallest `x` according to `f(x)` and the next unassigned variable. */
-    // while(has_changed) {
-    //   __syncthreads();
-    //   has_changed = false;
-    //   __syncthreads();
-    //   for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
-    //     const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-    //     if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()) {
-    //       if(value.meet(f(dom))) {
-    //         has_changed = true;
-    //       }
-    //       if(idx.meet(local::ZUB(i))) {
-    //         has_changed = true;
-    //       }
-    //     }
-    //   }
-    //   __syncthreads();
-    // }
-    // /** If we found a value, we traverse again the variables' array to find its index. */
-    // if(!value.is_top()) {
-    //   if(threadIdx.x == 0) {
-    //     next_unassigned_var = idx.value();
-    //     idx = n;
-    //     has_changed = true;
-    //   }
-    //   __syncthreads();
-    //   // This fixpoint loop is not strictly necessary.
-    //   // We keep it for determinism: the variable with the smallest index is selected first.
-    //   while(has_changed) {
-    //     // int n = idx.value();
-    //     __syncthreads();
-    //     has_changed = false;
-    //     __syncthreads();
-    //     for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
-    //       const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-    //       if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top() && f(dom) == value) {
-    //         if(idx.meet(local::ZUB(i))) {
-    //           has_changed = true;
-    //         }
-    //       }
-    //     }
-    //     __syncthreads();
-    //   }
-    //   assert(idx.value() < n);
-    //   if(threadIdx.x == 0) {
-    //     if(split_in_store) {
-    //       push_decision(strategy.val_order, AVar{store->aty(), idx.value()});
-    //     }
-    //     else {
-    //       push_decision(strategy.val_order, strategy.vars[idx.value()]);
-    //     }
-    //   }
-    // }
   }
 
   /** Push a new decision onto the decisions stack.
@@ -403,6 +388,11 @@ struct BlockData {
     decisions[depth].ropes[0] = depth + 1;
     decisions[depth].ropes[1] = depth > 0 ? decisions[depth-1].ropes[decisions[depth-1].current_idx] : -1;
     ++depth;
+    // printf("depth(%d), var = %d, children = [%d, %d] | [%d, %d], ropes = [%d, %d]\n",
+    //   depth, decisions[depth-1].var.vid(),
+    //   (int)decisions[depth-1].children[0].lb().value(), (int)decisions[depth-1].children[0].ub().value(),
+    //   (int)decisions[depth-1].children[1].lb().value(), (int)decisions[depth-1].children[1].ub().value(),
+    //   decisions[depth-1].ropes[0], decisions[depth-1].ropes[1]);
     // Reallocate decisions if needed.
     if(decisions.size() == depth) {
       printf("resize to %d\n", (int)decisions.size() * 2);
@@ -676,8 +666,18 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
     // D. Dive into the search tree until we reach the target subproblem.
 
     remaining_depth = config.subproblems_power;
-    is_leaf_node = false;
+    if(threadIdx.x == 0) {
+      is_leaf_node = false;
+    }
+    __syncthreads();
     while(remaining_depth > 0 && !is_leaf_node && !stop) {
+      // __syncthreads();
+      // if(threadIdx.x == 0) {
+      //   printf("[dive] %d: ", remaining_depth);
+      //   block_data.store->print();
+      //   printf("unified_data: "); unified_data->root.store->print(); printf("\n");
+      // }
+      __syncthreads();
       propagate(*unified_data, *grid_data, block_data, fp_engine, stop, has_changed, is_leaf_node);
       __syncthreads();
       if(!is_leaf_node) {
@@ -688,6 +688,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
         if(block_data.decisions[0].var.is_untyped()) {
           is_leaf_node = true;
           block_data.stats.exhaustive = false;
+          if(threadIdx.x == 0 && config.verbose_solving >= 1) { printf("%% WARNING: infinite element detected during branching, search is not exhaustive\n");}
         }
         else if(threadIdx.x == 0) {
           --remaining_depth;
@@ -700,6 +701,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
            */
           size_t branch_idx = (block_data.subproblem_idx & (size_t{1} << remaining_depth)) >> remaining_depth;
           /** We immediately commit to the branch. */
+          // printf("split on %d (", block_data.decisions[0].var.vid()); block_data.store->project(block_data.decisions[0].var).print(); printf(")\n");
           block_data.store->embed(block_data.decisions[0].var, block_data.decisions[0].children[branch_idx]);
         }
       }
@@ -739,18 +741,40 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
 
       // We skip the remaining of the EPS strategy if there is any.
       if(threadIdx.x == 0 && grid_data->has_eps_strategy) {
-        block_data.current_strategy++;
+        block_data.current_strategy = battery::max(1, block_data.current_strategy);
         block_data.next_unassigned_var = 0;
       }
 
       while(!stop) {
 
-        // I. Propagate the current node.
+        // I. Optimize the objective variable (only if not diving).
 
+        if(threadIdx.x == 0 && !grid_data->obj_var.is_untyped()) {
+          /** Before propagating, we update the local bound with the best known global bound.
+           * Strenghten the objective variable to get a better objective next time.
+           */
+          if(!grid_data->appx_best_bound.is_top()) {
+            block_data.store->embed(grid_data->obj_var,
+              Itv(Itv::LB::top(), Itv::UB(grid_data->appx_best_bound.value() - 1)));
+            block_data.store->embed(grid_data->obj_var,
+              Itv(Itv::LB::top(), Itv::UB(block_data.best_bound.value() - 1)));
+          }
+          // Unconstrained objective, can terminate, we will not find a better solution.
+          if(grid_data->appx_best_bound.is_bot()) {
+            stop = true;
+            unified_data->stop.test_and_set();
+          }
+        }
+        __syncthreads();
+        if(stop) {
+          break;
+        }
+
+        // II. Propagate the current node.
         propagate(*unified_data, *grid_data, block_data, fp_engine, stop, has_changed, is_leaf_node);
         __syncthreads();
 
-        // II. Branching
+        // III. Branching
 
         if(!is_leaf_node) {
           // If we are at the root of the current subproblem, we create a snapshot for future backtracking.
@@ -769,7 +793,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
           if(block_data.decisions[block_data.depth - 1].var.is_untyped()) {
             is_leaf_node = true;
             block_data.stats.exhaustive = false;
-            if(threadIdx.x == 0) { printf("%% WARNING: infinite element detected during branching, search is not exhaustive\n");}
+            if(threadIdx.x == 0 && config.verbose_solving >= 1) { printf("%% WARNING: infinite element detected during branching, search is not exhaustive\n");}
           }
           else if(threadIdx.x == 0) {
             // depth == 1 for root node because we just increased it in `block_data.split`.
@@ -778,12 +802,13 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
             //   block_data.snapshot_next_unassigned_var = block_data.next_unassigned_var;
             // }
             // Apply the decision.
+            // printf("split on %d (", block_data.decisions[block_data.depth-1].var.vid()); block_data.store->project(block_data.decisions[block_data.depth-1].var).print(); printf(")\n");
             block_data.store->embed(block_data.decisions[block_data.depth-1].var, block_data.decisions[block_data.depth-1].next());
             // printf("left decision: %d [", block_data.decisions[block_data.depth - 1].var.vid()); block_data.decisions[block_data.depth - 1].current().print(); printf("]\n");
           }
         }
 
-        // III. Backtracking
+        // IV. Backtracking
 
         if(is_leaf_node) {
 
@@ -807,10 +832,21 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
           fp_engine.reset(iprop.num_deductions());
 #endif
           block_data.root_store->copy_to(group, *block_data.store);
-          has_changed = true;
+          // __syncthreads();
+          // if(threadIdx.x == 0) {
+          //   printf("%d: restoring store: ", block_data.depth); block_data.store->print(); printf("\n");
+          // }
+          // __syncthreads();
+          if(threadIdx.x == 0) {
+            has_changed = true;
+          }
+          __syncthreads();
           while(has_changed) {
             __syncthreads();
-            has_changed = false;
+            if(threadIdx.x == 0) {
+              has_changed = false;
+            }
+            __syncthreads();
             for(int i = threadIdx.x; i < block_data.depth - 1; i += blockDim.x) {
               if(block_data.store->embed(block_data.decisions[i].var, block_data.decisions[i].current())) {
                 has_changed = true;
@@ -824,6 +860,11 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
             block_data.current_strategy = block_data.snapshot_root_strategy;
             block_data.next_unassigned_var = block_data.snapshot_next_unassigned_var;
           }
+          // __syncthreads();
+          // if(threadIdx.x == 0) {
+          //   printf("%d: reapplied decisions: ", block_data.depth); block_data.store->print(); printf("\n");
+          // }
+          // __syncthreads();
         }
       }
       /** If we didn't stop solving because of an external interruption, we increase the number of subproblems solved. */
@@ -872,27 +913,10 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
   IProp& iprop = *block_data.iprop;
   auto group = cooperative_groups::this_thread_block();
 
-  // I. Optimize the objective variable.
-
-  if(threadIdx.x == 0 && !grid_data.obj_var.is_untyped()) {
-    /** Before propagating, we update the local bound with the best known global bound.
-     * Strenghten the objective variable to get a better objective next time.
-     */
-    if(!grid_data.appx_best_bound.is_top()) {
-      block_data.store->embed(grid_data.obj_var,
-        Itv(Itv::LB::top(), Itv::UB(grid_data.appx_best_bound.value() - 1)));
-      block_data.store->embed(grid_data.obj_var,
-        Itv(Itv::LB::top(), Itv::UB(block_data.best_bound.value() - 1)));
-    }
-  }
-  __syncthreads();
-  // Unconstrained objective, can terminate, we will not find a better solution.
-  if(grid_data.appx_best_bound.is_bot()) {
-    stop = true;
-    return;
-  }
   TIMEPOINT(SEARCH);
-  is_leaf_node = false;
+  if(threadIdx.x == 0) {
+    is_leaf_node = false;
+  }
 
   // II. Compute the fixpoint of the current node.
   int fp_iterations;
@@ -948,7 +972,10 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
 
   if(!iprop.is_bot()) {
 #ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
-    has_changed = false;
+    if(threadIdx.x == 0) {
+      has_changed = false;
+    }
+    __syncthreads();
     for(int i = threadIdx.x; !has_changed && i < iprop.num_deductions(); i += blockDim.x) {
       if(!iprop.ask(i)) {
         has_changed = true;
@@ -961,21 +988,26 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
     num_active = fp_engine.num_active();
 #endif
     TIMEPOINT(SELECT_FP_FUNCTIONS);
+    /** Whenever we reach a solution node, we must have a bound better than the best bound of the local block.
+     * Note that it doesn't mean the best bound of the block must be the best bound of the grid.
+     * It is to prevent copying a store with a worst bound into `best_store`.
+     */
     if(num_active == 0) {
       is_leaf_node = true;
-      if(threadIdx.x == 0) {
-        block_data.best_bound.meet(Itv::UB(block_data.store->project(grid_data.obj_var).lb().value()));
-        grid_data.appx_best_bound.meet(block_data.best_bound);
-        block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);
-      }
-      block_data.store->copy_to(group, *block_data.best_store);
-      __syncthreads();
-      if(threadIdx.x == 0) {
-        block_data.stats.solutions++;
-        if(config.verbose_solving >= 2) {
-          grid_data.print_lock.acquire();
-          printf("%% objective="); block_data.best_bound.print(); printf("\n");
-          grid_data.print_lock.release();
+      if(block_data.best_bound.value() > block_data.store->project(grid_data.obj_var).lb().value()) {
+        if(threadIdx.x == 0) {
+          block_data.best_bound.meet(Itv::UB(block_data.store->project(grid_data.obj_var).lb().value()));
+          grid_data.appx_best_bound.meet(block_data.best_bound);
+          block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);
+        }
+        block_data.store->copy_to(group, *block_data.best_store);
+        if(threadIdx.x == 0) {
+          block_data.stats.solutions++;
+          if(config.verbose_solving >= 2) {
+            grid_data.print_lock.acquire();
+            printf("%% objective="); block_data.best_bound.print(); printf("\n");
+            grid_data.print_lock.release();
+          }
         }
       }
     }
