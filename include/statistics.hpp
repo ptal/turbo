@@ -335,10 +335,10 @@ public:
     if(!print_statistics) { return; }
     printf("%%%%%%mzn-stat: objective=");
     if(is_minimization) {
-      obj.lb().template deinterpret<lala::TFormula<battery::standard_allocator>>().print(false);
+      obj.lb().print();
     }
     else {
-      obj.ub().template deinterpret<lala::TFormula<battery::standard_allocator>>().print(false);
+      obj.ub().value();
     }
     printf("\n");
   }
