@@ -338,7 +338,7 @@ public:
       obj.lb().print();
     }
     else {
-      obj.ub().value();
+      obj.ub().print();
     }
     printf("\n");
   }
