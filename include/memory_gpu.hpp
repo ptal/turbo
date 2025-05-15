@@ -53,21 +53,33 @@ struct MemoryConfig {
       printf("%% static_shared_memory=%zu\n", attr.sharedSizeBytes);
     }
 
+    int maxTurboSharedMemPerSM = maxSharedMemPerSM;
     int alignment = 128; // just in case...
-    if(blocks_per_sm * (store_bytes + prop_bytes + alignment + attr.sharedSizeBytes) < maxSharedMemPerSM) {
-      shared_bytes = store_bytes + prop_bytes + alignment;
-      mem_kind = MemoryKind::TCN_SHARED;
-    }
-    else if(blocks_per_sm * (store_bytes + alignment + attr.sharedSizeBytes) < maxSharedMemPerSM) {
-      shared_bytes = store_bytes + alignment;
-      mem_kind = MemoryKind::STORE_SHARED;
-    }
-    else {
-      shared_bytes = 0;
-      mem_kind = MemoryKind::GLOBAL;
-    }
-    if(shared_bytes != 0) {
-      cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, blocks_per_sm * shared_bytes);
+    bool success = false;
+    while(!success) {
+      success = true;
+      if(blocks_per_sm * (store_bytes + prop_bytes + alignment + attr.sharedSizeBytes) < maxTurboSharedMemPerSM) {
+        shared_bytes = store_bytes + prop_bytes + alignment;
+        mem_kind = MemoryKind::TCN_SHARED;
+      }
+      else if(blocks_per_sm * (store_bytes + alignment + attr.sharedSizeBytes) < maxTurboSharedMemPerSM) {
+        shared_bytes = store_bytes + alignment;
+        mem_kind = MemoryKind::STORE_SHARED;
+      }
+      else {
+        shared_bytes = 0;
+        mem_kind = MemoryKind::GLOBAL;
+      }
+      if(shared_bytes != 0) {
+        cudaError_t err = cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, blocks_per_sm * shared_bytes);
+        if(err != cudaSuccess) {
+          success = false;
+          maxTurboSharedMemPerSM = maxTurboSharedMemPerSM / 10 * 9;
+          if(verbose >= 1) {
+            printf("%% INFO: Could not reserve %zu bytes of dynamic shared memory. Therefore, we decrease by 10% the maximum shared memory Turbo can use.\n", blocks_per_sm * shared_bytes);
+          }
+        }
+      }
     }
   }
 
