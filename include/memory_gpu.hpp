@@ -76,7 +76,7 @@ struct MemoryConfig {
           success = false;
           maxTurboSharedMemPerSM = maxTurboSharedMemPerSM / 10 * 9;
           if(verbose >= 1) {
-            printf("%% INFO: Could not reserve %zu bytes of dynamic shared memory. Therefore, we decrease by 10% the maximum shared memory Turbo can use.\n", blocks_per_sm * shared_bytes);
+            printf("%% INFO: Could not reserve %zu bytes of dynamic shared memory. Therefore, we decrease by 10%% the maximum shared memory Turbo can use.\n", blocks_per_sm * shared_bytes);
           }
         }
       }
