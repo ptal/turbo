@@ -533,7 +533,10 @@ public:
       has_changed = false;
       preprocessing_fixpoint_iterations++;
       SimplifierStats local_preprocessing_stats;
-      fp_engine.fixpoint(iprop->num_deductions(), [&](size_t i) { return iprop->deduce(i); }, has_changed);
+      fp_engine.fixpoint(iprop->num_deductions(),
+        [&](size_t i) { return iprop->deduce(i); },
+        [&](){ return iprop->is_bot(); },
+        has_changed);
       if(has_changed) {
         simplifier->meet_equivalence_classes();
       }
