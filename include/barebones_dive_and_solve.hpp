@@ -459,7 +459,7 @@ __global__ void deallocate_global_data(bt::unique_ptr<GridData, bt::global_alloc
 
 void barebones_dive_and_solve(const Configuration<battery::standard_allocator>& config) {
   if(config.print_intermediate_solutions) {
-    printf("%% WARNING: -arch barebones is incompatible with -i and -a (it cannot print intermediate solutions).");
+    printf("%% WARNING: -arch barebones is incompatible with -i and -a (it cannot print intermediate solutions).\n");
   }
   auto start = std::chrono::steady_clock::now();
   check_support_managed_memory();
