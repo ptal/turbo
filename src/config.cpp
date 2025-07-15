@@ -9,7 +9,7 @@
 #include <algorithm>
 
 void usage_and_exit(const std::string& program_name) {
-  std::cout << "usage: " << program_name << " [-t 2000] [-a] [-n 10] [-i] [-f] [-s] [-v] [-p <i>] [-arch <cpu|hybrid|gpu|barebones>] [-p 48] [-or 48] [-sub 12] [-stack 100] [-fp <ac1|wac1>] [-wac1_threshold 0] [-eps_var_order <input_order|first_fail|anti_first_fail|smallest|largest>] [-eps_value_order <min|max|split|reverse_split>] [-network_analysis] [-cutnodes 0] [-disable_simplify] [-force_ternarize] [-globalmem] [-version 1.0.0] [xcsp3instance.xml | fzninstance.fzn]" << std::endl;
+  std::cout << "usage: " << program_name << " [-t 2000] [-a] [-n 10] [-i] [-f] [-s] [-v] [-p <i>] [-arch <cpu|hybrid|gpu|barebones>] [-p 48] [-or 48] [-sub 12] [-stack 100] [-fp <ac1|wac1>] [-wac1_threshold 0] [-eps_var_order <input_order|first_fail|anti_first_fail|smallest|largest>] [-eps_value_order <min|max|split|reverse_split>] [-seed 0] [-network_analysis] [-cutnodes 0] [-disable_simplify] [-force_ternarize] [-globalmem] [-version 1.0.0] [xcsp3instance.xml | fzninstance.fzn]" << std::endl;
   std::cout << "\t-t 2000: Run the solver with a timeout of 2000 milliseconds." << std::endl;
   std::cout << "\t-timeout 2000: Same as -t, but if both -t and -timeout are specified, -timeout overrides -t." << std::endl;
   std::cout << "\t-a: Instructs the solver to report all solutions in the case of satisfaction problems, or print intermediate solutions of increasing quality in the case of optimisation problems." << std::endl;
@@ -27,8 +27,9 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-wac1_threshold 4096: Threshold below which we select AC1 instead of WAC1 (default: 0)." << std::endl;
   std::cout << "\t-or 48: Run the subproblems on 48 streaming multiprocessors (SMs) (only for GPU architecture). Default: -or 0 for automatic selection of the number of SMs." << std::endl;
   std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the 'OR threads' (embarrasingly parallel search). Default: -sub 15." << std::endl;
-  std::cout << "\t-eps_var_order <input_order|first_fail|anti_first_fail|smallest|largest>: Choose the variable ordering strategy for subproblems decomposition (default: same as main search strategy)." << std::endl;
+  std::cout << "\t-eps_var_order <input_order|first_fail|anti_first_fail|smallest|largest|random>: Choose the variable ordering strategy for subproblems decomposition (default: same as main search strategy)." << std::endl;
   std::cout << "\t-eps_value_order <min|max|split|reverse_split>: Choose the value ordering strategy for subproblems decomposition (default: same as main search strategy)." << std::endl;
+  std::cout << "\t-seed 0: Set the seed for the random number generator (default: 0)." << std::endl;
   std::cout << "\t-network_analysis: Analyse the constraint network and output statistics." << std::endl;
   std::cout << "\t-stack 100: Use a maximum of 100KB of stack size per thread stored in global memory (only for GPU architectures)." << std::endl;
   std::cout << "\t-version 1.0.0: A version identifier that is printed as statistics to know which version of Turbo was used to solve an instance. It is only for documentation and replicability purposes." << std::endl;
@@ -139,6 +140,7 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
   input.read_size_t("-stack", config.stack_kb);
   input.read_size_t("-n", config.stop_after_n_solutions);
   input.read_size_t("-cutnodes", config.stop_after_n_nodes);
+  input.read_size_t("-seed", config.seed);
   input.read_bool("-i", config.print_intermediate_solutions);
   bool all_sols;
   input.read_bool("-a", all_sols);

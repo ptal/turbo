@@ -52,6 +52,7 @@ struct Configuration {
   Arch arch;
   FixpointKind fixpoint;
   size_t wac1_threshold;
+  size_t seed;
   battery::string<allocator_type> eps_var_order;
   battery::string<allocator_type> eps_value_order;
   battery::string<allocator_type> problem_path;
@@ -95,6 +96,7 @@ struct Configuration {
       #endif
     ),
     wac1_threshold(0),
+    seed(0),
     eps_value_order("default", alloc),
     eps_var_order("default", alloc),
     problem_path(alloc),
@@ -125,6 +127,7 @@ struct Configuration {
     arch(other.arch),
     fixpoint(other.fixpoint),
     wac1_threshold(other.wac1_threshold),
+    seed(other.seed),
     eps_var_order(other.eps_var_order, alloc),
     eps_value_order(other.eps_value_order, alloc),
     problem_path(other.problem_path, alloc),
@@ -152,6 +155,7 @@ struct Configuration {
     arch = other.arch;
     fixpoint = other.fixpoint;
     wac1_threshold = other.wac1_threshold;
+    seed = other.seed;
     eps_var_order = other.eps_var_order;
     eps_value_order = other.eps_value_order;
     problem_path = other.problem_path;
@@ -187,6 +191,7 @@ struct Configuration {
     if(fixpoint == FixpointKind::WAC1) {
       printf("-wac1_threshold %" PRIu64 " ", wac1_threshold);
     }
+    printf("-seed %" PRIu64 " ", seed);
     printf("-eps_var_order %s ", eps_var_order.data());
     printf("-eps_value_order %s ", eps_value_order.data());
     if(version.size() != 0) {
@@ -237,6 +242,7 @@ struct Configuration {
     if(fixpoint == FixpointKind::WAC1) {
       printf("%%%%%%mzn-stat: wac1_threshold=%" PRIu64 "\n", wac1_threshold);
     }
+    printf("%%%%%%mzn-stat: seed=%" PRIu64 "\n", seed);
     printf("%%%%%%mzn-stat: eps_var_order=\"%s\"\n", eps_var_order.data());
     printf("%%%%%%mzn-stat: eps_value_order=\"%s\"\n", eps_value_order.data());
     printf("%%%%%%mzn-stat: free_search=\"%s\"\n", free_search ? "yes" : "no");

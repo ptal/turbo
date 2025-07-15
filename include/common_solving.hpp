@@ -617,6 +617,7 @@ public:
       preprocess_tcn(*f_ptr);
     }
     push_eps_strategy();
+    split->shuffle_random_strategies(config.seed);
     if(config.network_analysis) {
       if constexpr(use_ipc) {
         printf("%% WARNING: -network_analysis option is only valid with the PIR abstract domain.\n");
