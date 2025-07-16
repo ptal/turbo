@@ -140,6 +140,9 @@ struct BlockData {
   /** A timer used for computing time statistics. */
   cuda::std::chrono::system_clock::time_point timer;
 
+  /** A timer used for computing diving VS search time statistics. */
+  cuda::std::chrono::system_clock::time_point dive_timer;
+
   /** The time at which the kernel was started, useful to compute the time of the best bound. */
   cuda::std::chrono::system_clock::time_point start_time;
 
@@ -664,19 +667,13 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
     __syncthreads();
 
     // D. Dive into the search tree until we reach the target subproblem.
-
     remaining_depth = config.subproblems_power;
     if(threadIdx.x == 0) {
+      block_data.dive_timer = block_data.stats.start_timer_device();
       is_leaf_node = false;
     }
     __syncthreads();
     while(remaining_depth > 0 && !is_leaf_node && !stop) {
-      // __syncthreads();
-      // if(threadIdx.x == 0) {
-      //   printf("[dive] %d: ", remaining_depth);
-      //   block_data.store->print();
-      //   printf("unified_data: "); unified_data->root.store->print(); printf("\n");
-      // }
       __syncthreads();
       propagate(*unified_data, *grid_data, block_data, fp_engine, stop, has_changed, is_leaf_node);
       __syncthreads();
@@ -707,7 +704,9 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
       }
       __syncthreads();
     }
-
+    if(threadIdx.x == 0) {
+      block_data.stats.stop_timer(Timer::DIVE, block_data.dive_timer);
+    }
     // E. Skip subproblems that are not reachable.
 
     /** If we reached a leaf node before the subproblem was reached, then it means a whole subtree should be skipped. */
@@ -796,11 +795,6 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
             if(threadIdx.x == 0 && config.verbose_solving >= 1) { printf("%% WARNING: infinite element detected during branching, search is not exhaustive\n");}
           }
           else if(threadIdx.x == 0) {
-            // depth == 1 for root node because we just increased it in `block_data.split`.
-            // if(block_data.depth == 1) {
-            //   block_data.snapshot_root_strategy = block_data.current_strategy;
-            //   block_data.snapshot_next_unassigned_var = block_data.next_unassigned_var;
-            // }
             // Apply the decision.
             // printf("split on %d (", block_data.decisions[block_data.depth-1].var.vid()); block_data.store->project(block_data.decisions[block_data.depth-1].var).print(); printf(")\n");
             block_data.store->embed(block_data.decisions[block_data.depth-1].var, block_data.decisions[block_data.depth-1].next());
@@ -811,10 +805,6 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
         // IV. Backtracking
 
         if(is_leaf_node) {
-
-          // if(threadIdx.x == 0) {
-          //   printf("backtracking\n");
-          // }
           // Leaf node at root.
           if(block_data.depth == 0) {
             break;
@@ -889,11 +879,13 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
     }
     __syncthreads();
   }
-  if(threadIdx.x == 0 && block_data.stats.nodes < config.stop_after_n_nodes
-      && !unified_data->stop.test())
+  if(threadIdx.x == 0)
   {
-    block_data.stats.num_blocks_done = 1;
+    if(block_data.stats.nodes < config.stop_after_n_nodes && !unified_data->stop.test()) {
+      block_data.stats.num_blocks_done = 1;
+    }
     block_data.stats.timers.update_timer(Timer::FIRST_BLOCK_IDLE, block_data.start_time);
+    block_data.stats.cumulative_time_block = block_data.stats.timers.time_of(Timer::FIRST_BLOCK_IDLE);
   }
   __syncthreads();
 #ifndef TURBO_NO_ENTAILED_PROP_REMOVAL

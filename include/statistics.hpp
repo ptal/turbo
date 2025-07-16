@@ -135,6 +135,7 @@ struct Statistics {
   size_t num_blocks_done;
   size_t fixpoint_iterations;
   size_t num_deductions;
+  int64_t cumulative_time_block;
   TimingStatistics<Allocator> timers;
 
   CUDA Statistics(size_t variables, size_t constraints, bool optimization, bool print_statistics):
@@ -144,7 +145,7 @@ struct Statistics {
     depth_max(0), exhaustive(true),
     eps_solved_subproblems(0), eps_num_subproblems(1), eps_skipped_subproblems(0),
     num_blocks_done(0), fixpoint_iterations(0), num_deductions(0),
-    timers()
+    cumulative_time_block(0), timers()
   {}
 
   CUDA Statistics(): Statistics(0,0,false,false) {}
@@ -160,7 +161,7 @@ struct Statistics {
     eps_solved_subproblems(other.eps_solved_subproblems), eps_num_subproblems(other.eps_num_subproblems),
     eps_skipped_subproblems(other.eps_skipped_subproblems), num_blocks_done(other.num_blocks_done),
     fixpoint_iterations(other.fixpoint_iterations), num_deductions(other.num_deductions),
-    timers(other.timers)
+    cumulative_time_block(other.cumulative_time_block), timers(other.timers)
   {}
 
   template <class Alloc>
@@ -175,6 +176,7 @@ struct Statistics {
     num_blocks_done += other.num_blocks_done;
     fixpoint_iterations += other.fixpoint_iterations;
     num_deductions += other.num_deductions;
+    cumulative_time_block += other.cumulative_time_block;
     timers.meet(other.timers);
   }
 
@@ -311,6 +313,8 @@ public:
     print_human_stat(verbose, "num_deductions", num_deductions);
 
     // Timing statistics
+    print_stat("cumulative_time_block_sec", to_sec(cumulative_time_block));
+    print_stat("deductions_per_block_second", num_deductions / num_blocks / to_sec(cumulative_time_block));
     print_block_timing_stat("solve_time", Timer::OVERALL);
     print_block_timing_stat("search_time", Timer::SEARCH);
     // print_block_timing_stat("split_time", Timer::SPLIT);
