@@ -1,7 +1,7 @@
 # TURBO
 
 Turbo aims to be a constraint solver entirely on GPUs.
-Its theoretical parallel model is described in this paper [AAAI 2022](http://hyc.io/papers/aaai2022.pdf).
+Its theoretical parallel model is described in this paper [AAAI 2022](https://ptal.github.io/papers/aaai2022.pdf).
 Turbo is part of a larger project called [Lattice Land](https://github.com/lattice-land).
 I write about Turbo in a [technical journal](https://lattice-land.github.io/1-turbo.html) where you can learn about the specifics of this solver.
 
