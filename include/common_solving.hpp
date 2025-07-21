@@ -8,6 +8,7 @@
 #include <chrono>
 #include <thread>
 #include <csignal>
+#include <random>
 
 #include "config.hpp"
 #include "statistics.hpp"
@@ -617,6 +618,8 @@ public:
       preprocess_tcn(*f_ptr);
     }
     push_eps_strategy();
+    std::mt19937 random_generator(config.seed);
+    split->shuffle_random_strategies(random_generator);
     if(config.network_analysis) {
       if constexpr(use_ipc) {
         printf("%% WARNING: -network_analysis option is only valid with the PIR abstract domain.\n");

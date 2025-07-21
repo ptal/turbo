@@ -192,6 +192,7 @@ struct BlockData {
     int currentDepth = depth;
     for(int i = current_strategy; i < strategies.size(); ++i) {
       switch(strategies[i].var_order) {
+        case VariableOrder::RANDOM:
         case VariableOrder::INPUT_ORDER: {
           input_order_split(has_changed, idx, strategies[i]);
           break;
