@@ -12,8 +12,6 @@
   #include <cuda.h>
 #endif
 
-#define SUBPROBLEMS_POWER 15 // 2^N
-
 enum class Arch {
   CPU,
   GPU,
@@ -73,7 +71,7 @@ struct Configuration {
     network_analysis(false),
     timeout_ms(0),
     or_nodes(0),
-    subproblems_power(SUBPROBLEMS_POWER),
+    subproblems_power(0),
     stack_kb(
       #ifdef TURBO_IPC_ABSTRACT_DOMAIN
         32

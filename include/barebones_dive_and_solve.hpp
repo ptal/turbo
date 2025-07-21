@@ -519,9 +519,10 @@ void barebones_dive_and_solve(const Configuration<battery::standard_allocator>& 
 
 /** We configure the GPU according to the user configuration:
  * 1) Guess the "best" number of blocks per SM, if not provided.
- * 2) Configure the size of the shared memory.
- * 3) Increase the global heap memory.
- * 4) Increase the stack size if requested by the user.
+ * 2) Update the number of subproblems to at least "30 * B" where B is the number of blocks.
+ * 3) Configure the size of the shared memory.
+ * 4) Increase the global heap memory.
+ * 5) Increase the stack size if requested by the user.
  */
 MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
   auto& config = cp.config;
@@ -545,7 +546,15 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
     cp.stats.num_blocks = max_block_per_sm * deviceProp.multiProcessorCount;
   }
 
-  /** II. Configure the shared memory size. */
+  /** II. Number of subproblems. */
+  if(cp.config.subproblems_power == 0) {
+    cp.config.subproblems_power = 0;
+    while((1 << cp.config.subproblems_power) < 30 * cp.stats.num_blocks) {
+      cp.config.subproblems_power++;
+    }
+  }
+
+  /** III. Configure the shared memory size. */
   size_t store_bytes = gpu_sizeof<IStore>() + gpu_sizeof<abstract_ptr<IStore>>() + cp.store->vars() * gpu_sizeof<Itv>();
   size_t iprop_bytes = gpu_sizeof<IProp>() + gpu_sizeof<abstract_ptr<IProp>>() + cp.iprop->num_deductions() * gpu_sizeof<bytecode_type>() + gpu_sizeof<typename IProp::bytecodes_type>();
   // If large problem, minimal amount of blocks.
@@ -563,7 +572,7 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
   }
   mem_config.print_mzn_statistics(config, cp.stats);
 
-  /** III. Size of the heap global memory.
+  /** IV. Size of the heap global memory.
    * The estimation is very conservative, normally we should not run out of memory.
    * */
   size_t nblocks = static_cast<size_t>(cp.stats.num_blocks);
@@ -591,7 +600,7 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
     As our memory estimation is very conservative, it might still work, but it is not guaranteed.\n");
   }
 
-  /** IV. Increase the stack if requested by the user. */
+  /** V. Increase the stack if requested by the user. */
   if(config.stack_kb != 0) {
     CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, config.stack_kb*1000));
     // The stack allocated depends on the maximum number of threads per SM, not on the actual number of threads per block.
