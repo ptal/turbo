@@ -554,15 +554,42 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
     }
   }
 
-  /** III. Configure the shared memory size. */
+  /** III. Size of the heap global memory.
+   * The estimation is very conservative, normally we should not run out of memory.
+   * */
   size_t store_bytes = gpu_sizeof<IStore>() + gpu_sizeof<abstract_ptr<IStore>>() + cp.store->vars() * gpu_sizeof<Itv>();
   size_t iprop_bytes = gpu_sizeof<IProp>() + gpu_sizeof<abstract_ptr<IProp>>() + cp.iprop->num_deductions() * gpu_sizeof<bytecode_type>() + gpu_sizeof<typename IProp::bytecodes_type>();
-  // If large problem, minimal amount of blocks.
-  if(cp.iprop->num_deductions() + cp.store->vars() > 1000000) {
-    cp.stats.num_blocks = deviceProp.multiProcessorCount;
-    printf("%% WARNING: Large problem detected, reducing to 1 block per SM.\n");
+  size_t mem_per_block = gpu_sizeof<BlockData>()
+    + store_bytes * size_t{3}  // current, root, best.
+    + iprop_bytes * size_t{2}
+    + cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<int>()  // fixpoint engine + branching strategies
+    + (gpu_sizeof<int>() + gpu_sizeof<LightBranch<Itv>>()) * size_t{MAX_SEARCH_DEPTH};
+  size_t estimated_global_mem = gpu_sizeof<UnifiedData>() + store_bytes * size_t{5} + iprop_bytes +
+    gpu_sizeof<GridData>();
+
+  size_t mem_for_blocks = deviceProp.totalGlobalMem - estimated_global_mem - (deviceProp.totalGlobalMem / 100 * 5);
+  cp.stats.num_blocks = std::max(size_t{1}, std::min(mem_for_blocks / mem_per_block, static_cast<size_t>(cp.stats.num_blocks)));
+  estimated_global_mem += cp.stats.num_blocks * mem_per_block;
+  if(estimated_global_mem > deviceProp.totalGlobalMem / 100 * 90) {
+    printf("%% WARNING: The estimated global memory is larger than 90%% of the total global memory.\n\
+%% It is possible to run out of memory during solving.\n");
   }
-  int blocks_per_sm = (cp.stats.num_blocks + deviceProp.multiProcessorCount - 1) / deviceProp.multiProcessorCount;
+  CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, deviceProp.totalGlobalMem / 100 * 97));
+  cp.stats.print_memory_statistics(cp.config.verbose_solving, "heap_memory", estimated_global_mem);
+  cp.stats.print_memory_statistics(cp.config.verbose_solving, "mem_per_block", mem_per_block);
+  cp.stats.print_memory_statistics(cp.config.verbose_solving, "total_global_mem_bytes", deviceProp.totalGlobalMem);
+  cp.stats.print_stat("num_blocks", cp.stats.num_blocks);
+
+  /** IV. Increase the stack if requested by the user. */
+  if(config.stack_kb != 0) {
+    CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, config.stack_kb*1000));
+    // The stack allocated depends on the maximum number of threads per SM, not on the actual number of threads per block.
+    size_t total_stack_size = deviceProp.multiProcessorCount * deviceProp.maxThreadsPerMultiProcessor * config.stack_kb * 1000;
+    cp.stats.print_memory_statistics(cp.config.verbose_solving, "stack_memory", total_stack_size);
+  }
+
+  /** V. Configure the shared memory size. */
+  int blocks_per_sm = std::max(1, (cp.stats.num_blocks + deviceProp.multiProcessorCount - 1) / deviceProp.multiProcessorCount);
   MemoryConfig mem_config;
   if(config.only_global_memory) {
     mem_config = MemoryConfig(store_bytes, iprop_bytes);
@@ -571,42 +598,6 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
     mem_config = MemoryConfig((void*) gpu_barebones_solve, config.verbose_solving, blocks_per_sm, store_bytes, iprop_bytes);
   }
   mem_config.print_mzn_statistics(config, cp.stats);
-
-  /** IV. Size of the heap global memory.
-   * The estimation is very conservative, normally we should not run out of memory.
-   * */
-  size_t nblocks = static_cast<size_t>(cp.stats.num_blocks);
-  size_t estimated_global_mem = gpu_sizeof<UnifiedData>() + store_bytes * size_t{5} + iprop_bytes +
-    gpu_sizeof<GridData>() +
-    nblocks * gpu_sizeof<BlockData>() +
-    nblocks * store_bytes * size_t{3} + // current, root, best.
-    nblocks * iprop_bytes * size_t{2} +
-    nblocks * cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<int>()  + // fixpoint engine
-    nblocks * (gpu_sizeof<int>() + gpu_sizeof<LightBranch<Itv>>()) * size_t{MAX_SEARCH_DEPTH};
-  size_t required_global_mem = std::max(deviceProp.totalGlobalMem / 2, estimated_global_mem);
-  if(estimated_global_mem > deviceProp.totalGlobalMem / 2) {
-    printf("%% WARNING: The estimated global memory is larger than half of the total global memory.\n\
-    We reduce the number of blocks to avoid running out of memory.\n");
-    cp.stats.num_blocks = deviceProp.multiProcessorCount;
-  }
-  CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, required_global_mem));
-  cp.stats.print_memory_statistics(cp.config.verbose_solving, "heap_memory", required_global_mem);
-  if(cp.config.verbose_solving) {
-    printf("%% estimated_global_mem=%zu\n", estimated_global_mem);
-    printf("%% num_blocks=%d\n", cp.stats.num_blocks);
-  }
-  if(deviceProp.totalGlobalMem < required_global_mem) {
-    printf("%% WARNING: The total global memory available is less than the required global memory.\n\
-    As our memory estimation is very conservative, it might still work, but it is not guaranteed.\n");
-  }
-
-  /** V. Increase the stack if requested by the user. */
-  if(config.stack_kb != 0) {
-    CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, config.stack_kb*1000));
-    // The stack allocated depends on the maximum number of threads per SM, not on the actual number of threads per block.
-    size_t total_stack_size = deviceProp.multiProcessorCount * deviceProp.maxThreadsPerMultiProcessor * config.stack_kb * 1000;
-    cp.stats.print_memory_statistics(cp.config.verbose_solving, "stack_memory", total_stack_size);
-  }
   return mem_config;
 }
 

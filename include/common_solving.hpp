@@ -543,7 +543,9 @@ public:
       }
       has_changed |= simplifier->algebraic_simplify(tnf, local_preprocessing_stats);
       simplifier->eliminate_entailed_constraints(*iprop, tnf, local_preprocessing_stats);
-      has_changed |= simplifier->i_cse(tnf, local_preprocessing_stats);
+      if(num_vars < 1000000) { // otherwise ICSE is too slow, needs to be improved.
+        has_changed |= simplifier->i_cse(tnf, local_preprocessing_stats);
+      }
       if(has_changed) {
         simplifier->meet_equivalence_classes();
         local_preprocessing_stats.print(stats, preprocessing_fixpoint_iterations);
