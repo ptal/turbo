@@ -26,7 +26,7 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t\t wac1: Behave as ac1 when the number of active propagators is less than wac1_threshold. Otherwise,  each warp must reach a local fixpoint before executing the next 32 propagators (not compatible with -arch cpu)." << std::endl;
   std::cout << "\t-wac1_threshold 4096: Threshold below which we select AC1 instead of WAC1 (default: 0)." << std::endl;
   std::cout << "\t-or 48: Run the subproblems on 48 streaming multiprocessors (SMs) (only for GPU architecture). Default: -or 0 for automatic selection of the number of SMs." << std::endl;
-  std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the 'OR threads' (embarrasingly parallel search). Default: -sub 15." << std::endl;
+  std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the 'OR threads' (embarrasingly parallel search). The special value `-1` leaves Turbo to decide on the number of subproblems (at least 30 * number of blocks). Default: -sub -1." << std::endl;
   std::cout << "\t-eps_var_order <input_order|first_fail|anti_first_fail|smallest|largest|random>: Choose the variable ordering strategy for subproblems decomposition (default: same as main search strategy)." << std::endl;
   std::cout << "\t-eps_value_order <min|max|split|reverse_split>: Choose the value ordering strategy for subproblems decomposition (default: same as main search strategy)." << std::endl;
   std::cout << "\t-seed 0: Set the seed for the random number generator (default: 0)." << std::endl;
@@ -132,9 +132,9 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
     std::cerr << "The options -or and -p cannot be used at the same time" << std::endl;
     usage_and_exit(argv[0]);
   }
+  input.read_int("-sub", config.subproblems_power);
   input.read_size_t("-p", config.or_nodes);
   input.read_size_t("-or", config.or_nodes);
-  input.read_size_t("-sub", config.subproblems_power);
   input.read_size_t("-t", config.timeout_ms);
   input.read_size_t("-timeout", config.timeout_ms);
   input.read_size_t("-stack", config.stack_kb);

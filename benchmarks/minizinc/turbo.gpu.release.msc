@@ -23,7 +23,7 @@
     "supportsNL": false,
     "version": "1.2.9",
     "extraFlags": [
-        ["-sub", "number of EPS subproblems (value of 10 generates 2^10 subproblems)", "int", "10"],
+        ["-sub", "number of EPS subproblems (value of 10 generates 2^10 subproblems)", "int", "-1"],
         ["-or", "number of OR threads", "int", "0"],
         ["-arch", "architecture to use", "string", "hybrid"],
         ["-fp", "architecture to use", "string", "wac1"],
@@ -35,6 +35,9 @@
         ["-disable_simplify", "Disable the simplification step.", "bool", "false"],
         ["-force_ternarize", "Force the transformation of the formula in ternary normal form, even with IPC abstract domain (note that it is enabled by default with PIR abstract domain).", "bool", "false"],
         ["-network_analysis", "Analyze the constraint network.", "bool", "false"],
-        ["-cutnodes", "Cut the number of nodes to be explored", "int", "0"]
+        ["-cutnodes", "Cut the number of nodes to be explored", "int", "0"],
+        ["-eps_var_order", "Variable ordering during diving phase", "string", "first_fail"],
+        ["-eps_value_order", "Value ordering during diving phase", "string", "split"],
+        ["-seed", "Random seed", "int", "0"]
     ]
 }

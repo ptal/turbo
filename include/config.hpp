@@ -45,7 +45,7 @@ struct Configuration {
   bool network_analysis;
   size_t timeout_ms;
   size_t or_nodes;
-  size_t subproblems_power;
+  int subproblems_power;
   size_t stack_kb;
   Arch arch;
   FixpointKind fixpoint;
@@ -71,7 +71,7 @@ struct Configuration {
     network_analysis(false),
     timeout_ms(0),
     or_nodes(0),
-    subproblems_power(0),
+    subproblems_power(-1),
     stack_kb(
       #ifdef TURBO_IPC_ABSTRACT_DOMAIN
         32
@@ -176,7 +176,7 @@ struct Configuration {
       printf("-v ");
     }
     if(arch != Arch::CPU) {
-      printf("-arch %s -or %" PRIu64 " -sub %" PRIu64 " -stack %" PRIu64 " ", name_of_arch(arch), or_nodes, subproblems_power, stack_kb);
+      printf("-arch %s -or %" PRIu64 " -sub %d -stack %" PRIu64 " ", name_of_arch(arch), or_nodes, subproblems_power, stack_kb);
       if(only_global_memory) { printf("-globalmem "); }
     }
     else {

@@ -547,7 +547,7 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
   }
 
   /** II. Number of subproblems. */
-  if(cp.config.subproblems_power == 0) {
+  if(cp.config.subproblems_power == -1) {
     cp.config.subproblems_power = 0;
     while((1 << cp.config.subproblems_power) < 30 * cp.stats.num_blocks) {
       cp.config.subproblems_power++;
