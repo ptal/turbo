@@ -528,7 +528,6 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
   auto& config = cp.config;
 
   /** I. Number of blocks per SM. */
-
   cudaDeviceProp deviceProp;
   cudaGetDeviceProperties(&deviceProp, 0);
   int max_block_per_sm;
@@ -547,6 +546,7 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
   }
 
   /** II. Number of subproblems. */
+  cp.stats.print_stat("subproblems_power", cp.config.subproblems_power);
   if(cp.config.subproblems_power == -1) {
     cp.config.subproblems_power = 0;
     while((1 << cp.config.subproblems_power) < 30 * cp.stats.num_blocks) {
@@ -561,13 +561,14 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
   size_t iprop_bytes = gpu_sizeof<IProp>() + gpu_sizeof<abstract_ptr<IProp>>() + cp.iprop->num_deductions() * gpu_sizeof<bytecode_type>() + gpu_sizeof<typename IProp::bytecodes_type>();
   size_t mem_per_block = gpu_sizeof<BlockData>()
     + store_bytes * size_t{3}  // current, root, best.
+    + store_bytes * size_t{2}  // search strategies
     + iprop_bytes * size_t{2}
-    + cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<int>()  // fixpoint engine + branching strategies
+    + cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<int>()  // fixpoint engine
     + (gpu_sizeof<int>() + gpu_sizeof<LightBranch<Itv>>()) * size_t{MAX_SEARCH_DEPTH};
   size_t estimated_global_mem = gpu_sizeof<UnifiedData>() + store_bytes * size_t{5} + iprop_bytes +
     gpu_sizeof<GridData>();
 
-  size_t mem_for_blocks = deviceProp.totalGlobalMem - estimated_global_mem - (deviceProp.totalGlobalMem / 100 * 5);
+  size_t mem_for_blocks = deviceProp.totalGlobalMem - estimated_global_mem - (deviceProp.totalGlobalMem / 100 * 10);
   cp.stats.num_blocks = std::max(size_t{1}, std::min(mem_for_blocks / mem_per_block, static_cast<size_t>(cp.stats.num_blocks)));
   estimated_global_mem += cp.stats.num_blocks * mem_per_block;
   if(estimated_global_mem > deviceProp.totalGlobalMem / 100 * 90) {
