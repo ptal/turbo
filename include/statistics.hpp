@@ -260,7 +260,7 @@ struct Statistics {
 
   CUDA void print_stat(const char* name, double value) const {
     if(print_statistics) {
-      printf("%%%%%%mzn-stat: %s=%lf\n", name, value);
+      printf("%%%%%%mzn-stat: %s=%lf\n", name, value != value ? 0.0 : value); // check for NaN.
     }
   }
 
