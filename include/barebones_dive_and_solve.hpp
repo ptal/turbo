@@ -581,6 +581,10 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
   cp.stats.print_memory_statistics(cp.config.verbose_solving, "total_global_mem_bytes", deviceProp.totalGlobalMem);
   cp.stats.print_stat("num_blocks", cp.stats.num_blocks);
 
+  if(cp.store->vars() > 1000000) {
+    cp.stats.num_blocks = std::min(cp.stats.num_blocks, deviceProp.multiProcessorCount);
+  }
+
   /** IV. Increase the stack if requested by the user. */
   if(config.stack_kb != 0) {
     CUDAEX(cudaDeviceSetLimit(cudaLimitStackSize, config.stack_kb*1000));
