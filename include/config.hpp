@@ -237,7 +237,6 @@ struct Configuration {
     printf("%%%%%%mzn-stat: hardware=\"%s\"\n", (hardware.size() == 0) ? "unspecified" : hardware.data());
     printf("%%%%%%mzn-stat: arch=\"%s\"\n", name_of_arch(arch));
     printf("%%%%%%mzn-stat: fixpoint=\"%s\"\n", name_of_fixpoint(fixpoint));
-    printf("%%%%%%mzn-stat: subproblems_power=\"%d\"\n", subproblems_power);
     if(fixpoint == FixpointKind::WAC1) {
       printf("%%%%%%mzn-stat: wac1_threshold=%" PRIu64 "\n", wac1_threshold);
     }
