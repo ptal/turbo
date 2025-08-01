@@ -24,6 +24,7 @@
     "version": "1.2.9",
     "extraFlags": [
         ["-sub", "number of EPS subproblems (value of 10 generates 2^10 subproblems)", "int", "-1"],
+        ["-subfactor", "Let B the number of blocks, we generate B * factor subproblems with -subfactor F. Default: -subfactor 30.", "int", "30"],
         ["-or", "number of OR threads", "int", "0"],
         ["-arch", "architecture to use", "string", "hybrid"],
         ["-fp", "architecture to use", "string", "wac1"],

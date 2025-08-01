@@ -549,7 +549,7 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
   cp.stats.print_stat("subproblems_power", cp.config.subproblems_power);
   if(cp.config.subproblems_power == -1) {
     cp.config.subproblems_power = 0;
-    while((1 << cp.config.subproblems_power) < 30 * cp.stats.num_blocks) {
+    while((1 << cp.config.subproblems_power) < cp.config.subproblems_factor * cp.stats.num_blocks) {
       cp.config.subproblems_power++;
     }
   }
@@ -579,11 +579,10 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
   cp.stats.print_memory_statistics(cp.config.verbose_solving, "heap_memory", estimated_global_mem);
   cp.stats.print_memory_statistics(cp.config.verbose_solving, "mem_per_block", mem_per_block);
   cp.stats.print_memory_statistics(cp.config.verbose_solving, "total_global_mem_bytes", deviceProp.totalGlobalMem);
-  cp.stats.print_stat("num_blocks", cp.stats.num_blocks);
 
-  if(cp.store->vars() > 1000000) {
-    cp.stats.num_blocks = std::min(cp.stats.num_blocks, deviceProp.multiProcessorCount);
-  }
+  // We still need to improve this, for some large problems, it is required to avoid running out of memory.
+  cp.stats.num_blocks = std::min(cp.stats.num_blocks, 200000000 / cp.store->vars());
+  cp.stats.print_stat("num_blocks", cp.stats.num_blocks);
 
   /** IV. Increase the stack if requested by the user. */
   if(config.stack_kb != 0) {

@@ -46,6 +46,7 @@ struct Configuration {
   size_t timeout_ms;
   size_t or_nodes;
   int subproblems_power;
+  size_t subproblems_factor;
   size_t stack_kb;
   Arch arch;
   FixpointKind fixpoint;
@@ -72,6 +73,7 @@ struct Configuration {
     timeout_ms(0),
     or_nodes(0),
     subproblems_power(-1),
+    subproblems_factor(30),
     stack_kb(
       #ifdef TURBO_IPC_ABSTRACT_DOMAIN
         32
@@ -121,6 +123,7 @@ struct Configuration {
     timeout_ms(other.timeout_ms),
     or_nodes(other.or_nodes),
     subproblems_power(other.subproblems_power),
+    subproblems_factor(other.subproblems_factor),
     stack_kb(other.stack_kb),
     arch(other.arch),
     fixpoint(other.fixpoint),
@@ -149,6 +152,7 @@ struct Configuration {
     timeout_ms = other.timeout_ms;
     or_nodes = other.or_nodes;
     subproblems_power = other.subproblems_power;
+    subproblems_factor = other.subproblems_factor;
     stack_kb = other.stack_kb;
     arch = other.arch;
     fixpoint = other.fixpoint;
@@ -176,7 +180,7 @@ struct Configuration {
       printf("-v ");
     }
     if(arch != Arch::CPU) {
-      printf("-arch %s -or %" PRIu64 " -sub %d -stack %" PRIu64 " ", name_of_arch(arch), or_nodes, subproblems_power, stack_kb);
+      printf("-arch %s -or %" PRIu64 " -sub %d -subfactor %" PRIu64 " -stack %" PRIu64 " ", name_of_arch(arch), or_nodes, subproblems_power, subproblems_factor, stack_kb);
       if(only_global_memory) { printf("-globalmem "); }
     }
     else {
@@ -237,7 +241,8 @@ struct Configuration {
     printf("%%%%%%mzn-stat: hardware=\"%s\"\n", (hardware.size() == 0) ? "unspecified" : hardware.data());
     printf("%%%%%%mzn-stat: arch=\"%s\"\n", name_of_arch(arch));
     printf("%%%%%%mzn-stat: fixpoint=\"%s\"\n", name_of_fixpoint(fixpoint));
-    printf("%%%%%%mzn-stat: subproblems_power=\"%d\"\n", subproblems_power);
+    // printf("%%%%%%mzn-stat: subproblems_power=\"%d\"\n", subproblems_power); // do not print because it must be printed before it is modified in barebones.
+    printf("%%%%%%mzn-stat: subproblems_factor=\"%d\"\n", subproblems_factor);
     if(fixpoint == FixpointKind::WAC1) {
       printf("%%%%%%mzn-stat: wac1_threshold=%" PRIu64 "\n", wac1_threshold);
     }
