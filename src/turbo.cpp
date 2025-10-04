@@ -39,9 +39,11 @@ int main(int argc, char** argv) {
     else if(config.arch == Arch::BAREBONES) {
       barebones::barebones_dive_and_solve(config);
     }
+#ifndef DISABLE_HYBRID_GPU_SOLVING
     else if(config.arch == Arch::HYBRID) {
       hybrid_dive_and_solve(config);
     }
+#endif
   }
   catch (std::exception &e)
   {

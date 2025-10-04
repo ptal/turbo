@@ -268,8 +268,6 @@ struct AbstractDomains {
   abstract_ptr<LIStore> best;
   abstract_ptr<IBAB> bab;
 
-  bt::vector<SearchStrategy, BasicAllocator> search_strategies;
-
   // The environment of variables, storing the mapping between variable's name and their representation in the abstract domains.
   VarEnv<BasicAllocator> env;
 
