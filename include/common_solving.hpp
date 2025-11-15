@@ -36,6 +36,10 @@
   #include "lala/XCSP3_parser.hpp"
 #endif
 
+#ifdef WITH_NNV
+  #include "lala/nnv_parser.hpp"
+#endif
+
 using namespace lala;
 
 #ifndef TURBO_ITV_BITS
@@ -411,6 +415,16 @@ public:
 #ifdef WITH_XCSP3PARSER
     else if(config.input_format() == InputFormat::XCSP3) {
       f = parse_xcsp3(config.problem_path.data(), solver_output);
+    }
+#endif
+    // TODO:
+    // Not sure if that is correct.
+    // But the idea is to merge formulas from two inputs (vnnlib & onnx).
+#ifdef WITH_NNV
+    else if (config.input_format() == InputFormat::VNNLIB ||
+             config.input_format() == InputFormat::ONNX) {
+              std::cout << "Start nnv parsing ...\n";
+        f = parse_nnv(config.vnnlib_path.data(), config.onnx_path.data(), solver_output);
     }
 #endif
     if(!f) {
