@@ -1,0 +1,129 @@
+; medical perturbations property.
+
+(declare-const X_0 Real)
+(declare-const X_1 Real)
+(declare-const X_2 Real)
+(declare-const X_3 Real)
+(declare-const X_4 Real)
+(declare-const X_5 Real)
+(declare-const X_6 Real)
+(declare-const X_7 Real)
+(declare-const X_8 Real)
+(declare-const X_9 Real)
+(declare-const X_10 Real)
+(declare-const X_11 Real)
+(declare-const X_12 Real)
+(declare-const X_13 Real)
+(declare-const X_14 Real)
+(declare-const X_15 Real)
+(declare-const X_16 Real)
+(declare-const X_17 Real)
+(declare-const X_18 Real)
+(declare-const X_19 Real)
+(declare-const X_20 Real)
+(declare-const X_21 Real)
+(declare-const X_22 Real)
+(declare-const X_23 Real)
+(declare-const X_24 Real)
+(declare-const X_25 Real)
+(declare-const X_26 Real)
+(declare-const X_27 Real)
+(declare-const X_28 Real)
+(declare-const X_29 Real)
+
+(declare-const Y_0 Real)
+(declare-const Y_1 Real)
+
+; Input constraints:
+(assert (>= X_0 -0.06560640852809774))
+(assert (<= X_0 0.15087873433499976))
+
+(assert (>= X_1 -0.11205511953648206))
+(assert (<= X_1 0.06802352306387598))
+
+(assert (>= X_2 0.03593301378508185))
+(assert (<= X_2 0.1654382985740103))
+
+(assert (>= X_3 -0.23035461323980164))
+(assert (<= X_3 -0.11534366345294299))
+
+(assert (>= X_4 -0.15321515806663424))
+(assert (<= X_4 -0.02140907228017117))
+
+(assert (>= X_5 -0.11332213697899121))
+(assert (<= X_5 0.03584019614996038))
+
+(assert (>= X_6 -0.16634919721344912))
+(assert (<= X_6 0.04277866787930705))
+
+(assert (>= X_7 -0.162045461889082))
+(assert (<= X_7 -0.10012151290712444))
+
+(assert (>= X_8 -0.11684710107771876))
+(assert (<= X_8 0.01317394879631204))
+
+(assert (>= X_9 -0.0918391143043319))
+(assert (<= X_9 0.04308008839198438))
+
+(assert (>= X_10 -0.07702149985033617))
+(assert (<= X_10 0.027289267600330673))
+
+(assert (>= X_11 -0.06509973683326899))
+(assert (<= X_11 0.11633781891466392))
+
+(assert (>= X_12 -0.08844102583972614))
+(assert (<= X_12 0.0001973406996199176))
+
+(assert (>= X_13 -0.1910560602367004))
+(assert (<= X_13 -0.08908818342867665))
+
+(assert (>= X_14 -0.06633519039681882))
+(assert (<= X_14 0.09762987783254576))
+
+(assert (>= X_15 -0.03679319219333517))
+(assert (<= X_15 0.10475911846319913))
+
+(assert (>= X_16 -0.03030624996863938))
+(assert (<= X_16 0.06157036780684294))
+
+(assert (>= X_17 0.12839953497937817))
+(assert (<= X_17 0.24820115901166212))
+
+(assert (>= X_18 0.029343703175010775))
+(assert (<= X_18 0.10988323561130074))
+
+(assert (>= X_19 -0.06297842839128392))
+(assert (<= X_19 0.03471680541225189))
+
+(assert (>= X_20 0.018946464796485176))
+(assert (<= X_20 0.18033533928316034))
+
+(assert (>= X_21 0.0626124346078461))
+(assert (<= X_21 0.1433593893566578))
+
+(assert (>= X_22 -0.12084445643816231))
+(assert (<= X_22 -0.05073021966126815))
+
+(assert (>= X_23 0.07235038399188722))
+(assert (<= X_23 0.18222971356845113))
+
+(assert (>= X_24 -0.09309876570143763))
+(assert (<= X_24 0.0761359227348958))
+
+(assert (>= X_25 -0.08150628715827352))
+(assert (<= X_25 0.06343180376633437))
+
+(assert (>= X_26 0.017138657747180576))
+(assert (<= X_26 0.09828963902341009))
+
+(assert (>= X_27 -0.1553249252888743))
+(assert (<= X_27 -0.13205672755684267))
+
+(assert (>= X_28 -0.0916158415829881))
+(assert (<= X_28 0.012287616704489591))
+
+(assert (>= X_29 0.08605312550696034))
+(assert (<= X_29 0.16113053953250459))
+
+; Output constraints:
+(assert (<= Y_0 Y_1))
