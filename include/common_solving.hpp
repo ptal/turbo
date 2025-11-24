@@ -37,7 +37,8 @@
 #endif
 
 #ifdef WITH_NNV
-  #include "lala/nnv_parser.hpp"
+  #include "lala/onnx_parser.hpp"
+  #include "lala/vnnlib_parser.hpp"
 #endif
 
 using namespace lala;
@@ -417,14 +418,11 @@ public:
       f = parse_xcsp3(config.problem_path.data(), solver_output);
     }
 #endif
-    // TODO:
-    // Not sure if that is correct.
-    // But the idea is to merge formulas from two inputs (vnnlib & onnx).
 #ifdef WITH_NNV
     else if (config.input_format() == InputFormat::VNNLIB ||
              config.input_format() == InputFormat::ONNX) {
-              std::cout << "Start nnv parsing ...\n";
-        f = parse_nnv(config.vnnlib_path.data(), config.onnx_path.data(), solver_output);
+        auto onnx_formulas = parse_onnx(config.onnx_path.data(), solver_output);
+        f = parse_vnnlib(config.vnnlib_path.data(), onnx_formulas );
     }
 #endif
     if(!f) {
