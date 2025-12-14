@@ -57,6 +57,7 @@ using namespace lala;
   #error "Invalid value for TURBO_ITV_BITS: must be 16, 32 or 64."
 #endif
 using Itv = Interval<ZLB<bound_value_type, battery::local_memory>>;
+using FItv = Interval<FLB<double, battery::local_memory>>;
 
 static std::atomic<bool> got_signal;
 static void (*prev_sigint)(int);
@@ -421,7 +422,7 @@ public:
 #ifdef WITH_NNV
     else if (config.input_format() == InputFormat::VNNLIB ||
              config.input_format() == InputFormat::ONNX) {
-        auto onnx_formulas = parse_onnx(config.onnx_path.data(), solver_output);
+        auto onnx_formulas = parse_onnx<basic_allocator_type>(config.onnx_path.data());
         f = parse_vnnlib(config.vnnlib_path.data(), onnx_formulas );
     }
 #endif
