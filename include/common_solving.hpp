@@ -37,8 +37,7 @@
 #endif
 
 #ifdef WITH_NNV
-  #include "lala/onnx_parser.hpp"
-  #include "lala/vnnlib_parser.hpp"
+  #include "nnv.hpp"
 #endif
 
 using namespace lala;
@@ -422,8 +421,7 @@ public:
 #ifdef WITH_NNV
     else if (config.input_format() == InputFormat::VNNLIB ||
              config.input_format() == InputFormat::ONNX) {
-        auto onnx_formulas = parse_onnx<basic_allocator_type>(config.onnx_path.data());
-        f = parse_vnnlib(config.vnnlib_path.data(), onnx_formulas );
+        f = parse_nnv<basic_allocator_type>(config.onnx_path.data(), config.vnnlib_path.data());
     }
 #endif
     if(!f) {
