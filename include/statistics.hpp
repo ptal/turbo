@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <algorithm>
+#include <unordered_map>
 #include "battery/utility.hpp"
 #include "battery/allocator.hpp"
 #include "lala/logic/ast.hpp"
@@ -279,6 +280,21 @@ struct Statistics {
       }
       printf("]\n");
     }
+  }
+
+  // \param dict: a map from keys to values (e.g., std::map, std::unordered_map).
+  void print_dict_stat(const char* name, const auto& dict, auto string_of_key, auto string_of_value) const {
+    std::string s = "{";
+    bool first = true;
+    for(const auto& [key, value] : dict) {
+      if(!first) {
+        s += ", ";
+      }
+      first = false;
+      s += std::string(string_of_key(key)) + ": " + string_of_value(value);
+    }
+    s += "}";
+    print_stat(name, s.c_str());
   }
 
 private:

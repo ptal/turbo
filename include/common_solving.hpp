@@ -432,6 +432,11 @@ public:
     if(config.verbose_solving) {
       printf("%% Formula syntactically simplified.\n");
     }
+    if(config.print_ast) {
+      printf("%% Simplified AST:\n");
+      f->print();
+      printf("\n");
+    }
     return f;
   }
 
@@ -599,6 +604,9 @@ public:
   void preprocess() {
     auto start = stats.start_timer_host();
     FormulaPtr f_ptr = parse_cn();
+    if(config.network_analysis) {
+        analyze_cn(*f_ptr);
+    }
     stats.print_stat("abstract_domain", name_of_abstract_domain());
     stats.print_stat("entailed_prop_removal", name_of_entailed_removal());
     if(config.arch == Arch::BAREBONES) {
@@ -629,7 +637,7 @@ public:
         printf("%% WARNING: -network_analysis option is only valid with the PIR abstract domain.\n");
       }
       else {
-        analyze_pir();
+        analyze_tcn();
       }
     }
     stats.stop_timer(Timer::PREPROCESSING, start);
@@ -667,6 +675,44 @@ private:
     split->push_eps_strategy(var_strat.value(), value_strat.value());
   }
 
+  template <class F>
+  void analyze_cn(const F& f) const {
+    if(config.verbose_solving) {
+      printf("%% Analyzing the constraint network (before preprocessing and ternarization)...\n");
+    }
+    auto stats_fcn = analyze_formula(f);
+    stats.print_dict_stat("fcn_histogram_symbols", stats_fcn.ops,
+      [](const auto& key) { return "'" + std::string(string_of_sig_txt(key)) + "'"; },
+      [](const auto& value) { return std::to_string(value); });
+    if(config.verbose_solving > 1) {
+      printf("%%     (Histogram of the number of times a function or predicate symbol occurs in the formula. Top-level conjunctions and unary constraints are discarded.)\n");
+    }
+    stats.print_dict_stat("fcn_histogram_reified_predicates", stats_fcn.reified_predicates,
+      [](const auto& key) { return "'" + std::string(string_of_sig_txt(key)) + "'"; },
+      [](const auto& value) { return std::to_string(value); });
+    if(config.verbose_solving > 1) {
+      printf("%%     (Count all the predicate symbols occuring in the formula in a reified context, e.g., below a NOT, OR, or inside an arithmetic expression).\n");
+    }
+    stats.print_dict_stat("fcn_histogram_vars_degree", stats_fcn.histogram_vars_degree,
+      [](const auto& key) { return std::to_string(key); },
+      [](const auto& value) { return std::to_string(value); });
+    if(config.verbose_solving > 1) {
+      printf("%%     (Histogram of the degree of the variables in the formula: histogram_vars_degree[var_degree] = number of variables with degree var_degree in the formula. Repetition of variables in the same constraints are counted).\n");
+    }
+    stats.print_dict_stat("fcn_histogram_constraints_degree", stats_fcn.histogram_contraints_degree,
+      [](const auto& key) { return "('" + std::string(string_of_sig_txt(key.first)) + "', " + std::to_string(key.second) + ")"; },
+      [](const auto& value) { return std::to_string(value); });
+    if(config.verbose_solving > 1) {
+      printf("%%     (Histogram of the degree of the constraints in the formula: histogram_constraints_degree[(predicate_symbol, constraint_degree)] = number of constraints of symbol predicate_symbol with degree constraint_degree in the formula).\n");
+    }
+    stats.print_stat("fcn_var_occurrences", stats_fcn.num_var_occurrences);
+    stats.print_stat("fcn_vars", stats_fcn.num_vars);
+    stats.print_stat("fcn_constraints", stats_fcn.num_cons);
+    if(config.verbose_solving > 1) {
+      printf("%%     (A constraint is a formula occuring in a non-reified context).\n");
+    }
+  }
+
   struct vstat {
     size_t num_occurrences;
     bool infinite_domain;
@@ -675,7 +721,7 @@ private:
   };
 
   /** Only for PIR abstract domain. */
-  void analyze_pir() const {
+  void analyze_tcn() const {
     if(config.verbose_solving) {
       printf("%% Analyzing the constraint network...\n");
     }
@@ -692,18 +738,14 @@ private:
       }
     }
 
-    std::map<Sig, size_t> op_stats{{{Sig::EQ,0}, {Sig::LEQ,0}, {Sig::NEQ,0}, {Sig::GT,0}, {ADD,0}, {MUL,0}, {EMOD,0}, {EDIV,0}, {MIN,0}, {MAX,0}}};
-    std::map<Sig, size_t> reified_op_stats{{{Sig::EQ,0}, {Sig::LEQ,0}}};
+    std::unordered_map<Sig, size_t> op_stats;
+    std::unordered_map<Sig, size_t> reified_op_stats;
 
     for(int i = 0; i < iprop->num_deductions(); ++i) {
       bytecode_type bytecode = iprop->load_deduce(i);
       vstats[bytecode.x.vid()].num_occurrences++;
       vstats[bytecode.y.vid()].num_occurrences++;
       vstats[bytecode.z.vid()].num_occurrences++;
-      if(!op_stats.contains(bytecode.op)) {
-        printf("%% WARNING: operator not explicitly managed in PIR: %d\n", bytecode.op);
-        op_stats[bytecode.op] = 0;
-      }
       auto dom = iprop->project(bytecode.x);
       if((is_arithmetic_comparison(bytecode.op)) &&
         (dom.lb().value() != dom.ub().value() || dom.lb().value() == 0))
