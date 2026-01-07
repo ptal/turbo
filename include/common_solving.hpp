@@ -511,6 +511,14 @@ public:
     }
   }
 
+  void print_preprocessing_stats(const SimplifierStats& preprocessing_stats) const {
+    stats.print_array_stat("preprocessing_icse_eliminated_constraints", preprocessing_stats.eliminated_constraints_by_icse_, [](const auto& v) { return string_of_array(v, [](auto v) { return std::to_string(v); }); });
+    stats.print_array_stat("preprocessing_algsimp_eliminated_constraints", preprocessing_stats.eliminated_constraints_by_as_, [](auto v) { return std::to_string(v); });
+    stats.print_array_stat("preprocessing_algsimp_eliminated_eq_constraints", preprocessing_stats.eliminated_equality_constraints_, [](auto v) { return std::to_string(v); });
+    stats.print_array_stat("preprocessing_entailment_eliminated_constraints", preprocessing_stats.eliminated_entailed_constraints_, [](auto v) { return std::to_string(v); });
+    stats.print_array_stat("preprocessing_eliminated_variables", preprocessing_stats.eliminated_useless_variables_, [](auto v) { return std::to_string(v); });
+  }
+
   void preprocess_tcn(F& f) {
     f = ternarize(f, VarEnv<BasicAllocator>(), {0,1,2});
     battery::vector<F> extra;
@@ -530,16 +538,13 @@ public:
     }
     auto& tnf = f.seq();
     simplifier->initialize_tnf(num_vars, tnf);
-    size_t preprocessing_fixpoint_iterations = 0;
     SimplifierStats preprocessing_stats;
-    size_t eliminated_variables = 0;
     local::B has_changed = true;
     GaussSeidelIteration fp_engine;
     /** We apply several preprocessing steps until we reach a fixpoint. */
     while(!iprop->is_bot() && has_changed) {
       has_changed = false;
-      preprocessing_fixpoint_iterations++;
-      SimplifierStats local_preprocessing_stats;
+      preprocessing_stats.prepare_next_iteration();
       fp_engine.fixpoint(iprop->num_deductions(),
         [&](size_t i) { return iprop->deduce(i); },
         [&](){ return iprop->is_bot(); },
@@ -547,19 +552,18 @@ public:
       if(has_changed) {
         simplifier->meet_equivalence_classes();
       }
-      has_changed |= simplifier->algebraic_simplify(tnf, local_preprocessing_stats);
-      simplifier->eliminate_entailed_constraints(*iprop, tnf, local_preprocessing_stats);
+      has_changed |= simplifier->algebraic_simplify(tnf, preprocessing_stats);
+      simplifier->eliminate_entailed_constraints(*iprop, tnf, preprocessing_stats);
       // if(num_vars < 1000000) { // otherwise ICSE is too slow, needs to be improved.
-        has_changed |= simplifier->i_cse(tnf, local_preprocessing_stats);
+        has_changed |= simplifier->i_cse(tnf, preprocessing_stats);
       // }
       if(has_changed) {
         simplifier->meet_equivalence_classes();
-        local_preprocessing_stats.print(stats, preprocessing_fixpoint_iterations);
       }
-      preprocessing_stats.merge(local_preprocessing_stats);
+      // In theory, this could be done only at the end, but as we are statistics freak, we do it at every iteration to know how many variables are eliminated at each step.
+      simplifier->eliminate_useless_variables(tnf, preprocessing_stats);
     }
-    // simplifier->eliminate_entailed_constraints(*iprop, tnf, preprocessing_stats);
-    simplifier->eliminate_useless_variables(tnf, eliminated_variables);
+    print_preprocessing_stats(preprocessing_stats);
     f = simplifier->deinterpret(tnf, true);
     F extra_f = F::make_nary(AND, std::move(extra));
     simplifier->substitute(extra_f);
@@ -568,10 +572,6 @@ public:
     }
     F f2 = F::make_binary(std::move(f), AND, std::move(extra_f));
     num_vars = num_quantified_vars(f2);
-    preprocessing_stats.print(stats);
-    stats.print_stat("eliminated_variables", eliminated_variables);
-    stats.print_stat("preprocessing_fixpoint_iterations", preprocessing_fixpoint_iterations);
-    analyze_tcn("preprocessed_tcn");
     if(iprop->is_bot()) {
       return;
     }
@@ -579,6 +579,7 @@ public:
     if(!interpret(f2)) {
       exit(EXIT_FAILURE);
     }
+    analyze_tcn("preprocessed_tcn");
   }
 
   const char* name_of_abstract_domain() const {

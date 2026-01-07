@@ -28,6 +28,20 @@ enum class Timer {
   NUM_TIMERS
 };
 
+std::string string_of_array(const auto& array, auto string_of_value) {
+  std::string s = "[";
+  bool first = true;
+  for(const auto& value : array) {
+    if(!first) {
+      s += ", ";
+    }
+    first = false;
+    s += string_of_value(value);
+  }
+  s += "]";
+  return s;
+}
+
 template <class Allocator = battery::standard_allocator>
 struct TimingStatistics {
   using allocator_type = Allocator;
@@ -299,6 +313,11 @@ struct Statistics {
       s += std::string(string_of_key(key)) + ": " + string_of_value(value);
     }
     s += "}";
+    print_stat(name.c_str(), s.c_str());
+  }
+
+  void print_array_stat(std::string name, const auto& array, auto string_of_value) const {
+    std::string s = string_of_array(array, string_of_value);
     print_stat(name.c_str(), s.c_str());
   }
 
