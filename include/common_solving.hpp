@@ -516,12 +516,11 @@ public:
     battery::vector<F> extra;
     f = normalize(f, extra);
     size_t num_vars = num_quantified_vars(f);
-    stats.print_stat("tnf_variables", num_vars);
-    stats.print_stat("tnf_constraints", num_tnf_constraints(f));
     allocate(num_vars, true);
     if(!interpret(f)) {
       exit(EXIT_FAILURE);
     }
+    analyze_tcn("tcn");
     simplifier->init_env(env);
     if(config.disable_simplify) {
       /** Even when we don't simplify, we still need to initialize the equivalence classes.
@@ -550,9 +549,9 @@ public:
       }
       has_changed |= simplifier->algebraic_simplify(tnf, local_preprocessing_stats);
       simplifier->eliminate_entailed_constraints(*iprop, tnf, local_preprocessing_stats);
-      if(num_vars < 1000000) { // otherwise ICSE is too slow, needs to be improved.
+      // if(num_vars < 1000000) { // otherwise ICSE is too slow, needs to be improved.
         has_changed |= simplifier->i_cse(tnf, local_preprocessing_stats);
-      }
+      // }
       if(has_changed) {
         simplifier->meet_equivalence_classes();
         local_preprocessing_stats.print(stats, preprocessing_fixpoint_iterations);
@@ -572,8 +571,7 @@ public:
     preprocessing_stats.print(stats);
     stats.print_stat("eliminated_variables", eliminated_variables);
     stats.print_stat("preprocessing_fixpoint_iterations", preprocessing_fixpoint_iterations);
-    stats.print_stat("variables_after_simplification", num_vars);
-    stats.print_stat("constraints_after_simplification", num_tnf_constraints(f2));
+    analyze_tcn("preprocessed_tcn");
     if(iprop->is_bot()) {
       return;
     }
@@ -604,7 +602,7 @@ public:
   void preprocess() {
     auto start = stats.start_timer_host();
     FormulaPtr f_ptr = parse_cn();
-    if(config.network_analysis) {
+    if(!config.disable_network_analysis) {
         analyze_cn(*f_ptr);
     }
     stats.print_stat("abstract_domain", name_of_abstract_domain());
@@ -632,14 +630,6 @@ public:
     push_eps_strategy();
     std::mt19937 random_generator(config.seed);
     split->shuffle_random_strategies(random_generator);
-    if(config.network_analysis) {
-      if constexpr(use_ipc) {
-        printf("%% WARNING: -network_analysis option is only valid with the PIR abstract domain.\n");
-      }
-      else {
-        analyze_tcn();
-      }
-    }
     stats.stop_timer(Timer::PREPROCESSING, start);
     stats.print_timing_stat("preprocessing_time", Timer::PREPROCESSING);
     stats.print_mzn_end_stats();
@@ -678,9 +668,15 @@ private:
   template <class F>
   void analyze_cn(const F& f) const {
     if(config.verbose_solving) {
-      printf("%% Analyzing the constraint network (before preprocessing and ternarization)...\n");
+      printf("%% Analyzing the constraint network before preprocessing and ternarization...\n");
     }
     auto stats_fcn = analyze_formula(f);
+    stats.print_stat("fcn_variables", stats_fcn.num_vars);
+    stats.print_stat("fcn_constraints", stats_fcn.num_cons);
+    if(config.verbose_solving > 1) {
+      printf("%%     (A constraint is a formula occuring in a non-reified context).\n");
+    }
+    stats.print_stat("fcn_var_occurrences", stats_fcn.num_var_occurrences);
     stats.print_dict_stat("fcn_histogram_symbols", stats_fcn.ops,
       [](const auto& key) { return "'" + std::string(string_of_sig_txt(key)) + "'"; },
       [](const auto& value) { return std::to_string(value); });
@@ -705,143 +701,126 @@ private:
     if(config.verbose_solving > 1) {
       printf("%%     (Histogram of the degree of the constraints in the formula: histogram_constraints_degree[(predicate_symbol, constraint_degree)] = number of constraints of symbol predicate_symbol with degree constraint_degree in the formula).\n");
     }
-    stats.print_stat("fcn_var_occurrences", stats_fcn.num_var_occurrences);
-    stats.print_stat("fcn_vars", stats_fcn.num_vars);
-    stats.print_stat("fcn_constraints", stats_fcn.num_cons);
-    if(config.verbose_solving > 1) {
-      printf("%%     (A constraint is a formula occuring in a non-reified context).\n");
-    }
   }
 
-  struct vstat {
-    size_t num_occurrences;
-    bool infinite_domain;
-    size_t domain_size;
-    vstat() = default;
+  struct TCNStatistics {
+    std::unordered_map<Sig, size_t> ops;
+    std::unordered_map<Sig, size_t> reified_predicates;
+    std::vector<size_t> vars_occurrences;
+
+    std::unordered_map<size_t, size_t> histogram_assigned_vars_degree;
+    std::unordered_map<size_t, size_t> histogram_unassigned_vars_degree;
+    std::unordered_map<size_t, size_t> histogram_vars_dom_size;
+
+    size_t num_unassigned_var_occurrences = 0;
+    size_t num_assigned_var_occurrences = 0;
+    size_t num_assigned_vars = 0;
+    size_t num_unbounded_vars = 0;
+
+    TCNStatistics(size_t num_vars):
+      vars_occurrences(num_vars, 0) {}
   };
 
-  /** Only for PIR abstract domain. */
-  void analyze_tcn() const {
-    if(config.verbose_solving) {
-      printf("%% Analyzing the constraint network...\n");
-    }
-    if(iprop->is_bot()) {
-      printf("%% Constraint network UNSAT at root, analysis cancelled...\n");
+  /** Analyze a TCN, similarly to `analyze_formula` but specialized to TCN.
+   * Since there are no constant in a TCN, we also distinguish between assigned and unassigned variables.
+   */
+  void analyze_tcn(std::string prefix_tcn_stat) const {
+    stats.print_stat(prefix_tcn_stat + "_variables", store->vars());
+    stats.print_stat(prefix_tcn_stat + "_constraints", iprop->num_deductions());
+    TCNStatistics stats_tcn(store->vars());
+    if(config.disable_network_analysis) {
       return;
     }
-    std::vector<vstat> vstats(store->vars(), vstat{});
-    for(int i = 0; i < store->vars(); ++i) {
-      auto width = (*store)[i].width().lb();
-      vstats[i].infinite_domain = width.is_top();
-      if(!vstats[i].infinite_domain) {
-        vstats[i].domain_size = width.value() + 1;
-      }
+    if(config.verbose_solving) {
+      printf("%% Analyzing the ternary constraint network...\n");
     }
-
-    std::unordered_map<Sig, size_t> op_stats;
-    std::unordered_map<Sig, size_t> reified_op_stats;
-
     for(int i = 0; i < iprop->num_deductions(); ++i) {
       bytecode_type bytecode = iprop->load_deduce(i);
-      vstats[bytecode.x.vid()].num_occurrences++;
-      vstats[bytecode.y.vid()].num_occurrences++;
-      vstats[bytecode.z.vid()].num_occurrences++;
-      auto dom = iprop->project(bytecode.x);
-      if((is_arithmetic_comparison(bytecode.op)) &&
-        (dom.lb().value() != dom.ub().value() || dom.lb().value() == 0))
-      {
-        if(dom.lb().value() != dom.ub().value()) {
-          reified_op_stats[bytecode.op]++;
+      stats_tcn.vars_occurrences[bytecode.x.vid()]++;
+      stats_tcn.vars_occurrences[bytecode.y.vid()]++;
+      stats_tcn.vars_occurrences[bytecode.z.vid()]++;
+      /** We count the number of occurrences of each operator.
+       * Because TCN has only <= and = as comparison operators, their negation is obtained using `0 = (y = z)` for `y != z` and `0 = (y <= z)` for `y > z`.
+       * If we used `analyze_formula` on TCN, such operators would be counted as reified predicates since `0` and `1` are variables in TCN.
+       * Furthermore, we would not be able to distinguish between `=` and `!=` predicates.
+       * Here, we check the domain of the variable `x` to see if it is a singleton domain or not, in order to decide whether we have a reified predicate or not.
+       */
+      auto xdom = iprop->project(bytecode.x);
+      // = and <= cases.
+      if(is_arithmetic_comparison(bytecode.op)) {
+        // Not reified case.
+        if(xdom.lb().value() == xdom.ub().value()) {
+          // Negated case.
+          if(xdom.lb().value() == 0) {
+            stats_tcn.ops[negate_arithmetic_comparison(bytecode.op)]++;
+          }
+          else {
+            stats_tcn.ops[bytecode.op]++;
+          }
         }
+        // Reified case.
         else {
-          op_stats[negate_arithmetic_comparison(bytecode.op)]++;
+          stats_tcn.ops[bytecode.op]++;
+          stats_tcn.reified_predicates[bytecode.op]++;
         }
       }
+      // Arithmetic operators case.
       else {
-        op_stats[bytecode.op]++;
+        stats_tcn.ops[bytecode.op]++;
+      }
+    }
+    for(size_t i = 0; i < store->vars(); ++i) {
+      auto width = (*store)[i].width().lb();
+      if(width.is_top()) {
+        stats_tcn.num_unbounded_vars++;
+      }
+      else {
+        stats_tcn.histogram_vars_dom_size[width.value() + 1]++;
+      }
+      if(width.is_top() || width.value() > 1) {
+        stats_tcn.histogram_unassigned_vars_degree[stats_tcn.vars_occurrences[i]]++;
+        stats_tcn.num_unassigned_var_occurrences += stats_tcn.vars_occurrences[i];
+      }
+      else if(width.value() == 1) {
+        stats_tcn.num_assigned_vars++;
+        stats_tcn.histogram_assigned_vars_degree[stats_tcn.vars_occurrences[i]]++;
+        stats_tcn.num_assigned_var_occurrences += stats_tcn.vars_occurrences[i];
       }
     }
 
-    size_t num_constants = 0;
-    size_t num_2bits_vars = 0;
-    size_t num_64bits_vars = 0;
-    size_t num_128bits_vars = 0;
-    size_t num_256bits_vars = 0;
-    size_t num_512bits_vars = 0;
-    size_t num_65536bits_vars = 0;
-    size_t num_infinites = 0;
-    double average_occ_vars = 0;
-    size_t sum_props_of_vars = 0;
-    size_t max_occ_vars = 0;
-    size_t num_vars_in_2_constraints = 0;
-    size_t num_vars_in_3_constraints = 0;
-    size_t num_vars_in_4_to_10_constraints = 0;
-    size_t num_vars_in_more_than_10_constraints = 0;
-    size_t largest_dom = 0;
-    size_t sum_domain_size = 0;
-    for(int i = 0; i < vstats.size(); ++i) {
-      if(vstats[i].infinite_domain) {
-        ++num_infinites;
-      }
-      else {
-        largest_dom = battery::max(largest_dom, vstats[i].domain_size);
-        sum_domain_size += vstats[i].domain_size;
-      }
-      if(vstats[i].domain_size == 1) {
-        ++num_constants;
-      }
-      else {
-        num_2bits_vars += vstats[i].domain_size == 2;
-        num_64bits_vars += vstats[i].domain_size <= 64;
-        num_128bits_vars += vstats[i].domain_size <= 128;
-        num_256bits_vars += vstats[i].domain_size <= 256;
-        num_512bits_vars += vstats[i].domain_size <= 512;
-        num_65536bits_vars += vstats[i].domain_size <= 65536;
-        sum_props_of_vars += vstats[i].num_occurrences;
-        max_occ_vars = battery::max(max_occ_vars, vstats[i].num_occurrences);
-      }
-      num_vars_in_2_constraints += vstats[i].num_occurrences == 2;
-      num_vars_in_3_constraints += vstats[i].num_occurrences == 3;
-      num_vars_in_4_to_10_constraints += vstats[i].num_occurrences > 3 && vstats[i].num_occurrences <= 10;
-      num_vars_in_more_than_10_constraints += vstats[i].num_occurrences > 10;
+    stats.print_stat(prefix_tcn_stat + "_assigned_variables", stats_tcn.num_assigned_vars);
+    stats.print_stat(prefix_tcn_stat + "_unbounded_variables", stats_tcn.num_unbounded_vars);
+    stats.print_stat(prefix_tcn_stat + "_unassigned_var_occurrences", stats_tcn.num_unassigned_var_occurrences);
+    stats.print_stat(prefix_tcn_stat + "_assigned_var_occurrences", stats_tcn.num_assigned_var_occurrences);
+    stats.print_dict_stat(prefix_tcn_stat + "_histogram_symbols", stats_tcn.ops,
+      [](const auto& key) { return "'" + std::string(string_of_sig_txt(key)) + "'"; },
+      [](const auto& value) { return std::to_string(value); });
+    if(config.verbose_solving > 1) {
+      printf("%%     (Histogram of the number of times a function or predicate symbol `op` occurs in each ternary constraint `x = y op z`.)\n");
     }
-    average_occ_vars =  static_cast<double>(sum_props_of_vars) / static_cast<double>(vstats.size() - num_constants);
-
-    stats.print_stat("num_constants", num_constants);
-    stats.print_stat("num_infinite_domains", num_infinites);
-    // Print the number of average occurrence of variables in the constraints.
-    stats.print_stat("sum_props_of_vars", sum_props_of_vars);
-    stats.print_memory_statistics(config.verbose_solving, "sum_props_of_vars", sum_props_of_vars*4); // 1 integer per propagator indexes.
-    stats.print_stat("avg_constraints_per_unassigned_var", average_occ_vars);
-    // Print the maximum number of occurrence of a single variable in the constraints.
-    stats.print_stat("max_constraints_per_unassigned_var", max_occ_vars);
-    // Print the number of variables occurring only twice in the constraints.
-    stats.print_stat("num_vars_in_2_constraints", num_vars_in_2_constraints);
-    stats.print_stat("num_vars_in_3_constraints", num_vars_in_3_constraints);
-    stats.print_stat("num_vars_in_4_to_10_constraints", num_vars_in_4_to_10_constraints);
-    stats.print_stat("num_vars_in_more_than_10_constraints", num_vars_in_more_than_10_constraints);
-    // Print the number of bits required to represent the bounded variables in a bitset.
-    stats.print_stat("sum_domain_size", sum_domain_size);
-    stats.print_memory_statistics(config.verbose_solving, "sum_domain_size", sum_domain_size/8);
-    // Print the largest variable in the constraint network.
-    stats.print_stat("largest_domain", largest_dom);
-    // Print the number of variables with a width of 2, 64, 128, ... bits or less in the constraint network.
-    stats.print_stat("num_2bits_vars", num_2bits_vars);
-    stats.print_stat("num_64bits_vars", num_64bits_vars);
-    stats.print_stat("num_128bits_vars", num_128bits_vars);
-    stats.print_stat("num_256bits_vars", num_256bits_vars);
-    stats.print_stat("num_512bits_vars", num_512bits_vars);
-    stats.print_stat("num_65536bits_vars", num_65536bits_vars);
-    // For each operator, print how many times they each occur in the constraint network.
-    for(auto& [sig,count] : op_stats) {
-      std::string stat_name("num_op_");
-      stat_name += string_of_sig_txt(sig);
-      stats.print_stat(stat_name.c_str(), count);
+    stats.print_dict_stat(prefix_tcn_stat + "_histogram_reified_predicates", stats_tcn.reified_predicates,
+      [](const auto& key) { return "'" + std::string(string_of_sig_txt(key)) + "'"; },
+      [](const auto& value) { return std::to_string(value); });
+    if(config.verbose_solving > 1) {
+      printf("%%     (Count all the predicate symbols `op` in ternary constraint `x = y op z` such that `x` is not assigned, `op` can be `<=` or `=`.).\n");
     }
-    for(auto& [sig,count] : reified_op_stats) {
-      std::string stat_name("num_op_reified_");
-      stat_name += string_of_sig_txt(sig);
-      stats.print_stat(stat_name.c_str(), count);
+    stats.print_dict_stat(prefix_tcn_stat + "_histogram_unassigned_vars_degree", stats_tcn.histogram_unassigned_vars_degree,
+      [](const auto& key) { return std::to_string(key); },
+      [](const auto& value) { return std::to_string(value); });
+    if(config.verbose_solving > 1) {
+      printf("%%     (Histogram of the degree of the unassigned variables in the formula: `histogram_unassigned_vars_degree[var_degree]` = number of unassigned variables with degree `var_degree`. Repetition of variables in the same constraints are counted).\n");
+    }
+    stats.print_dict_stat(prefix_tcn_stat + "_histogram_assigned_vars_degree", stats_tcn.histogram_assigned_vars_degree,
+      [](const auto& key) { return std::to_string(key); },
+      [](const auto& value) { return std::to_string(value); });
+    if(config.verbose_solving > 1) {
+      printf("%%     (Histogram of the degree of the assigned variables in the formula: `histogram_assigned_vars_degree[var_degree]` = number of assigned variables with degree `var_degree`. Repetition of variables in the same constraints are counted).\n");
+    }
+    stats.print_dict_stat(prefix_tcn_stat + "_histogram_vars_dom_size", stats_tcn.histogram_vars_dom_size,
+      [](const auto& key) { return std::to_string(key); },
+      [](const auto& value) { return std::to_string(value); });
+    if(config.verbose_solving > 1) {
+      printf("%%     (Histogram of the size of the domains of the variables: `histogram_vars_dom_size[dom_size]` = number of variables with domain size `dom_size`).\n");
     }
   }
 

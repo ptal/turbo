@@ -42,7 +42,7 @@ struct Configuration {
   bool only_global_memory;
   bool force_ternarize;
   bool disable_simplify;
-  bool network_analysis;
+  bool disable_network_analysis;
   size_t timeout_ms;
   size_t or_nodes;
   int subproblems_power;
@@ -69,7 +69,7 @@ struct Configuration {
     only_global_memory(false),
     force_ternarize(false),
     disable_simplify(false),
-    network_analysis(false),
+    disable_network_analysis(false),
     timeout_ms(0),
     or_nodes(0),
     subproblems_power(-1),
@@ -119,7 +119,7 @@ struct Configuration {
     only_global_memory(other.only_global_memory),
     force_ternarize(other.force_ternarize),
     disable_simplify(other.disable_simplify),
-    network_analysis(other.network_analysis),
+    disable_network_analysis(other.disable_network_analysis),
     timeout_ms(other.timeout_ms),
     or_nodes(other.or_nodes),
     subproblems_power(other.subproblems_power),
@@ -148,7 +148,7 @@ struct Configuration {
     only_global_memory = other.only_global_memory;
     force_ternarize = other.force_ternarize;
     disable_simplify = other.disable_simplify;
-    network_analysis = other.network_analysis;
+    disable_network_analysis = other.disable_network_analysis;
     timeout_ms = other.timeout_ms;
     or_nodes = other.or_nodes;
     subproblems_power = other.subproblems_power;
@@ -188,7 +188,7 @@ struct Configuration {
     }
     if(disable_simplify) { printf("-disable_simplify "); }
     if(force_ternarize) { printf("-force_ternarize "); }
-    if(network_analysis) { printf("-network_analysis "); }
+    if(disable_network_analysis) { printf("-disable_network_analysis "); }
     printf("-fp %s ", name_of_fixpoint(fixpoint));
     if(fixpoint == FixpointKind::WAC1) {
       printf("-wac1_threshold %" PRIu64 " ", wac1_threshold);

@@ -27,11 +27,11 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-wac1_threshold 4096: Threshold below which we select AC1 instead of WAC1 (default: 0)." << std::endl;
   std::cout << "\t-or 48: Run the subproblems on 48 streaming multiprocessors (SMs) (only for GPU architecture). Default: -or 0 for automatic selection of the number of SMs." << std::endl;
   std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the blocks (embarrasingly parallel search). The special value `-1` leaves Turbo to decide on the number of subproblems (at least 30 * number of blocks). Default: -sub -1." << std::endl;
-  std::cout << "\t-subfactor 30: Create B * 30 subproblems to be solved in turns by `B` blocks (embarrasingly parallel search). Default: -subfactor 30." << std::endl;
+  std::cout << "\t-subfactor 300: Create B * 300 subproblems to be solved in turns by `B` blocks (embarrasingly parallel search). Default: -subfactor 300." << std::endl;
   std::cout << "\t-eps_var_order <input_order|first_fail|anti_first_fail|smallest|largest|random>: Choose the variable ordering strategy for subproblems decomposition (default: same as main search strategy)." << std::endl;
   std::cout << "\t-eps_value_order <min|max|split|reverse_split>: Choose the value ordering strategy for subproblems decomposition (default: same as main search strategy)." << std::endl;
   std::cout << "\t-seed 0: Set the seed for the random number generator (default: 0)." << std::endl;
-  std::cout << "\t-network_analysis: Analyse the constraint network and output statistics." << std::endl;
+  std::cout << "\t-disable_network_analysis: Do not analyse the constraint network and output statistics." << std::endl;
   std::cout << "\t-stack 100: Use a maximum of 100KB of stack size per thread stored in global memory (only for GPU architectures)." << std::endl;
   std::cout << "\t-version 1.0.0: A version identifier that is printed as statistics to know which version of Turbo was used to solve an instance. It is only for documentation and replicability purposes." << std::endl;
   std::cout << "\t-hardware \"Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000\": The description of the hardware on which the solver is executed (\"CPU;RAM;GPU\"). It is only for documentation and replicability purposes." << std::endl;
@@ -158,7 +158,7 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
   input.read_bool("-globalmem", config.only_global_memory);
   input.read_bool("-disable_simplify", config.disable_simplify);
   input.read_bool("-force_ternarize", config.force_ternarize);
-  input.read_bool("-network_analysis", config.network_analysis);
+  input.read_bool("-disable_network_analysis", config.disable_network_analysis);
 
   std::string architecture;
   if(input.read_string("-arch", architecture)) {

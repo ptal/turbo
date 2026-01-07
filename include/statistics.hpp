@@ -253,6 +253,11 @@ struct Statistics {
     }
   }
 
+  template <class T>
+  void print_stat(std::string name, T value) const {
+    print_stat(name.c_str(), value);
+  }
+
   CUDA void print_stat_fp_iter(const char* name, size_t num_iterations, size_t value) const {
     if(print_statistics) {
       printf("%%%%%%mzn-stat: %s_fp_iter_%" PRIu64 "=%" PRIu64 "\n", name, num_iterations, value);
@@ -283,7 +288,7 @@ struct Statistics {
   }
 
   // \param dict: a map from keys to values (e.g., std::map, std::unordered_map).
-  void print_dict_stat(const char* name, const auto& dict, auto string_of_key, auto string_of_value) const {
+  void print_dict_stat(std::string name, const auto& dict, auto string_of_key, auto string_of_value) const {
     std::string s = "{";
     bool first = true;
     for(const auto& [key, value] : dict) {
@@ -294,7 +299,7 @@ struct Statistics {
       s += std::string(string_of_key(key)) + ": " + string_of_value(value);
     }
     s += "}";
-    print_stat(name, s.c_str());
+    print_stat(name.c_str(), s.c_str());
   }
 
 private:
