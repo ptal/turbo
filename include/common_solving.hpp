@@ -36,6 +36,10 @@
   #include "lala/XCSP3_parser.hpp"
 #endif
 
+#ifdef WITH_NNV
+  #include "nnv.hpp"
+#endif
+
 using namespace lala;
 
 #ifndef TURBO_ITV_BITS
@@ -52,6 +56,7 @@ using namespace lala;
   #error "Invalid value for TURBO_ITV_BITS: must be 16, 32 or 64."
 #endif
 using Itv = Interval<ZLB<bound_value_type, battery::local_memory>>;
+using FItv = Interval<FLB<double, battery::local_memory>>;
 
 static std::atomic<bool> got_signal;
 static void (*prev_sigint)(int);
@@ -411,6 +416,12 @@ public:
 #ifdef WITH_XCSP3PARSER
     else if(config.input_format() == InputFormat::XCSP3) {
       f = parse_xcsp3(config.problem_path.data(), solver_output);
+    }
+#endif
+#ifdef WITH_NNV
+    else if (config.input_format() == InputFormat::VNNLIB ||
+             config.input_format() == InputFormat::ONNX) {
+      f = parse_nnv<basic_allocator_type>(config.onnx_path.data(), config.vnnlib_path.data());
     }
 #endif
     if(!f) {

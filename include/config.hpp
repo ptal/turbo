@@ -26,7 +26,9 @@ enum class FixpointKind {
 
 enum class InputFormat {
   XCSP3,
-  FLATZINC
+  FLATZINC,
+  VNNLIB,
+  ONNX
 };
 
 template<class Allocator>
@@ -55,6 +57,8 @@ struct Configuration {
   battery::string<allocator_type> eps_var_order;
   battery::string<allocator_type> eps_value_order;
   battery::string<allocator_type> problem_path;
+  battery::string<allocator_type> vnnlib_path;
+  battery::string<allocator_type> onnx_path;
   battery::string<allocator_type> version;
   battery::string<allocator_type> hardware;
 
@@ -100,6 +104,8 @@ struct Configuration {
     eps_value_order("default", alloc),
     eps_var_order("default", alloc),
     problem_path(alloc),
+    vnnlib_path(alloc),
+    onnx_path(alloc),
     version(alloc),
     hardware(alloc)
   {}
@@ -132,6 +138,8 @@ struct Configuration {
     eps_var_order(other.eps_var_order, alloc),
     eps_value_order(other.eps_value_order, alloc),
     problem_path(other.problem_path, alloc),
+    vnnlib_path(other.vnnlib_path, alloc),
+    onnx_path(other.onnx_path, alloc),
     version(other.version, alloc),
     hardware(other.hardware, alloc)
   {}
@@ -161,6 +169,8 @@ struct Configuration {
     eps_var_order = other.eps_var_order;
     eps_value_order = other.eps_value_order;
     problem_path = other.problem_path;
+    vnnlib_path = other.vnnlib_path;
+    onnx_path = other.onnx_path;
     version = other.version;
     hardware = other.hardware;
   }
@@ -271,6 +281,12 @@ struct Configuration {
     }
     else if(problem_path.ends_with(".xml")) {
       return InputFormat::XCSP3;
+    }
+    else if (problem_path.ends_with(".vnnlib")){
+      return InputFormat::VNNLIB;
+    }
+    else if (problem_path.ends_with(".onnx")){
+      return InputFormat::ONNX;
     }
     else {
       printf("ERROR: Unknown input format for the file %s [supported extension: .xml and .fzn].\n", problem_path.data());
