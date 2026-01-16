@@ -415,13 +415,15 @@ public:
     }
 #ifdef WITH_XCSP3PARSER
     else if(config.input_format() == InputFormat::XCSP3) {
+      solver_output.set_type(OutputType::XCSP);
       f = parse_xcsp3(config.problem_path.data(), solver_output);
     }
 #endif
 #ifdef WITH_NNV
     else if (config.input_format() == InputFormat::VNNLIB ||
              config.input_format() == InputFormat::ONNX) {
-      f = parse_nnv<basic_allocator_type>(config.onnx_path.data(), config.vnnlib_path.data());
+      solver_output.set_type(OutputType::NNV);
+      f = parse_nnv<basic_allocator_type>(config.onnx_path.data(), config.vnnlib_path.data(), solver_output);
     }
 #endif
     if(!f) {
@@ -518,7 +520,11 @@ public:
   }
 
   void preprocess_tcn(F& f) {
+  #ifdef WITH_NNV
+    f = ternarize(f, VarEnv<BasicAllocator>(), false);
+  #else
     f = ternarize(f, VarEnv<BasicAllocator>(), {0,1,2});
+  #endif
     battery::vector<F> extra;
     f = normalize(f, extra);
     size_t num_vars = num_quantified_vars(f);
@@ -547,10 +553,17 @@ public:
       has_changed = false;
       preprocessing_fixpoint_iterations++;
       SimplifierStats local_preprocessing_stats;
+  #ifdef WITH_NNV
+      fp_engine.fixpoint(iprop->num_deductions(),
+        [&](size_t i) { return iprop->deduce(i, false); },
+        [&](){ return iprop->is_bot(); },
+        has_changed);
+  #else 
       fp_engine.fixpoint(iprop->num_deductions(),
         [&](size_t i) { return iprop->deduce(i); },
         [&](){ return iprop->is_bot(); },
         has_changed);
+  #endif
       if(has_changed) {
         simplifier->meet_equivalence_classes();
       }
@@ -592,6 +605,9 @@ public:
   const char* name_of_abstract_domain() const {
     #define STR_(x) #x
     #define STR(x) STR_(x)
+    #ifdef WITH_NNV
+      return "pir_itv_f";
+    #endif 
     #ifdef TURBO_IPC_ABSTRACT_DOMAIN
       return "ipc_itv" STR(TURBO_ITV_BITS) "_z";
     #else
