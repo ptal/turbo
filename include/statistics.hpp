@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <algorithm>
+#include <unordered_map>
 #include "battery/utility.hpp"
 #include "battery/allocator.hpp"
 #include "lala/logic/ast.hpp"
@@ -26,6 +27,20 @@ enum class Timer {
   FIRST_BLOCK_IDLE,
   NUM_TIMERS
 };
+
+std::string string_of_array(const auto& array, auto string_of_value) {
+  std::string s = "[";
+  bool first = true;
+  for(const auto& value : array) {
+    if(!first) {
+      s += ", ";
+    }
+    first = false;
+    s += string_of_value(value);
+  }
+  s += "]";
+  return s;
+}
 
 template <class Allocator = battery::standard_allocator>
 struct TimingStatistics {
@@ -252,6 +267,11 @@ struct Statistics {
     }
   }
 
+  template <class T>
+  void print_stat(std::string name, T value) const {
+    print_stat(name.c_str(), value);
+  }
+
   CUDA void print_stat_fp_iter(const char* name, size_t num_iterations, size_t value) const {
     if(print_statistics) {
       printf("%%%%%%mzn-stat: %s_fp_iter_%" PRIu64 "=%" PRIu64 "\n", name, num_iterations, value);
@@ -279,6 +299,26 @@ struct Statistics {
       }
       printf("]\n");
     }
+  }
+
+  // \param dict: a map from keys to values (e.g., std::map, std::unordered_map).
+  void print_dict_stat(std::string name, const auto& dict, auto string_of_key, auto string_of_value) const {
+    std::string s = "{";
+    bool first = true;
+    for(const auto& [key, value] : dict) {
+      if(!first) {
+        s += ", ";
+      }
+      first = false;
+      s += std::string(string_of_key(key)) + ": " + string_of_value(value);
+    }
+    s += "}";
+    print_stat(name.c_str(), s.c_str());
+  }
+
+  void print_array_stat(std::string name, const auto& array, auto string_of_value) const {
+    std::string s = string_of_array(array, string_of_value);
+    print_stat(name.c_str(), s.c_str());
   }
 
 private:

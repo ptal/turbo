@@ -8,7 +8,11 @@
 void cpu_solve(const Configuration<battery::standard_allocator>& config) {
   auto start = std::chrono::steady_clock::now();
 
+#ifdef WITH_NNV 
+  CP<FItv> cp(config);
+#else
   CP<Itv> cp(config);
+#endif
   cp.config.or_nodes = 1;
   cp.preprocess();
   if(cp.iprop->is_bot()) {

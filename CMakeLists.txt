@@ -106,9 +106,8 @@ if(WITH_XCSP3PARSER)
   target_compile_definitions(turbo PRIVATE WITH_XCSP3PARSER)
 endif()
 
-If(WITH_NNV)
+if(WITH_NNV)
     target_compile_definitions(turbo PRIVATE WITH_NNV)
-    enable_testing()
 endif()
 
 if(NO_CONCURRENT_MANAGED_MEMORY)

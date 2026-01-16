@@ -21,14 +21,14 @@
     "supportsFzn": true,
     "supportsMzn": false,
     "supportsNL": false,
-    "version": "1.2.9",
+    "version": "1.3.0",
     "extraFlags": [
         ["-version", "version of the solver to be printed as statistics", "string", "1.2.8"],
         ["-hardware", "description of the hardware on which the solver is executed (CPU;RAM;GPU)", "string", "unspecified"],
         ["-arch", "architecture to use", "string", "cpu"],
         ["-disable_simplify", "Disable the simplification step.", "bool", "false"],
         ["-force_ternarize", "Force the transformation of the formula in ternary normal form, even with IPC abstract domain (note that it is enabled by default with PIR abstract domain).", "bool", "false"],
-        ["-network_analysis", "Analyze the constraint network.", "bool", "false"],
+        ["-disable_network_analysis", "Disable analysis of the constraint network.", "bool", "false"],
         ["-cutnodes", "Cut the number of nodes to be explored", "int", "0"]
     ]
 }

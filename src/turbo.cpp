@@ -16,6 +16,7 @@
 
 #include "hybrid_dive_and_solve.hpp"
 #include "barebones_dive_and_solve.hpp"
+#include "fbarebones_dive_and_solve.hpp"
 
 using namespace battery;
 
@@ -38,6 +39,9 @@ int main(int argc, char** argv) {
 #endif
     else if(config.arch == Arch::BAREBONES) {
       barebones::barebones_dive_and_solve(config);
+    }
+    else if (config.arch == Arch::FBAREBONES) {
+      fbarebones::fbarebones_dive_and_solve(config);
     }
 #ifndef DISABLE_HYBRID_GPU_SOLVING
     else if(config.arch == Arch::HYBRID) {

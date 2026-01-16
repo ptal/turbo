@@ -4,4 +4,4 @@
 (assert (>= X_0 -1.0))
 (assert (<= X_0 1.0))
 
-(assert (<= Y_0 -1.0))
+(assert (>= Y_0 -1.0))
