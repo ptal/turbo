@@ -524,6 +524,14 @@ public:
     }
   }
 
+  void print_preprocessing_stats(const SimplifierStats& preprocessing_stats) const {
+    stats.print_array_stat("preprocessing_icse_eliminated_constraints", preprocessing_stats.eliminated_constraints_by_icse_, [](const auto& v) { return string_of_array(v, [](auto v) { return std::to_string(v); }); });
+    stats.print_array_stat("preprocessing_algsimp_eliminated_constraints", preprocessing_stats.eliminated_constraints_by_as_, [](auto v) { return std::to_string(v); });
+    stats.print_array_stat("preprocessing_algsimp_eliminated_eq_constraints", preprocessing_stats.eliminated_equality_constraints_, [](auto v) { return std::to_string(v); });
+    stats.print_array_stat("preprocessing_entailment_eliminated_constraints", preprocessing_stats.eliminated_entailed_constraints_, [](auto v) { return std::to_string(v); });
+    stats.print_array_stat("preprocessing_eliminated_variables", preprocessing_stats.eliminated_useless_variables_, [](auto v) { return std::to_string(v); });
+  }
+
   void preprocess_tcn(F& f) {
   #ifdef WITH_NNV
     f = ternarize(f, VarEnv<BasicAllocator>(), false);
@@ -564,6 +572,7 @@ public:
         [&](size_t i) { return iprop->deduce(i); },
         [&](){ return iprop->is_bot(); },
         has_changed);
+  #endif
       if(has_changed) {
         simplifier->meet_equivalence_classes();
       }
