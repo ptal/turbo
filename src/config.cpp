@@ -204,6 +204,9 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
     else if(architecture == "barebones") {
       config.arch = Arch::BAREBONES;
     }
+    else if (architecture == "fbarebones") {
+      config.arch = Arch::FBAREBONES;
+    }
     else {
       std::cerr << "Unknown architecture -arch " << architecture << std::endl;
       exit(EXIT_FAILURE);

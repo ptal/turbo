@@ -564,7 +564,7 @@ public:
       preprocessing_stats.prepare_next_iteration();
   #ifdef WITH_NNV
       fp_engine.fixpoint(iprop->num_deductions(),
-        [&](size_t i) { return iprop->deduce(i, false); },
+        [&](size_t i) { return iprop->fdeduce(i); },
         [&](){ return iprop->is_bot(); },
         has_changed);
   #else 

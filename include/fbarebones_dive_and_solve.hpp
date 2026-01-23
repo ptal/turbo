@@ -19,7 +19,7 @@ namespace bt = ::battery;
  * The full GPU version (`gpu_dive_and_solve`) is not compiling on modern GPU hardware (SM >= 9) due to the kernel being too large.
  * We circuvanted this issue by creating an hybrid version where only propagation is executed on the GPU (`hybrid_dive_and_solve`).
  * This has the disadvantage of memory transfers between CPU and GPU and synchronization overheads.
- * We propose a new "barebones" version which contains less abstractions than the GPU and hybrid versions, but have the same functionalities.
+ * We propose a new "fbarebones" version which contains less abstractions than the GPU and hybrid versions, but have the same functionalities.
  * In particular, we directly implement the branch-and-bound algorithm here and avoid using `lala::BAB` and `lala::SearchTree` which are nice from a software engineering perspective but bring significant overhead.
  * This version is intended to reach the best possible performance.
  *
@@ -66,7 +66,7 @@ struct UnifiedData {
   /** The memory configuration of each block. */
   MemoryConfig mem_config;
 
-  UnifiedData(const CP<Itv>& cp, MemoryConfig mem_config)
+  UnifiedData(const CP<FItv>& cp, MemoryConfig mem_config)
    : root(GridCP::tag_gpu_block_copy{}, false, cp)
    , stop(false)
    , mem_config(mem_config)
@@ -88,8 +88,9 @@ struct BlockData {
   /** The store of variables at the root of the current subproblem. */
   abstract_ptr<VStore<FItv, bt::global_allocator>> root_store;
 
-  /** The best solution found so far in this block. */
-  abstract_ptr<VStore<FItv, bt::global_allocator>> best_store;
+  /** The solution found so far in this block, and identify each interval (box) to either inner box or unknown box. */
+  bt::vector<VStore<FItv, bt::global_allocator>> inner_boxes;
+  bt::vector<VStore<FItv, bt::global_allocator>> unknown_boxes;
 
   /** The current store of variables.
    * We use a `pool_allocator`, this allows to easily switch between global memory and shared memory, if the store of variables can fit inside.
@@ -101,19 +102,13 @@ struct BlockData {
    * If the propagators do not fit in shared memory, the array of propagators is shared among all blocks.
    * It is possible because the propagators are state-less, we avoid duplicating them in each block.
    * */
-  abstract_ptr<FProp> iprop;
+  abstract_ptr<FProp> fprop;
 
   /** The statistics of the current block. */
   Statistics<bt::global_allocator> stats;
 
   /** The path from `UnifiedData::root` to the current subproblem `root_store`. */
   size_t subproblem_idx;
-
-  /** The best bound found so far by this block.
-   * We always seek to minimize.
-   * Invariant: `best_bound == best_store.project(obj_var).lb()`
-   */
-  UB best_bound;
 
   /** The current strategy being used to split the store.
    * It is an index into `GridData::strategies`.
@@ -159,23 +154,22 @@ struct BlockData {
       subproblem_idx = blockIdx.x;
       const MemoryConfig& mem_config = unified_data.mem_config;
       const auto& u_store = *(unified_data.root.store);
-      const auto& u_iprop = *(unified_data.root.iprop);
+      const auto& u_fprop = *(unified_data.root.fprop);
       bt::pool_allocator shared_mem_pool(mem_config.make_shared_pool(shared_mem));
       bt::pool_allocator store_allocator(mem_config.make_store_pool(shared_mem_pool));
       bt::pool_allocator prop_allocator(mem_config.make_prop_pool(shared_mem_pool));
       root_store = bt::make_shared<VStore<FItv, bt::global_allocator>, bt::global_allocator>(u_store);
-      best_store = bt::make_shared<VStore<FItv, bt::global_allocator>, bt::global_allocator>(u_store);
       store = bt::allocate_shared<FStore, bt::pool_allocator>(store_allocator, u_store, store_allocator);
-      iprop = bt::allocate_shared<FProp, bt::pool_allocator>(prop_allocator, u_iprop, store, prop_allocator);
+      fprop = bt::allocate_shared<FProp, bt::pool_allocator>(prop_allocator, u_fprop, store, prop_allocator);
     }
   }
 
-  /** We must deallocate store and iprop inside the kernel because they might be initialized in shared memory. */
+  /** We must deallocate store and fprop inside the kernel because they might be initialized in shared memory. */
   __device__ void deallocate_shared_data() {
     if(threadIdx.x == 0) {
       // NOTE: .reset() does not work because it does not reset the allocator, which is itself allocated in global memory.
       store = abstract_ptr<FStore>();
-      iprop = abstract_ptr<FProp>();
+      fprop = abstract_ptr<FProp>();
     }
   }
 
@@ -199,22 +193,22 @@ struct BlockData {
         }
         case VariableOrder::FIRST_FAIL: {
           lattice_smallest_split(has_changed, idx, strategies[i],
-            [](const Itv& u) { return UB2(u.ub().value() - u.lb().value()); });
+            [](const FItv& u) { return UB2(u.ub().value() - u.lb().value()); });
           break;
         }
         case VariableOrder::ANTI_FIRST_FAIL: {
           lattice_smallest_split(has_changed, idx, strategies[i],
-            [](const Itv& u) { return LB2(u.ub().value() - u.lb().value()); });
+            [](const FItv& u) { return LB2(u.ub().value() - u.lb().value()); });
           break;
         }
         case VariableOrder::LARGEST: {
           lattice_smallest_split(has_changed, idx, strategies[i],
-            [](const Itv& u) { return LB2(u.ub().value()); });
+            [](const FItv& u) { return LB2(u.ub().value()); });
           break;
         }
         case VariableOrder::SMALLEST: {
           lattice_smallest_split(has_changed, idx, strategies[i],
-            [](const Itv& u) { return UB2(u.lb().value()); });
+            [](const FItv& u) { return UB2(u.lb().value()); });
           break;
         }
         default: assert(false);
@@ -239,7 +233,6 @@ struct BlockData {
    */
   __device__ INLINE void input_order_split(bool& has_changed, local::FUB& idx, const StrategyType<bt::global_allocator>& strategy)
   {
-    // TODO:
     bool split_in_store = strategy.vars.empty();
     int n = split_in_store ? store->vars() : strategy.vars.size();
     if(threadIdx.x == 0) {
@@ -256,8 +249,8 @@ struct BlockData {
       __syncthreads();
       for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-        if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()) {
-          if(idx.meet(local::ZUB(i))) {
+        if(dom.ub().value() - dom.lb().value() <= config.epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
+          if(idx.meet(local::FUB(i))) {
             has_changed = true;
           }
         }
@@ -280,8 +273,7 @@ struct BlockData {
   __device__ INLINE void lattice_smallest_split(bool& has_changed, local::FUB& idx,
     const StrategyType<bt::global_allocator>& strategy, F f)
   {
-    // TODO:
-    using T = decltype(f(Itv{}));
+    using T = decltype(f(FItv{}));
     __shared__ T value;
     bool split_in_store = strategy.vars.empty();
     int n = split_in_store ? store->vars() : strategy.vars.size();
@@ -301,7 +293,7 @@ struct BlockData {
       __syncthreads();
       for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-        if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()) {
+        if(dom.ub().value() - dom.lb().value() <= config.epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
           if(value.meet(f(dom))) {
             has_changed = true;
           }
@@ -330,7 +322,7 @@ struct BlockData {
         __syncthreads();
         for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
           const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-          if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top() && f(dom) == value) {
+          if(dom.ub().value() - dom.lb().value() <= config.epsilon && !dom.lb().is_top() && !dom.ub().is_top() && f(dom) == value) {
             if(idx.meet(local::FUB(i))) {
               has_changed = true;
             }
@@ -355,32 +347,22 @@ struct BlockData {
    *  \precondition Must be executed by thread 0 only.
   */
   __device__ INLINE void push_decision(ValueOrder val_order, AVar var) {
-    using value_type = typename Itv::LB::value_type;
+    using value_type = typename FItv::LB::value_type;
     assert(threadIdx.x == 0);
     decisions[depth].var = var;
     decisions[depth].current_idx = -1;
     const auto& dom = store->project(decisions[depth].var);
-    assert(dom.lb().value() != dom.ub().value());
+    assert(dom.ub().value() - dom.lb().value() <= config.epsilon);
     switch(val_order) {
-      case ValueOrder::MIN: {
-        decisions[depth].children[0] = FItv(dom.lb().value());
-        decisions[depth].children[1] = FItv(dom.lb().value() + value_type{1}, dom.ub());
-        break;
-      }
-      case ValueOrder::MAX: {
-        decisions[depth].children[0] = FItv(dom.ub().value());
-        decisions[depth].children[1] = FItv(dom.lb(), dom.ub().value() - value_type{1});
-        break;
-      }
       case ValueOrder::SPLIT: {
-        auto mid = dom.lb().value() +  (dom.ub().value() - dom.lb().value()) / value_type{2};
+        auto mid = dom.lb().value() +  (dom.ub().value() - dom.lb().value()) / value_type{2.0};
         decisions[depth].children[0] = FItv(dom.lb(), mid);
-        decisions[depth].children[1] = FItv(mid + value_type{1}, dom.ub());
+        decisions[depth].children[1] = FItv(mid, dom.ub());
         break;
       }
       case ValueOrder::REVERSE_SPLIT: {
-        auto mid = dom.lb().value() +  (dom.ub().value() - dom.lb().value()) / value_type{2};
-        decisions[depth].children[0] = FItv(mid + value_type{1}, dom.ub());
+        auto mid = dom.lb().value() +  (dom.ub().value() - dom.lb().value()) / value_type{2.0};
+        decisions[depth].children[0] = FItv(mid, dom.ub());
         decisions[depth].children[1] = FItv(dom.lb(), mid);
         break;
       }
@@ -417,7 +399,7 @@ struct GridData {
    * A `0` means to turn left in the search tree, and a `1` means to turn right.
    * Incrementing this integer will generate the path of the next subproblem.
    */
-  ZLB<size_t, bt::atomic_memory_grid> next_subproblem;
+  FLB<size_t, bt::atomic_memory_grid> next_subproblem;
 
   /** This is an approximation of the best bound found so far, globally, across all threads.
    * It is not necessarily the true best bound at each time `t`.
@@ -425,7 +407,7 @@ struct GridData {
    * It is used to share information among blocks.
    * We always seek to minimize.
    */
-  UB appx_best_bound;
+  // UB appx_best_bound;
 
   /** Due to multithreading, we must protect `stdout` when printing.
    * The model of computation in this work is lock-free, but it seems unavoidable for printing.
@@ -454,9 +436,9 @@ struct GridData {
   {}
 };
 
-MemoryConfig configure_gpu_barebones(CP<Itv>&);
+MemoryConfig configure_gpu_fbarebones(CP<FItv>&);
 __global__ void initialize_global_data(UnifiedData*, bt::unique_ptr<GridData, bt::global_allocator>*);
-__global__ void gpu_barebones_solve(UnifiedData*, GridData*);
+__global__ void gpu_fbarebones_solve(UnifiedData*, GridData*);
 template <class FPEngine>
 __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data, BlockData& block_data,
    FPEngine& fp_engine, bool& stop, bool& has_changed, bool& is_leaf_node);
@@ -473,12 +455,12 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
   /** We start with some preprocessing to reduce the number of variables and constraints. */
   CP<FItv> cp(config);
   cp.preprocess();
-  if(cp.iprop->is_bot()) {
+  if(cp.fprop->is_bot()) {
     cp.print_final_solution();
     cp.print_mzn_statistics();
     return;
   }
-  MemoryConfig mem_config = configure_gpu_barebones(cp);
+  MemoryConfig mem_config = configure_gpu_fbarebones(cp);
   auto unified_data = bt::make_unique<UnifiedData, ConcurrentAllocator>(cp, mem_config);
   auto grid_data = bt::make_unique<bt::unique_ptr<GridData, bt::global_allocator>, ConcurrentAllocator>();
   initialize_global_data<<<1,1>>>(unified_data.get(), grid_data.get());
@@ -486,7 +468,7 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
   /** We wait that either the solving is interrupted, or that all threads have finished. */
   /** Block the signal CTRL-C to notify the threads if we must exit. */
   block_signal_ctrlc();
-  gpu_barebones_solve
+  gpu_fbarebones_solve
     <<<static_cast<unsigned int>(cp.stats.num_blocks),
       CUDA_THREADS_PER_BLOCK,
       mem_config.shared_bytes>>>
@@ -526,14 +508,14 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
  * 4) Increase the global heap memory.
  * 5) Increase the stack size if requested by the user.
  */
-MemoryConfig configure_gpu_barebones(CP<FItv>& cp) {
+MemoryConfig configure_gpu_fbarebones(CP<FItv>& cp) {
   auto& config = cp.config;
 
   /** I. Number of blocks per SM. */
   cudaDeviceProp deviceProp;
   cudaGetDeviceProperties(&deviceProp, 0);
   int max_block_per_sm;
-  cudaOccupancyMaxActiveBlocksPerMultiprocessor(&max_block_per_sm, (void*) gpu_barebones_solve, CUDA_THREADS_PER_BLOCK, 0);
+  cudaOccupancyMaxActiveBlocksPerMultiprocessor(&max_block_per_sm, (void*) gpu_fbarebones_solve, CUDA_THREADS_PER_BLOCK, 0);
   if(cp.config.verbose_solving) {
     printf("%% max_blocks_per_sm=%d\n", max_block_per_sm);
   }
@@ -560,14 +542,14 @@ MemoryConfig configure_gpu_barebones(CP<FItv>& cp) {
    * The estimation is very conservative, normally we should not run out of memory.
    * */
   size_t store_bytes = gpu_sizeof<FStore>() + gpu_sizeof<abstract_ptr<FStore>>() + cp.store->vars() * gpu_sizeof<FItv>();
-  size_t iprop_bytes = gpu_sizeof<FProp>() + gpu_sizeof<abstract_ptr<FProp>>() + cp.iprop->num_deductions() * gpu_sizeof<bytecode_type>() + gpu_sizeof<typename IProp::bytecodes_type>();
+  size_t fprop_bytes = gpu_sizeof<FProp>() + gpu_sizeof<abstract_ptr<FProp>>() + cp.fprop->num_deductions() * gpu_sizeof<bytecode_type>() + gpu_sizeof<typename IProp::bytecodes_type>();
   size_t mem_per_block = gpu_sizeof<BlockData>()
     + store_bytes * size_t{3}  // current, root, best.
     + store_bytes * size_t{2}  // search strategies
-    + iprop_bytes * size_t{2}
-    + cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<int>()  // fixpoint engine
+    + fprop_bytes * size_t{2}
+    + cp.fprop->num_deductions() * size_t{4} * gpu_sizeof<int>()  // fixpoint engine
     + (gpu_sizeof<int>() + gpu_sizeof<LightBranch<FItv>>()) * size_t{MAX_SEARCH_DEPTH};
-  size_t estimated_global_mem = gpu_sizeof<UnifiedData>() + store_bytes * size_t{5} + iprop_bytes +
+  size_t estimated_global_mem = gpu_sizeof<UnifiedData>() + store_bytes * size_t{5} + fprop_bytes +
     gpu_sizeof<GridData>();
 
   size_t mem_for_blocks = deviceProp.totalGlobalMem - estimated_global_mem - (deviceProp.totalGlobalMem / 100 * 10);
@@ -598,10 +580,10 @@ MemoryConfig configure_gpu_barebones(CP<FItv>& cp) {
   int blocks_per_sm = std::max(1, (cp.stats.num_blocks + deviceProp.multiProcessorCount - 1) / deviceProp.multiProcessorCount);
   MemoryConfig mem_config;
   if(config.only_global_memory) {
-    mem_config = MemoryConfig(store_bytes, iprop_bytes);
+    mem_config = MemoryConfig(store_bytes, fprop_bytes);
   }
   else {
-    mem_config = MemoryConfig((void*) gpu_barebones_solve, config.verbose_solving, blocks_per_sm, store_bytes, iprop_bytes);
+    mem_config = MemoryConfig((void*) gpu_fbarebones_solve, config.verbose_solving, blocks_per_sm, store_bytes, fprop_bytes);
   }
   mem_config.print_mzn_statistics(config, cp.stats);
   return mem_config;
@@ -619,7 +601,7 @@ __global__ void initialize_global_data(
     block_data.timer = block_data.stats.stop_timer(Timer::KIND, block_data.timer); \
   }
 
-__global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_data) {
+__global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_data) {
   extern __shared__ unsigned char shared_mem[];
   auto& config = unified_data->root.config;
   BlockData& block_data = grid_data->blocks[blockIdx.x];
@@ -631,12 +613,12 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
 
   block_data.allocate(*unified_data, *grid_data, shared_mem);
   __syncthreads();
-  IProp& iprop = *block_data.iprop;
+  FProp& fprop = *block_data.fprop;
 #ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
   __shared__ BlockAsynchronousFixpointGPU<true> fp_engine;
 #else
   __shared__ FixpointSubsetGPU<BlockAsynchronousFixpointGPU<true>, bt::global_allocator, CUDA_THREADS_PER_BLOCK> fp_engine;
-  fp_engine.init(iprop.num_deductions());
+  fp_engine.init(fprop.num_deductions());
 #endif
   /** This shared variable is necessary to avoid multiple threads to read into `unified_data.stop.test()`,
    * potentially reading different values and leading to deadlock. */
@@ -669,7 +651,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
     block_data.depth = 0;
     unified_data->root.store->copy_to(group, *block_data.store);
 #ifndef TURBO_NO_ENTAILED_PROP_REMOVAL
-    fp_engine.reset(iprop.num_deductions());
+    fp_engine.reset(fprop.num_deductions());
 #endif
     __syncthreads();
 
@@ -753,34 +735,11 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
 
       while(!stop) {
 
-        // I. Optimize the objective variable (only if not diving).
-
-        if(threadIdx.x == 0 && !grid_data->obj_var.is_untyped()) {
-          /** Before propagating, we update the local bound with the best known global bound.
-           * Strenghten the objective variable to get a better objective next time.
-           */
-          if(!grid_data->appx_best_bound.is_top()) {
-            block_data.store->embed(grid_data->obj_var,
-              FItv(FItv::LB::top(), FItv::UB(grid_data->appx_best_bound.value() - 1)));
-            block_data.store->embed(grid_data->obj_var,
-              FItv(FItv::LB::top(), FItv::UB(block_data.best_bound.value() - 1)));
-          }
-          // Unconstrained objective, can terminate, we will not find a better solution.
-          if(grid_data->appx_best_bound.is_bot()) {
-            stop = true;
-            unified_data->stop.test_and_set();
-          }
-        }
-        __syncthreads();
-        if(stop) {
-          break;
-        }
-
-        // II. Propagate the current node.
+        // I. Propagate the current node.
         propagate(*unified_data, *grid_data, block_data, fp_engine, stop, has_changed, is_leaf_node);
         __syncthreads();
 
-        // III. Branching
+        // II. Branching
 
         if(!is_leaf_node) {
           // If we are at the root of the current subproblem, we create a snapshot for future backtracking.
@@ -809,7 +768,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
           }
         }
 
-        // IV. Backtracking
+        // III. Backtracking
 
         if(is_leaf_node) {
           // Leaf node at root.
@@ -826,7 +785,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
           }
           // Restore from root by copying the store and re-applying all decisions from root to block_data.depth-1.
 #ifndef TURBO_NO_ENTAILED_PROP_REMOVAL
-          fp_engine.reset(iprop.num_deductions());
+          fp_engine.reset(fprop.num_deductions());
 #endif
           block_data.root_store->copy_to(group, *block_data.store);
           // __syncthreads();
@@ -882,7 +841,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
       /** The following commented code is completely valid and does not use atomic post-increment.
        * But honestly, we kinda need more performance so... let's avoid reexploring subproblems. */
       // subproblem_idx = grid_data->next_subproblem.value();
-      // grid_data->next_subproblem.meet(ZLB<size_t, bt::local_memory>(subproblem_idx + size_t{1}));
+      // grid_data->next_subproblem.meet(FLB<size_t, bt::local_memory>(subproblem_idx + size_t{1}));
     }
     __syncthreads();
   }
@@ -909,7 +868,7 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
   __shared__ int warp_iterations[CUDA_THREADS_PER_BLOCK/32];
   warp_iterations[threadIdx.x / 32] = 0;
   auto& config = unified_data.root.config;
-  IProp& iprop = *block_data.iprop;
+  FProp& fprop = *block_data.fprop;
   auto group = cooperative_groups::this_thread_block();
 
   TIMEPOINT(SEARCH);
@@ -920,7 +879,7 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
   // II. Compute the fixpoint of the current node.
   int fp_iterations;
 #ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
-  int num_active = iprop.num_deductions();
+  int num_active = fprop.num_deductions();
 #else
   int num_active = fp_engine.num_active();
 #endif
@@ -928,10 +887,10 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
     case FixpointKind::AC1: {
       fp_iterations = fp_engine.fixpoint(
 #ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
-        iprop.num_deductions(),
+        fprop.num_deductions(),
 #endif
-        [&](int i){ return iprop.deduce(i, false); },
-        [&](){ return iprop.is_bot(); });
+        [&](int i){ return fprop.fdeduce(i); },
+        [&](){ return fprop.is_bot(); });
       if(threadIdx.x == 0) {
         block_data.stats.num_deductions += fp_iterations * num_active;
       }
@@ -941,10 +900,10 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
       if(num_active <= config.wac1_threshold) {
         fp_iterations = fp_engine.fixpoint(
 #ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
-        iprop.num_deductions(),
+        fprop.num_deductions(),
 #endif
-          [&](int i){ return iprop.deduce(i, false); },
-          [&](){ return iprop.is_bot(); });
+          [&](int i){ return fprop.fdeduce(i); },
+          [&](){ return fprop.is_bot(); });
         if(threadIdx.x == 0) {
           block_data.stats.num_deductions += fp_iterations * num_active;
         }
@@ -952,10 +911,10 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
       else {
         fp_iterations = fp_engine.fixpoint(
 #ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
-          iprop.num_deductions(),
+          fprop.num_deductions(),
 #endif
-          [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(iprop, i, warp_iterations); },
-          [&](){ return iprop.is_bot(); });
+          [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(fprop, i, warp_iterations, false); },
+          [&](){ return fprop.is_bot(); });
         if(threadIdx.x == 0) {
           for(int i = 0; i < CUDA_THREADS_PER_BLOCK/32; ++i) {
             block_data.stats.num_deductions += warp_iterations[i] * 32;
@@ -969,21 +928,21 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
 
   // III. Analyze the result of propagation
 
-  if(!iprop.is_bot()) {
+  if(!fprop.is_bot()) {
 #ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
     if(threadIdx.x == 0) {
       has_changed = false;
     }
     __syncthreads();
-    for(int i = threadIdx.x; !has_changed && i < iprop.num_deductions(); i += blockDim.x) {
-      if(!iprop.ask(i)) {
+    for(int i = threadIdx.x; !has_changed && i < fprop.num_deductions(); i += blockDim.x) {
+      if(!fprop.fask(i, config.epsilon)) {
         has_changed = true;
       }
     }
     __syncthreads();
     num_active = has_changed ? 1 : 0;
 #else
-    fp_engine.select([&](int i) { return !iprop.ask(i); });
+    fp_engine.select([&](int i) { return !fprop.fask(i, config.epsilon); });
     num_active = fp_engine.num_active();
 #endif
     TIMEPOINT(SELECT_FP_FUNCTIONS);
@@ -991,21 +950,30 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
      * Note that it doesn't mean the best bound of the block must be the best bound of the grid.
      * It is to prevent copying a store with a worst bound into `best_store`.
      */
-    if(num_active == 0) {
+    if (num_active == 0) {
       is_leaf_node = true;
-      if(block_data.best_bound.value() > block_data.store->project(grid_data.obj_var).lb().value()) {
-        if(threadIdx.x == 0) {
-          block_data.best_bound.meet(FItv::UB(block_data.store->project(grid_data.obj_var).lb().value()));
-          grid_data.appx_best_bound.meet(block_data.best_bound);
-          block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);
+      if(threadIdx.x == 0) {
+        block_data.stats.solutions++;
+        for(int i = group.thread_rank(); i < store.vars(); i += group.num_threads()) {
+          block_data.inner_boxes.push_back(block_data.store.data[i]);
         }
-        block_data.store->copy_to(group, *block_data.best_store);
-        if(threadIdx.x == 0) {
-          block_data.stats.solutions++;
-          if(config.verbose_solving >= 2) {
-            grid_data.print_lock.acquire();
-            printf("%% objective="); block_data.best_bound.print(); printf("\n");
-            grid_data.print_lock.release();
+      }
+    } 
+    else { 
+      if(threadIdx.x == 0) {
+        for(int i = group.thread_rank(); i < store.vars(); i += group.num_threads()) {
+          const auto& data = block_data.store.data[i];
+          // TODO: 
+          // To know which variable its bounds are between satisifed and unsatisfied the constraints.
+          // It means that the related fask(i, config.epsilon) must return false.
+          // This if condition might not correct.
+          if (!fprop.ask(i, config.epsilon)) {
+            if(data.ub().value() - data.lb().value() <= config.epsilon) {
+              block_data.unknown_boxes.push_back(data);
+            }
+          }
+          else {
+            block_data.inner_boxes.push_back(data);
           }
         }
       }
@@ -1018,13 +986,14 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
   if(threadIdx.x == 0) {
     block_data.stats.fixpoint_iterations += fp_iterations;
     block_data.stats.nodes++;
-    block_data.stats.fails += (iprop.is_bot() ? 1 : 0);
+    block_data.stats.fails += (fprop.is_bot() ? 1 : 0);
     block_data.stats.depth_max = battery::max(block_data.stats.depth_max, block_data.depth);
 
     // IV. Checking stopping conditions.
 
     if(block_data.stats.nodes >= config.stop_after_n_nodes
-      || unified_data.stop.test())
+      || unified_data.stop.test()
+      || block_data.unknown_boxes.size() + block_data.inner_boxes.size() == store.vars())
     {
       block_data.stats.exhaustive = false;
       stop = true;
@@ -1047,24 +1016,10 @@ __global__ void reduce_blocks(UnifiedData* unified_data, GridData* grid_data) {
     auto& block = grid_data->blocks[i];
     if(block.stats.solutions > 0) {
       if(root.bab->is_satisfaction()) {
-        block.best_store->extract(*root.best);
+        block.store->extract(*root.best);
         break;
       }
-      else {
-        bool equal_bound = (grid_data->appx_best_bound == block.best_bound);
-        bool is_better = grid_data->appx_best_bound.meet(block.best_bound);
-        int64_t& grid_best_time = root.stats.timers.time_of(Timer::LATEST_BEST_OBJ_FOUND);
-        int64_t block_best_time = block.stats.timers.time_of(Timer::LATEST_BEST_OBJ_FOUND);
-        if(is_better || (equal_bound && block_best_time <= grid_best_time)) {
-          grid_best_time = block_best_time;
-          best_block_idx = i;
-        }
-      }
     }
-  }
-  // If we found a bound, we copy the best store into the unified data.
-  if(!grid_data->appx_best_bound.is_top()) {
-    grid_data->blocks[best_block_idx].best_store->copy_to(*root.best);
   }
 }
 
@@ -1087,6 +1042,6 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
 
 #endif
 
-} // namespace barebones
+} // namespace fbarebones
 
 #endif // TURBO_FBAREBONES_DIVE_AND_SOLVE_HPP
