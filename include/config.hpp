@@ -242,6 +242,8 @@ struct Configuration {
         return "gpu";
       case Arch::BAREBONES:
         return "barebones";
+      case Arch::FBAREBONES:
+        return "fbarebones";
       case Arch::HYBRID:
         return "hybrid";
       default:
