@@ -79,7 +79,7 @@ struct UnifiedData {
 
 struct GridData;
 using FStore = VStore<FItv, bt::pool_allocator>;
-using FProp = FPIR<FStore, bt::pool_allocator>;
+using FProp = PIR<FStore, bt::pool_allocator>;
 using UB = FUB<typename FItv::LB::value_type, bt::atomic_memory_grid>;
 using strategies_type = bt::vector<StrategyType<bt::global_allocator>, bt::global_allocator>;
 
