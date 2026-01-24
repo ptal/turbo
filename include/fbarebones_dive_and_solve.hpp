@@ -154,7 +154,7 @@ struct BlockData {
       subproblem_idx = blockIdx.x;
       const MemoryConfig& mem_config = unified_data.mem_config;
       const auto& u_store = *(unified_data.root.store);
-      const auto& u_fprop = *(unified_data.root.fprop);
+      const auto& u_fprop = *(unified_data.root.iprop);
       bt::pool_allocator shared_mem_pool(mem_config.make_shared_pool(shared_mem));
       bt::pool_allocator store_allocator(mem_config.make_store_pool(shared_mem_pool));
       bt::pool_allocator prop_allocator(mem_config.make_prop_pool(shared_mem_pool));
@@ -178,7 +178,7 @@ struct BlockData {
    * \param strategies: A sequence of strategies.
    * \precondition: We must not be on a leaf node.
    */
-  __device__ INLINE void split(bool& has_changed, const strategies_type& strategies) {
+  __device__ INLINE void split(bool& has_changed, const strategies_type& strategies const double epsilon) {
     using LB2 = typename FItv::LB::local_type;
     using UB2 = typename FItv::UB::local_type;
     __shared__ local::FUB idx;
@@ -188,26 +188,26 @@ struct BlockData {
       switch(strategies[i].var_order) {
         case VariableOrder::RANDOM:
         case VariableOrder::INPUT_ORDER: {
-          input_order_split(has_changed, idx, strategies[i]);
+          input_order_split(has_changed, idx, strategies[i], epsilon);
           break;
         }
         case VariableOrder::FIRST_FAIL: {
-          lattice_smallest_split(has_changed, idx, strategies[i],
+          lattice_smallest_split(has_changed, idx, strategies[i], epsilon,
             [](const FItv& u) { return UB2(u.ub().value() - u.lb().value()); });
           break;
         }
         case VariableOrder::ANTI_FIRST_FAIL: {
-          lattice_smallest_split(has_changed, idx, strategies[i],
+          lattice_smallest_split(has_changed, idx, strategies[i], epsilon,
             [](const FItv& u) { return LB2(u.ub().value() - u.lb().value()); });
           break;
         }
         case VariableOrder::LARGEST: {
-          lattice_smallest_split(has_changed, idx, strategies[i],
+          lattice_smallest_split(has_changed, idx, strategies[i], epsilon,
             [](const FItv& u) { return LB2(u.ub().value()); });
           break;
         }
         case VariableOrder::SMALLEST: {
-          lattice_smallest_split(has_changed, idx, strategies[i],
+          lattice_smallest_split(has_changed, idx, strategies[i], epsilon,
             [](const FItv& u) { return UB2(u.lb().value()); });
           break;
         }
@@ -231,7 +231,7 @@ struct BlockData {
    * \param has_changed is a Boolean in shared memory.
    * \param idx is a decreasing integer in shared memory.
    */
-  __device__ INLINE void input_order_split(bool& has_changed, local::FUB& idx, const StrategyType<bt::global_allocator>& strategy)
+  __device__ INLINE void input_order_split(bool& has_changed, local::FUB& idx, const StrategyType<bt::global_allocator>& strategy, const double epsilon)
   {
     bool split_in_store = strategy.vars.empty();
     int n = split_in_store ? store->vars() : strategy.vars.size();
@@ -249,7 +249,7 @@ struct BlockData {
       __syncthreads();
       for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-        if(dom.ub().value() - dom.lb().value() <= config.epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
+        if(dom.ub().value() - dom.lb().value() <= epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
           if(idx.meet(local::FUB(i))) {
             has_changed = true;
           }
@@ -260,7 +260,7 @@ struct BlockData {
     if(threadIdx.x == 0) {
       next_unassigned_var = idx.value();
       if(next_unassigned_var != n) {
-        push_decision(strategy.val_order, split_in_store ? AVar{store->aty(), next_unassigned_var} : strategy.vars[next_unassigned_var]);
+        push_decision(strategy.val_order, split_in_store ? AVar{store->aty(), next_unassigned_var} : strategy.vars[next_unassigned_var], epsilon);
       }
     }
   }
@@ -271,7 +271,7 @@ struct BlockData {
    * */
   template <class F>
   __device__ INLINE void lattice_smallest_split(bool& has_changed, local::FUB& idx,
-    const StrategyType<bt::global_allocator>& strategy, F f)
+    const StrategyType<bt::global_allocator>& strategy, const double epsilon, F f)
   {
     using T = decltype(f(FItv{}));
     __shared__ T value;
@@ -293,7 +293,7 @@ struct BlockData {
       __syncthreads();
       for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-        if(dom.ub().value() - dom.lb().value() <= config.epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
+        if(dom.ub().value() - dom.lb().value() <= epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
           if(value.meet(f(dom))) {
             has_changed = true;
           }
@@ -322,7 +322,7 @@ struct BlockData {
         __syncthreads();
         for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
           const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-          if(dom.ub().value() - dom.lb().value() <= config.epsilon && !dom.lb().is_top() && !dom.ub().is_top() && f(dom) == value) {
+          if(dom.ub().value() - dom.lb().value() <= epsilon && !dom.lb().is_top() && !dom.ub().is_top() && f(dom) == value) {
             if(idx.meet(local::FUB(i))) {
               has_changed = true;
             }
@@ -333,10 +333,10 @@ struct BlockData {
       assert(idx.value() < n);
       if(threadIdx.x == 0) {
         if(split_in_store) {
-          push_decision(strategy.val_order, AVar{store->aty(), idx.value()});
+          push_decision(strategy.val_order, AVar{store->aty(), idx.value()}, epsilon);
         }
         else {
-          push_decision(strategy.val_order, strategy.vars[idx.value()]);
+          push_decision(strategy.val_order, strategy.vars[idx.value()], epsilon);
         }
       }
     }
@@ -346,13 +346,13 @@ struct BlockData {
    *  \precondition The domain of the variable `var` must not be empty, be a singleton or contain infinite bounds.
    *  \precondition Must be executed by thread 0 only.
   */
-  __device__ INLINE void push_decision(ValueOrder val_order, AVar var) {
+  __device__ INLINE void push_decision(ValueOrder val_order, AVar var, const double epsilon) {
     using value_type = typename FItv::LB::value_type;
     assert(threadIdx.x == 0);
     decisions[depth].var = var;
     decisions[depth].current_idx = -1;
     const auto& dom = store->project(decisions[depth].var);
-    assert(dom.ub().value() - dom.lb().value() <= config.epsilon);
+    assert(dom.ub().value() - dom.lb().value() <= epsilon);
     switch(val_order) {
       case ValueOrder::SPLIT: {
         auto mid = dom.lb().value() +  (dom.ub().value() - dom.lb().value()) / value_type{2.0};
@@ -667,7 +667,7 @@ __global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_d
       propagate(*unified_data, *grid_data, block_data, fp_engine, stop, has_changed, is_leaf_node);
       __syncthreads();
       if(!is_leaf_node) {
-        block_data.split(has_changed, grid_data->search_strategies);
+        block_data.split(has_changed, grid_data->search_strategies, config.epsilon);
         __syncthreads();
         // Split was not able to split a domain. It means that the search strategy is not complete due to unsplittable infinite domains.
         // We skip the subtree, and set exhaustive to `false`.
