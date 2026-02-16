@@ -88,9 +88,8 @@ struct BlockData {
   /** The store of variables at the root of the current subproblem. */
   abstract_ptr<VStore<FItv, bt::global_allocator>> root_store;
 
-  /** The solution found so far in this block, and identify each interval (box) to either inner box or unknown box. */
-  bt::vector<VStore<FItv, bt::global_allocator>> inner_boxes;
-  bt::vector<VStore<FItv, bt::global_allocator>> unknown_boxes;
+  // inner box 
+  abstract_ptr<VStore<FItv, bt::global_allocator>> counter_example_store;
 
   /** The current store of variables.
    * We use a `pool_allocator`, this allows to easily switch between global memory and shared memory, if the store of variables can fit inside.
@@ -159,6 +158,7 @@ struct BlockData {
       bt::pool_allocator store_allocator(mem_config.make_store_pool(shared_mem_pool));
       bt::pool_allocator prop_allocator(mem_config.make_prop_pool(shared_mem_pool));
       root_store = bt::make_shared<VStore<FItv, bt::global_allocator>, bt::global_allocator>(u_store);
+      counter_example_store = bt::make_shared<VStore<FItv, bt::global_allocator>, bt::global_allocator>(u_store);
       store = bt::allocate_shared<FStore, bt::pool_allocator>(store_allocator, u_store, store_allocator);
       fprop = bt::allocate_shared<FProp, bt::pool_allocator>(prop_allocator, u_fprop, store, prop_allocator);
     }
@@ -178,10 +178,10 @@ struct BlockData {
    * \param strategies: A sequence of strategies.
    * \precondition: We must not be on a leaf node.
    */
-  __device__ INLINE void split(bool& has_changed, const strategies_type& strategies const double epsilon) {
+  __device__ INLINE void split(bool& has_changed, const strategies_type& strategies, const double epsilon) {
     using LB2 = typename FItv::LB::local_type;
     using UB2 = typename FItv::UB::local_type;
-    __shared__ local::FUB idx;
+    __shared__ local::ZUB idx;
     decisions[depth].var = AVar{};
     int currentDepth = depth;
     for(int i = current_strategy; i < strategies.size(); ++i) {
@@ -189,6 +189,10 @@ struct BlockData {
         case VariableOrder::RANDOM:
         case VariableOrder::INPUT_ORDER: {
           input_order_split(has_changed, idx, strategies[i], epsilon);
+          break;
+        }
+        case VariableOrder::FLOATING: {
+          floating_split(has_changed, idx, strategies[i], epsilon);
           break;
         }
         case VariableOrder::FIRST_FAIL: {
@@ -231,7 +235,7 @@ struct BlockData {
    * \param has_changed is a Boolean in shared memory.
    * \param idx is a decreasing integer in shared memory.
    */
-  __device__ INLINE void input_order_split(bool& has_changed, local::FUB& idx, const StrategyType<bt::global_allocator>& strategy, const double epsilon)
+  __device__ INLINE void input_order_split(bool& has_changed, local::ZUB& idx, const StrategyType<bt::global_allocator>& strategy, const double epsilon)
   {
     bool split_in_store = strategy.vars.empty();
     int n = split_in_store ? store->vars() : strategy.vars.size();
@@ -249,8 +253,8 @@ struct BlockData {
       __syncthreads();
       for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-        if(dom.ub().value() - dom.lb().value() <= epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
-          if(idx.meet(local::FUB(i))) {
+        if(dom.ub().value() - dom.lb().value() > epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
+          if(idx.meet(local::ZUB(i))) {
             has_changed = true;
           }
         }
@@ -258,7 +262,7 @@ struct BlockData {
       __syncthreads();
     }
     if(threadIdx.x == 0) {
-      next_unassigned_var = idx.value();
+      next_unassigned_var = idx.value(); 
       if(next_unassigned_var != n) {
         push_decision(strategy.val_order, split_in_store ? AVar{store->aty(), next_unassigned_var} : strategy.vars[next_unassigned_var], epsilon);
       }
@@ -270,7 +274,7 @@ struct BlockData {
    * \param idx is a decreasing integer in shared memory.
    * */
   template <class F>
-  __device__ INLINE void lattice_smallest_split(bool& has_changed, local::FUB& idx,
+  __device__ INLINE void lattice_smallest_split(bool& has_changed, local::ZUB& idx,
     const StrategyType<bt::global_allocator>& strategy, const double epsilon, F f)
   {
     using T = decltype(f(FItv{}));
@@ -293,11 +297,11 @@ struct BlockData {
       __syncthreads();
       for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-        if(dom.ub().value() - dom.lb().value() <= epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
+        if(dom.ub().value() - dom.lb().value() > epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
           if(value.meet(f(dom))) {
             has_changed = true;
           }
-          if(idx.meet(local::FUB(i))) {
+          if(idx.meet(local::ZUB(i))) {
             has_changed = true;
           }
         }
@@ -322,8 +326,8 @@ struct BlockData {
         __syncthreads();
         for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
           const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-          if(dom.ub().value() - dom.lb().value() <= epsilon && !dom.lb().is_top() && !dom.ub().is_top() && f(dom) == value) {
-            if(idx.meet(local::FUB(i))) {
+          if(dom.ub().value() - dom.lb().value() > epsilon && !dom.lb().is_top() && !dom.ub().is_top() && f(dom) == value) {
+            if(idx.meet(local::ZUB(i))) {
               has_changed = true;
             }
           }
@@ -342,6 +346,49 @@ struct BlockData {
     }
   }
 
+  /**
+   *  
+   * 
+   * */
+  __device__ INLINE void floating_split(bool& has_changed, local::ZUB& idx, 
+    const StrategyType<bt::global_allocator>& strategy, const double epsilon)
+  {
+    bool split_in_store = strategy.vars.empty();
+    int n = split_in_store ? store->vars() : strategy.vars.size();
+    if(threadIdx.x == 0) {
+      has_changed = true;
+      idx = n;
+    }
+    __syncthreads();
+    bt::vector<bool> E(n, false);
+    for(int i = threadIdx.x; i < fprop->num_deductions(); i += blockDim.x) {
+      if(!fprop->fask(i)) {
+        has_changed = true;
+        E[fprop->load_deduce(i).x.vid()] = true;
+        E[fprop->load_deduce(i).y.vid()] = true;
+        E[fprop->load_deduce(i).z.vid()] = true;
+      }
+    }
+    __syncthreads();
+    for(int i = threadIdx.x; i < n; i += blockDim.x) {
+      const int dom_id = split_in_store ? i : strategy.vars[i].vid();
+      const auto& dom = (*store)[dom_id];
+      if(dom.ub().value() - dom.lb().value() > epsilon && E[dom_id] && !dom.lb().is_top() && !dom.ub().is_top()) {
+        if(idx.meet(local::ZUB(i))) {
+          has_changed = true;
+          break;
+        }
+      }
+    }
+    __syncthreads();
+    if(threadIdx.x == 0) {
+      next_unassigned_var = idx.value();
+      if(next_unassigned_var != n) {
+        push_decision(strategy.val_order, split_in_store ? AVar{store->aty(), next_unassigned_var} : strategy.vars[next_unassigned_var], epsilon);
+      }
+    }
+  }
+
   /** Push a new decision onto the decisions stack.
    *  \precondition The domain of the variable `var` must not be empty, be a singleton or contain infinite bounds.
    *  \precondition Must be executed by thread 0 only.
@@ -352,22 +399,22 @@ struct BlockData {
     decisions[depth].var = var;
     decisions[depth].current_idx = -1;
     const auto& dom = store->project(decisions[depth].var);
-    assert(dom.ub().value() - dom.lb().value() <= epsilon);
+    // printf("split on %d \n", decisions[depth].var.vid());
+    assert(dom.ub().value() - dom.lb().value() > epsilon);
+    auto mid = battery::add_down(static_cast<double>(dom.lb().value()), battery::div_down(battery::sub_down(static_cast<double>(dom.ub().value()), static_cast<double>(dom.lb().value())), 2.0));
     switch(val_order) {
       case ValueOrder::SPLIT: {
-        auto mid = dom.lb().value() +  (dom.ub().value() - dom.lb().value()) / value_type{2.0};
         decisions[depth].children[0] = FItv(dom.lb(), mid);
         decisions[depth].children[1] = FItv(mid, dom.ub());
         break;
       }
       case ValueOrder::REVERSE_SPLIT: {
-        auto mid = dom.lb().value() +  (dom.ub().value() - dom.lb().value()) / value_type{2.0};
         decisions[depth].children[0] = FItv(mid, dom.ub());
         decisions[depth].children[1] = FItv(dom.lb(), mid);
         break;
       }
       // ValueOrder::MEDIAN is not possible with interval.
-      default: assert(false);
+      default: assert(false); 
     }
     /** Ropes are a mechanism for fast backtracking.
      * The rope of a left node is always the depth of the right node (also its depth), because after completing the exploration of the left subtree, we must visit the right subtree (rooted at the current depth).
@@ -399,15 +446,7 @@ struct GridData {
    * A `0` means to turn left in the search tree, and a `1` means to turn right.
    * Incrementing this integer will generate the path of the next subproblem.
    */
-  FLB<size_t, bt::atomic_memory_grid> next_subproblem;
-
-  /** This is an approximation of the best bound found so far, globally, across all threads.
-   * It is not necessarily the true best bound at each time `t`.
-   * The true best bound is obtained by `meet` over all block's best bounds.
-   * It is used to share information among blocks.
-   * We always seek to minimize.
-   */
-  // UB appx_best_bound;
+  ZLB<size_t, bt::atomic_memory_grid> next_subproblem;
 
   /** Due to multithreading, we must protect `stdout` when printing.
    * The model of computation in this work is lock-free, but it seems unavoidable for printing.
@@ -455,7 +494,7 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
   /** We start with some preprocessing to reduce the number of variables and constraints. */
   CP<FItv> cp(config);
   cp.preprocess();
-  if(cp.fprop->is_bot()) {
+  if(cp.iprop->is_bot()) {
     cp.print_final_solution();
     cp.print_mzn_statistics();
     return;
@@ -542,12 +581,12 @@ MemoryConfig configure_gpu_fbarebones(CP<FItv>& cp) {
    * The estimation is very conservative, normally we should not run out of memory.
    * */
   size_t store_bytes = gpu_sizeof<FStore>() + gpu_sizeof<abstract_ptr<FStore>>() + cp.store->vars() * gpu_sizeof<FItv>();
-  size_t fprop_bytes = gpu_sizeof<FProp>() + gpu_sizeof<abstract_ptr<FProp>>() + cp.fprop->num_deductions() * gpu_sizeof<bytecode_type>() + gpu_sizeof<typename IProp::bytecodes_type>();
+  size_t fprop_bytes = gpu_sizeof<FProp>() + gpu_sizeof<abstract_ptr<FProp>>() + cp.iprop->num_deductions() * gpu_sizeof<bytecode_type>() + gpu_sizeof<typename FProp::bytecodes_type>();
   size_t mem_per_block = gpu_sizeof<BlockData>()
     + store_bytes * size_t{3}  // current, root, best.
     + store_bytes * size_t{2}  // search strategies
     + fprop_bytes * size_t{2}
-    + cp.fprop->num_deductions() * size_t{4} * gpu_sizeof<int>()  // fixpoint engine
+    + cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<int>()  // fixpoint engine
     + (gpu_sizeof<int>() + gpu_sizeof<LightBranch<FItv>>()) * size_t{MAX_SEARCH_DEPTH};
   size_t estimated_global_mem = gpu_sizeof<UnifiedData>() + store_bytes * size_t{5} + fprop_bytes +
     gpu_sizeof<GridData>();
@@ -635,7 +674,6 @@ __global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_d
   __syncthreads();
 
   /** B. Start the main dive and solve loop. */
-
   size_t num_subproblems = unified_data->root.stats.eps_num_subproblems;
   while(block_data.subproblem_idx < num_subproblems && !stop) {
     if(config.verbose_solving >= 2 && threadIdx.x == 0) {
@@ -715,7 +753,7 @@ __global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_d
       if(threadIdx.x == 0) {
         size_t next_subproblem_idx = ((block_data.subproblem_idx >> remaining_depth) + size_t{1}) << remaining_depth;
         // Make sure the subtree is skipped.
-        while(grid_data->next_subproblem.meet(FLB<size_t, bt::local_memory>(next_subproblem_idx))) {}
+        while(grid_data->next_subproblem.meet(ZLB<size_t, bt::local_memory>(next_subproblem_idx))) {}
         /** It is possible that other blocks skip similar subtrees.
           * Hence, we only count the subproblems skipped by the block solving the left most subproblem. */
         if((block_data.subproblem_idx & ((size_t{1} << remaining_depth) - size_t{1})) == size_t{0}) {
@@ -751,7 +789,7 @@ __global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_d
             }
           }
           __syncthreads();
-          block_data.split(has_changed, grid_data->search_strategies);
+          block_data.split(has_changed, grid_data->search_strategies, config.epsilon);
           __syncthreads();
           // Split was not able to split a domain. It means that the search strategy is not complete due to unsplittable infinite domains.
           // We trigger backtracking, and set exhaustive to `false`.
@@ -913,7 +951,7 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
 #ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
           fprop.num_deductions(),
 #endif
-          [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(fprop, i, warp_iterations, false); },
+          [&](int i){ return fwarp_fixpoint<CUDA_THREADS_PER_BLOCK>(fprop, i, warp_iterations); },
           [&](){ return fprop.is_bot(); });
         if(threadIdx.x == 0) {
           for(int i = 0; i < CUDA_THREADS_PER_BLOCK/32; ++i) {
@@ -927,7 +965,6 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
   TIMEPOINT(FIXPOINT);
 
   // III. Analyze the result of propagation
-
   if(!fprop.is_bot()) {
 #ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
     if(threadIdx.x == 0) {
@@ -935,14 +972,14 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
     }
     __syncthreads();
     for(int i = threadIdx.x; !has_changed && i < fprop.num_deductions(); i += blockDim.x) {
-      if(!fprop.fask(i, config.epsilon)) {
+      if(!fprop.fask(i)) {
         has_changed = true;
       }
     }
     __syncthreads();
     num_active = has_changed ? 1 : 0;
 #else
-    fp_engine.select([&](int i) { return !fprop.fask(i, config.epsilon); });
+    fp_engine.select([&](int i) { return !fprop.fask(i); });
     num_active = fp_engine.num_active();
 #endif
     TIMEPOINT(SELECT_FP_FUNCTIONS);
@@ -954,27 +991,27 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
       is_leaf_node = true;
       if(threadIdx.x == 0) {
         block_data.stats.solutions++;
-        for(int i = group.thread_rank(); i < store.vars(); i += group.num_threads()) {
-          block_data.inner_boxes.push_back(block_data.store.data[i]);
+        block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);
+      }
+      if(block_data.stats.solutions == 1) 
+        block_data.store->copy_to(group, *block_data.counter_example_store);
+    } 
+    else if(block_data.stats.solutions == 0) {
+      // We have at least one constraint is not entailed.
+      has_changed = false;
+      const auto& store = *block_data.store;
+      for(int i = threadIdx.x; i < block_data.store->vars(); i += blockDim.x) {
+        if (store[i].ub().value() - store[i].lb().value() > config.epsilon) {
+          has_changed = true;
+          break;
         }
       }
-    } 
-    else { 
-      if(threadIdx.x == 0) {
-        for(int i = group.thread_rank(); i < store.vars(); i += group.num_threads()) {
-          const auto& data = block_data.store.data[i];
-          // TODO: 
-          // To know which variable its bounds are between satisifed and unsatisfied the constraints.
-          // It means that the related fask(i, config.epsilon) must return false.
-          // This if condition might not correct.
-          if (!fprop.ask(i, config.epsilon)) {
-            if(data.ub().value() - data.lb().value() <= config.epsilon) {
-              block_data.unknown_boxes.push_back(data);
-            }
-          }
-          else {
-            block_data.inner_boxes.push_back(data);
-          }
+      if(!has_changed) {
+        // The width for each interval is less than or equal to epsilon.
+        // So, we are not able to split any interval, and fail to answer the result due to numerical imprecision.
+        if(threadIdx.x == 0) {
+          // is_leaf_node = true; // TODO: If we do this, test.small.onnx will not able to find the counter-example. Not sure the reason yet.
+          block_data.stats.unknowns++;
         }
       }
     }
@@ -993,7 +1030,7 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
 
     if(block_data.stats.nodes >= config.stop_after_n_nodes
       || unified_data.stop.test()
-      || block_data.unknown_boxes.size() + block_data.inner_boxes.size() == store.vars())
+      || block_data.stats.solutions > 0)
     {
       block_data.stats.exhaustive = false;
       stop = true;
@@ -1011,12 +1048,11 @@ __global__ void reduce_blocks(UnifiedData* unified_data, GridData* grid_data) {
       grid_first_block_idle = block_idle;
     }
   }
-  int best_block_idx = 0;
   for(int i = 0; i < grid_data->blocks.size(); ++i) {
     auto& block = grid_data->blocks[i];
     if(block.stats.solutions > 0) {
       if(root.bab->is_satisfaction()) {
-        block.store->extract(*root.best);
+        block.counter_example_store->extract(*root.best);
         break;
       }
     }

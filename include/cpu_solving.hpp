@@ -40,18 +40,34 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
     }
     else {
 #ifdef WITH_NNV
-      fp_engine.select([&](int i) { return !cp.iprop->fask(i, config.epsilon); });
+      fp_engine.select([&](int i) { return !cp.iprop->fask(i); });
+      cp.stats.stop_timer(Timer::SELECT_FP_FUNCTIONS, start2);
+      printf("fp_engine.num_active() = %d\n", fp_engine.num_active());
+      if(fp_engine.num_active() == 0 && cp.search_tree->template is_fextractable<AtomicExtraction>()) {
+        has_changed |= cp.bab->fdeduce();
+        must_prune |= cp.on_solution_node();
+        break;
+      }
+      else if(cp.search_tree->is_unknown(config.epsilon)) {
+        cp.on_unknown_node();
+        fp_engine.reset();
+      }
 #else
       fp_engine.select([&](int i) { return !cp.iprop->ask(i); });
-#endif
       cp.stats.stop_timer(Timer::SELECT_FP_FUNCTIONS, start2);
       if(fp_engine.num_active() == 0 && cp.search_tree->template is_extractable<AtomicExtraction>()) {
         has_changed |= cp.bab->deduce();
         must_prune |= cp.on_solution_node();
         fp_engine.reset();
       }
+#endif
+      
     }
+#ifdef WITH_NNV 
+    has_changed |= cp.search_tree->fdeduce(cp.config.epsilon);  // add branching strategies
+#else
     has_changed |= cp.search_tree->deduce();
+#endif
     cp.stats.stop_timer(Timer::SEARCH, start2);
     if(must_prune) { break; }
   }

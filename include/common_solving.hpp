@@ -536,7 +536,7 @@ public:
   #ifdef WITH_NNV
     f = ternarize(f, VarEnv<BasicAllocator>(), false);
   #else
-    f = ternarize(f, VarEnv<BasicAllocator>(), {0,1,2});
+    f = ternarize(f, VarEnv<BasicAllocator>(), true, {0,1,2});
   #endif
     battery::vector<F> extra;
     f = normalize(f, extra);
@@ -577,7 +577,11 @@ public:
         simplifier->meet_equivalence_classes();
       }
       has_changed |= simplifier->algebraic_simplify(tnf, preprocessing_stats);
+  #ifdef WITH_NNV
+      simplifier->feliminate_entailed_constraints(*iprop, tnf, preprocessing_stats);
+  #else
       simplifier->eliminate_entailed_constraints(*iprop, tnf, preprocessing_stats);
+  #endif
       // if(num_vars < 1000000) { // otherwise ICSE is too slow, needs to be improved.
         has_changed |= simplifier->i_cse(tnf, preprocessing_stats);
       // }
@@ -667,8 +671,21 @@ private:
   template <class F>
   CUDA bool interpret_default_strategy() {
     typename F::Sequence seq;
-    seq.push_back(F::make_nary("first_fail", {}));
-    seq.push_back(F::make_nary("indomain_min", {}));
+#ifdef WITH_NNV
+    if(config.var_order == "default" && config.value_order == "default") {
+      seq.push_back(F::make_nary("first_fail", {}));
+      seq.push_back(F::make_nary("indomain_split",{}));
+    }
+#else 
+    if(config.var_order == "default" && config.value_order == "default") {
+      seq.push_back(F::make_nary("first_fail", {}));
+      seq.push_back(F::make_nary("indomain_min", {}));
+    }
+#endif
+    else {
+      seq.push_back(F::make_nary(config.var_order.data(), {}));
+      seq.push_back(F::make_nary(config.value_order.data(), {}));
+    }
     F search_strat = F::make_nary("search", std::move(seq));
     if(!interpret_and_diagnose_and_tell(search_strat, env, *bab)) {
       return false;
@@ -809,7 +826,7 @@ private:
         stats_tcn.histogram_unassigned_vars_degree[stats_tcn.vars_occurrences[i]]++;
         stats_tcn.num_unassigned_var_occurrences += stats_tcn.vars_occurrences[i];
       }
-      else if(width.value() == 1) {
+      else if(width.value() == 1 || width.value() <= config.epsilon) {
         stats_tcn.num_assigned_vars++;
         stats_tcn.histogram_assigned_vars_degree[stats_tcn.vars_occurrences[i]]++;
         stats_tcn.num_assigned_var_occurrences += stats_tcn.vars_occurrences[i];
@@ -902,6 +919,10 @@ public:
 
   CUDA void on_failed_node() {
     stats.fails += 1;
+  }
+
+  CUDA void on_unknown_node() {
+    stats.unknowns += 1; 
   }
 
   CUDA void print_final_solution() {

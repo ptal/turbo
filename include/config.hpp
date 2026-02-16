@@ -56,6 +56,8 @@ struct Configuration {
   size_t wac1_threshold;
   size_t seed;
   double epsilon;
+  battery::string<allocator_type> var_order;
+  battery::string<allocator_type> value_order;
   battery::string<allocator_type> eps_var_order;
   battery::string<allocator_type> eps_value_order;
   battery::string<allocator_type> problem_path;
@@ -104,6 +106,8 @@ struct Configuration {
     wac1_threshold(0),
     seed(0),
     epsilon(1e-6),
+    value_order("default", alloc),
+    var_order("default", alloc),
     eps_value_order("default", alloc),
     eps_var_order("default", alloc),
     problem_path(alloc),
@@ -139,6 +143,8 @@ struct Configuration {
     wac1_threshold(other.wac1_threshold),
     seed(other.seed),
     epsilon(other.epsilon),
+    var_order(other.var_order, alloc),
+    value_order(other.value_order, alloc),
     eps_var_order(other.eps_var_order, alloc),
     eps_value_order(other.eps_value_order, alloc),
     problem_path(other.problem_path, alloc),
@@ -171,6 +177,8 @@ struct Configuration {
     wac1_threshold = other.wac1_threshold;
     seed = other.seed;
     epsilon = other.epsilon;
+    var_order = other.var_order;
+    value_order = other.value_order;
     eps_var_order = other.eps_var_order;
     eps_value_order = other.eps_value_order;
     problem_path = other.problem_path;
@@ -210,6 +218,8 @@ struct Configuration {
     }
     printf("-seed %" PRIu64 " ", seed);
     printf("-epsilon %.10f", epsilon);
+    printf("-var_order %s ", var_order.data());
+    printf("-value_order %s ", value_order.data());
     printf("-eps_var_order %s ", eps_var_order.data());
     printf("-eps_value_order %s ", eps_value_order.data());
     if(version.size() != 0) {
@@ -266,6 +276,8 @@ struct Configuration {
     }
     printf("%%%%%%mzn-stat: seed=%" PRIu64 "\n", seed);
     printf("%%%%%%nnv-stat: epsilon=\"%.10f\"\n", epsilon);
+    printf("%%%%%%mzn-stat: var_order=\"%s\"\n", var_order.data());
+    printf("%%%%%%mzn-stat: value_order=\"%s\"\n", value_order.data());
     printf("%%%%%%mzn-stat: eps_var_order=\"%s\"\n", eps_var_order.data());
     printf("%%%%%%mzn-stat: eps_value_order=\"%s\"\n", eps_value_order.data());
     printf("%%%%%%mzn-stat: free_search=\"%s\"\n", free_search ? "yes" : "no");
