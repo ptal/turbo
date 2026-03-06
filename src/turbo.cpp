@@ -14,7 +14,7 @@
 #include "gpu_dive_and_solve.hpp"
 #endif
 
-#include "hybrid_dive_and_solve.hpp"
+// #include "hybrid_dive_and_solve.hpp"
 #include "barebones_dive_and_solve.hpp"
 #include "fbarebones_dive_and_solve.hpp"
 
@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
     }
 #ifndef DISABLE_HYBRID_GPU_SOLVING
     else if(config.arch == Arch::HYBRID) {
-      hybrid_dive_and_solve(config);
+      // hybrid_dive_and_solve(config);
     }
 #endif
   }

@@ -149,10 +149,7 @@ public:
   }
 
   void read_onnx_file(std::string& result){
-    if(tokens.size() <= tokens_read){
-      usage_and_exit(program_name);
-    }
-    result = tokens.back();
+    read_input_file(result); 
   }
 #endif 
 };
@@ -257,19 +254,25 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
   if(input.read_string("-hardware", hardware)) {
     config.hardware = battery::string<battery::standard_allocator>(hardware.data());
   }
-#ifndef WITH_NNV
+
+//   // FIXME: if we only have 1 input file, we should be using read_input_file only.
+// #ifndef WITH_NNV
+//   std::string problem_path;
+//   input.read_input_file(problem_path);
+//   config.problem_path = battery::string<battery::standard_allocator>(problem_path.data());
+// #else 
+//   std::string vnnlib_path;
+//   input.read_vnnlib_file(vnnlib_path);
+//   config.vnnlib_path = battery::string<battery::standard_allocator>(vnnlib_path.data());
+
+//   std::string onnx_path;
+//   input.read_onnx_file(onnx_path);
+//   config.onnx_path = battery::string<battery::standard_allocator>(onnx_path.data());
+//   config.problem_path = config.onnx_path; // make problem_path equal to onnx_path;
+// #endif 
   std::string problem_path;
   input.read_input_file(problem_path);
   config.problem_path = battery::string<battery::standard_allocator>(problem_path.data());
-#else 
-  std::string vnnlib_path;
-  input.read_vnnlib_file(vnnlib_path);
-  config.vnnlib_path = battery::string<battery::standard_allocator>(vnnlib_path.data());
-
-  std::string onnx_path;
-  input.read_onnx_file(onnx_path);
-  config.onnx_path = battery::string<battery::standard_allocator>(onnx_path.data());
-  config.problem_path = config.onnx_path; // make problem_path equal to onnx_path;
-#endif 
+  
   return config;
 }

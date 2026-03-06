@@ -89,7 +89,7 @@ struct BlockData {
   abstract_ptr<VStore<FItv, bt::global_allocator>> root_store;
 
   // inner box 
-  abstract_ptr<VStore<FItv, bt::global_allocator>> counter_example_store;
+  abstract_ptr<VStore<FItv, bt::global_allocator>> inner_box;
 
   /** The current store of variables.
    * We use a `pool_allocator`, this allows to easily switch between global memory and shared memory, if the store of variables can fit inside.
@@ -101,7 +101,7 @@ struct BlockData {
    * If the propagators do not fit in shared memory, the array of propagators is shared among all blocks.
    * It is possible because the propagators are state-less, we avoid duplicating them in each block.
    * */
-  abstract_ptr<FProp> fprop;
+  abstract_ptr<FProp> iprop;
 
   /** The statistics of the current block. */
   Statistics<bt::global_allocator> stats;
@@ -153,23 +153,23 @@ struct BlockData {
       subproblem_idx = blockIdx.x;
       const MemoryConfig& mem_config = unified_data.mem_config;
       const auto& u_store = *(unified_data.root.store);
-      const auto& u_fprop = *(unified_data.root.iprop);
+      const auto& u_iprop = *(unified_data.root.iprop);
       bt::pool_allocator shared_mem_pool(mem_config.make_shared_pool(shared_mem));
       bt::pool_allocator store_allocator(mem_config.make_store_pool(shared_mem_pool));
       bt::pool_allocator prop_allocator(mem_config.make_prop_pool(shared_mem_pool));
       root_store = bt::make_shared<VStore<FItv, bt::global_allocator>, bt::global_allocator>(u_store);
-      counter_example_store = bt::make_shared<VStore<FItv, bt::global_allocator>, bt::global_allocator>(u_store);
+      inner_box = bt::make_shared<VStore<FItv, bt::global_allocator>, bt::global_allocator>(u_store);
       store = bt::allocate_shared<FStore, bt::pool_allocator>(store_allocator, u_store, store_allocator);
-      fprop = bt::allocate_shared<FProp, bt::pool_allocator>(prop_allocator, u_fprop, store, prop_allocator);
+      iprop = bt::allocate_shared<FProp, bt::pool_allocator>(prop_allocator, u_iprop, store, prop_allocator);
     }
   }
 
-  /** We must deallocate store and fprop inside the kernel because they might be initialized in shared memory. */
+  /** We must deallocate store and iprop inside the kernel because they might be initialized in shared memory. */
   __device__ void deallocate_shared_data() {
     if(threadIdx.x == 0) {
       // NOTE: .reset() does not work because it does not reset the allocator, which is itself allocated in global memory.
       store = abstract_ptr<FStore>();
-      fprop = abstract_ptr<FProp>();
+      iprop = abstract_ptr<FProp>();
     }
   }
 
@@ -191,18 +191,15 @@ struct BlockData {
           input_order_split(has_changed, idx, strategies[i], epsilon);
           break;
         }
-        case VariableOrder::FLOATING: {
-          floating_split(has_changed, idx, strategies[i], epsilon);
-          break;
-        }
         case VariableOrder::FIRST_FAIL: {
           lattice_smallest_split(has_changed, idx, strategies[i], epsilon,
-            [](const FItv& u) { return UB2(u.ub().value() - u.lb().value()); });
+            [](const FItv& u) { return UB2(u.width().ub().value()); });
           break;
         }
         case VariableOrder::ANTI_FIRST_FAIL: {
+          printf("splitting\n");
           lattice_smallest_split(has_changed, idx, strategies[i], epsilon,
-            [](const FItv& u) { return LB2(u.ub().value() - u.lb().value()); });
+            [](const FItv& u) { return LB2(u.width().ub().value()); });
           break;
         }
         case VariableOrder::LARGEST: {
@@ -253,7 +250,7 @@ struct BlockData {
       __syncthreads();
       for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-        if(dom.ub().value() - dom.lb().value() > epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
+        if(battery::sub_down(dom.ub().value(), dom.lb().value()) > epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
           if(idx.meet(local::ZUB(i))) {
             has_changed = true;
           }
@@ -297,7 +294,7 @@ struct BlockData {
       __syncthreads();
       for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-        if(dom.ub().value() - dom.lb().value() > epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
+        if(battery::sub_down(dom.ub().value(), dom.lb().value()) > epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
           if(value.meet(f(dom))) {
             has_changed = true;
           }
@@ -326,7 +323,7 @@ struct BlockData {
         __syncthreads();
         for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
           const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-          if(dom.ub().value() - dom.lb().value() > epsilon && !dom.lb().is_top() && !dom.ub().is_top() && f(dom) == value) {
+          if(battery::sub_down(dom.ub().value(), dom.lb().value()) > epsilon && !dom.lb().is_top() && !dom.ub().is_top() && f(dom) == value) {
             if(idx.meet(local::ZUB(i))) {
               has_changed = true;
             }
@@ -361,19 +358,19 @@ struct BlockData {
     }
     __syncthreads();
     bt::vector<bool> E(n, false);
-    for(int i = threadIdx.x; i < fprop->num_deductions(); i += blockDim.x) {
-      if(!fprop->fask(i)) {
+    for(int i = threadIdx.x; i < iprop->num_deductions(); i += blockDim.x) {
+      if(!iprop->fask(i)) {
         has_changed = true;
-        E[fprop->load_deduce(i).x.vid()] = true;
-        E[fprop->load_deduce(i).y.vid()] = true;
-        E[fprop->load_deduce(i).z.vid()] = true;
+        E[iprop->load_deduce(i).x.vid()] = true;
+        E[iprop->load_deduce(i).y.vid()] = true;
+        E[iprop->load_deduce(i).z.vid()] = true;
       }
     }
     __syncthreads();
     for(int i = threadIdx.x; i < n; i += blockDim.x) {
       const int dom_id = split_in_store ? i : strategy.vars[i].vid();
       const auto& dom = (*store)[dom_id];
-      if(dom.ub().value() - dom.lb().value() > epsilon && E[dom_id] && !dom.lb().is_top() && !dom.ub().is_top()) {
+      if(battery::sub_down(dom.ub().value(), dom.lb().value()) > epsilon && E[dom_id] && !dom.lb().is_top() && !dom.ub().is_top()) {
         if(idx.meet(local::ZUB(i))) {
           has_changed = true;
           break;
@@ -400,17 +397,17 @@ struct BlockData {
     decisions[depth].current_idx = -1;
     const auto& dom = store->project(decisions[depth].var);
     // printf("split on %d \n", decisions[depth].var.vid());
-    assert(dom.ub().value() - dom.lb().value() > epsilon);
-    auto mid = battery::add_down(static_cast<double>(dom.lb().value()), battery::div_down(battery::sub_down(static_cast<double>(dom.ub().value()), static_cast<double>(dom.lb().value())), 2.0));
+    assert(battery::sub_down(dom.ub().value(), dom.lb().value()) > epsilon);
+    auto mid = battery::add_down(dom.lb().value(), battery::div_down(battery::sub_down(dom.ub().value(), dom.lb().value()), 2.0));
     switch(val_order) {
       case ValueOrder::SPLIT: {
-        decisions[depth].children[0] = FItv(dom.lb(), mid);
-        decisions[depth].children[1] = FItv(mid, dom.ub());
+        decisions[depth].children[0] = FItv(dom.lb(), value_type{mid});
+        decisions[depth].children[1] = FItv(value_type{mid}, dom.ub());
         break;
       }
       case ValueOrder::REVERSE_SPLIT: {
-        decisions[depth].children[0] = FItv(mid, dom.ub());
-        decisions[depth].children[1] = FItv(dom.lb(), mid);
+        decisions[depth].children[0] = FItv(value_type{mid}, dom.ub());
+        decisions[depth].children[1] = FItv(dom.lb(), value_type{mid});
         break;
       }
       // ValueOrder::MEDIAN is not possible with interval.
@@ -581,14 +578,14 @@ MemoryConfig configure_gpu_fbarebones(CP<FItv>& cp) {
    * The estimation is very conservative, normally we should not run out of memory.
    * */
   size_t store_bytes = gpu_sizeof<FStore>() + gpu_sizeof<abstract_ptr<FStore>>() + cp.store->vars() * gpu_sizeof<FItv>();
-  size_t fprop_bytes = gpu_sizeof<FProp>() + gpu_sizeof<abstract_ptr<FProp>>() + cp.iprop->num_deductions() * gpu_sizeof<bytecode_type>() + gpu_sizeof<typename FProp::bytecodes_type>();
+  size_t iprop_bytes = gpu_sizeof<FProp>() + gpu_sizeof<abstract_ptr<FProp>>() + cp.iprop->num_deductions() * gpu_sizeof<bytecode_type>() + gpu_sizeof<typename FProp::bytecodes_type>();
   size_t mem_per_block = gpu_sizeof<BlockData>()
     + store_bytes * size_t{3}  // current, root, best.
     + store_bytes * size_t{2}  // search strategies
-    + fprop_bytes * size_t{2}
+    + iprop_bytes * size_t{2}
     + cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<int>()  // fixpoint engine
     + (gpu_sizeof<int>() + gpu_sizeof<LightBranch<FItv>>()) * size_t{MAX_SEARCH_DEPTH};
-  size_t estimated_global_mem = gpu_sizeof<UnifiedData>() + store_bytes * size_t{5} + fprop_bytes +
+  size_t estimated_global_mem = gpu_sizeof<UnifiedData>() + store_bytes * size_t{5} + iprop_bytes +
     gpu_sizeof<GridData>();
 
   size_t mem_for_blocks = deviceProp.totalGlobalMem - estimated_global_mem - (deviceProp.totalGlobalMem / 100 * 10);
@@ -619,10 +616,10 @@ MemoryConfig configure_gpu_fbarebones(CP<FItv>& cp) {
   int blocks_per_sm = std::max(1, (cp.stats.num_blocks + deviceProp.multiProcessorCount - 1) / deviceProp.multiProcessorCount);
   MemoryConfig mem_config;
   if(config.only_global_memory) {
-    mem_config = MemoryConfig(store_bytes, fprop_bytes);
+    mem_config = MemoryConfig(store_bytes, iprop_bytes);
   }
   else {
-    mem_config = MemoryConfig((void*) gpu_fbarebones_solve, config.verbose_solving, blocks_per_sm, store_bytes, fprop_bytes);
+    mem_config = MemoryConfig((void*) gpu_fbarebones_solve, config.verbose_solving, blocks_per_sm, store_bytes, iprop_bytes);
   }
   mem_config.print_mzn_statistics(config, cp.stats);
   return mem_config;
@@ -652,12 +649,12 @@ __global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_d
 
   block_data.allocate(*unified_data, *grid_data, shared_mem);
   __syncthreads();
-  FProp& fprop = *block_data.fprop;
+  FProp& iprop = *block_data.iprop;
 #ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
   __shared__ BlockAsynchronousFixpointGPU<true> fp_engine;
 #else
   __shared__ FixpointSubsetGPU<BlockAsynchronousFixpointGPU<true>, bt::global_allocator, CUDA_THREADS_PER_BLOCK> fp_engine;
-  fp_engine.init(fprop.num_deductions());
+  fp_engine.init(iprop.num_deductions());
 #endif
   /** This shared variable is necessary to avoid multiple threads to read into `unified_data.stop.test()`,
    * potentially reading different values and leading to deadlock. */
@@ -688,8 +685,14 @@ __global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_d
     block_data.next_unassigned_var = 0;
     block_data.depth = 0;
     unified_data->root.store->copy_to(group, *block_data.store);
+
+    // // TEST: 
+    // const auto& test_root = *block_data.store;
+    // for(int i = threadIdx.x; i < test_root.vars(); i+=blockDim.x) {
+    //   printf("root.store[%d] = [%.20lf, %.20lf]\n", i, test_root[i].lb().value(), test_root[i].ub().value());
+    // }
 #ifndef TURBO_NO_ENTAILED_PROP_REMOVAL
-    fp_engine.reset(fprop.num_deductions());
+    fp_engine.reset(iprop.num_deductions());
 #endif
     __syncthreads();
 
@@ -823,7 +826,7 @@ __global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_d
           }
           // Restore from root by copying the store and re-applying all decisions from root to block_data.depth-1.
 #ifndef TURBO_NO_ENTAILED_PROP_REMOVAL
-          fp_engine.reset(fprop.num_deductions());
+          fp_engine.reset(iprop.num_deductions());
 #endif
           block_data.root_store->copy_to(group, *block_data.store);
           // __syncthreads();
@@ -906,7 +909,7 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
   __shared__ int warp_iterations[CUDA_THREADS_PER_BLOCK/32];
   warp_iterations[threadIdx.x / 32] = 0;
   auto& config = unified_data.root.config;
-  FProp& fprop = *block_data.fprop;
+  FProp& iprop = *block_data.iprop;
   auto group = cooperative_groups::this_thread_block();
 
   TIMEPOINT(SEARCH);
@@ -914,10 +917,15 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
     is_leaf_node = false;
   }
 
+  const auto& test_store = *block_data.store;
+    for(int i = threadIdx.x; i < test_store.vars(); i += blockDim.x) {
+      printf("test_store[i] = [%.20lf, %.20lf], epsilon = %.20lf\n", test_store[i].ub().value(), test_store[i].lb().value(), config.epsilon);
+  }
+
   // II. Compute the fixpoint of the current node.
   int fp_iterations;
 #ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
-  int num_active = fprop.num_deductions();
+  int num_active = iprop.num_deductions();
 #else
   int num_active = fp_engine.num_active();
 #endif
@@ -925,10 +933,10 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
     case FixpointKind::AC1: {
       fp_iterations = fp_engine.fixpoint(
 #ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
-        fprop.num_deductions(),
+        iprop.num_deductions(),
 #endif
-        [&](int i){ return fprop.fdeduce(i); },
-        [&](){ return fprop.is_bot(); });
+        [&](int i){ return iprop.fdeduce(i, config.epsilon); },
+        [&](){ return iprop.is_bot(); });
       if(threadIdx.x == 0) {
         block_data.stats.num_deductions += fp_iterations * num_active;
       }
@@ -938,10 +946,10 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
       if(num_active <= config.wac1_threshold) {
         fp_iterations = fp_engine.fixpoint(
 #ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
-        fprop.num_deductions(),
+        iprop.num_deductions(),
 #endif
-          [&](int i){ return fprop.fdeduce(i); },
-          [&](){ return fprop.is_bot(); });
+          [&](int i){ return iprop.fdeduce(i, config.epsilon); },
+          [&](){ return iprop.is_bot(); });
         if(threadIdx.x == 0) {
           block_data.stats.num_deductions += fp_iterations * num_active;
         }
@@ -949,10 +957,10 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
       else {
         fp_iterations = fp_engine.fixpoint(
 #ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
-          fprop.num_deductions(),
+          iprop.num_deductions(),
 #endif
-          [&](int i){ return fwarp_fixpoint<CUDA_THREADS_PER_BLOCK>(fprop, i, warp_iterations); },
-          [&](){ return fprop.is_bot(); });
+          [&](int i){ return fwarp_fixpoint<CUDA_THREADS_PER_BLOCK>(iprop, i, warp_iterations, config.epsilon); },
+          [&](){ return iprop.is_bot(); });
         if(threadIdx.x == 0) {
           for(int i = 0; i < CUDA_THREADS_PER_BLOCK/32; ++i) {
             block_data.stats.num_deductions += warp_iterations[i] * 32;
@@ -965,54 +973,79 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
   TIMEPOINT(FIXPOINT);
 
   // III. Analyze the result of propagation
-  if(!fprop.is_bot()) {
-#ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
-    if(threadIdx.x == 0) {
-      has_changed = false;
-    }
-    __syncthreads();
-    for(int i = threadIdx.x; !has_changed && i < fprop.num_deductions(); i += blockDim.x) {
-      if(!fprop.fask(i)) {
-        has_changed = true;
-      }
-    }
-    __syncthreads();
-    num_active = has_changed ? 1 : 0;
-#else
-    fp_engine.select([&](int i) { return !fprop.fask(i); });
-    num_active = fp_engine.num_active();
-#endif
+  if(!iprop.is_bot()) {
+// #ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
+//     if(threadIdx.x == 0) {
+//       has_changed = false;
+//     }
+//     __syncthreads();
+//     for(int i = threadIdx.x; !has_changed && i < iprop.num_deductions(); i += blockDim.x) {
+//       if(!iprop.fask(i)) {
+//         has_changed = true;
+//       }
+//     }
+//     __syncthreads();
+//     num_active = has_changed ? 1 : 0;
+// #else
+//     fp_engine.select([&](int i) { return !iprop.fask(i); });
+//     num_active = fp_engine.num_active();
+// #endif
     TIMEPOINT(SELECT_FP_FUNCTIONS);
     /** Whenever we reach a solution node, we must have a bound better than the best bound of the local block.
      * Note that it doesn't mean the best bound of the block must be the best bound of the grid.
      * It is to prevent copying a store with a worst bound into `best_store`.
      */
-    if (num_active == 0) {
+    // if (num_active == 0) {
+    //   is_leaf_node = true;
+    //   if(threadIdx.x == 0) {
+    //     block_data.stats.solutions++;
+    //     block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);
+    //   }
+    //   if(block_data.stats.solutions == 1) 
+    //     block_data.store->copy_to(group, *block_data.inner_box);
+    // } 
+    // else if(block_data.stats.solutions == 0) {
+    //   // We have at least one constraint is not entailed.
+    //   has_changed = false;
+    //   const auto& store = *block_data.store;
+    //   for(int i = threadIdx.x; i < block_data.store->vars(); i += blockDim.x) {
+    //     if (store[i].ub().value() - store[i].lb().value() > config.epsilon) {
+    //       has_changed = true;
+    //       break;
+    //     }
+    //   }
+    //   if(!has_changed) {
+    //     // The width for each interval is less than or equal to epsilon.
+    //     // So, we are not able to split any interval, and fail to answer the result due to numerical imprecision.
+    //     if(threadIdx.x == 0) {
+    //       is_leaf_node = true; 
+    //       block_data.stats.unknowns++;
+    //     }
+    //   }
+    // }
+
+    // Don't use fask() to check if we reach inner boxes.
+    if(threadIdx.x == 0) {
+      has_changed = false;
+    }
+
+    const auto& store = *block_data.store;
+    for(int i = threadIdx.x; i < store.vars(); i += blockDim.x) {
+      // printf("store[i] = [%.20lf, %.20lf], epsilon = %.20lf\n", store[i].ub().value(), store[i].lb().value(), config.epsilon);
+      if(battery::sub_down(store[i].ub().value(), store[i].lb().value()) > config.epsilon) {
+        has_changed = true;
+        break;
+      }
+    }
+    if(!has_changed) {
       is_leaf_node = true;
       if(threadIdx.x == 0) {
         block_data.stats.solutions++;
-        block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);
+        block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);        
       }
-      if(block_data.stats.solutions == 1) 
-        block_data.store->copy_to(group, *block_data.counter_example_store);
-    } 
-    else if(block_data.stats.solutions == 0) {
-      // We have at least one constraint is not entailed.
-      has_changed = false;
-      const auto& store = *block_data.store;
-      for(int i = threadIdx.x; i < block_data.store->vars(); i += blockDim.x) {
-        if (store[i].ub().value() - store[i].lb().value() > config.epsilon) {
-          has_changed = true;
-          break;
-        }
-      }
-      if(!has_changed) {
-        // The width for each interval is less than or equal to epsilon.
-        // So, we are not able to split any interval, and fail to answer the result due to numerical imprecision.
-        if(threadIdx.x == 0) {
-          // is_leaf_node = true; // TODO: If we do this, test.small.onnx will not able to find the counter-example. Not sure the reason yet.
-          block_data.stats.unknowns++;
-        }
+      if(block_data.stats.solutions == 1) {
+        // only copy, when it is the first solution that we found.
+        block_data.store->copy_to(group, *block_data.inner_box);
       }
     }
   }
@@ -1023,7 +1056,7 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
   if(threadIdx.x == 0) {
     block_data.stats.fixpoint_iterations += fp_iterations;
     block_data.stats.nodes++;
-    block_data.stats.fails += (fprop.is_bot() ? 1 : 0);
+    block_data.stats.fails += (iprop.is_bot() ? 1 : 0);
     block_data.stats.depth_max = battery::max(block_data.stats.depth_max, block_data.depth);
 
     // IV. Checking stopping conditions.
@@ -1052,7 +1085,7 @@ __global__ void reduce_blocks(UnifiedData* unified_data, GridData* grid_data) {
     auto& block = grid_data->blocks[i];
     if(block.stats.solutions > 0) {
       if(root.bab->is_satisfaction()) {
-        block.counter_example_store->extract(*root.best);
+        block.inner_box->fextract(*root.best);
         break;
       }
     }

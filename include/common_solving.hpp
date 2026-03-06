@@ -56,6 +56,7 @@ using namespace lala;
   #error "Invalid value for TURBO_ITV_BITS: must be 16, 32 or 64."
 #endif
 using Itv = Interval<ZLB<bound_value_type, battery::local_memory>>;
+// using FItv = Interval<FLB<double, battery::atomic_memory<>>>;
 using FItv = Interval<FLB<double, battery::local_memory>>;
 
 static std::atomic<bool> got_signal;
@@ -564,7 +565,7 @@ public:
       preprocessing_stats.prepare_next_iteration();
   #ifdef WITH_NNV
       fp_engine.fixpoint(iprop->num_deductions(),
-        [&](size_t i) { return iprop->fdeduce(i); },
+        [&](size_t i) { return iprop->fdeduce(i, config.epsilon); },
         [&](){ return iprop->is_bot(); },
         has_changed);
   #else 
@@ -673,7 +674,7 @@ private:
     typename F::Sequence seq;
 #ifdef WITH_NNV
     if(config.var_order == "default" && config.value_order == "default") {
-      seq.push_back(F::make_nary("first_fail", {}));
+      seq.push_back(F::make_nary("anti_first_fail", {})); // select largest interval width.
       seq.push_back(F::make_nary("indomain_split",{}));
     }
 #else 
