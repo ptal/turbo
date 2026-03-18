@@ -273,6 +273,7 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
   std::string problem_path;
   input.read_input_file(problem_path);
   config.problem_path = battery::string<battery::standard_allocator>(problem_path.data());
+  config.vnnlib_path = battery::string<battery::standard_allocator>(problem_path.data());
   
   return config;
 }

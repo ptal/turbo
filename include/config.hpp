@@ -303,7 +303,7 @@ struct Configuration {
     else if(problem_path.ends_with(".xml")) {
       return InputFormat::XCSP3;
     }
-    else if (problem_path.ends_with(".vnnlib")){
+    else if (problem_path.ends_with(".vnnlib") || problem_path.ends_with(".smt2")){
       return InputFormat::VNNLIB;
     }
     else if (problem_path.ends_with(".onnx")){
