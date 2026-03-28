@@ -9,6 +9,8 @@
 #include <mutex>
 #include <thread>
 #include <chrono>
+#include <fstream>
+#include <sstream>
 
 /** This is required in order to guess the usage of global memory, and increase the CUDA default limit. */
 #define MAX_SEARCH_DEPTH 10000
@@ -48,6 +50,7 @@ namespace fbarebones {
   using ConcurrentAllocator = bt::managed_allocator;
 #endif
 
+using ::FItv;
 using GridCP = AbstractDomains<FItv,
   bt::statistics_allocator<ConcurrentAllocator>,
   bt::statistics_allocator<UniqueLightAlloc<ConcurrentAllocator, 0>>,
@@ -80,7 +83,8 @@ struct UnifiedData {
 struct GridData;
 using FStore = VStore<FItv, bt::pool_allocator>;
 using FProp = PIR<FStore, bt::pool_allocator>;
-using UB = FUB<typename FItv::LB::value_type, bt::atomic_memory_grid>;
+using bound_type = typename FItv::LB::value_type;
+using UB = FUB<bound_type, bt::atomic_memory_grid>;
 using strategies_type = bt::vector<StrategyType<bt::global_allocator>, bt::global_allocator>;
 
 /** Data private to a single block. */
@@ -197,7 +201,6 @@ struct BlockData {
           break;
         }
         case VariableOrder::ANTI_FIRST_FAIL: {
-          printf("splitting\n");
           lattice_smallest_split(has_changed, idx, strategies[i], epsilon,
             [](const FItv& u) { return LB2(u.width().ub().value()); });
           break;
@@ -345,7 +348,7 @@ struct BlockData {
 
   /**
    *  
-   * 
+   * TODO: this function should be implemented later. It is for improving the performance.
    * */
   __device__ INLINE void floating_split(bool& has_changed, local::ZUB& idx, 
     const StrategyType<bt::global_allocator>& strategy, const double epsilon)
@@ -359,7 +362,7 @@ struct BlockData {
     __syncthreads();
     bt::vector<bool> E(n, false);
     for(int i = threadIdx.x; i < iprop->num_deductions(); i += blockDim.x) {
-      if(!iprop->fask(i)) {
+      if(!iprop->is_fsolution(i, epsilon)) {
         has_changed = true;
         E[iprop->load_deduce(i).x.vid()] = true;
         E[iprop->load_deduce(i).y.vid()] = true;
@@ -391,23 +394,25 @@ struct BlockData {
    *  \precondition Must be executed by thread 0 only.
   */
   __device__ INLINE void push_decision(ValueOrder val_order, AVar var, const double epsilon) {
-    using value_type = typename FItv::LB::value_type;
     assert(threadIdx.x == 0);
     decisions[depth].var = var;
     decisions[depth].current_idx = -1;
     const auto& dom = store->project(decisions[depth].var);
     // printf("split on %d \n", decisions[depth].var.vid());
     assert(battery::sub_down(dom.ub().value(), dom.lb().value()) > epsilon);
-    auto mid = battery::add_down(dom.lb().value(), battery::div_down(battery::sub_down(dom.ub().value(), dom.lb().value()), 2.0));
+    // auto mid = battery::add_down(dom.lb().value(), battery::div_down(battery::sub_down(dom.ub().value(), dom.lb().value()), bound_type{2.0}));
+    bound_type width = battery::sub_down(dom.ub().value(), dom.lb().value());
+    bound_type half = battery::div_down(width, bound_type{2.0});
+    bound_type mid = battery::add_down(dom.lb().value(), half);
     switch(val_order) {
       case ValueOrder::SPLIT: {
-        decisions[depth].children[0] = FItv(dom.lb(), value_type{mid});
-        decisions[depth].children[1] = FItv(value_type{mid}, dom.ub());
+        decisions[depth].children[0] = FItv(dom.lb(), mid);
+        decisions[depth].children[1] = FItv(mid, dom.ub());
         break;
       }
       case ValueOrder::REVERSE_SPLIT: {
-        decisions[depth].children[0] = FItv(value_type{mid}, dom.ub());
-        decisions[depth].children[1] = FItv(dom.lb(), value_type{mid});
+        decisions[depth].children[0] = FItv(mid, dom.ub());
+        decisions[depth].children[1] = FItv(dom.lb(), mid);
         break;
       }
       // ValueOrder::MEDIAN is not possible with interval.
@@ -420,10 +425,10 @@ struct BlockData {
     decisions[depth].ropes[0] = depth + 1;
     decisions[depth].ropes[1] = depth > 0 ? decisions[depth-1].ropes[decisions[depth-1].current_idx] : -1;
     ++depth;
-    // printf("depth(%d), var = %d, children = [%d, %d] | [%d, %d], ropes = [%d, %d]\n",
+    // printf("depth(%d), var = %d, children = [%lf, %lf] | [%lf, %lf], ropes = [%d, %d]\n",
     //   depth, decisions[depth-1].var.vid(),
-    //   (int)decisions[depth-1].children[0].lb().value(), (int)decisions[depth-1].children[0].ub().value(),
-    //   (int)decisions[depth-1].children[1].lb().value(), (int)decisions[depth-1].children[1].ub().value(),
+    //   (bound_type)decisions[depth-1].children[0].lb().value(), (bound_type)decisions[depth-1].children[0].ub().value(),
+    //   (bound_type)decisions[depth-1].children[1].lb().value(), (bound_type)decisions[depth-1].children[1].ub().value(),
     //   decisions[depth-1].ropes[0], decisions[depth-1].ropes[1]);
     // Reallocate decisions if needed.
     if(decisions.size() == depth) {
@@ -583,8 +588,8 @@ MemoryConfig configure_gpu_fbarebones(CP<FItv>& cp) {
     + store_bytes * size_t{3}  // current, root, best.
     + store_bytes * size_t{2}  // search strategies
     + iprop_bytes * size_t{2}
-    + cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<int>()  // fixpoint engine
-    + (gpu_sizeof<int>() + gpu_sizeof<LightBranch<FItv>>()) * size_t{MAX_SEARCH_DEPTH};
+    + cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<bound_type>()  // fixpoint engine
+    + (gpu_sizeof<bound_type>() + gpu_sizeof<LightBranch<FItv>>()) * size_t{MAX_SEARCH_DEPTH};
   size_t estimated_global_mem = gpu_sizeof<UnifiedData>() + store_bytes * size_t{5} + iprop_bytes +
     gpu_sizeof<GridData>();
 
@@ -685,12 +690,6 @@ __global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_d
     block_data.next_unassigned_var = 0;
     block_data.depth = 0;
     unified_data->root.store->copy_to(group, *block_data.store);
-
-    // // TEST: 
-    // const auto& test_root = *block_data.store;
-    // for(int i = threadIdx.x; i < test_root.vars(); i+=blockDim.x) {
-    //   printf("root.store[%d] = [%.20lf, %.20lf]\n", i, test_root[i].lb().value(), test_root[i].ub().value());
-    // }
 #ifndef TURBO_NO_ENTAILED_PROP_REMOVAL
     fp_engine.reset(iprop.num_deductions());
 #endif
@@ -917,11 +916,6 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
     is_leaf_node = false;
   }
 
-  const auto& test_store = *block_data.store;
-    for(int i = threadIdx.x; i < test_store.vars(); i += blockDim.x) {
-      printf("test_store[i] = [%.20lf, %.20lf], epsilon = %.20lf\n", test_store[i].ub().value(), test_store[i].lb().value(), config.epsilon);
-  }
-
   // II. Compute the fixpoint of the current node.
   int fp_iterations;
 #ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
@@ -974,77 +968,37 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
 
   // III. Analyze the result of propagation
   if(!iprop.is_bot()) {
-// #ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
-//     if(threadIdx.x == 0) {
-//       has_changed = false;
-//     }
-//     __syncthreads();
-//     for(int i = threadIdx.x; !has_changed && i < iprop.num_deductions(); i += blockDim.x) {
-//       if(!iprop.fask(i)) {
-//         has_changed = true;
-//       }
-//     }
-//     __syncthreads();
-//     num_active = has_changed ? 1 : 0;
-// #else
-//     fp_engine.select([&](int i) { return !iprop.fask(i); });
-//     num_active = fp_engine.num_active();
-// #endif
     TIMEPOINT(SELECT_FP_FUNCTIONS);
-    /** Whenever we reach a solution node, we must have a bound better than the best bound of the local block.
-     * Note that it doesn't mean the best bound of the block must be the best bound of the grid.
-     * It is to prevent copying a store with a worst bound into `best_store`.
-     */
-    // if (num_active == 0) {
-    //   is_leaf_node = true;
-    //   if(threadIdx.x == 0) {
-    //     block_data.stats.solutions++;
-    //     block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);
-    //   }
-    //   if(block_data.stats.solutions == 1) 
-    //     block_data.store->copy_to(group, *block_data.inner_box);
-    // } 
-    // else if(block_data.stats.solutions == 0) {
-    //   // We have at least one constraint is not entailed.
-    //   has_changed = false;
-    //   const auto& store = *block_data.store;
-    //   for(int i = threadIdx.x; i < block_data.store->vars(); i += blockDim.x) {
-    //     if (store[i].ub().value() - store[i].lb().value() > config.epsilon) {
-    //       has_changed = true;
-    //       break;
-    //     }
-    //   }
-    //   if(!has_changed) {
-    //     // The width for each interval is less than or equal to epsilon.
-    //     // So, we are not able to split any interval, and fail to answer the result due to numerical imprecision.
-    //     if(threadIdx.x == 0) {
-    //       is_leaf_node = true; 
-    //       block_data.stats.unknowns++;
-    //     }
-    //   }
-    // }
-
-    // Don't use fask() to check if we reach inner boxes.
     if(threadIdx.x == 0) {
       has_changed = false;
     }
-
-    const auto& store = *block_data.store;
-    for(int i = threadIdx.x; i < store.vars(); i += blockDim.x) {
-      // printf("store[i] = [%.20lf, %.20lf], epsilon = %.20lf\n", store[i].ub().value(), store[i].lb().value(), config.epsilon);
-      if(battery::sub_down(store[i].ub().value(), store[i].lb().value()) > config.epsilon) {
+    __syncthreads();
+    for(int i = threadIdx.x; i < iprop.num_deductions(); i += blockDim.x) {
+      if(!iprop.has_fsolution(i)) {
         has_changed = true;
-        break;
+        is_leaf_node = true;
+        break;  
       }
     }
+    __syncthreads();
+    if(!has_changed){
+      const auto& store = *block_data.store;
+      for(int i = (int)group.thread_rank(); i < store.vars(); i += group.num_threads()) {
+        if(store[i].width().lb().value() > config.epsilon) {
+          has_changed = true;
+          break;
+        }
+      }
+    }
+    __syncthreads();
     if(!has_changed) {
       is_leaf_node = true;
       if(threadIdx.x == 0) {
         block_data.stats.solutions++;
-        block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);        
+        block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);          
       }
-      if(block_data.stats.solutions == 1) {
-        // only copy, when it is the first solution that we found.
+      if(block_data.stats.solutions > 0) {
+        // FIXME: We might have more than one solution to remember.
         block_data.store->copy_to(group, *block_data.inner_box);
       }
     }
@@ -1063,7 +1017,8 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
 
     if(block_data.stats.nodes >= config.stop_after_n_nodes
       || unified_data.stop.test()
-      || block_data.stats.solutions > 0)
+      //|| block_data.stats.solutions > 0)
+      )
     {
       block_data.stats.exhaustive = false;
       stop = true;
@@ -1085,6 +1040,7 @@ __global__ void reduce_blocks(UnifiedData* unified_data, GridData* grid_data) {
     auto& block = grid_data->blocks[i];
     if(block.stats.solutions > 0) {
       if(root.bab->is_satisfaction()) {
+        // FIXME: We might have more than one solution to remember.
         block.inner_box->fextract(*root.best);
         break;
       }

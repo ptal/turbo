@@ -48,16 +48,17 @@ using namespace lala;
 
 #if (TURBO_ITV_BITS == 64)
   using bound_value_type = long long int;
+  using fbound_value_type = double;
 #elif (TURBO_ITV_BITS == 16)
   using bound_value_type = short int;
 #elif (TURBO_ITV_BITS == 32)
   using bound_value_type = int;
+  using fbound_value_type = float;
 #else
   #error "Invalid value for TURBO_ITV_BITS: must be 16, 32 or 64."
 #endif
 using Itv = Interval<ZLB<bound_value_type, battery::local_memory>>;
-// using FItv = Interval<FLB<double, battery::atomic_memory<>>>;
-using FItv = Interval<FLB<double, battery::local_memory>>;
+using FItv = Interval<FLB<fbound_value_type, battery::atomic_memory<>>>;
 
 static std::atomic<bool> got_signal;
 static void (*prev_sigint)(int);
@@ -579,7 +580,7 @@ public:
       }
       has_changed |= simplifier->algebraic_simplify(tnf, preprocessing_stats);
   #ifdef WITH_NNV
-      simplifier->feliminate_entailed_constraints(*iprop, tnf, preprocessing_stats);
+      simplifier->feliminate_entailed_constraints(*iprop, tnf, preprocessing_stats, config.epsilon);
   #else
       simplifier->eliminate_entailed_constraints(*iprop, tnf, preprocessing_stats);
   #endif
