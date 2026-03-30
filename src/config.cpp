@@ -43,6 +43,8 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-force_ternarize: Force the transformation of the formula in ternary normal form, even with IPC abstract domain (note that it is enabled by default with PIR abstract domain)." << std::endl;
   std::cout << "\t-disable_simplify: Disable the simplification step." << std::endl;
   std::cout << "\t-globalmem: Store all data abstract elements in the global memory and do not try to optimise using shared memory." << std::endl;
+  std::cout << "\t-vnnlib_path <path>: Path to the VNNLIB file." << std::endl;
+  std::cout << "\t-onnx_path <path>: Path to the ONNX file." << std::endl;
   exit(EXIT_FAILURE);
 }
 
@@ -255,25 +257,24 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
     config.hardware = battery::string<battery::standard_allocator>(hardware.data());
   }
 
-//   // FIXME: if we only have 1 input file, we should be using read_input_file only.
-// #ifndef WITH_NNV
-//   std::string problem_path;
-//   input.read_input_file(problem_path);
-//   config.problem_path = battery::string<battery::standard_allocator>(problem_path.data());
-// #else 
-//   std::string vnnlib_path;
-//   input.read_vnnlib_file(vnnlib_path);
-//   config.vnnlib_path = battery::string<battery::standard_allocator>(vnnlib_path.data());
+  std::string vnnlib_path;
+  if(input.read_string("-vnnlib_path", vnnlib_path)) {
+    config.vnnlib_path = battery::string<battery::standard_allocator>(vnnlib_path.data());
+    std::string onnx_path;
+    if(input.read_string("-onnx_path", onnx_path)) {
+      config.onnx_path = battery::string<battery::standard_allocator>(onnx_path.data());
+      config.problem_path = config.onnx_path;
+    }
+    else {
+      std::cerr << "Either -onnx_path or -vnnlib_path must be specified" << std::endl;
+      exit(EXIT_FAILURE);
+    }
+  }
+  else { 
+    std::string problem_path;
+    input.read_input_file(problem_path);
+    config.problem_path = battery::string<battery::standard_allocator>(problem_path.data());
+  }
 
-//   std::string onnx_path;
-//   input.read_onnx_file(onnx_path);
-//   config.onnx_path = battery::string<battery::standard_allocator>(onnx_path.data());
-//   config.problem_path = config.onnx_path; // make problem_path equal to onnx_path;
-// #endif 
-  std::string problem_path;
-  input.read_input_file(problem_path);
-  config.problem_path = battery::string<battery::standard_allocator>(problem_path.data());
-  config.vnnlib_path = battery::string<battery::standard_allocator>(problem_path.data());
-  
   return config;
 }

@@ -17,7 +17,8 @@ enum class Arch {
   GPU,
   BAREBONES,
   FBAREBONES,
-  HYBRID
+  HYBRID,
+  JET
 };
 
 enum class FixpointKind {
