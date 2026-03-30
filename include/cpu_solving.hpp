@@ -44,17 +44,27 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
     }
     else {
 #ifdef WITH_NNV
-      // fp_engine.select([&](int i) { return !cp.iprop->fask(i); });
+      for(int i = 0; i < cp.iprop->num_deductions(); ++i) {
+        if(!cp.iprop->has_fsolution(i)) {
+          has_changed = true;
+          cp.on_failed_node();
+          fp_engine.reset();
+          break;
+        }
+      }
       cp.stats.stop_timer(Timer::SELECT_FP_FUNCTIONS, start2);
-      // if(fp_engine.num_active() == 0 && cp.search_tree->template is_fextractable<AtomicExtraction>(AtomicExtraction(), config.epsilon)) {
-      if(cp.search_tree->template is_fextractable<AtomicExtraction>(AtomicExtraction(), config.epsilon)) {
-        has_changed |= cp.bab->fdeduce();
-        must_prune |= cp.on_solution_node();
+      if(!has_changed) {
+        if(cp.search_tree->template is_fextractable<AtomicExtraction>(AtomicExtraction(), config.epsilon)) {
+          has_changed |= cp.bab->deduce();
+          must_prune |= cp.on_solution_node();
+          fp_engine.reset();
+        }
       }
-      else if(cp.search_tree->is_unknown(config.epsilon)) {
-        cp.on_unknown_node();
-        fp_engine.reset();
-      }
+      // else if(cp.search_tree->is_unknown(config.epsilon)) {
+      //   // FIXME: check how to identify unknown nodes.
+      //   cp.on_unknown_node();
+      //   fp_engine.reset();
+      // }
 #else
       fp_engine.select([&](int i) { return !cp.iprop->ask(i); });
       cp.stats.stop_timer(Timer::SELECT_FP_FUNCTIONS, start2);

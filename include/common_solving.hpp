@@ -273,6 +273,7 @@ struct AbstractDomains {
   abstract_ptr<Split> split;
   abstract_ptr<IST> search_tree;
   abstract_ptr<LIStore> best;
+  battery::vector<LIStore> inner_boxes;
   abstract_ptr<IBAB> bab;
 
   // The environment of variables, storing the mapping between variable's name and their representation in the abstract domains.
@@ -299,6 +300,7 @@ struct AbstractDomains {
     search_tree = battery::allocate_shared<IST, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), iprop, split, basic_allocator);
     // Note that `best` must have the same abstract type then store (otherwise projection of the variables will fail).
     best = battery::allocate_shared<LIStore, BasicAllocator>(basic_allocator, store->aty(), num_vars, basic_allocator);
+    inner_boxes = battery::vector<LIStore, BasicAllocator>(basic_allocator);
     bab = battery::allocate_shared<IBAB, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), search_tree, best);
     if(config.verbose_solving) {
       printf("%% Abstract domain allocated.\n");
@@ -535,11 +537,11 @@ public:
   }
 
   void preprocess_tcn(F& f) {
-  #ifdef WITH_NNV
+#ifdef WITH_NNV
     f = ternarize(f, VarEnv<BasicAllocator>(), false);
-  #else
+#else
     f = ternarize(f, VarEnv<BasicAllocator>(), true, {0,1,2});
-  #endif
+#endif
     battery::vector<F> extra;
     f = normalize(f, extra);
     size_t num_vars = num_quantified_vars(f);
@@ -564,26 +566,26 @@ public:
     while(!iprop->is_bot() && has_changed) {
       has_changed = false;
       preprocessing_stats.prepare_next_iteration();
-  #ifdef WITH_NNV
+#ifdef WITH_NNV
       fp_engine.fixpoint(iprop->num_deductions(),
         [&](size_t i) { return iprop->fdeduce(i, config.epsilon); },
         [&](){ return iprop->is_bot(); },
         has_changed);
-  #else 
+#else 
       fp_engine.fixpoint(iprop->num_deductions(),
         [&](size_t i) { return iprop->deduce(i); },
         [&](){ return iprop->is_bot(); },
         has_changed);
-  #endif
+#endif
       if(has_changed) {
         simplifier->meet_equivalence_classes();
       }
       has_changed |= simplifier->algebraic_simplify(tnf, preprocessing_stats);
-  #ifdef WITH_NNV
+#ifdef WITH_NNV
       simplifier->feliminate_entailed_constraints(*iprop, tnf, preprocessing_stats, config.epsilon);
-  #else
+#else
       simplifier->eliminate_entailed_constraints(*iprop, tnf, preprocessing_stats);
-  #endif
+#endif
       // if(num_vars < 1000000) { // otherwise ICSE is too slow, needs to be improved.
         has_changed |= simplifier->i_cse(tnf, preprocessing_stats);
       // }
@@ -903,6 +905,7 @@ public:
   /** Return `true` if the search state must be pruned. */
   CUDA bool update_solution_stats() {
     stats.solutions++;
+    inner_boxes.push_back(*best);
     if(bab->is_satisfaction() && config.stop_after_n_solutions != 0 &&
        stats.solutions >= config.stop_after_n_solutions)
     {
@@ -928,9 +931,17 @@ public:
   }
 
   CUDA void print_final_solution() {
+    printf("is_printing_intermediate_sol() = %d\n", is_printing_intermediate_sol());
     if(!is_printing_intermediate_sol() && stats.solutions > 0) {
       print_solution();
     }
+#ifdef WITH_NNV
+    else if (bab->is_satisfaction() && inner_boxes.size() > 0) {
+      for(int i = 0; i < inner_boxes.size(); ++i) {
+        print_solution(inner_boxes[i]);
+      }
+    }
+#endif
     stats.print_mzn_final_separator();
   }
 

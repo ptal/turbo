@@ -3,6 +3,7 @@
 #ifndef TURBO_FBAREBONES_DIVE_AND_SOLVE_HPP
 #define TURBO_FBAREBONES_DIVE_AND_SOLVE_HPP
 
+#include "battery/allocator.hpp"
 #include "common_solving.hpp"
 #include "memory_gpu.hpp"
 #include "lala/light_branch.hpp"
@@ -94,6 +95,7 @@ struct BlockData {
 
   // inner box 
   abstract_ptr<VStore<FItv, bt::global_allocator>> inner_box;
+  bt::vector<VStore<FItv, bt::global_allocator>> inner_boxes;
 
   /** The current store of variables.
    * We use a `pool_allocator`, this allows to easily switch between global memory and shared memory, if the store of variables can fit inside.
@@ -163,6 +165,7 @@ struct BlockData {
       bt::pool_allocator prop_allocator(mem_config.make_prop_pool(shared_mem_pool));
       root_store = bt::make_shared<VStore<FItv, bt::global_allocator>, bt::global_allocator>(u_store);
       inner_box = bt::make_shared<VStore<FItv, bt::global_allocator>, bt::global_allocator>(u_store);
+      inner_boxes = bt::vector<VStore<FItv, bt::global_allocator>, bt::global_allocator>(bt::global_allocator{});
       store = bt::allocate_shared<FStore, bt::pool_allocator>(store_allocator, u_store, store_allocator);
       iprop = bt::allocate_shared<FProp, bt::pool_allocator>(prop_allocator, u_iprop, store, prop_allocator);
     }
@@ -1000,6 +1003,9 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
       if(block_data.stats.solutions > 0) {
         // FIXME: We might have more than one solution to remember.
         block_data.store->copy_to(group, *block_data.inner_box);
+        // if (block_data.inner_boxes.size() < 10) {
+        //   block_data.inner_boxes.push_back(*block_data.inner_box);
+        // }
       }
     }
   }
@@ -1041,7 +1047,12 @@ __global__ void reduce_blocks(UnifiedData* unified_data, GridData* grid_data) {
     if(block.stats.solutions > 0) {
       if(root.bab->is_satisfaction()) {
         // FIXME: We might have more than one solution to remember.
-        block.inner_box->fextract(*root.best);
+        block.inner_box->extract(*root.best);
+        // for(int j = 0; j < block.inner_boxes.size(); ++j) {
+        //   block.inner_boxes[j].extract(*root.best);
+        //   root.inner_boxes.push_back(*root.best);
+        //   if (j >= 10) break;
+        // }
         break;
       }
     }
