@@ -519,7 +519,7 @@ void barebones_dive_and_solve(const Configuration<battery::standard_allocator>& 
 
 /** We configure the GPU according to the user configuration:
  * 1) Guess the "best" number of blocks per SM, if not provided.
- * 2) Update the number of subproblems to at least "30 * B" where B is the number of blocks.
+ * 2) Update the number of subproblems to at least "300 * B" where B is the number of blocks.
  * 3) Configure the size of the shared memory.
  * 4) Increase the global heap memory.
  * 5) Increase the stack size if requested by the user.

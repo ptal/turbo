@@ -82,7 +82,7 @@ struct Configuration {
     timeout_ms(0),
     or_nodes(0),
     subproblems_power(-1),
-    subproblems_factor(30),
+    subproblems_factor(300),
     stack_kb(
       #ifdef TURBO_IPC_ABSTRACT_DOMAIN
         32
@@ -271,7 +271,7 @@ struct Configuration {
     printf("%%%%%%mzn-stat: arch=\"%s\"\n", name_of_arch(arch));
     printf("%%%%%%mzn-stat: fixpoint=\"%s\"\n", name_of_fixpoint(fixpoint));
     // printf("%%%%%%mzn-stat: subproblems_power=\"%d\"\n", subproblems_power); // do not print because it must be printed before it is modified in barebones.
-    printf("%%%%%%mzn-stat: subproblems_factor=" PRIu64 "\n", subproblems_factor);
+    printf("%%%%%%mzn-stat: subproblems_factor=%" PRIu64 "\n", subproblems_factor);
     if(fixpoint == FixpointKind::WAC1) {
       printf("%%%%%%mzn-stat: wac1_threshold=%" PRIu64 "\n", wac1_threshold);
     }
