@@ -931,7 +931,6 @@ public:
   }
 
   CUDA void print_final_solution() {
-    printf("is_printing_intermediate_sol() = %d\n", is_printing_intermediate_sol());
     if(!is_printing_intermediate_sol() && stats.solutions > 0) {
       print_solution();
     }
