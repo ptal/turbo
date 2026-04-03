@@ -30,7 +30,8 @@ enum class InputFormat {
   XCSP3,
   FLATZINC,
   VNNLIB,
-  ONNX
+  ONNX,
+  SMT2
 };
 
 template<class Allocator>
@@ -304,11 +305,14 @@ struct Configuration {
     else if(problem_path.ends_with(".xml")) {
       return InputFormat::XCSP3;
     }
-    else if (problem_path.ends_with(".vnnlib") || problem_path.ends_with(".smt2")){
+    else if (problem_path.ends_with(".vnnlib")){
       return InputFormat::VNNLIB;
     }
     else if (problem_path.ends_with(".onnx")){
       return InputFormat::ONNX;
+    }
+    else if (problem_path.ends_with(".smt2")){
+      return InputFormat::SMT2;
     }
     else {
       printf("ERROR: Unknown input format for the file %s [supported extension: .xml and .fzn].\n", problem_path.data());

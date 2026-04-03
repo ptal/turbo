@@ -429,6 +429,10 @@ public:
       solver_output.set_type(OutputType::NNV);
       f = parse_nnv<basic_allocator_type>(config.onnx_path.data(), config.vnnlib_path.data(), solver_output);
     }
+    else if (config.input_format() == InputFormat::SMT2) {
+      solver_output.set_type(OutputType::SMT2);
+      f = parse_smt2(config.problem_path.data(), solver_output);
+    }
 #endif
     if(!f) {
       std::cerr << "Could not parse input file." << std::endl;
