@@ -24,7 +24,6 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
   FixpointSubsetCPU<GaussSeidelIteration> fp_engine(cp.iprop->num_deductions());
   local::B has_changed = true;
   block_signal_ctrlc();
-  printf("cpu solving ...\n");
   while(!must_quit(cp) && check_timeout(cp, start) && has_changed) {
     has_changed = false;
     auto start2 = cp.stats.start_timer_host();
@@ -34,7 +33,9 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
       [&]() { return cp.iprop->is_bot(); }
     );
 #else 
-    cp.stats.fixpoint_iterations += fp_engine.fixpoint([&](int i) { return cp.iprop->deduce(i); });
+    cp.stats.fixpoint_iterations += fp_engine.fixpoint(
+      [&](int i) { return cp.iprop->deduce(i); }, 
+      [&]() { return cp.iprop->is_bot(); });
 #endif
     start2 = cp.stats.stop_timer(Timer::FIXPOINT, start2);
     bool must_prune = cp.on_node();
@@ -44,14 +45,15 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
     }
     else {
 #ifdef WITH_NNV
-      for(int i = 0; i < cp.iprop->num_deductions(); ++i) {
-        if(!cp.iprop->has_fsolution(i)) {
-          has_changed = true;
-          cp.on_failed_node();
-          fp_engine.reset();
-          break;
-        }
-      }
+      // for(int i = 0; i < cp.iprop->num_deductions(); ++i) {
+      //   if(!cp.iprop->is_fsolution(i)) {
+      //     std::cout << "It does not have a solution" << std::endl;
+      //     has_changed = true;
+      //     cp.on_failed_node();
+      //     fp_engine.reset();
+      //     break;
+      //   }
+      // }
       cp.stats.stop_timer(Timer::SELECT_FP_FUNCTIONS, start2);
       if(!has_changed) {
         if(cp.search_tree->template is_extractable<AtomicExtraction>(AtomicExtraction(), config.epsilon)) {

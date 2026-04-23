@@ -681,7 +681,8 @@ private:
     typename F::Sequence seq;
 #ifdef WITH_NNV
     if(config.var_order == "default" && config.value_order == "default") {
-      seq.push_back(F::make_nary("anti_first_fail", {})); // select largest interval width.
+      // seq.push_back(F::make_nary("anti_first_fail", {})); // select largest interval width.
+      seq.push_back(F::make_nary("input_order", {}));       // select smallest index.
       seq.push_back(F::make_nary("indomain_split",{}));
     }
 #else 

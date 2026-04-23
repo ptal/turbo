@@ -256,7 +256,7 @@ struct BlockData {
       __syncthreads();
       for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-        if(battery::sub_down(dom.ub().value(), dom.lb().value()) > epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
+        if(battery::sub_down(dom.ub().value(), dom.lb().value()) >= epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
           if(idx.meet(local::ZUB(i))) {
             has_changed = true;
           }
@@ -300,7 +300,7 @@ struct BlockData {
       __syncthreads();
       for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-        if(battery::sub_down(dom.ub().value(), dom.lb().value()) > epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
+        if(battery::sub_down(dom.ub().value(), dom.lb().value()) >= epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
           if(value.meet(f(dom))) {
             has_changed = true;
           }
@@ -407,6 +407,10 @@ struct BlockData {
     bound_type width = battery::sub_down(dom.ub().value(), dom.lb().value());
     bound_type half = battery::div_down(width, bound_type{2.0});
     bound_type mid = battery::add_down(dom.lb().value(), half);
+    // if(threadIdx.x == 0) {
+    //   printf("split on %d, lb = %.20f, ub = %.20f, mid = %.20f \n", decisions[depth].var.vid(), dom.lb().value(), dom.ub().value(), mid);
+    // }
+
     switch(val_order) {
       case ValueOrder::SPLIT: {
         decisions[depth].children[0] = FItv(dom.lb(), mid);
@@ -975,39 +979,41 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
     if(threadIdx.x == 0) {
       has_changed = false;
     }
+    // __syncthreads();
+    // for(int i = threadIdx.x; i < iprop.num_deductions(); i += blockDim.x) {
+    //   if(!iprop.has_fsolution(i)) {
+    //     has_changed = true;
+    //     is_leaf_node = true;
+    //     break;  
+    //   }
+    // }
     __syncthreads();
-    for(int i = threadIdx.x; i < iprop.num_deductions(); i += blockDim.x) {
-      if(!iprop.has_fsolution(i)) {
+    const auto& store = *block_data.store;
+    for(int i = (int)group.thread_rank(); i < store.vars(); i += group.num_threads()) {
+      if(store[i].width().lb().value() > config.epsilon) {
         has_changed = true;
-        is_leaf_node = true;
-        break;  
+        break;
       }
     }
-    __syncthreads();
-    if(!has_changed){
-      const auto& store = *block_data.store;
-      for(int i = (int)group.thread_rank(); i < store.vars(); i += group.num_threads()) {
-        if(store[i].width().lb().value() > config.epsilon) {
-          has_changed = true;
-          break;
-        }
-      }
-    }
+    // __syncthreads();
+    // for(int i = threadIdx.x; !has_changed && i < iprop.num_deductions(); i += blockDim.x) {
+    //   if(!iprop.is_fsolution(i, config.epsilon)) {
+    //     has_changed = true;
+    //   }
+    // }
     __syncthreads();
     if(!has_changed) {
       is_leaf_node = true;
       if(threadIdx.x == 0) {
-        block_data.stats.solutions++;
         block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);          
       }
-      if(block_data.stats.solutions > 0) {
-        // FIXME: We might have more than one solution to remember.
-        block_data.store->copy_to(group, *block_data.inner_box);
-        // if (block_data.inner_boxes.size() < 10) {
-        //   block_data.inner_boxes.push_back(*block_data.inner_box);
-        // }
+      block_data.store->copy_to(group, *block_data.inner_box);
+      if(threadIdx.x == 0) {
+        block_data.stats.solutions++;
+        unified_data.stop.test_and_set();
       }
     }
+    __syncthreads();
   }
   else {
     is_leaf_node = true;
@@ -1023,8 +1029,7 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
 
     if(block_data.stats.nodes >= config.stop_after_n_nodes
       || unified_data.stop.test()
-      //|| block_data.stats.solutions > 0)
-      )
+      || block_data.stats.solutions != 0)
     {
       block_data.stats.exhaustive = false;
       stop = true;
