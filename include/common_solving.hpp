@@ -330,26 +330,7 @@ private:
       std::cerr << "Cannot open preprocessed TCN output file " << config.dump_preprocessed_tcn.data() << std::endl;
       exit(EXIT_FAILURE);
     }
-    if(bab->is_minimization()) {
-      out << "minimize x" << bab->objective_var().vid() << '\n';
-    }
-    else if(bab->is_maximization()) {
-      out << "maximize x" << bab->objective_var().vid() << '\n';
-    }
-    out << store->vars() << '\n';
-    for(int i = 0; i < store->vars(); ++i) {
-      const auto& dom = (*store)[i];
-      out << tcn_lower_bound_to_string(dom.lb()) << ' '
-          << tcn_upper_bound_to_string(dom.ub()) << '\n';
-    }
-    out << iprop->num_deductions() << '\n';
-    for(int i = 0; i < iprop->num_deductions(); ++i) {
-      bytecode_type bytecode = iprop->load_deduce(i);
-      out << bytecode.x.vid() << ' '
-          << bytecode.y.vid() << ' '
-          << tcn_sig_to_symbol(bytecode.op) << ' '
-          << bytecode.z.vid() << '\n';
-    }
+    write_preprocessed_tcn(out, *store, *iprop, *bab);
     if(config.verbose_solving) {
       printf("%% Preprocessed TCN written to %s\n", config.dump_preprocessed_tcn.data());
     }
