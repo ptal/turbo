@@ -26,7 +26,8 @@ enum class FixpointKind {
 
 enum class InputFormat {
   XCSP3,
-  FLATZINC
+  FLATZINC,
+  TCN
 };
 
 template<class Allocator>
@@ -52,6 +53,7 @@ struct Configuration {
   FixpointKind fixpoint;
   size_t wac1_threshold;
   size_t seed;
+  battery::string<allocator_type> dump_preprocessed_tcn;
   battery::string<allocator_type> eps_var_order;
   battery::string<allocator_type> eps_value_order;
   battery::string<allocator_type> problem_path;
@@ -97,6 +99,7 @@ struct Configuration {
     ),
     wac1_threshold(0),
     seed(0),
+    dump_preprocessed_tcn(alloc),
     eps_value_order("default", alloc),
     eps_var_order("default", alloc),
     problem_path(alloc),
@@ -129,6 +132,7 @@ struct Configuration {
     fixpoint(other.fixpoint),
     wac1_threshold(other.wac1_threshold),
     seed(other.seed),
+    dump_preprocessed_tcn(other.dump_preprocessed_tcn, alloc),
     eps_var_order(other.eps_var_order, alloc),
     eps_value_order(other.eps_value_order, alloc),
     problem_path(other.problem_path, alloc),
@@ -158,11 +162,13 @@ struct Configuration {
     fixpoint = other.fixpoint;
     wac1_threshold = other.wac1_threshold;
     seed = other.seed;
+    dump_preprocessed_tcn = other.dump_preprocessed_tcn;
     eps_var_order = other.eps_var_order;
     eps_value_order = other.eps_value_order;
     problem_path = other.problem_path;
     version = other.version;
     hardware = other.hardware;
+    return *this;
   }
 
   CUDA void print_commandline(const char* program_name) {
@@ -192,6 +198,9 @@ struct Configuration {
     printf("-fp %s ", name_of_fixpoint(fixpoint));
     if(fixpoint == FixpointKind::WAC1) {
       printf("-wac1_threshold %" PRIu64 " ", wac1_threshold);
+    }
+    if(dump_preprocessed_tcn.size() != 0) {
+      printf("-dump_preprocessed_tcn %s ", dump_preprocessed_tcn.data());
     }
     printf("-seed %" PRIu64 " ", seed);
     printf("-eps_var_order %s ", eps_var_order.data());
@@ -241,6 +250,9 @@ struct Configuration {
     printf("%%%%%%mzn-stat: hardware=\"%s\"\n", (hardware.size() == 0) ? "unspecified" : hardware.data());
     printf("%%%%%%mzn-stat: arch=\"%s\"\n", name_of_arch(arch));
     printf("%%%%%%mzn-stat: fixpoint=\"%s\"\n", name_of_fixpoint(fixpoint));
+    if(dump_preprocessed_tcn.size() != 0) {
+      printf("%%%%%%mzn-stat: dump_preprocessed_tcn=\"%s\"\n", dump_preprocessed_tcn.data());
+    }
     // printf("%%%%%%mzn-stat: subproblems_power=\"%d\"\n", subproblems_power); // do not print because it must be printed before it is modified in barebones.
     printf("%%%%%%mzn-stat: subproblems_factor=%" PRIu64 "\n", subproblems_factor);
     if(fixpoint == FixpointKind::WAC1) {
@@ -272,8 +284,11 @@ struct Configuration {
     else if(problem_path.ends_with(".xml")) {
       return InputFormat::XCSP3;
     }
+    else if(problem_path.ends_with(".tcn")) {
+      return InputFormat::TCN;
+    }
     else {
-      printf("ERROR: Unknown input format for the file %s [supported extension: .xml and .fzn].\n", problem_path.data());
+      printf("ERROR: Unknown input format for the file %s [supported extensions: .xml, .fzn, .tcn].\n", problem_path.data());
       exit(EXIT_FAILURE);
     }
   }
