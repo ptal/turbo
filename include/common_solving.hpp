@@ -195,7 +195,7 @@ struct AbstractDomains {
    , solver_output(basic_allocator)
    , config(other.config, basic_allocator)
    , stats(other.stats)
-   , env(basic_allocator)
+   , env(other.env, basic_allocator)
    , minimize_obj_var(other.minimize_obj_var)
    , store(store_allocator)
    , iprop(prop_allocator)
@@ -682,7 +682,8 @@ private:
 #ifdef WITH_NNV
     if(config.var_order == "default" && config.value_order == "default") {
       // seq.push_back(F::make_nary("anti_first_fail", {})); // select largest interval width.
-      seq.push_back(F::make_nary("input_order", {}));       // select smallest index.
+      // seq.push_back(F::make_nary("input_order", {}));       // select smallest index.
+      seq.push_back(F::make_nary("largest_width_input", {}));
       seq.push_back(F::make_nary("indomain_split",{}));
     }
 #else 

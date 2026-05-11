@@ -62,11 +62,11 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
           fp_engine.reset();
         }
       }
-      // else if(cp.search_tree->is_unknown(config.epsilon)) {
-      //   // FIXME: check how to identify unknown nodes.
-      //   cp.on_unknown_node();
-      //   fp_engine.reset();
-      // }
+      else if(cp.search_tree->is_unknown(config.epsilon)) {
+        // FIXME: check how to identify unknown nodes.
+        cp.on_unknown_node();
+        fp_engine.reset();
+      }
 #else
       fp_engine.select([&](int i) { return !cp.iprop->ask(i); });
       cp.stats.stop_timer(Timer::SELECT_FP_FUNCTIONS, start2);
@@ -85,9 +85,13 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
     cp.stats.stop_timer(Timer::SEARCH, start2);
     if(must_prune) { break; }
   }
-  printf("done\n");
   cp.print_final_solution();
   cp.print_mzn_statistics();
+
+  if (cp.stats.solutions > 0) printf("sat\n");
+  else if (cp.stats.unknowns > 0) printf("unknown\n");
+  else if (check_timeout(cp, start)) printf("timeout\n");
+  else printf("unsat\n");
 }
 
 #endif
