@@ -90,7 +90,7 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
 
   if (cp.stats.solutions > 0) printf("sat\n");
   else if (cp.stats.unknowns > 0) printf("unknown\n");
-  else if (check_timeout(cp, start)) printf("timeout\n");
+  else if (!check_timeout(cp, start)) printf("timeout\n");
   else printf("unsat\n");
 }
 
