@@ -29,8 +29,7 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
     auto start2 = cp.stats.start_timer_host();
 #ifdef WITH_NNV
     cp.stats.fixpoint_iterations += fp_engine.fixpoint(
-      [&](int i) { return cp.iprop->fdeduce(i, config.epsilon); },
-      [&]() { return cp.iprop->is_bot(); }
+      [&](int i) { return cp.iprop->fdeduce(i, cp.config.epsilon); }
     );
 #else 
     cp.stats.fixpoint_iterations += fp_engine.fixpoint(
@@ -38,35 +37,24 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
       [&]() { return cp.iprop->is_bot(); });
 #endif
     start2 = cp.stats.stop_timer(Timer::FIXPOINT, start2);
-    bool must_prune = cp.on_node();
+    bool must_prune = cp.on_node(); 
     if(cp.iprop->is_bot()) {
       cp.on_failed_node();
       fp_engine.reset();
     }
     else {
 #ifdef WITH_NNV
-      // for(int i = 0; i < cp.iprop->num_deductions(); ++i) {
-      //   if(!cp.iprop->is_fsolution(i)) {
-      //     std::cout << "It does not have a solution" << std::endl;
-      //     has_changed = true;
-      //     cp.on_failed_node();
-      //     fp_engine.reset();
-      //     break;
-      //   }
-      // }
       cp.stats.stop_timer(Timer::SELECT_FP_FUNCTIONS, start2);
-      if(!has_changed) {
-        if(cp.search_tree->template is_extractable<AtomicExtraction>(AtomicExtraction(), config.epsilon)) {
-          has_changed |= cp.bab->deduce();
-          must_prune |= cp.on_solution_node();
-          fp_engine.reset();
-        }
-      }
-      else if(cp.search_tree->is_unknown(config.epsilon)) {
-        // FIXME: check how to identify unknown nodes.
-        cp.on_unknown_node();
+      if(cp.search_tree->template is_extractable<AtomicExtraction>(AtomicExtraction(), config.epsilon)) {
+        has_changed |= cp.bab->deduce();
+        must_prune |= cp.on_solution_node();
         fp_engine.reset();
+        break;
       }
+      // else if(cp.search_tree->is_unknown(cp.env, cp.config.epsilon)) {
+      //   cp.on_unknown_node();
+      //   fp_engine.reset();
+      // }
 #else
       fp_engine.select([&](int i) { return !cp.iprop->ask(i); });
       cp.stats.stop_timer(Timer::SELECT_FP_FUNCTIONS, start2);
@@ -85,6 +73,7 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
     cp.stats.stop_timer(Timer::SEARCH, start2);
     if(must_prune) { break; }
   }
+  printf("All nodes have splitted\n");
   cp.print_final_solution();
   cp.print_mzn_statistics();
 

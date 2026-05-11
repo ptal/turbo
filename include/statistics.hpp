@@ -402,13 +402,13 @@ public:
     }
     else {
       assert(solutions == 0);
-      if(exhaustive) {
+      if(exhaustive && unknowns == 0) {
         printf("=====UNSATISFIABLE=====\n");
       }
       else if(optimization) {
         printf("=====UNBOUNDED=====\n");
       }
-      else {
+      else if (unknowns != 0) {
         printf("=====UNKNOWN=====\n");
       }
     }
