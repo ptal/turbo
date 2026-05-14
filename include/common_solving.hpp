@@ -274,6 +274,7 @@ struct AbstractDomains {
   abstract_ptr<IST> search_tree;
   abstract_ptr<LIStore> best;
   battery::vector<LIStore> inner_boxes;
+  battery::vector<std::string, basic_allocator_type> input_neurons;
   abstract_ptr<IBAB> bab;
 
   // The environment of variables, storing the mapping between variable's name and their representation in the abstract domains.
@@ -427,7 +428,7 @@ public:
     else if (config.input_format() == InputFormat::VNNLIB ||
              config.input_format() == InputFormat::ONNX) {
       solver_output.set_type(OutputType::NNV);
-      f = parse_nnv<basic_allocator_type>(config.onnx_path.data(), config.vnnlib_path.data(), solver_output);
+      f = parse_nnv<basic_allocator_type>(config.onnx_path.data(), config.vnnlib_path.data(), input_neurons, solver_output);
     }
     else if (config.input_format() == InputFormat::SMT2) {
       solver_output.set_type(OutputType::SMT2);
@@ -681,15 +682,12 @@ private:
     typename F::Sequence seq;
 #ifdef WITH_NNV
     if(config.var_order == "default" && config.value_order == "default") {
-      // seq.push_back(F::make_nary("anti_first_fail", {})); // select largest interval width.
-      // seq.push_back(F::make_nary("input_order", {}));       // select smallest index.
-      seq.push_back(F::make_nary("largest_width_input", {}));
-      seq.push_back(F::make_nary("indomain_split",{}));
-    }
-#else 
-    if(config.var_order == "default" && config.value_order == "default") {
-      seq.push_back(F::make_nary("first_fail", {}));
-      seq.push_back(F::make_nary("indomain_min", {}));
+      seq.push_back(F::make_nary("anti_first_fail", {})); 
+      seq.push_back(F::make_nary("indomain_split", {}));
+      // Add variables to split here as additional arguments:
+      for (int i = 0; i < input_neurons.size(); ++i ){
+        seq.push_back(F::make_lvar(UNTYPED, LVar<basic_allocator_type>(input_neurons[i])));
+      }
     }
 #endif
     else {
@@ -738,8 +736,7 @@ private:
     if(config.verbose_solving > 1) {
       printf("%%     (Histogram of the number of times a function or predicate symbol occurs in the formula. Top-level conjunctions and unary constraints are discarded.)\n");
     }
-    stats.print_dict_stat("fcn_histogram_reified_predicates", stats_fcn.reified_predicates,
-      [](const auto& key) { return "'" + std::string(string_of_sig_txt(key)) + "'"; },
+    stats.print_dict_stat("fcn_histogram_reified_predicates", stats_fcn.reified_predicates, [](const auto& key) { return "'" + std::string(string_of_sig_txt(key)) + "'"; },
       [](const auto& value) { return std::to_string(value); });
     if(config.verbose_solving > 1) {
       printf("%%     (Count all the predicate symbols occuring in the formula in a reified context, e.g., below a NOT, OR, or inside an arithmetic expression).\n");

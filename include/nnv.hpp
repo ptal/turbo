@@ -17,14 +17,15 @@ class NNV {
 	using F = TFormula<allocator_type>;
 	using FSeq = typename F::Sequence;
 
+	battery::vector<std::string, Allocator>& input_neurons;
 	SolverOutput<Allocator>& output;
 
 public:
-	NNV(SolverOutput<Allocator>& output): output(output) {}
+	NNV(battery::vector<std::string, Allocator>& input_neurons, SolverOutput<Allocator>& output): input_neurons(input_neurons), output(output) {}
 
 	battery::shared_ptr<F, allocator_type> make_nnv_formulas(const std::string& onnx_path, const std::string& vnnlib_path) {
 		FSeq seq; 
-		seq.push_back(std::move(parse_onnx<allocator_type>(onnx_path, output)));
+		seq.push_back(std::move(parse_onnx<allocator_type>(onnx_path, input_neurons, output)));
 		seq.push_back(std::move(parse_smt<allocator_type>(vnnlib_path)));
 		return battery::make_shared<F, allocator_type>(std::move(F::make_nary(AND, std::move(seq))));
 	} 
@@ -54,8 +55,8 @@ battery::shared_ptr<TFormula<Allocator>, Allocator> parse_nnv(const std::string&
 }
 
 template <class Allocator>
-battery::shared_ptr<TFormula<Allocator>, Allocator> parse_nnv(const std::string& onnx_path, const std::string& vnnlib_path, SolverOutput<Allocator>& output) {
-	impl::NNV<Allocator> nnv(output);
+battery::shared_ptr<TFormula<Allocator>, Allocator> parse_nnv(const std::string& onnx_path, const std::string& vnnlib_path, battery::vector<std::string, Allocator>& input_neurons, SolverOutput<Allocator>& output) {
+	impl::NNV<Allocator> nnv(input_neurons, output);
 	return nnv.make_nnv_formulas(onnx_path, vnnlib_path); 
 }
 
