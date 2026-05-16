@@ -547,7 +547,7 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
     unified_data->root.stats.print_mzn_end_stats();
   }
   if (uroot.stats.solutions > 0) printf("sat\n");
-  else if (uroot.stats.unknowns > 0) printf("\n");
+  else if (uroot.stats.unknowns > 0) printf("unknown\n");
   else if (interrupted) printf("timeout\n");
   else printf("unsat\n");
   deallocate_global_data<<<1,1>>>(grid_data.get());
@@ -980,57 +980,53 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
 
   // III. Analyze the result of propagation
   if(!iprop.is_bot()) {
-    TIMEPOINT(SELECT_FP_FUNCTIONS);
     if(threadIdx.x == 0) {
       has_changed = false;
     }
-    // __syncthreads();
-    // for(int i = threadIdx.x; i < iprop.num_deductions(); i += blockDim.x) {
-    //   if(!iprop.has_fsolution(i)) {
-    //     has_changed = true;
-    //     is_leaf_node = true;
-    //     break;  
-    //   }
-    // }
     __syncthreads();
-    // const auto& store = *block_data.store;
-    // for(int i = (int)group.thread_rank(); i < store.vars(); i += group.num_threads()) {
-    //   // TODO:  only check input variables 
-    //   if(store[i].width().ub().value() > config.epsilon) {
-    //     has_changed = true;
-    //     break;
-    //   }
-    // }
     const auto current_strat = block_data.current_strategy;
     const auto& strat = grid_data.search_strategies[current_strat]; 
     const auto& store = *block_data.store;
     for (int i = (int)group.thread_rank(); i < strat.vars.size(); i += group.num_threads()) {
       if (store[i].width().ub().value() > config.epsilon) {
         has_changed = true;
-        break;
-      }
-    }
-
-    __syncthreads();
-    if(!has_changed) {
-      is_leaf_node = true;
-      if(threadIdx.x == 0) {
-        block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);          
-      }
-      // __syncthreads();
-      // for(int i = threadIdx.x; !has_changed && i < iprop.num_deductions(); i += blockDim.x) {
-      //   if(!iprop.is_fsolution(i, config.epsilon)) {
-      //     has_changed = true;
-      //   }
-      // }
-      // __syncthreads();
-      block_data.store->copy_to(group, *block_data.inner_box);
-      if(threadIdx.x == 0) {
-        block_data.stats.solutions++;
-        unified_data.stop.test_and_set();
       }
     }
     __syncthreads();
+    num_active = has_changed ? 1 : 0;
+    if (num_active == 0) {
+      if (threadIdx.x == 0) {
+        has_changed = false;
+      }
+      __syncthreads();
+      for (int i = threadIdx.x; !has_changed && i < iprop.num_deductions(); i += blockDim.x) {
+        if(!iprop.is_fsolution(i, config.epsilon)) {
+          has_changed = true;
+        }
+      }
+      __syncthreads();
+      num_active = has_changed ? 1 : 0;
+      TIMEPOINT(SELECT_FP_FUNCTIONS);
+      if(num_active == 0) {
+        is_leaf_node = true;
+        if(threadIdx.x == 0) {
+          block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);          
+        }
+        block_data.store->copy_to(group, *block_data.inner_box);
+        if(threadIdx.x == 0) {
+          block_data.stats.solutions++;
+          unified_data.stop.test_and_set();
+        }
+      }
+      else{
+        is_leaf_node = true;
+        if(threadIdx.x == 0) {
+          block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);          
+          block_data.stats.unknowns++;
+          unified_data.stop.test_and_set();
+        }
+      }
+    }
   }
   else {
     is_leaf_node = true;
