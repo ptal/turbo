@@ -300,7 +300,8 @@ struct BlockData {
       __syncthreads();
       for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-        if(dom.width().ub().value() > epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
+        // if(dom.width().ub().value() > epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
+        if (dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()) {
           if(value.meet(f(dom))) {
             has_changed = true;
           }
@@ -329,7 +330,8 @@ struct BlockData {
         __syncthreads();
         for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
           const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-          if(dom.width().ub().value() > epsilon && !dom.lb().is_top() && !dom.ub().is_top() && f(dom) == value) {
+          // if(dom.width().ub().value() > epsilon && !dom.lb().is_top() && !dom.ub().is_top() && f(dom) == value) {
+          if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top() && f(dom) == value) {
             if(idx.meet(local::ZUB(i))) {
               has_changed = true;
             }
@@ -402,7 +404,8 @@ struct BlockData {
     decisions[depth].current_idx = -1;
     const auto& dom = store->project(decisions[depth].var);
     // printf("split on %d \n", decisions[depth].var.vid());
-    assert(dom.width().ub().value() > epsilon);
+    // assert(dom.width().ub().value() > epsilon);
+    assert(dom.width().ub().value() > 0.0);
     // auto mid = battery::add_down(dom.lb().value(), battery::div_down(battery::sub_up(dom.ub().value(), dom.lb().value()), bound_type{2.0}));
     // bound_type width = battery::sub_up(dom.ub().value(), dom.lb().value());
     // bound_type half = battery::div_up(width, bound_type{2.0});
@@ -414,8 +417,14 @@ struct BlockData {
 
     switch(val_order) {
       case ValueOrder::SPLIT: {
-        decisions[depth].children[0] = FItv(dom.lb(), mid);
-        decisions[depth].children[1] = FItv(mid, dom.ub());
+        if (dom.lb().value() != dom.ub().value() && dom.width().ub().value() <= epsilon) {
+          decisions[depth].children[0] = FItv(mid, mid);
+          decisions[depth].children[0] = FItv(dom.lb().value(), dom.lb().value());
+        }
+        else {
+          decisions[depth].children[0] = FItv(dom.lb(), mid);
+          decisions[depth].children[1] = FItv(mid, dom.ub());
+        }
         break;
       }
       case ValueOrder::REVERSE_SPLIT: {
@@ -988,48 +997,56 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
     const auto& strat = grid_data.search_strategies[current_strat]; 
     const auto& store = *block_data.store;
     for (int i = (int)group.thread_rank(); i < strat.vars.size(); i += group.num_threads()) {
-      if (store[i].width().ub().value() > config.epsilon) {
+      if(store[i].lb().value() != store[i].ub().value()) {
         has_changed = true;
       }
     }
     __syncthreads();
     num_active = has_changed ? 1 : 0;
+    TIMEPOINT(SELECT_FP_FUNCTIONS);
     if (num_active == 0) {
-      if (threadIdx.x == 0) {
-        has_changed = false;
+      // This is SAT case.
+      is_leaf_node = true;
+      if(threadIdx.x == 0) {
+        block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);
       }
-      __syncthreads();
-      for (int i = threadIdx.x; !has_changed && i < iprop.num_deductions(); i += blockDim.x) {
-        if(!iprop.is_fsolution(i, config.epsilon)) {
-          has_changed = true;
-        }
-      }
-      __syncthreads();
-      num_active = has_changed ? 1 : 0;
-      TIMEPOINT(SELECT_FP_FUNCTIONS);
-      if(num_active == 0) {
-        is_leaf_node = true;
-        if(threadIdx.x == 0) {
-          block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);          
-        }
-        block_data.store->copy_to(group, *block_data.inner_box);
-        if(threadIdx.x == 0) {
-          block_data.stats.solutions++;
-          unified_data.stop.test_and_set();
-        }
-      }
-      else{
-        is_leaf_node = true;
-        if(threadIdx.x == 0) {
-          block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);          
-          block_data.stats.unknowns++;
-          unified_data.stop.test_and_set();
-        }
+      block_data.store->copy_to(group, *block_data.inner_box);
+      if(threadIdx.x == 0) {
+        block_data.stats.solutions++;
+        unified_data.stop.test_and_set();
       }
     }
   }
   else {
+    // If is_bot() is true /\ all the widths == 0.0, then it is identified as an unknown box.
+    // If is_bot() is true /\ all the widths != 0.0, then it is pruned by propagation, not underapproximation.
     is_leaf_node = true;
+    if (threadIdx.x == 0) {
+      has_changed = false;
+    }
+    __syncthreads();
+    const auto current_strat = block_data.current_strategy;
+    const auto& strat = grid_data.search_strategies[current_strat];
+    const auto& store = *block_data.store;
+    // This implementation will break UNSAT identification.
+    // This version works, but could we use `has_changed` without introducing `count` variable?
+    int count = 0;
+    if(threadIdx.x == 0) {
+      for (int i = (int)group.thread_rank(); i < strat.vars.size(); i += group.num_threads()){
+        if(store[i].lb().value() == store[i].ub().value()) {
+          count++;
+        }
+      }
+    }
+    __syncthreads();
+    num_active = count != strat.vars.size() ? 1 : 0;
+    TIMEPOINT(SELECT_FP_FUNCTIONS);
+    if (num_active == 0) {
+      if(threadIdx.x == 0) {
+        block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);
+        block_data.stats.unknowns++;
+      }
+    }
   }
 
   if(threadIdx.x == 0) {
