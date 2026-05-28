@@ -419,7 +419,7 @@ struct BlockData {
       case ValueOrder::SPLIT: {
         if (dom.lb().value() != dom.ub().value() && dom.width().ub().value() <= epsilon) {
           decisions[depth].children[0] = FItv(mid, mid);
-          decisions[depth].children[0] = FItv(dom.lb().value(), dom.lb().value());
+          decisions[depth].children[1] = FItv(dom.lb().value(), dom.lb().value());
         }
         else {
           decisions[depth].children[0] = FItv(dom.lb(), mid);
@@ -431,6 +431,15 @@ struct BlockData {
         decisions[depth].children[0] = FItv(mid, dom.ub());
         decisions[depth].children[1] = FItv(dom.lb(), mid);
         break;
+      }
+      case ValueOrder::LB_SPLIT: {
+
+      }
+      case ValueOrder::UB_SPLIT: {
+
+      }
+      case ValueOrder::MIX_SPLI: {
+        
       }
       // ValueOrder::MEDIAN is not possible with interval.
       default: assert(false); 
