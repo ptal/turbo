@@ -377,16 +377,14 @@ public:
       store->extract(*best);
       best->join_top();
     }
-    if(config.arch == Arch::BAREBONES) {
-      if(bab->is_minimization()) {
-        minimize_obj_var = bab->objective_var();
-      }
-      else if(bab->is_maximization()) {
-        auto minobj = env.variable_of("__MINIMIZE_OBJ");
-        assert(minobj.has_value());
-        assert(minobj->get().avar_of(store->aty()).has_value());
-        minimize_obj_var = minobj->get().avar_of(store->aty()).value();
-      }
+    if(bab->is_minimization()) {
+      minimize_obj_var = bab->objective_var();
+    }
+    else if(bab->is_maximization()) {
+      auto minobj = env.variable_of("__MINIMIZE_OBJ");
+      assert(minobj.has_value());
+      assert(minobj->get().avar_of(store->aty()).has_value());
+      minimize_obj_var = minobj->get().avar_of(store->aty()).value();
     }
     stats.variables = store->vars();
     stats.constraints = iprop->num_deductions();
@@ -575,6 +573,10 @@ public:
     if(iprop->is_bot()) {
       return;
     }
+    // if no variable remains, the problem is trivially satisfiable, but we still might need to enumerate the solutions.
+    if(num_vars == 0) {
+      return;
+    }
     allocate(num_vars, false);
     if(!interpret(f2)) {
       exit(EXIT_FAILURE);
@@ -608,13 +610,11 @@ public:
     }
     stats.print_stat("abstract_domain", name_of_abstract_domain());
     stats.print_stat("entailed_prop_removal", name_of_entailed_removal());
-    if(config.arch == Arch::BAREBONES) {
-      auto max_var = find_maximize_var(*f_ptr);
-      if(max_var.has_value()) {
-        auto max_var_decl = find_existential_of(*f_ptr, max_var.value());
-        if(max_var_decl.has_value()) {
-          add_minimize_objective_var(*f_ptr, max_var_decl.value());
-        }
+    auto max_var = find_maximize_var(*f_ptr);
+    if(max_var.has_value()) {
+      auto max_var_decl = find_existential_of(*f_ptr, max_var.value());
+      if(max_var_decl.has_value()) {
+        add_minimize_objective_var(*f_ptr, max_var_decl.value());
       }
     }
   #ifdef TURBO_IPC_ABSTRACT_DOMAIN

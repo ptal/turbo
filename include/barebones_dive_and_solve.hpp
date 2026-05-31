@@ -575,7 +575,7 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
     printf("%% WARNING: The estimated global memory is larger than 90%% of the total global memory.\n\
 %% It is possible to run out of memory during solving.\n");
   }
-  CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, deviceProp.totalGlobalMem / 100 * 97));
+  CUDAEX(cudaDeviceSetLimit(cudaLimitMallocHeapSize, deviceProp.totalGlobalMem / 100 * 90));
   cp.stats.print_memory_statistics(cp.config.verbose_solving, "heap_memory", estimated_global_mem);
   cp.stats.print_memory_statistics(cp.config.verbose_solving, "mem_per_block", mem_per_block);
   cp.stats.print_memory_statistics(cp.config.verbose_solving, "total_global_mem_bytes", deviceProp.totalGlobalMem);
