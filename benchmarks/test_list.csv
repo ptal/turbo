@@ -9,6 +9,14 @@
 "benchmarks/test_data/sudoku_opt3b.fzn",2
 "benchmarks/test_data/sudoku_opt4.fzn",-16
 "benchmarks/test_data/sudoku_opt4b.fzn",0
+"benchmarks/test_data/pennies5.fzn",5
+"benchmarks/test_data/triangular9.fzn",17
+"benchmarks/test_data/reified_in.fzn",1
+"benchmarks/test_data/bug1.fzn",-10
+"benchmarks/test_data/bug2.fzn",233969
+"benchmarks/test_data/bug3.fzn",0
+"benchmarks/test_data/bug4.fzn",1
+"benchmarks/test_data/bug5.fzn",2
 "benchmarks/test_data/pat1.fzn",19
 "benchmarks/test_data/pat2.fzn",7
 "benchmarks/test_data/pat3.fzn",20
@@ -22,3 +30,4 @@
 "benchmarks/test_data/pat11.fzn",18
 "benchmarks/test_data/pat12.fzn",13
 "benchmarks/test_data/pat13.fzn",20
+"benchmarks/test_data/cumulative.xml",0

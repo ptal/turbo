@@ -16,8 +16,10 @@ set -x # useful for debugging.
 
 source $1
 
+cd ..
 #cd ~/lattice-land/turbo/build/gpu-release-local
 #ptxas -arch=sm_90 -v --suppress-stack-size-warning --allow-expensive-optimizations false -O0  "turbo.ptx"  -o "turbo.cubin"
 cmake --workflow --preset gpu-release-local --fresh
+cd -
 exit 0
 

@@ -1,0 +1,11 @@
+array [1..2] of int: arr = [0,1];
+var 1..2: x :: output_var;
+var 0..1: y;
+array [1..2] of var 1..2: varr;
+
+constraint int_eq(varr[1], 1);
+constraint array_int_element(x,arr,y);
+constraint int_div(y,2,0);
+constraint array_var_int_element(x,varr,2);
+
+solve minimize x;

@@ -1,0 +1,12 @@
+var -10..10: y :: output_var;
+var bool: b_0 :: output_var;
+var bool: b_1 :: output_var;
+var bool: b_3 :: output_var;
+var bool: b_4 :: output_var;
+var bool: c1 :: output_var;
+
+constraint bool_and(b_3,b_4,c1);
+constraint bool_and(b_0,b_1,c1);
+constraint int_eq(b_3,int_le(0,y));
+constraint int_eq(b_4,int_le(y,5));
+solve minimize y;

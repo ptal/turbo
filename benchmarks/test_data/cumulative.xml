@@ -1,0 +1,16 @@
+<instance format="XCSP3" type="CSP">
+    <variables>
+        <array id="x" note="x[i] is the starting time of the ith task" size="[5]"> 0..4 </array>
+    </variables>
+    <constraints>
+        <cumulative>
+            <origins> x[] </origins>
+            <lengths> 3 2 2 4 2 </lengths>
+            <heights> 3 2x3 3 </heights>
+            <condition> (le,5) </condition>
+        </cumulative>
+    </constraints>
+    <objectives>
+	<minimize type="sum">x[1]</minimize>
+    </objectives>
+</instance>
