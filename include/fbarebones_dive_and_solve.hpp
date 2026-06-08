@@ -36,6 +36,8 @@ namespace bt = ::battery;
 
 #include <cuda/std/chrono>
 #include <cuda/semaphore>
+#include "lala/onnxruntime-linux-x64-gpu-1.19.2/include/onnxruntime_cxx_api.h" 
+#include <cuda_runtime.h>
 
 #endif
 
@@ -95,7 +97,6 @@ struct BlockData {
 
   // inner box 
   abstract_ptr<VStore<FItv, bt::global_allocator>> inner_box;
-  bt::vector<VStore<FItv, bt::global_allocator>> inner_boxes;
 
   /** The current store of variables.
    * We use a `pool_allocator`, this allows to easily switch between global memory and shared memory, if the store of variables can fit inside.
@@ -146,12 +147,28 @@ struct BlockData {
   /** The time at which the kernel was started, useful to compute the time of the best bound. */
   cuda::std::chrono::system_clock::time_point start_time;
 
+  /** The gradients from the neural network. */
+  // float* h_gradients;
+  // float* h_mid_gradients;
+  // float* h_lb_gradients;
+  // float* h_ub_gradients;
+  // int num_h_gradients;
+
+  /* For underapproximation search strategy. */
+  bool is_uass;
+
   __device__ BlockData()
    : subproblem_idx(0)
    , current_strategy(0)
    , next_unassigned_var(0)
    , decisions(5000)
    , depth(0)
+  //  , h_gradients(nullptr)
+  //  , h_mid_gradients(nullptr)
+  //  , h_lb_gradients(nullptr)
+  //  , h_ub_gradients(nullptr)
+  //  , num_h_gradients(0)
+   , is_uass(false)
   {}
 
   __device__ void allocate(const UnifiedData& unified_data, const GridData& grid_data, unsigned char* shared_mem) {
@@ -165,9 +182,16 @@ struct BlockData {
       bt::pool_allocator prop_allocator(mem_config.make_prop_pool(shared_mem_pool));
       root_store = bt::make_shared<VStore<FItv, bt::global_allocator>, bt::global_allocator>(u_store);
       inner_box = bt::make_shared<VStore<FItv, bt::global_allocator>, bt::global_allocator>(u_store);
-      inner_boxes = bt::vector<VStore<FItv, bt::global_allocator>, bt::global_allocator>(bt::global_allocator{});
       store = bt::allocate_shared<FStore, bt::pool_allocator>(store_allocator, u_store, store_allocator);
       iprop = bt::allocate_shared<FProp, bt::pool_allocator>(prop_allocator, u_iprop, store, prop_allocator);
+      // num_h_gradients = u_store.vars(); // only take input neurons.
+      // size_t gradient_bytes = sizeof(float) * static_cast<size_t>(num_h_gradients) * 4;
+      // void* gradient_mem = bt::global_allocator{}.allocate(gradient_bytes);
+      // h_gradients = static_cast<float*>(gradient_mem);
+      // h_mid_gradients = h_gradients + num_h_gradients;
+      // h_lb_gradients = h_mid_gradients + num_h_gradients;
+      // h_ub_gradients = h_lb_gradients + num_h_gradients;
+      is_uass = false;
     }
   }
 
@@ -200,22 +224,28 @@ struct BlockData {
         }
         case VariableOrder::FIRST_FAIL: {
           lattice_smallest_split(has_changed, idx, strategies[i], epsilon,
-            [](const FItv& u) { return UB2(u.width().ub().value()); });
+            [&](const FItv& u, int g_idx) { return UB2(u.width().ub().value()); });
           break;
         }
         case VariableOrder::ANTI_FIRST_FAIL: {
           lattice_smallest_split(has_changed, idx, strategies[i], epsilon,
-            [](const FItv& u) { return LB2(u.width().ub().value()); });
+            [&](const FItv& u, int g_idx) { return LB2(u.width().ub().value()); });
           break;
         }
+        // case VariableOrder::GRA_ANTI_FIRST_FAIL: {
+        //   lattice_smallest_split(has_changed, idx, strategies[i], epsilon,
+        //     // [&](const FItv& u, int g_idx) { return LB2(battery::mul_up(u.width().ub().value(), h_gradients[g_idx])); });
+        //     [&](const FItv& u, int g_idx) { return LB2(h_gradients[g_idx]); });
+        //   break;
+        // }
         case VariableOrder::LARGEST: {
           lattice_smallest_split(has_changed, idx, strategies[i], epsilon,
-            [](const FItv& u) { return LB2(u.ub().value()); });
+            [&](const FItv& u, int g_idx) { return LB2(u.ub().value()); });
           break;
         }
         case VariableOrder::SMALLEST: {
           lattice_smallest_split(has_changed, idx, strategies[i], epsilon,
-            [](const FItv& u) { return UB2(u.lb().value()); });
+            [&](const FItv& u, int g_idx) { return UB2(u.lb().value()); });
           break;
         }
         default: assert(false);
@@ -257,7 +287,7 @@ struct BlockData {
       for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
         if(dom.width().ub().value() > epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
-          if(idx.meet(local::ZUB(i))) {
+          if(idx.meet(local::ZUB(split_in_store ? i : strategy.vars[i].vid()))) {
             has_changed = true;
           }
         }
@@ -280,7 +310,7 @@ struct BlockData {
   __device__ INLINE void lattice_smallest_split(bool& has_changed, local::ZUB& idx,
     const StrategyType<bt::global_allocator>& strategy, const float epsilon, F f)
   {
-    using T = decltype(f(FItv{}));
+    using T = decltype(f(FItv{},0));
     __shared__ T value;
     bool split_in_store = strategy.vars.empty();
     int n = split_in_store ? store->vars() : strategy.vars.size();
@@ -300,12 +330,12 @@ struct BlockData {
       __syncthreads();
       for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-        // if(dom.width().ub().value() > epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
-        if (dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()) {
-          if(value.meet(f(dom))) {
+        if(dom.width().ub().value() > epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
+        //if (dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()) {
+          if(value.meet(f(dom, strategy.vars[i].vid()))) {
             has_changed = true;
           }
-          if(idx.meet(local::ZUB(i))) {
+          if(idx.meet(local::ZUB(strategy.vars[i].vid()))) {
             has_changed = true;
           }
         }
@@ -319,6 +349,7 @@ struct BlockData {
         next_unassigned_var = idx.value();
         idx = n;
         has_changed = true;
+	      is_uass = false;
       }
       __syncthreads();
       // This fixpoint loop is not strictly necessary.
@@ -330,9 +361,8 @@ struct BlockData {
         __syncthreads();
         for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
           const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-          // if(dom.width().ub().value() > epsilon && !dom.lb().is_top() && !dom.ub().is_top() && f(dom) == value) {
-          if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top() && f(dom) == value) {
-            if(idx.meet(local::ZUB(i))) {
+          if(dom.width().ub().value() > epsilon && !dom.lb().is_top() && !dom.ub().is_top() && f(dom,strategy.vars[i].vid()) == value) {
+            if(idx.meet(local::ZUB(strategy.vars[i].vid()))) {
               has_changed = true;
             }
           }
@@ -345,6 +375,96 @@ struct BlockData {
           push_decision(strategy.val_order, AVar{store->aty(), idx.value()}, epsilon);
         }
         else {
+          push_decision(strategy.val_order, strategy.vars[idx.value()], epsilon);
+        }
+      }
+      return;
+    }
+
+    /*
+      Original search stategy. When using SPLIT && all widths <= epsilon, we check the solution with midpoints.
+    */
+    if(strategy.val_order == ValueOrder::SPLIT){
+      if(threadIdx.x == 0){
+        has_changed = false;
+      }
+      for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x){
+        const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
+        if(dom.width().ub().value() <= epsilon && dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()){
+          has_changed = true;
+        }
+      }
+      if(has_changed) {
+        for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x){
+          AVar var = split_in_store ? AVar{store->aty(), i} : strategy.vars[i];
+          const auto& dom = (*store)[var.vid()];
+          auto mid = battery::midpoint(dom.lb().value(), dom.ub().value());
+          store->embed(var, FItv(mid, mid));
+        }
+        __syncthreads();
+        if(threadIdx.x == 0){
+          is_uass = true;
+          push_decision(strategy.val_order, strategy.vars[0], epsilon);
+        }
+      }
+      return;
+    }
+
+    /*
+    Underapproximation search strategy.
+    */
+    if(threadIdx.x == 0){
+      has_changed = true;
+    }
+    __syncthreads();
+    while(has_changed) {
+      __syncthreads();
+      if(threadIdx.x == 0){
+        has_changed = false;
+      }
+      __syncthreads();
+      for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
+        const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
+        if(dom.width().ub().value() <= epsilon && dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()){
+          if(value.meet(f(dom, strategy.vars[i].vid()))){
+            has_changed = true;
+          }
+          if(idx.meet(local::ZUB(strategy.vars[i].vid()))){
+            has_changed = true;
+          }
+        }
+      }
+      __syncthreads();
+    }
+    if(!value.is_top()) {
+      __syncthreads();
+      if(threadIdx.x == 0){
+        next_unassigned_var = idx.value();
+        idx = n;
+        has_changed = true;
+	      is_uass = true;
+      }
+      __syncthreads();
+      while(has_changed) {
+        __syncthreads();
+        has_changed = false;
+        __syncthreads();
+        for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
+          const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
+          if(dom.width().ub().value() <= epsilon && dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top() && f(dom, strategy.vars[i].vid()) == value){
+            if(idx.meet(local::ZUB(strategy.vars[i].vid()))){
+              has_changed = true;
+            }
+          }
+        }
+        __syncthreads();
+      }
+      assert(idx.value() < n);
+      if(threadIdx.x == 0){
+        if(split_in_store){
+          push_decision(strategy.val_order, AVar{store->aty(), idx.value()}, epsilon);
+        }
+        else{
           push_decision(strategy.val_order, strategy.vars[idx.value()], epsilon);
         }
       }
@@ -411,20 +531,13 @@ struct BlockData {
     // bound_type half = battery::div_up(width, bound_type{2.0});
     // bound_type mid = battery::add_up(dom.lb().value(), half);
     bound_type mid = battery::midpoint(dom.lb().value(), dom.ub().value());
-    // if(threadIdx.x == 0) {
-    //   printf("split on %d, lb = %.20f, ub = %.20f, mid = %.20f \n", decisions[depth].var.vid(), dom.lb().value(), dom.ub().value(), mid);
-    // }
+    // printf("split on %d, lb = %.20f, ub = %.20f, mid = %.20f \n", decisions[depth].var.vid(), dom.lb().value(), dom.ub().value(), mid);
 
     switch(val_order) {
       case ValueOrder::SPLIT: {
-        if (dom.lb().value() != dom.ub().value() && dom.width().ub().value() <= epsilon) {
-          decisions[depth].children[0] = FItv(mid, mid);
-          decisions[depth].children[1] = FItv(dom.lb().value(), dom.lb().value());
-        }
-        else {
-          decisions[depth].children[0] = FItv(dom.lb(), mid);
-          decisions[depth].children[1] = FItv(mid, dom.ub());
-        }
+				is_uass = false;
+        decisions[depth].children[0] = FItv(dom.lb(), mid);
+        decisions[depth].children[1] = FItv(mid, dom.ub());
         break;
       }
       case ValueOrder::REVERSE_SPLIT: {
@@ -433,13 +546,75 @@ struct BlockData {
         break;
       }
       case ValueOrder::LB_SPLIT: {
-
+        if(dom.lb().value() != dom.ub().value() && dom.width().ub().value() <= epsilon) {
+		      is_uass = true;
+          decisions[depth].children[0] = FItv(dom.lb().value(), dom.lb().value());
+        }
+        else {
+		      is_uass = false;
+          decisions[depth].children[0] = FItv(dom.lb(), mid);
+          decisions[depth].children[1] = FItv(mid, dom.ub());
+        }
+	      break;
       }
       case ValueOrder::UB_SPLIT: {
-
+        if(dom.lb().value() != dom.ub().value() && dom.width().ub().value() <= epsilon) {
+		      is_uass = true;
+          decisions[depth].children[0] = FItv(dom.ub().value(), dom.ub().value());
+        }
+        else {
+		      is_uass = false;
+          decisions[depth].children[0] = FItv(dom.lb(), mid);
+          decisions[depth].children[1] = FItv(mid, dom.ub());
+        }
+	      break;
       }
-      case ValueOrder::MIX_SPLI: {
-        
+      case ValueOrder::MID_SPLIT: {
+        if(dom.lb().value() != dom.ub().value() && dom.width().ub().value() <= epsilon) {
+		      is_uass = true;
+          decisions[depth].children[0] = FItv(mid, mid);
+        }
+        else {
+		      is_uass = false;
+          decisions[depth].children[0] = FItv(dom.lb(), mid);
+          decisions[depth].children[1] = FItv(mid, dom.ub());
+        }
+	      break;
+      }
+      case ValueOrder::MID_LB_SPLIT: {
+        if(dom.lb().value() != dom.ub().value() && dom.width().ub().value() <= epsilon) {
+		      is_uass = true;
+          decisions[depth].children[0] = FItv(mid, mid);
+          decisions[depth].children[1] = FItv(dom.lb().value(), dom.lb().value());
+        }
+        else {
+		      is_uass = false;
+          decisions[depth].children[0] = FItv(dom.lb(), mid);
+          decisions[depth].children[1] = FItv(mid, dom.ub());
+        }
+	      break;
+      }
+      case ValueOrder::MID_UB_SPLIT: {
+        if(dom.lb().value() != dom.ub().value() && dom.width().ub().value() <= epsilon) {
+		      is_uass = true;
+          decisions[depth].children[0] = FItv(mid, mid);
+          decisions[depth].children[1] = FItv(dom.ub().value(), dom.ub().value());
+        }
+        else {
+		      is_uass = false;
+          decisions[depth].children[0] = FItv(dom.lb(), mid);
+          decisions[depth].children[1] = FItv(mid, dom.ub());
+        }
+	      break;
+      }
+      case ValueOrder::MIX_SPLIT: {
+        // TODO: not complete yet. The current version doesn't support multiple chil nodes, only binary.
+        decisions[depth].children[0] = FItv(mid, mid);
+        decisions[depth].children[1] = FItv(dom.lb().value(), dom.lb().value());
+	      break;
+        decisions[depth].children[2] = FItv(dom.ub().value(), dom.ub().value());
+        decisions[depth].children[3] = FItv(battery::nextafter(dom.lb().value(), 1e38f), battery::nextafter(mid, -1e38f));
+        decisions[depth].children[4] = FItv(battery::nextafter(mid, 1e38f), battery::nextafter(dom.ub().value(), -1e38f));
       }
       // ValueOrder::MEDIAN is not possible with interval.
       default: assert(false); 
@@ -505,10 +680,11 @@ struct GridData {
 
 MemoryConfig configure_gpu_fbarebones(CP<FItv>&);
 __global__ void initialize_global_data(UnifiedData*, bt::unique_ptr<GridData, bt::global_allocator>*);
-__global__ void gpu_fbarebones_solve(UnifiedData*, GridData*);
+__global__ void gpu_fbarebones_solve(UnifiedData*, GridData*, Ort::Session&);
 template <class FPEngine>
 __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data, BlockData& block_data,
-   FPEngine& fp_engine, bool& stop, bool& has_changed, bool& is_leaf_node);
+   FPEngine& fp_engine, bool& stop, bool& has_changed, bool& is_leaf_node, Ort::Session&);
+// __device__ INLINE void back_propagation(BlockData& block_data, Ort::Session& session);
 __global__ void reduce_blocks(UnifiedData*, GridData*);
 __global__ void deallocate_global_data(bt::unique_ptr<GridData, bt::global_allocator>*);
 
@@ -527,10 +703,17 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
     cp.print_mzn_statistics();
     return;
   }
+
   MemoryConfig mem_config = configure_gpu_fbarebones(cp);
   auto unified_data = bt::make_unique<UnifiedData, ConcurrentAllocator>(cp, mem_config);
   auto grid_data = bt::make_unique<bt::unique_ptr<GridData, bt::global_allocator>, ConcurrentAllocator>();
   initialize_global_data<<<1,1>>>(unified_data.get(), grid_data.get());
+  Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "nnv");
+  Ort::SessionOptions session_options;
+  OrtCUDAProviderOptions cuda_options;
+  cuda_options.device_id = 0; 
+  session_options.AppendExecutionProvider_CUDA(cuda_options);
+  Ort::Session session(env, config.onnx_path.data(), session_options);
   CUDAEX(cudaDeviceSynchronize());
   /** We wait that either the solving is interrupted, or that all threads have finished. */
   /** Block the signal CTRL-C to notify the threads if we must exit. */
@@ -539,7 +722,7 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
     <<<static_cast<unsigned int>(cp.stats.num_blocks),
       CUDA_THREADS_PER_BLOCK,
       mem_config.shared_bytes>>>
-    (unified_data.get(), grid_data->get());
+    (unified_data.get(), grid_data->get(), session);
   auto now = std::chrono::steady_clock::now();
   int64_t time_to_kernel_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now - start).count();
   bool interrupted = wait_solving_ends(unified_data->stop, unified_data->root, start);
@@ -614,12 +797,16 @@ MemoryConfig configure_gpu_fbarebones(CP<FItv>& cp) {
    * */
   size_t store_bytes = gpu_sizeof<FStore>() + gpu_sizeof<abstract_ptr<FStore>>() + cp.store->vars() * gpu_sizeof<FItv>();
   size_t iprop_bytes = gpu_sizeof<FProp>() + gpu_sizeof<abstract_ptr<FProp>>() + cp.iprop->num_deductions() * gpu_sizeof<bytecode_type>() + gpu_sizeof<typename FProp::bytecodes_type>();
+  // size_t gradient_bytes = sizeof(float) * static_cast<size_t>(cp.store->vars()) * 4;
   size_t mem_per_block = gpu_sizeof<BlockData>()
     + store_bytes * size_t{3}  // current, root, best.
     + store_bytes * size_t{2}  // search strategies
     + iprop_bytes * size_t{2}
     + cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<bound_type>()  // fixpoint engine
+    // + gradient_bytes
     + (gpu_sizeof<bound_type>() + gpu_sizeof<LightBranch<FItv>>()) * size_t{MAX_SEARCH_DEPTH};
+  // size_t estimated_global_mem = gpu_sizeof<UnifiedData>() + store_bytes * size_t{5} + iprop_bytes + gradient_bytes +
+  //   gpu_sizeof<GridData>();
   size_t estimated_global_mem = gpu_sizeof<UnifiedData>() + store_bytes * size_t{5} + iprop_bytes +
     gpu_sizeof<GridData>();
 
@@ -672,7 +859,7 @@ __global__ void initialize_global_data(
     block_data.timer = block_data.stats.stop_timer(Timer::KIND, block_data.timer); \
   }
 
-__global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_data) {
+__global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_data, Ort::Session& session) {
   extern __shared__ unsigned char shared_mem[];
   auto& config = unified_data->root.config;
   BlockData& block_data = grid_data->blocks[blockIdx.x];
@@ -734,7 +921,7 @@ __global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_d
     __syncthreads();
     while(remaining_depth > 0 && !is_leaf_node && !stop) {
       __syncthreads();
-      propagate(*unified_data, *grid_data, block_data, fp_engine, stop, has_changed, is_leaf_node);
+      propagate(*unified_data, *grid_data, block_data, fp_engine, stop, has_changed, is_leaf_node, session);
       __syncthreads();
       if(!is_leaf_node) {
         block_data.split(has_changed, grid_data->search_strategies, config.epsilon);
@@ -806,7 +993,7 @@ __global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_d
       while(!stop) {
 
         // I. Propagate the current node.
-        propagate(*unified_data, *grid_data, block_data, fp_engine, stop, has_changed, is_leaf_node);
+        propagate(*unified_data, *grid_data, block_data, fp_engine, stop, has_changed, is_leaf_node, session);
         __syncthreads();
 
         // II. Branching
@@ -931,9 +1118,102 @@ __global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_d
   __syncthreads();
 }
 
+// void back_propagation(BlockData& block_data, Ort::Session& session) {
+//   // Step 1. 
+//   Ort::MemoryInfo cuda_mem_info("Cuda", OrtAllocatorType::OrtDeviceAllocator, 0, OrtMemType::OrtMemTypeDefault);
+
+//   // Step 2. 
+//   Ort::TypeInfo input_type_info = session.GetInputTypeInfo(0);
+//   battery::vector<int64_t> input_dims = input_type_info.GetTensorTypeAndShapeInfo().GetShape();
+//   size_t total_elements = 1;
+//   for (size_t i = 0; i < input_dims.size(); ++i) {
+//     total_elements *= input_dims[i];
+//   }
+
+//   Ort::Value input_mid_tensor = Ort::Value::CreateTensor<float>(
+//     cuda_mem_info,
+//     block_data.h_mid_gradients,
+//     total_elements,
+//     input_dims.data(),
+//     input_dims.size()
+//   );
+//   Ort::Value input_lb_tensor = Ort::Value::CreateTensor<float>(
+//     cuda_mem_info,
+//     block_data.h_lb_gradients,
+//     total_elements, 
+//     input_dims.data(),
+//     input_dims.size()
+//   );
+//   Ort::Value input_ub_tensor = Ort::Value::CreateTensor<float>(
+//     cuda_mem_info,
+//     block_data.h_ub_gradients,
+//     total_elements,
+//     input_dims.data(),
+//     input_dims.size()
+//   );
+
+//   // Step 3.
+//   Ort::RunOptions run_opts;
+//   Ort::AllocatorWithDefaultOptions ort_allocator;
+//   Ort::AllocatedStringPtr input_name_alloc = session.GetInputNameAllocated(0, ort_allocator);
+//   std::string real_input_name = input_name_alloc.get();
+//   Ort::AllocatedStringPtr output_name_alloc = session.GetOutputNameAllocated(0, ort_allocator);
+//   std::string real_output_name = output_name_alloc.get();
+
+//   const char* input_names[] = { real_input_name.c_str() };
+//   const char* output_names[] = { real_output_name.c_str() };
+//   const char* const* input_names_ptr = input_names;
+//   const char* const* output_names_ptr = output_names;
+
+//   // Step 4.
+//   std::vector<Ort::Value> output_mid_tensors;
+//   std::vector<Ort::Value> output_lb_tensors;
+//   std::vector<Ort::Value> output_ub_tensors;
+//   output_mid_tensors = session.Run(
+//     run_opts,
+//     input_names_ptr, 
+//     &input_mid_tensor,
+//     1,
+//     output_names_ptr,
+//     1
+//   );
+//   output_lb_tensors = session.Run(
+//     run_opts,
+//     input_names_ptr,
+//     &input_lb_tensor,
+//     1,
+//     output_names_ptr,
+//     1
+//   );
+//   output_ub_tensors = session.Run(
+//     run_opts,
+//     input_names_ptr,
+//     &input_ub_tensor,
+//     1,
+//     output_names_ptr,
+//     1
+//   );
+
+//   // Step 5. 
+//   block_data.h_mid_gradients = output_mid_tensors[0].GetTensorMutableData<float>();
+//   block_data.h_lb_gradients = output_lb_tensors[0].GetTensorMutableData<float>();
+//   block_data.h_ub_gradients = output_ub_tensors[0].GetTensorMutableData<float>();
+
+//   // TODO: combine these gradients together. just use average
+//   // we also have to consider floating-point errors.
+//   // to simplicitly, we use only upper-towards rounding function
+//   for(size_t i = 0; i < block_data.num_h_gradients; ++i){
+//     block_data.h_gradients[i] = battery::div_up(battery::add_up(battery::add_up(block_data.h_mid_gradients[i], block_data.h_lb_gradients[i]), block_data.h_ub_gradients[i]), float{3.0});
+//     // block_data.h_gradients[i] = block_data.h_mid_gradients[i];
+//     // block_data.h_gradients[i] = block_data.h_ub_gradients[i];
+//   }
+
+//   cudaDeviceSynchronize();
+// }
+
 template <class FPEngine>
 __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data, BlockData& block_data,
-   FPEngine& fp_engine, bool& stop, bool& has_changed, bool& is_leaf_node)
+   FPEngine& fp_engine, bool& stop, bool& has_changed, bool& is_leaf_node, Ort::Session& session)
 {
   __shared__ int warp_iterations[CUDA_THREADS_PER_BLOCK/32];
   warp_iterations[threadIdx.x / 32] = 0;
@@ -996,18 +1276,21 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
   }
   TIMEPOINT(FIXPOINT);
 
+  const auto current_strat = block_data.current_strategy;
+  const auto& strat = grid_data.search_strategies[current_strat]; 
+  const auto& store = *block_data.store;
+
   // III. Analyze the result of propagation
   if(!iprop.is_bot()) {
     if(threadIdx.x == 0) {
       has_changed = false;
     }
     __syncthreads();
-    const auto current_strat = block_data.current_strategy;
-    const auto& strat = grid_data.search_strategies[current_strat]; 
-    const auto& store = *block_data.store;
-    for (int i = (int)group.thread_rank(); i < strat.vars.size(); i += group.num_threads()) {
-      if(store[i].lb().value() != store[i].ub().value()) {
+    // This is an underapproximation caes. 
+    for(int i = (int)group.thread_rank(); i < strat.vars.size(); i+=group.num_threads()){
+      if(store[i].lb().value() != store[i].ub().value()){
         has_changed = true;
+        break;
       }
     }
     __syncthreads();
@@ -1025,30 +1308,40 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
         unified_data.stop.test_and_set();
       }
     }
+    // else if(strat.var_order == VariableOrder::GRA_ANTI_FIRST_FAIL){
+    //   // Obtain graident from the network by lbs, midpoints, and ubs.
+    //   // We need to split this node.
+    //   // By applying back_propagation(), we can have the latest gradient information.
+    //   // This gradient information might not work. The code itself is correct, but it might not effective.
+    //   for(int i = (int)group.thread_rank(); i < strat.vars.size(); i += group.num_threads()){
+    //     block_data.h_mid_gradients[i] = battery::midpoint(store[i].lb().value(), store[i].ub().value());
+    //     block_data.h_lb_gradients[i] = store[i].lb().value();
+    //     block_data.h_ub_gradients[i] = store[i].ub().value();
+    //   }
+    //   __syncthreads();
+    //   if(threadIdx.x == 0) {
+    //     back_propagation(block_data, session);
+    //   }
+    // }
   }
   else {
-    // If is_bot() is true /\ all the widths == 0.0, then it is identified as an unknown box.
+    // This is unknown checking. 
+    // If is_bot() is true /\ exists at least 1 the width == 0.0, then it is identified as an unknown box.
+    //   -> It can be simplified to check if it uses UASS or not.
+    //   -> If we have applied UASS, it implies that there exists at least 1 variable is assigned.
     // If is_bot() is true /\ all the widths != 0.0, then it is pruned by propagation, not underapproximation.
     is_leaf_node = true;
     if (threadIdx.x == 0) {
-      has_changed = false;
+      has_changed = block_data.is_uass;
     }
     __syncthreads();
-    const auto current_strat = block_data.current_strategy;
-    const auto& strat = grid_data.search_strategies[current_strat];
-    const auto& store = *block_data.store;
-    // This implementation will break UNSAT identification.
-    // This version works, but could we use `has_changed` without introducing `count` variable?
-    int count = 0;
-    if(threadIdx.x == 0) {
-      for (int i = (int)group.thread_rank(); i < strat.vars.size(); i += group.num_threads()){
-        if(store[i].lb().value() == store[i].ub().value()) {
-          count++;
-        }
-      }
-    }
-    __syncthreads();
-    num_active = count != strat.vars.size() ? 1 : 0;
+    // for (int i = (int)group.thread_rank(); i < strat.vars.size(); i += group.num_threads()){
+    //   if(store[i].lb().value() == store[i].ub().value()){
+    //     has_changed = true;
+    //   }
+    // }
+    // __syncthreads();
+    num_active = has_changed ? 0 : 1;
     TIMEPOINT(SELECT_FP_FUNCTIONS);
     if (num_active == 0) {
       if(threadIdx.x == 0) {

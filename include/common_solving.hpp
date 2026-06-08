@@ -275,6 +275,7 @@ struct AbstractDomains {
   abstract_ptr<LIStore> best;
   battery::vector<LIStore> inner_boxes;
   battery::vector<std::string, basic_allocator_type> input_neurons;
+  battery::vector<std::string, basic_allocator_type> hidden_neurons;
   abstract_ptr<IBAB> bab;
 
   // The environment of variables, storing the mapping between variable's name and their representation in the abstract domains.
@@ -428,7 +429,7 @@ public:
     else if (config.input_format() == InputFormat::VNNLIB ||
              config.input_format() == InputFormat::ONNX) {
       solver_output.set_type(OutputType::NNV);
-      f = parse_nnv<basic_allocator_type>(config.onnx_path.data(), config.vnnlib_path.data(), input_neurons, solver_output, true);
+      f = parse_nnv<basic_allocator_type>(config.onnx_path.data(), config.vnnlib_path.data(), input_neurons, hidden_neurons, solver_output, true);
     }
     else if (config.input_format() == InputFormat::SMT2) {
       solver_output.set_type(OutputType::SMT2);
@@ -683,17 +684,29 @@ private:
 #ifdef WITH_NNV
     if(config.var_order == "default" && config.value_order == "default") {
       seq.push_back(F::make_nary("anti_first_fail", {})); 
-      seq.push_back(F::make_nary("indomain_split", {}));
-      // Add variables to split here as additional arguments:
-      for (int i = 0; i < input_neurons.size(); ++i ){
-        seq.push_back(F::make_lvar(UNTYPED, LVar<basic_allocator_type>(input_neurons[i])));
-      }
+      seq.push_back(F::make_nary("indomain_split", {}));  
     }
-#endif
     else {
       seq.push_back(F::make_nary(config.var_order.data(), {}));
       seq.push_back(F::make_nary(config.value_order.data(), {}));
     }
+    // Add variables to split here as additional arguments:
+    for (int i = 0; i < input_neurons.size(); ++i ){
+      seq.push_back(F::make_lvar(UNTYPED, LVar<basic_allocator_type>(input_neurons[i])));
+    }
+    // for (int i = 0; i < hidden_neurons.size(); ++i){
+    //   seq.push_back(F::make_lvar(UNTYPED, LVar<basic_allocator_type>(hidden_neurons[i])));
+    // }
+#else 
+    if(config.var_order == "default" && config.value_order == "default") {
+      seq.push_back(F::make_nary("first_fail", {}));
+      seq.push_back(F::make_nary("indomain_min", {}));
+    }
+    else {
+      seq.push_back(F::make_nary(config.var_order.data(), {}));
+      seq.push_back(F::make_nary(config.value_order.data(), {}));
+    }
+#endif
     F search_strat = F::make_nary("search", std::move(seq));
     if(!interpret_and_diagnose_and_tell(search_strat, env, *bab)) {
       return false;
