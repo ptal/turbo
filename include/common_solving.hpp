@@ -12,6 +12,8 @@
 
 #include "config.hpp"
 #include "statistics.hpp"
+#include "turbo_dumper.h"
+#include "turbo_tcn_json.h"
 
 #include "battery/utility.hpp"
 #include "battery/allocator.hpp"
@@ -460,7 +462,11 @@ public:
       exit(EXIT_FAILURE);
     }
     GaussSeidelIteration fp_engine;
-    fp_engine.fixpoint(iprop->num_deductions(), [&](size_t i) { return iprop->deduce(i); });
+    // Skip preprocess-time propagation when dumping a prototype fixture: we
+    // want a pre-fixpoint state so the prototype has real work to replay.
+    if(config.dump_fixture_path.size() == 0) {
+      fp_engine.fixpoint(iprop->num_deductions(), [&](size_t i) { return iprop->deduce(i); });
+    }
     /* We need to initialize the simplifier even if we don't simplify.
        This is because the simplifier equivalence classes is used in SolverOutput. */
     initialize_simplifier(f);
@@ -610,11 +616,20 @@ public:
     }
     stats.print_stat("abstract_domain", name_of_abstract_domain());
     stats.print_stat("entailed_prop_removal", name_of_entailed_removal());
-    auto max_var = find_maximize_var(*f_ptr);
-    if(max_var.has_value()) {
-      auto max_var_decl = find_existential_of(*f_ptr, max_var.value());
-      if(max_var_decl.has_value()) {
-        add_minimize_objective_var(*f_ptr, max_var_decl.value());
+    // When dumping a fixture for the propagation prototype, we want to capture
+    // the unpropagated state. Simplification bakes propagated bounds into the
+    // variable existentials, so a post-simplify dump replays as already-at-
+    // fixpoint and exercises none of the GPU kernel's propagation work.
+    if(config.dump_fixture_path.size() > 0) {
+      config.disable_simplify = true;
+    }
+    if(config.arch == Arch::BAREBONES) {
+      auto max_var = find_maximize_var(*f_ptr);
+      if(max_var.has_value()) {
+        auto max_var_decl = find_existential_of(*f_ptr, max_var.value());
+        if(max_var_decl.has_value()) {
+          add_minimize_objective_var(*f_ptr, max_var_decl.value());
+        }
       }
     }
   #ifdef TURBO_IPC_ABSTRACT_DOMAIN
@@ -634,6 +649,22 @@ public:
     stats.stop_timer(Timer::PREPROCESSING, start);
     stats.print_timing_stat("preprocessing_time", Timer::PREPROCESSING);
     stats.print_mzn_end_stats();
+    // Dump the post-preprocessed constraint network for the propagation
+    // prototype's agent loop, then exit. Gated by -dump-fixture <path>.
+    if(config.dump_fixture_path.size() > 0) {
+      turbo_dump_fixture(*this, std::string(config.dump_fixture_path.data()),
+                         /*captured_depth=*/0,
+                         /*threads_per_block=*/CUDA_THREADS_PER_BLOCK);
+      std::exit(0);
+    }
+    // Dump the post-preprocessed TCN as JSON for batched_ac_proto's AC-vs-BC
+    // measurement, then exit. Gated by -dump-tcn <path>. Kept POST-simplify
+    // (equivalence classes collapsed, useless vars removed) — the real network
+    // Turbo solves — per batched_ac_proto/plan.md T1.1.
+    if(config.dump_tcn_path.size() > 0) {
+      turbo_dump_tcn_json(*this, std::string(config.dump_tcn_path.data()));
+      std::exit(0);
+    }
   }
 
 private:

@@ -21,7 +21,10 @@ enum class Arch {
 
 enum class FixpointKind {
   AC1,
-  WAC1
+  WAC1,
+  WAC3,
+  WWAC3,  // warp-tile-granular AC3 worklist; see lala-core/include/lala/wwac3_fixpoint.hpp
+  AWWAC3  // async (streaming) warp-tile AC3 worklist; see lala-core/include/lala/awwac3_fixpoint.hpp
 };
 
 enum class InputFormat {
@@ -57,6 +60,13 @@ struct Configuration {
   battery::string<allocator_type> problem_path;
   battery::string<allocator_type> version;
   battery::string<allocator_type> hardware;
+  // If non-empty, preprocess() will dump the post-preprocessed constraint
+  // network to this path (binary fixture format) and exit. Consumed by the
+  // propagation-prototype agent loop; see prototype/tools/turbo_dumper.h.
+  battery::string<allocator_type> dump_fixture_path;
+  // If non-empty, preprocess() also dumps the post-preprocessed TCN as JSON to
+  // this path (batched_ac_proto bridge schema) and exits. See turbo_tcn_json.h.
+  battery::string<allocator_type> dump_tcn_path;
 
   CUDA Configuration(const allocator_type& alloc = allocator_type{}):
     print_intermediate_solutions(false),
@@ -101,7 +111,9 @@ struct Configuration {
     eps_var_order("default", alloc),
     problem_path(alloc),
     version(alloc),
-    hardware(alloc)
+    hardware(alloc),
+    dump_fixture_path(alloc),
+    dump_tcn_path(alloc)
   {}
 
   Configuration(Configuration<allocator_type>&&) = default;
@@ -133,7 +145,9 @@ struct Configuration {
     eps_value_order(other.eps_value_order, alloc),
     problem_path(other.problem_path, alloc),
     version(other.version, alloc),
-    hardware(other.hardware, alloc)
+    hardware(other.hardware, alloc),
+    dump_fixture_path(other.dump_fixture_path, alloc),
+    dump_tcn_path(other.dump_tcn_path, alloc)
   {}
 
   template <class Alloc2>
@@ -163,6 +177,8 @@ struct Configuration {
     problem_path = other.problem_path;
     version = other.version;
     hardware = other.hardware;
+    dump_fixture_path = other.dump_fixture_path;
+    dump_tcn_path = other.dump_tcn_path;
   }
 
   CUDA void print_commandline(const char* program_name) {
@@ -212,6 +228,12 @@ struct Configuration {
         return "ac1";
       case FixpointKind::WAC1:
         return "wac1";
+      case FixpointKind::WAC3:
+        return "wac3";
+      case FixpointKind::WWAC3:
+        return "wwac3";
+      case FixpointKind::AWWAC3:
+        return "awwac3";
       default:
         assert(0);
         return "Unknown";
