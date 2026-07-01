@@ -388,12 +388,14 @@ struct BlockData {
       if(threadIdx.x == 0){
         has_changed = false;
       }
+      __syncthreads();
       for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x){
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
         if(dom.width().ub().value() <= epsilon && dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()){
           has_changed = true;
         }
       }
+      __syncthreads();
       if(has_changed) {
         for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x){
           AVar var = split_in_store ? AVar{store->aty(), i} : strategy.vars[i];
