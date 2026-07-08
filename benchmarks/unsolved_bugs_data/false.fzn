@@ -1,0 +1,2 @@
+constraint bool_eq(false,true);
+solve  satisfy;
