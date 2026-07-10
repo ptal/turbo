@@ -36,6 +36,10 @@
   #include "lala/XCSP3_parser.hpp"
 #endif
 
+#ifdef WITH_NNV
+  #include "nnv.hpp"
+#endif
+
 using namespace lala;
 
 #ifndef TURBO_ITV_BITS
@@ -44,14 +48,17 @@ using namespace lala;
 
 #if (TURBO_ITV_BITS == 64)
   using bound_value_type = long long int;
+  using fbound_value_type = double;
 #elif (TURBO_ITV_BITS == 16)
   using bound_value_type = short int;
 #elif (TURBO_ITV_BITS == 32)
   using bound_value_type = int;
+  using fbound_value_type = float;
 #else
   #error "Invalid value for TURBO_ITV_BITS: must be 16, 32 or 64."
 #endif
 using Itv = Interval<ZLB<bound_value_type, battery::local_memory>>;
+using FItv = Interval<FLB<fbound_value_type, battery::atomic_memory<>>>;
 
 static std::atomic<bool> got_signal;
 static void (*prev_sigint)(int);
@@ -188,7 +195,7 @@ struct AbstractDomains {
    , solver_output(basic_allocator)
    , config(other.config, basic_allocator)
    , stats(other.stats)
-   , env(basic_allocator)
+   , env(other.env, basic_allocator)
    , minimize_obj_var(other.minimize_obj_var)
    , store(store_allocator)
    , iprop(prop_allocator)
@@ -266,6 +273,9 @@ struct AbstractDomains {
   abstract_ptr<Split> split;
   abstract_ptr<IST> search_tree;
   abstract_ptr<LIStore> best;
+  battery::vector<LIStore> inner_boxes;
+  battery::vector<std::string, basic_allocator_type> input_neurons;
+  battery::vector<std::string, basic_allocator_type> hidden_neurons;
   abstract_ptr<IBAB> bab;
 
   // The environment of variables, storing the mapping between variable's name and their representation in the abstract domains.
@@ -292,6 +302,7 @@ struct AbstractDomains {
     search_tree = battery::allocate_shared<IST, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), iprop, split, basic_allocator);
     // Note that `best` must have the same abstract type then store (otherwise projection of the variables will fail).
     best = battery::allocate_shared<LIStore, BasicAllocator>(basic_allocator, store->aty(), num_vars, basic_allocator);
+    inner_boxes = battery::vector<LIStore, BasicAllocator>(basic_allocator);
     bab = battery::allocate_shared<IBAB, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), search_tree, best);
     if(config.verbose_solving) {
       printf("%% Abstract domain allocated.\n");
@@ -408,7 +419,19 @@ public:
     }
 #ifdef WITH_XCSP3PARSER
     else if(config.input_format() == InputFormat::XCSP3) {
+      solver_output.set_type(OutputType::XCSP);
       f = parse_xcsp3(config.problem_path.data(), solver_output);
+    }
+#endif
+#ifdef WITH_NNV
+    else if (config.input_format() == InputFormat::VNNLIB ||
+             config.input_format() == InputFormat::ONNX) {
+      solver_output.set_type(OutputType::NNV);
+      f = parse_nnv<basic_allocator_type>(config.onnx_path.data(), config.vnnlib_path.data(), input_neurons, hidden_neurons, solver_output, true);
+    }
+    else if (config.input_format() == InputFormat::SMT2) {
+      solver_output.set_type(OutputType::SMT2);
+      f = parse_smt2(config.problem_path.data(), solver_output, false);
     }
 #endif
     if(!f) {
@@ -518,7 +541,11 @@ public:
   }
 
   void preprocess_tcn(F& f) {
-    f = ternarize(f, VarEnv<BasicAllocator>(), {0,1,2});
+#ifdef WITH_NNV
+    f = ternarize(f, VarEnv<BasicAllocator>(), false);
+#else
+    f = ternarize(f, VarEnv<BasicAllocator>(), true, {0,1,2});
+#endif
     battery::vector<F> extra;
     f = normalize(f, extra);
     size_t num_vars = num_quantified_vars(f);
@@ -543,15 +570,26 @@ public:
     while(!iprop->is_bot() && has_changed) {
       has_changed = false;
       preprocessing_stats.prepare_next_iteration();
+#ifdef WITH_NNV
+      fp_engine.fixpoint(iprop->num_deductions(),
+        [&](size_t i) { return iprop->fdeduce(i, config.epsilon); },
+        [&](){ return iprop->is_bot(); },
+        has_changed);
+#else 
       fp_engine.fixpoint(iprop->num_deductions(),
         [&](size_t i) { return iprop->deduce(i); },
         [&](){ return iprop->is_bot(); },
         has_changed);
+#endif
       if(has_changed) {
         simplifier->meet_equivalence_classes();
       }
       has_changed |= simplifier->algebraic_simplify(tnf, preprocessing_stats);
+#ifdef WITH_NNV
+      simplifier->feliminate_entailed_constraints(*iprop, tnf, preprocessing_stats, config.epsilon);
+#else
       simplifier->eliminate_entailed_constraints(*iprop, tnf, preprocessing_stats);
+#endif
       // if(num_vars < 1000000) { // otherwise ICSE is too slow, needs to be improved.
         has_changed |= simplifier->i_cse(tnf, preprocessing_stats);
       // }
@@ -587,6 +625,9 @@ public:
   const char* name_of_abstract_domain() const {
     #define STR_(x) #x
     #define STR(x) STR_(x)
+    #ifdef WITH_NNV
+      return "pir_itv_f";
+    #endif 
     #ifdef TURBO_IPC_ABSTRACT_DOMAIN
       return "ipc_itv" STR(TURBO_ITV_BITS) "_z";
     #else
@@ -640,8 +681,32 @@ private:
   template <class F>
   CUDA bool interpret_default_strategy() {
     typename F::Sequence seq;
-    seq.push_back(F::make_nary("first_fail", {}));
-    seq.push_back(F::make_nary("indomain_min", {}));
+#ifdef WITH_NNV
+    if(config.var_order == "default" && config.value_order == "default") {
+      seq.push_back(F::make_nary("anti_first_fail", {})); 
+      seq.push_back(F::make_nary("indomain_split", {}));  
+    }
+    else {
+      seq.push_back(F::make_nary(config.var_order.data(), {}));
+      seq.push_back(F::make_nary(config.value_order.data(), {}));
+    }
+    // Add variables to split here as additional arguments:
+    for (int i = 0; i < input_neurons.size(); ++i ){
+      seq.push_back(F::make_lvar(UNTYPED, LVar<basic_allocator_type>(input_neurons[i])));
+    }
+    // for (int i = 0; i < hidden_neurons.size(); ++i){
+    //   seq.push_back(F::make_lvar(UNTYPED, LVar<basic_allocator_type>(hidden_neurons[i])));
+    // }
+#else 
+    if(config.var_order == "default" && config.value_order == "default") {
+      seq.push_back(F::make_nary("first_fail", {}));
+      seq.push_back(F::make_nary("indomain_min", {}));
+    }
+    else {
+      seq.push_back(F::make_nary(config.var_order.data(), {}));
+      seq.push_back(F::make_nary(config.value_order.data(), {}));
+    }
+#endif
     F search_strat = F::make_nary("search", std::move(seq));
     if(!interpret_and_diagnose_and_tell(search_strat, env, *bab)) {
       return false;
@@ -684,8 +749,7 @@ private:
     if(config.verbose_solving > 1) {
       printf("%%     (Histogram of the number of times a function or predicate symbol occurs in the formula. Top-level conjunctions and unary constraints are discarded.)\n");
     }
-    stats.print_dict_stat("fcn_histogram_reified_predicates", stats_fcn.reified_predicates,
-      [](const auto& key) { return "'" + std::string(string_of_sig_txt(key)) + "'"; },
+    stats.print_dict_stat("fcn_histogram_reified_predicates", stats_fcn.reified_predicates, [](const auto& key) { return "'" + std::string(string_of_sig_txt(key)) + "'"; },
       [](const auto& value) { return std::to_string(value); });
     if(config.verbose_solving > 1) {
       printf("%%     (Count all the predicate symbols occuring in the formula in a reified context, e.g., below a NOT, OR, or inside an arithmetic expression).\n");
@@ -782,7 +846,7 @@ private:
         stats_tcn.histogram_unassigned_vars_degree[stats_tcn.vars_occurrences[i]]++;
         stats_tcn.num_unassigned_var_occurrences += stats_tcn.vars_occurrences[i];
       }
-      else if(width.value() == 1) {
+      else if(width.value() == 1 || width.value() <= config.epsilon) {
         stats_tcn.num_assigned_vars++;
         stats_tcn.histogram_assigned_vars_degree[stats_tcn.vars_occurrences[i]]++;
         stats_tcn.num_assigned_var_occurrences += stats_tcn.vars_occurrences[i];
@@ -857,6 +921,7 @@ public:
   /** Return `true` if the search state must be pruned. */
   CUDA bool update_solution_stats() {
     stats.solutions++;
+    inner_boxes.push_back(*best);
     if(bab->is_satisfaction() && config.stop_after_n_solutions != 0 &&
        stats.solutions >= config.stop_after_n_solutions)
     {
@@ -877,10 +942,21 @@ public:
     stats.fails += 1;
   }
 
+  CUDA void on_unknown_node() {
+    stats.unknowns += 1; 
+  }
+
   CUDA void print_final_solution() {
     if(!is_printing_intermediate_sol() && stats.solutions > 0) {
       print_solution();
     }
+#ifdef WITH_NNV
+    else if (bab->is_satisfaction() && inner_boxes.size() > 0) {
+      for(int i = 0; i < inner_boxes.size(); ++i) {
+        print_solution(inner_boxes[i]);
+      }
+    }
+#endif
     stats.print_mzn_final_separator();
   }
 

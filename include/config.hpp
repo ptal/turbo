@@ -16,7 +16,9 @@ enum class Arch {
   CPU,
   GPU,
   BAREBONES,
-  HYBRID
+  FBAREBONES,
+  HYBRID,
+  JET
 };
 
 enum class FixpointKind {
@@ -26,7 +28,10 @@ enum class FixpointKind {
 
 enum class InputFormat {
   XCSP3,
-  FLATZINC
+  FLATZINC,
+  VNNLIB,
+  ONNX,
+  SMT2
 };
 
 template<class Allocator>
@@ -52,9 +57,14 @@ struct Configuration {
   FixpointKind fixpoint;
   size_t wac1_threshold;
   size_t seed;
+  double epsilon;
+  battery::string<allocator_type> var_order;
+  battery::string<allocator_type> value_order;
   battery::string<allocator_type> eps_var_order;
   battery::string<allocator_type> eps_value_order;
   battery::string<allocator_type> problem_path;
+  battery::string<allocator_type> vnnlib_path;
+  battery::string<allocator_type> onnx_path;
   battery::string<allocator_type> version;
   battery::string<allocator_type> hardware;
 
@@ -97,9 +107,14 @@ struct Configuration {
     ),
     wac1_threshold(0),
     seed(0),
+    epsilon(1e-6),
+    value_order("default", alloc),
+    var_order("default", alloc),
     eps_value_order("default", alloc),
     eps_var_order("default", alloc),
     problem_path(alloc),
+    vnnlib_path(alloc),
+    onnx_path(alloc),
     version(alloc),
     hardware(alloc)
   {}
@@ -129,9 +144,14 @@ struct Configuration {
     fixpoint(other.fixpoint),
     wac1_threshold(other.wac1_threshold),
     seed(other.seed),
+    epsilon(other.epsilon),
+    var_order(other.var_order, alloc),
+    value_order(other.value_order, alloc),
     eps_var_order(other.eps_var_order, alloc),
     eps_value_order(other.eps_value_order, alloc),
     problem_path(other.problem_path, alloc),
+    vnnlib_path(other.vnnlib_path, alloc),
+    onnx_path(other.onnx_path, alloc),
     version(other.version, alloc),
     hardware(other.hardware, alloc)
   {}
@@ -158,9 +178,14 @@ struct Configuration {
     fixpoint = other.fixpoint;
     wac1_threshold = other.wac1_threshold;
     seed = other.seed;
+    epsilon = other.epsilon;
+    var_order = other.var_order;
+    value_order = other.value_order;
     eps_var_order = other.eps_var_order;
     eps_value_order = other.eps_value_order;
     problem_path = other.problem_path;
+    vnnlib_path = other.vnnlib_path;
+    onnx_path = other.onnx_path;
     version = other.version;
     hardware = other.hardware;
   }
@@ -194,6 +219,9 @@ struct Configuration {
       printf("-wac1_threshold %" PRIu64 " ", wac1_threshold);
     }
     printf("-seed %" PRIu64 " ", seed);
+    printf("-epsilon %.10f", epsilon);
+    printf("-var_order %s ", var_order.data());
+    printf("-value_order %s ", value_order.data());
     printf("-eps_var_order %s ", eps_var_order.data());
     printf("-eps_value_order %s ", eps_value_order.data());
     if(version.size() != 0) {
@@ -226,6 +254,8 @@ struct Configuration {
         return "gpu";
       case Arch::BAREBONES:
         return "barebones";
+      case Arch::FBAREBONES:
+        return "fbarebones";
       case Arch::HYBRID:
         return "hybrid";
       default:
@@ -247,6 +277,9 @@ struct Configuration {
       printf("%%%%%%mzn-stat: wac1_threshold=%" PRIu64 "\n", wac1_threshold);
     }
     printf("%%%%%%mzn-stat: seed=%" PRIu64 "\n", seed);
+    printf("%%%%%%nnv-stat: epsilon=\"%.10f\"\n", epsilon);
+    printf("%%%%%%mzn-stat: var_order=\"%s\"\n", var_order.data());
+    printf("%%%%%%mzn-stat: value_order=\"%s\"\n", value_order.data());
     printf("%%%%%%mzn-stat: eps_var_order=\"%s\"\n", eps_var_order.data());
     printf("%%%%%%mzn-stat: eps_value_order=\"%s\"\n", eps_value_order.data());
     printf("%%%%%%mzn-stat: free_search=\"%s\"\n", free_search ? "yes" : "no");
@@ -271,6 +304,15 @@ struct Configuration {
     }
     else if(problem_path.ends_with(".xml")) {
       return InputFormat::XCSP3;
+    }
+    else if (problem_path.ends_with(".vnnlib")){
+      return InputFormat::VNNLIB;
+    }
+    else if (problem_path.ends_with(".onnx")){
+      return InputFormat::ONNX;
+    }
+    else if (problem_path.ends_with(".smt2")){
+      return InputFormat::SMT2;
     }
     else {
       printf("ERROR: Unknown input format for the file %s [supported extension: .xml and .fzn].\n", problem_path.data());

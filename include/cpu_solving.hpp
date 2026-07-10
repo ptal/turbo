@@ -8,7 +8,11 @@
 void cpu_solve(const Configuration<battery::standard_allocator>& config) {
   auto start = std::chrono::steady_clock::now();
 
+#ifdef WITH_NNV 
+  CP<FItv> cp(config);
+#else
   CP<Itv> cp(config);
+#endif
   cp.config.or_nodes = 1;
   cp.preprocess();
   if(cp.iprop->is_bot()) {
@@ -23,14 +27,42 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
   while(!must_quit(cp) && check_timeout(cp, start) && has_changed) {
     has_changed = false;
     auto start2 = cp.stats.start_timer_host();
-    cp.stats.fixpoint_iterations += fp_engine.fixpoint([&](int i) { return cp.iprop->deduce(i); });
+#ifdef WITH_NNV
+    cp.stats.fixpoint_iterations += fp_engine.fixpoint(
+      [&](int i) { return cp.iprop->fdeduce(i, cp.config.epsilon); }
+    );
+#else 
+    cp.stats.fixpoint_iterations += fp_engine.fixpoint(
+      [&](int i) { return cp.iprop->deduce(i); }, 
+      [&]() { return cp.iprop->is_bot(); });
+#endif
     start2 = cp.stats.stop_timer(Timer::FIXPOINT, start2);
-    bool must_prune = cp.on_node();
+    bool must_prune = cp.on_node(); 
     if(cp.iprop->is_bot()) {
+#ifdef WITH_NNV
+      if (cp.search_tree->is_unknown(cp.env, cp.config.epsilon)) {
+        cp.on_unknown_node();
+      }
+      else {
+        cp.on_failed_node();
+      }
+      fp_engine.reset();
+#else 
       cp.on_failed_node();
       fp_engine.reset();
+#endif
     }
     else {
+#ifdef WITH_NNV
+      cp.stats.stop_timer(Timer::SELECT_FP_FUNCTIONS, start2);
+      // if(cp.search_tree->template is_extractable<AtomicExtraction>(AtomicExtraction(), config.epsilon)) {
+      if(cp.search_tree->is_unknown(cp.env, cp.config.epsilon)) {
+        has_changed |= cp.bab->deduce();
+        must_prune |= cp.on_solution_node();
+        fp_engine.reset();
+        break;
+      }
+#else
       fp_engine.select([&](int i) { return !cp.iprop->ask(i); });
       cp.stats.stop_timer(Timer::SELECT_FP_FUNCTIONS, start2);
       if(fp_engine.num_active() == 0 && cp.search_tree->template is_extractable<AtomicExtraction>()) {
@@ -38,13 +70,23 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
         must_prune |= cp.on_solution_node();
         fp_engine.reset();
       }
+#endif
     }
+#ifdef WITH_NNV 
+    has_changed |= cp.search_tree->fdeduce(cp.env, cp.config.epsilon);  // add branching strategies
+#else
     has_changed |= cp.search_tree->deduce();
+#endif
     cp.stats.stop_timer(Timer::SEARCH, start2);
     if(must_prune) { break; }
   }
   cp.print_final_solution();
   cp.print_mzn_statistics();
+
+  if (cp.stats.solutions > 0) printf("sat\n");
+  else if (cp.stats.unknowns > 0 && check_timeout(cp, start)) printf("unknown\n");
+  else if (!check_timeout(cp, start)) printf("timeout\n");
+  else printf("unsat\n");
 }
 
 #endif
