@@ -23,8 +23,7 @@ enum class FixpointKind {
   AC1,
   WAC1,
   WAC3,
-  WWAC3,  // warp-tile-granular AC3 worklist; see lala-core/include/lala/wwac3_fixpoint.hpp
-  AWWAC3  // async (streaming) warp-tile AC3 worklist; see lala-core/include/lala/awwac3_fixpoint.hpp
+  WWAC3  // warp-tile-granular AC3 worklist; see lala-core/include/lala/wwac3_fixpoint.hpp
 };
 
 enum class InputFormat {
@@ -232,8 +231,6 @@ struct Configuration {
         return "wac3";
       case FixpointKind::WWAC3:
         return "wwac3";
-      case FixpointKind::AWWAC3:
-        return "awwac3";
       default:
         assert(0);
         return "Unknown";
