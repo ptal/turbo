@@ -148,11 +148,11 @@ struct BlockData {
   cuda::std::chrono::system_clock::time_point start_time;
 
   /** The gradients from the neural network. */
-  // float* h_gradients;
-  // float* h_mid_gradients;
+  float* h_gradients;
+  float* h_mid_gradients;
   // float* h_lb_gradients;
   // float* h_ub_gradients;
-  // int num_h_gradients;
+  int num_h_gradients;
 
   /* For underapproximation search strategy. */
   bool is_uass;
@@ -163,7 +163,7 @@ struct BlockData {
    , next_unassigned_var(0)
    , decisions(5000)
    , depth(0)
-  //  , h_gradients(nullptr)
+   , h_gradients(nullptr)
   //  , h_mid_gradients(nullptr)
   //  , h_lb_gradients(nullptr)
   //  , h_ub_gradients(nullptr)
@@ -184,10 +184,10 @@ struct BlockData {
       inner_box = bt::make_shared<VStore<FItv, bt::global_allocator>, bt::global_allocator>(u_store);
       store = bt::allocate_shared<FStore, bt::pool_allocator>(store_allocator, u_store, store_allocator);
       iprop = bt::allocate_shared<FProp, bt::pool_allocator>(prop_allocator, u_iprop, store, prop_allocator);
-      // num_h_gradients = u_store.vars(); // only take input neurons.
-      // size_t gradient_bytes = sizeof(float) * static_cast<size_t>(num_h_gradients) * 4;
-      // void* gradient_mem = bt::global_allocator{}.allocate(gradient_bytes);
-      // h_gradients = static_cast<float*>(gradient_mem);
+      num_h_gradients = u_store.vars(); // only take input neurons.
+      size_t gradient_bytes = sizeof(float) * static_cast<size_t>(num_h_gradients) * 4;
+      void* gradient_mem = bt::global_allocator{}.allocate(gradient_bytes);
+      h_gradients = static_cast<float*>(gradient_mem);
       // h_mid_gradients = h_gradients + num_h_gradients;
       // h_lb_gradients = h_mid_gradients + num_h_gradients;
       // h_ub_gradients = h_lb_gradients + num_h_gradients;
@@ -232,12 +232,11 @@ struct BlockData {
             [&](const FItv& u, int g_idx) { return LB2(u.width().ub().value()); });
           break;
         }
-        // case VariableOrder::GRA_ANTI_FIRST_FAIL: {
-        //   lattice_smallest_split(has_changed, idx, strategies[i], epsilon,
-        //     // [&](const FItv& u, int g_idx) { return LB2(battery::mul_up(u.width().ub().value(), h_gradients[g_idx])); });
-        //     [&](const FItv& u, int g_idx) { return LB2(h_gradients[g_idx]); });
-        //   break;
-        // }
+        case VariableOrder::GRA_ANTI_FIRST_FAIL: {
+          lattice_smallest_split(has_changed, idx, strategies[i], epsilon,
+            [&](const FItv& u, int g_idx) { return LB2(battery::mul_up(u.width().ub().value(), h_gradients[g_idx])); });
+          break;
+        }
         case VariableOrder::LARGEST: {
           lattice_smallest_split(has_changed, idx, strategies[i], epsilon,
             [&](const FItv& u, int g_idx) { return LB2(u.ub().value()); });
@@ -1120,98 +1119,98 @@ __global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_d
   __syncthreads();
 }
 
-// void back_propagation(BlockData& block_data, Ort::Session& session) {
-//   // Step 1. 
-//   Ort::MemoryInfo cuda_mem_info("Cuda", OrtAllocatorType::OrtDeviceAllocator, 0, OrtMemType::OrtMemTypeDefault);
+void back_propagation(BlockData& block_data, Ort::Session& session) {
+  // Step 1. 
+  Ort::MemoryInfo cuda_mem_info("Cuda", OrtAllocatorType::OrtDeviceAllocator, 0, OrtMemType::OrtMemTypeDefault);
 
-//   // Step 2. 
-//   Ort::TypeInfo input_type_info = session.GetInputTypeInfo(0);
-//   battery::vector<int64_t> input_dims = input_type_info.GetTensorTypeAndShapeInfo().GetShape();
-//   size_t total_elements = 1;
-//   for (size_t i = 0; i < input_dims.size(); ++i) {
-//     total_elements *= input_dims[i];
-//   }
+  // Step 2. 
+  Ort::TypeInfo input_type_info = session.GetInputTypeInfo(0);
+  battery::vector<int64_t> input_dims = input_type_info.GetTensorTypeAndShapeInfo().GetShape();
+  size_t total_elements = 1;
+  for (size_t i = 0; i < input_dims.size(); ++i) {
+    total_elements *= input_dims[i];
+  }
 
-//   Ort::Value input_mid_tensor = Ort::Value::CreateTensor<float>(
-//     cuda_mem_info,
-//     block_data.h_mid_gradients,
-//     total_elements,
-//     input_dims.data(),
-//     input_dims.size()
-//   );
-//   Ort::Value input_lb_tensor = Ort::Value::CreateTensor<float>(
-//     cuda_mem_info,
-//     block_data.h_lb_gradients,
-//     total_elements, 
-//     input_dims.data(),
-//     input_dims.size()
-//   );
-//   Ort::Value input_ub_tensor = Ort::Value::CreateTensor<float>(
-//     cuda_mem_info,
-//     block_data.h_ub_gradients,
-//     total_elements,
-//     input_dims.data(),
-//     input_dims.size()
-//   );
+  Ort::Value input_mid_tensor = Ort::Value::CreateTensor<float>(
+    cuda_mem_info,
+    block_data.h_mid_gradients,
+    total_elements,
+    input_dims.data(),
+    input_dims.size()
+  );
+  // Ort::Value input_lb_tensor = Ort::Value::CreateTensor<float>(
+  //   cuda_mem_info,
+  //   block_data.h_lb_gradients,
+  //   total_elements, 
+  //   input_dims.data(),
+  //   input_dims.size()
+  // );
+  // Ort::Value input_ub_tensor = Ort::Value::CreateTensor<float>(
+  //   cuda_mem_info,
+  //   block_data.h_ub_gradients,
+  //   total_elements,
+  //   input_dims.data(),
+  //   input_dims.size()
+  // );
 
-//   // Step 3.
-//   Ort::RunOptions run_opts;
-//   Ort::AllocatorWithDefaultOptions ort_allocator;
-//   Ort::AllocatedStringPtr input_name_alloc = session.GetInputNameAllocated(0, ort_allocator);
-//   std::string real_input_name = input_name_alloc.get();
-//   Ort::AllocatedStringPtr output_name_alloc = session.GetOutputNameAllocated(0, ort_allocator);
-//   std::string real_output_name = output_name_alloc.get();
+  // Step 3.
+  Ort::RunOptions run_opts;
+  Ort::AllocatorWithDefaultOptions ort_allocator;
+  Ort::AllocatedStringPtr input_name_alloc = session.GetInputNameAllocated(0, ort_allocator);
+  std::string real_input_name = input_name_alloc.get();
+  Ort::AllocatedStringPtr output_name_alloc = session.GetOutputNameAllocated(0, ort_allocator);
+  std::string real_output_name = output_name_alloc.get();
 
-//   const char* input_names[] = { real_input_name.c_str() };
-//   const char* output_names[] = { real_output_name.c_str() };
-//   const char* const* input_names_ptr = input_names;
-//   const char* const* output_names_ptr = output_names;
+  const char* input_names[] = { real_input_name.c_str() };
+  const char* output_names[] = { real_output_name.c_str() };
+  const char* const* input_names_ptr = input_names;
+  const char* const* output_names_ptr = output_names;
 
-//   // Step 4.
-//   std::vector<Ort::Value> output_mid_tensors;
-//   std::vector<Ort::Value> output_lb_tensors;
-//   std::vector<Ort::Value> output_ub_tensors;
-//   output_mid_tensors = session.Run(
-//     run_opts,
-//     input_names_ptr, 
-//     &input_mid_tensor,
-//     1,
-//     output_names_ptr,
-//     1
-//   );
-//   output_lb_tensors = session.Run(
-//     run_opts,
-//     input_names_ptr,
-//     &input_lb_tensor,
-//     1,
-//     output_names_ptr,
-//     1
-//   );
-//   output_ub_tensors = session.Run(
-//     run_opts,
-//     input_names_ptr,
-//     &input_ub_tensor,
-//     1,
-//     output_names_ptr,
-//     1
-//   );
+  // Step 4.
+  std::vector<Ort::Value> output_mid_tensors;
+  // std::vector<Ort::Value> output_lb_tensors;
+  // std::vector<Ort::Value> output_ub_tensors;
+  output_mid_tensors = session.Run(
+    run_opts,
+    input_names_ptr, 
+    &input_mid_tensor,
+    1,
+    output_names_ptr,
+    1
+  );
+  // output_lb_tensors = session.Run(
+  //   run_opts,
+  //   input_names_ptr,
+  //   &input_lb_tensor,
+  //   1,
+  //   output_names_ptr,
+  //   1
+  // );
+  // output_ub_tensors = session.Run(
+  //   run_opts,
+  //   input_names_ptr,
+  //   &input_ub_tensor,
+  //   1,
+  //   output_names_ptr,
+  //   1
+  // );
 
-//   // Step 5. 
-//   block_data.h_mid_gradients = output_mid_tensors[0].GetTensorMutableData<float>();
-//   block_data.h_lb_gradients = output_lb_tensors[0].GetTensorMutableData<float>();
-//   block_data.h_ub_gradients = output_ub_tensors[0].GetTensorMutableData<float>();
+  // Step 5. 
+  block_data.h_mid_gradients = output_mid_tensors[0].GetTensorMutableData<float>();
+  // block_data.h_lb_gradients = output_lb_tensors[0].GetTensorMutableData<float>();
+  // block_data.h_ub_gradients = output_ub_tensors[0].GetTensorMutableData<float>();
 
-//   // TODO: combine these gradients together. just use average
-//   // we also have to consider floating-point errors.
-//   // to simplicitly, we use only upper-towards rounding function
-//   for(size_t i = 0; i < block_data.num_h_gradients; ++i){
-//     block_data.h_gradients[i] = battery::div_up(battery::add_up(battery::add_up(block_data.h_mid_gradients[i], block_data.h_lb_gradients[i]), block_data.h_ub_gradients[i]), float{3.0});
-//     // block_data.h_gradients[i] = block_data.h_mid_gradients[i];
-//     // block_data.h_gradients[i] = block_data.h_ub_gradients[i];
-//   }
+  // TODO: combine these gradients together. just use average
+  // we also have to consider floating-point errors.
+  // to simplicitly, we use only upper-towards rounding function
+  for(size_t i = 0; i < block_data.num_h_gradients; ++i){
+    // block_data.h_gradients[i] = battery::div_up(battery::add_up(battery::add_up(block_data.h_mid_gradients[i], block_data.h_lb_gradients[i]), block_data.h_ub_gradients[i]), float{3.0});
+    block_data.h_gradients[i] = block_data.h_mid_gradients[i];
+    // block_data.h_gradients[i] = block_data.h_ub_gradients[i];
+  }
 
-//   cudaDeviceSynchronize();
-// }
+  cudaDeviceSynchronize();
+}
 
 template <class FPEngine>
 __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data, BlockData& block_data,

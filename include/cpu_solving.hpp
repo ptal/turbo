@@ -56,7 +56,7 @@ void cpu_solve(const Configuration<battery::standard_allocator>& config) {
 #ifdef WITH_NNV
       cp.stats.stop_timer(Timer::SELECT_FP_FUNCTIONS, start2);
       // if(cp.search_tree->template is_extractable<AtomicExtraction>(AtomicExtraction(), config.epsilon)) {
-      if(cp.search_tree->is_unknown(cp.env, cp.config.epsilon)) {
+      if(cp.search_tree->is_solution(cp.env)) {
         has_changed |= cp.bab->deduce();
         must_prune |= cp.on_solution_node();
         fp_engine.reset();
