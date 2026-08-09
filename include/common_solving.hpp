@@ -6,6 +6,7 @@
 #include <atomic>
 #include <algorithm>
 #include <chrono>
+#include <fstream>
 #include <thread>
 #include <csignal>
 #include <random>
@@ -31,6 +32,8 @@
 #include "lala/interpretation.hpp"
 
 #include "lala/flatzinc_parser.hpp"
+#include "lala/tcn_parser.hpp"
+#include "lala/tcn_writer.hpp"
 
 #ifdef WITH_XCSP3PARSER
   #include "lala/XCSP3_parser.hpp"
@@ -310,6 +313,36 @@ struct AbstractDomains {
   }
 
 private:
+  CUDA void dump_preprocessed_tcn_if_needed() {
+#ifdef __CUDA_ARCH__
+    return;
+#else
+#ifndef TURBO_IPC_ABSTRACT_DOMAIN
+    if(config.dump_preprocessed_tcn.size() == 0) {
+      return;
+    }
+    if(store->is_bot() || iprop->is_bot()) {
+      std::cerr << "Cannot dump preprocessed TCN because the abstract state is bottom." << std::endl;
+      exit(EXIT_FAILURE);
+    }
+    std::ofstream out(config.dump_preprocessed_tcn.data());
+    if(!out) {
+      std::cerr << "Cannot open preprocessed TCN output file " << config.dump_preprocessed_tcn.data() << std::endl;
+      exit(EXIT_FAILURE);
+    }
+    write_preprocessed_tcn(out, *store, *iprop, *bab);
+    if(config.verbose_solving) {
+      printf("%% Preprocessed TCN written to %s\n", config.dump_preprocessed_tcn.data());
+    }
+#else
+    if(config.dump_preprocessed_tcn.size() != 0) {
+      std::cerr << "-dump_preprocessed_tcn is only supported with the PIR/TCN abstract domain." << std::endl;
+      exit(EXIT_FAILURE);
+    }
+#endif
+#endif
+  }
+
   // Mainly to interpret the IN constraint in IProp instead of only over-approximating in intervals.
   template <class F>
   CUDA void typing(F& f, bool toplevel = true) const {
@@ -411,6 +444,9 @@ public:
       f = parse_xcsp3(config.problem_path.data(), solver_output);
     }
 #endif
+    else if(config.input_format() == InputFormat::TCN) {
+      f = parse_tcn(config.problem_path.data(), solver_output);
+    }
     if(!f) {
       std::cerr << "Could not parse input file." << std::endl;
       exit(EXIT_FAILURE);
@@ -515,6 +551,21 @@ public:
     stats.print_array_stat("preprocessing_algsimp_eliminated_eq_constraints", preprocessing_stats.eliminated_equality_constraints_, [](auto v) { return std::to_string(v); });
     stats.print_array_stat("preprocessing_entailment_eliminated_constraints", preprocessing_stats.eliminated_entailed_constraints_, [](auto v) { return std::to_string(v); });
     stats.print_array_stat("preprocessing_eliminated_variables", preprocessing_stats.eliminated_useless_variables_, [](auto v) { return std::to_string(v); });
+  }
+
+  /** Load a TCN file directly into the abstract domain, skipping ternarization,
+   *  normalization and simplification. Constraints are interpreted in the exact
+   *  order they appear in the file. */
+  void load_tcn(F& f) {
+    size_t num_vars = num_quantified_vars(f);
+    allocate(num_vars, true);
+    iprop->disable_sort_bytecodes();
+    if(!interpret(f)) {
+      exit(EXIT_FAILURE);
+    }
+    analyze_tcn("tcn");
+    simplifier->init_env(env);
+    simplifier->initialize(num_vars, 0);
   }
 
   void preprocess_tcn(F& f) {
@@ -622,12 +673,16 @@ public:
   #else
     constexpr bool use_ipc = false;
   #endif
-    if(use_ipc && !config.force_ternarize) {
+    if(config.input_format() == InputFormat::TCN) {
+      load_tcn(*f_ptr);
+    }
+    else if(use_ipc && !config.force_ternarize) {
       preprocess_ipc(*f_ptr);
     }
     else {
       preprocess_tcn(*f_ptr);
     }
+    dump_preprocessed_tcn_if_needed();
     push_eps_strategy();
     std::mt19937 random_generator(config.seed);
     split->shuffle_random_strategies(random_generator);
