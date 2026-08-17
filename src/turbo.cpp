@@ -28,22 +28,19 @@ int main(int argc, char** argv) {
       config.print_commandline(argv[0]);
       printf("\"\n");
     }
-    if(config.arch == Arch::CPU) {
-      cpu_solve(config);
-    }
-#ifndef DISABLE_FULL_GPU_SOLVING
-    else if(config.arch == Arch::GPU) {
-      gpu_dive_and_solve(config);
-    }
-#endif
-    else if(config.arch == Arch::BAREBONES) {
+// #ifndef DISABLE_FULL_GPU_SOLVING
+//     else if(config.arch == Arch::GPU) {
+//       gpu_dive_and_solve(config);
+//     }
+// #endif
+    if(config.arch == Arch::BAREBONES) {
       barebones::barebones_dive_and_solve(config);
     }
-#ifndef DISABLE_HYBRID_GPU_SOLVING
-    else if(config.arch == Arch::HYBRID) {
-      hybrid_dive_and_solve(config);
-    }
-#endif
+// #ifndef DISABLE_HYBRID_GPU_SOLVING
+//     else if(config.arch == Arch::HYBRID) {
+//       hybrid_dive_and_solve(config);
+//     }
+// #endif
   }
   catch (std::exception &e)
   {

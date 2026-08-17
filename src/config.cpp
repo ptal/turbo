@@ -9,7 +9,7 @@
 #include <algorithm>
 
 void usage_and_exit(const std::string& program_name) {
-  std::cout << "usage: " << program_name << " [-t 2000] [-a] [-n 10] [-i] [-f] [-s] [-v] [-p <i>] [-arch <cpu|hybrid|gpu|barebones>] [-p 48] [-or 48] [-sub 12] [-stack 100] [-fp <ac1|wac1>] [-wac1_threshold 0] [-eps_var_order <input_order|first_fail|anti_first_fail|smallest|largest>] [-eps_value_order <min|max|split|reverse_split>] [-seed 0] [-network_analysis] [-cutnodes 0] [-disable_simplify] [-force_ternarize] [-globalmem] [-version 1.0.0] [xcsp3instance.xml | fzninstance.fzn]" << std::endl;
+  std::cout << "usage: " << program_name << " [-t 2000] [-a] [-n 10] [-i] [-f] [-s] [-v] [-p <i>] [-arch <cpu|hybrid|gpu|barebones>] [-p 48] [-or 48] [-sub 12] [-stack 100] [-fp <ac1|wac1|wac3|wwac3>] [-wac1_threshold 0] [-eps_var_order <input_order|first_fail|anti_first_fail|smallest|largest>] [-eps_value_order <min|max|split|reverse_split>] [-seed 0] [-network_analysis] [-cutnodes 0] [-disable_simplify] [-force_ternarize] [-globalmem] [-version 1.0.0] [xcsp3instance.xml | fzninstance.fzn]" << std::endl;
   std::cout << "\t-t 2000: Run the solver with a timeout of 2000 milliseconds." << std::endl;
   std::cout << "\t-timeout 2000: Same as -t, but if both -t and -timeout are specified, -timeout overrides -t." << std::endl;
   std::cout << "\t-a: Instructs the solver to report all solutions in the case of satisfaction problems, or print intermediate solutions of increasing quality in the case of optimisation problems." << std::endl;
@@ -21,9 +21,11 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-ast: Print the AST of the model (useful to debug)." << std::endl;
   std::cout << "\t-p 48: On CPU, multithreading is not yet implemented. On GPU, equivalent to `-or 48`." << std::endl;
   std::cout << "\t-arch <cpu|gpu|hybrid|barebones>: Choose the architecture on which the problem will be solved." << std::endl;
-  std::cout << "\t-fp <ac1|wac1>: Choose the fixpoint strategy (default: ac1 on CPU, wac1 on GPU):" << std::endl;
+  std::cout << "\t-fp <ac1|wac1|wac3|wwac3>: Choose the fixpoint strategy (default: ac1 on CPU, wac1 on GPU):" << std::endl;
   std::cout << "\t\t ac1: All propagators are executed in parallel at each iteration." << std::endl;
   std::cout << "\t\t wac1: Behave as ac1 when the number of active propagators is less than wac1_threshold. Otherwise,  each warp must reach a local fixpoint before executing the next 32 propagators (not compatible with -arch cpu)." << std::endl;
+  std::cout << "\t\t wac3: Level-synchronized wavefront AC3 (event-driven worklist). Maintains a frontier of propagators to (re)visit; only propagators incident to a narrowed variable get re-enqueued. Wins on wide/shallow constraint graphs; loses to wac1 on small + deep/tight networks. Not compatible with -arch cpu." << std::endl;
+  std::cout << "\t\t wwac3: WAC3 at warp-tile granularity. The frontier unit is a tile of 32 consecutive propagators processed in parallel by one warp; the worklist re-enqueues incident TILES of narrowed variables. Wins on deep/large networks (the warp-parallel tile processing latency-hides the over-approximation); loses on tiny ones. Not compatible with -arch cpu." << std::endl;
   std::cout << "\t-wac1_threshold 4096: Threshold below which we select AC1 instead of WAC1 (default: 0)." << std::endl;
   std::cout << "\t-or 48: Run the subproblems on 48 streaming multiprocessors (SMs) (only for GPU architecture). Default: -or 0 for automatic selection of the number of SMs." << std::endl;
   std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the blocks (embarrasingly parallel search). The special value `-1` leaves Turbo to decide on the number of subproblems (at least 30 * number of blocks). Default: -sub -1." << std::endl;
@@ -40,6 +42,7 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-force_ternarize: Force the transformation of the formula in ternary normal form, even with IPC abstract domain (note that it is enabled by default with PIR abstract domain)." << std::endl;
   std::cout << "\t-disable_simplify: Disable the simplification step." << std::endl;
   std::cout << "\t-globalmem: Store all data abstract elements in the global memory and do not try to optimise using shared memory." << std::endl;
+  std::cout << "\t-dump-fixture <path>: After preprocessing, dump the constraint network in binary fixture format to <path> and exit. Consumed by the propagation-prototype agent loop." << std::endl;
   exit(EXIT_FAILURE);
 }
 
@@ -187,12 +190,26 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
     else if(fixpoint == "wac1") {
       config.fixpoint = FixpointKind::WAC1;
     }
+    else if(fixpoint == "wac3") {
+      config.fixpoint = FixpointKind::WAC3;
+    }
+    else if(fixpoint == "wwac3") {
+      config.fixpoint = FixpointKind::WWAC3;
+    }
     else {
       std::cerr << "Unknown fixpoint -fp " << fixpoint << std::endl;
       exit(EXIT_FAILURE);
     }
   }
   input.read_size_t("-wac1_threshold", config.wac1_threshold);
+  std::string dump_fixture;
+  if(input.read_string("-dump-fixture", dump_fixture)) {
+    config.dump_fixture_path = battery::string<battery::standard_allocator>(dump_fixture.data());
+  }
+  std::string dump_tcn;
+  if(input.read_string("-dump-tcn", dump_tcn)) {
+    config.dump_tcn_path = battery::string<battery::standard_allocator>(dump_tcn.data());
+  }
   std::string eps_var_order;
   if(input.read_string("-eps_var_order", eps_var_order)) {
     config.eps_var_order = battery::string<battery::standard_allocator>(eps_var_order.data());

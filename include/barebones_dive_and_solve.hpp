@@ -6,6 +6,9 @@
 #include "common_solving.hpp"
 #include "memory_gpu.hpp"
 #include "lala/light_branch.hpp"
+#include "lala/wac1_fixpoint.hpp"
+#include "lala/wac3_fixpoint.hpp"
+#include "lala/wwac3_fixpoint.hpp"
 #include <mutex>
 #include <thread>
 #include <chrono>
@@ -66,14 +69,151 @@ struct UnifiedData {
   /** The memory configuration of each block. */
   MemoryConfig mem_config;
 
+  /** Variable -> incident-bytecode CSR adjacency.
+   *
+   * Used by the WAC3 (event-driven AC3 worklist) fixpoint strategy: when a
+   * variable is narrowed, only the bytecodes incident to it need to be
+   * re-examined. This adjacency is invariant across the entire search tree
+   * (the constraint network is fixed after preprocess), so it is built ONCE
+   * here and read concurrently by every block.
+   *
+   *   `wac3_adj_off`: CSR offsets, size `num_vars + 1`.
+   *   `wac3_adj_bc`:  flat list of incident bytecode indices, size
+   *                   `3 * num_bytecodes` (each ternary bytecode contributes
+   *                   to 3 variable buckets).
+   *
+   * Empty when the configured fixpoint strategy is not WAC3 — building it is
+   * O(num_bytecodes) on the host but it does cost `(num_vars + 1 + 3 * num_bc)`
+   * ints of managed memory, which is non-trivial for very large networks.
+   * Step 4 (the WAC3 kernel) reads these via grid_data.
+   */
+  bt::vector<int, ConcurrentAllocator> wac3_adj_off;
+  bt::vector<int, ConcurrentAllocator> wac3_adj_bc;
+
+  /** Variable -> incident-TILE CSR adjacency, used by the WWAC3 (warp-tile
+   * AC3 worklist) fixpoint strategy. A tile is 32 consecutive bytecodes; a var
+   * is in tile `t`'s scope if any of `t`'s bytecodes reference it (deduped per
+   * tile). When a var narrows, only its incident TILES are re-enqueued.
+   * Empty unless the configured fixpoint is WWAC3. */
+  bt::vector<int, ConcurrentAllocator> wwac3_vt_off;
+  bt::vector<int, ConcurrentAllocator> wwac3_vt;
+
   UnifiedData(const CP<Itv>& cp, MemoryConfig mem_config)
    : root(GridCP::tag_gpu_block_copy{}, false, cp)
    , stop(false)
    , mem_config(mem_config)
+   , wac3_adj_off(ConcurrentAllocator{})
+   , wac3_adj_bc(ConcurrentAllocator{})
+   , wwac3_vt_off(ConcurrentAllocator{})
+   , wwac3_vt(ConcurrentAllocator{})
   {
     size_t num_subproblems = 1;
     num_subproblems <<= root.config.subproblems_power;
     root.stats.eps_num_subproblems = num_subproblems;
+    if(root.config.fixpoint == FixpointKind::WAC3) {
+      build_wac3_adjacency();
+    }
+    else if(root.config.fixpoint == FixpointKind::WWAC3) {
+      build_wwac3_adjacency();
+    }
+  }
+
+private:
+  /** Build the variable -> incident-bytecode CSR.
+   *
+   * Two-pass: first pass tallies degree per variable, second pass scatters
+   * incidence. Bytecodes are ternary (x, y, z), so each bytecode contributes
+   * to exactly 3 variable buckets. A variable can appear multiple times in
+   * the same bytecode (e.g. `x = y + y`); we tolerate duplicates here — the
+   * WAC3 kernel's `in_next[]` dedup flag prevents redundant re-enqueueing
+   * during propagation, so the cost is at most a few extra adjacency entries.
+   */
+  void build_wac3_adjacency() {
+    const int num_vars = root.store->vars();
+    const int num_bc   = root.iprop->num_deductions();
+    wac3_adj_off.resize(num_vars + 1);
+    wac3_adj_bc.resize(static_cast<size_t>(3) * num_bc);
+    for(int v = 0; v <= num_vars; ++v) wac3_adj_off[v] = 0;
+    // Pass 1: degree count (stored shifted by 1 to ease the prefix-sum).
+    for(int i = 0; i < num_bc; ++i) {
+      auto bc = root.iprop->load_deduce(i);
+      ++wac3_adj_off[bc.x.vid() + 1];
+      ++wac3_adj_off[bc.y.vid() + 1];
+      ++wac3_adj_off[bc.z.vid() + 1];
+    }
+    // Prefix sum -> CSR offsets.
+    for(int v = 1; v <= num_vars; ++v) wac3_adj_off[v] += wac3_adj_off[v - 1];
+    // Pass 2: scatter. Use a transient cursor (re-uses adj_off as scratch).
+    // The pragma suppresses a gcc-14 false positive in -Wstringop-overflow:
+    // the compiler fuses the vector's placement-new loop into a bulk memset
+    // and can't prove `num_vars * sizeof(int)` is bounded (it comes through
+    // a function call). num_vars is always >= 0 by construction.
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wstringop-overflow"
+    bt::vector<int, ConcurrentAllocator> cursor(num_vars, ConcurrentAllocator{});
+    #pragma GCC diagnostic pop
+    for(int v = 0; v < num_vars; ++v) cursor[v] = wac3_adj_off[v];
+    for(int i = 0; i < num_bc; ++i) {
+      auto bc = root.iprop->load_deduce(i);
+      wac3_adj_bc[cursor[bc.x.vid()]++] = i;
+      wac3_adj_bc[cursor[bc.y.vid()]++] = i;
+      wac3_adj_bc[cursor[bc.z.vid()]++] = i;
+    }
+  }
+
+  /** Build the variable -> incident-TILE CSR for WWAC3.
+   *
+   * Same two-pass structure as `build_wac3_adjacency`, but the incidence unit
+   * is a tile of 32 consecutive bytecodes and a variable is counted at most
+   * ONCE per tile (per-tile dedup via the `seen[]` last-tile marker), so a tile
+   * appears in a var's list once no matter how many of the tile's bytecodes
+   * reference that var.
+   */
+  void build_wwac3_adjacency() {
+    const int num_vars  = root.store->vars();
+    const int num_bc    = root.iprop->num_deductions();
+    const int TILE      = 32;
+    const int num_tiles = (num_bc + TILE - 1) / TILE;
+    wwac3_vt_off.resize(num_vars + 1);
+    for(int v = 0; v <= num_vars; ++v) wwac3_vt_off[v] = 0;
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wstringop-overflow"
+    bt::vector<int, ConcurrentAllocator> seen(num_vars, ConcurrentAllocator{});
+    #pragma GCC diagnostic pop
+    for(int v = 0; v < num_vars; ++v) seen[v] = -1;   // last tile that saw var v
+    // Pass 1: per-tile-deduped degree count (shifted by 1 for the prefix-sum).
+    for(int t = 0; t < num_tiles; ++t) {
+      const int lo = t * TILE;
+      const int hi = (lo + TILE < num_bc) ? (lo + TILE) : num_bc;
+      for(int b = lo; b < hi; ++b) {
+        auto bc = root.iprop->load_deduce(b);
+        const int vs[3] = { bc.x.vid(), bc.y.vid(), bc.z.vid() };
+        for(int a = 0; a < 3; ++a) {
+          const int v = vs[a];
+          if(seen[v] != t) { seen[v] = t; ++wwac3_vt_off[v + 1]; }
+        }
+      }
+    }
+    for(int v = 1; v <= num_vars; ++v) wwac3_vt_off[v] += wwac3_vt_off[v - 1];
+    wwac3_vt.resize(wwac3_vt_off[num_vars]);
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wstringop-overflow"
+    bt::vector<int, ConcurrentAllocator> cursor(num_vars, ConcurrentAllocator{});
+    #pragma GCC diagnostic pop
+    for(int v = 0; v < num_vars; ++v) { cursor[v] = wwac3_vt_off[v]; seen[v] = -1; }
+    // Pass 2: scatter (same per-tile dedup).
+    for(int t = 0; t < num_tiles; ++t) {
+      const int lo = t * TILE;
+      const int hi = (lo + TILE < num_bc) ? (lo + TILE) : num_bc;
+      for(int b = lo; b < hi; ++b) {
+        auto bc = root.iprop->load_deduce(b);
+        const int vs[3] = { bc.x.vid(), bc.y.vid(), bc.z.vid() };
+        for(int a = 0; a < 3; ++a) {
+          const int v = vs[a];
+          if(seen[v] != t) { seen[v] = t; wwac3_vt[cursor[v]++] = t; }
+        }
+      }
+    }
   }
 };
 
@@ -134,6 +274,27 @@ struct BlockData {
   /** The decision taken when exploring the tree. */
   bt::vector<LightBranch<Itv>, bt::global_allocator> decisions;
 
+  /** Per-block scratch for the WAC3 fixpoint strategy (event-driven AC3
+   * worklist). Only allocated when `config.fixpoint == FixpointKind::WAC3`;
+   * empty otherwise. See `wac3_fixpoint` in `lala-core/include/lala/wac3_fixpoint.hpp`
+   * (added in Step 4) for the access pattern.
+   *
+   *   `wac3_frontier_a/b` (size num_bytecodes): double-buffered worklist of
+   *     bytecode indices to process. The kernel swaps `cur`/`nxt` each round.
+   *   `wac3_in_next` (size num_bytecodes): dedup flag, `1` iff a bytecode is
+   *     already in the next-round worklist. Zero-initialized; kept clean by
+   *     the algorithm at convergence so no per-rep reset is needed.
+   *   `wac3_var_dirty` (size num_vars): in-list marker for the dirty-var
+   *     scratch. Zero-initialized; kept clean by the algorithm.
+   *   `wac3_dirty_list` (size num_vars): dense list of variables narrowed
+   *     this round; used to build the next frontier via the CSR adjacency.
+   */
+  bt::vector<int, bt::global_allocator> wac3_frontier_a;
+  bt::vector<int, bt::global_allocator> wac3_frontier_b;
+  bt::vector<int, bt::global_allocator> wac3_in_next;
+  bt::vector<int, bt::global_allocator> wac3_var_dirty;
+  bt::vector<int, bt::global_allocator> wac3_dirty_list;
+
   /** Current depth of the search tree. */
   int depth;
 
@@ -167,6 +328,24 @@ struct BlockData {
       best_store = bt::make_shared<VStore<Itv, bt::global_allocator>, bt::global_allocator>(u_store);
       store = bt::allocate_shared<IStore, bt::pool_allocator>(store_allocator, u_store, store_allocator);
       iprop = bt::allocate_shared<IProp, bt::pool_allocator>(prop_allocator, u_iprop, store, prop_allocator);
+
+      // WAC3 per-block scratch. Sized from the just-allocated iprop/store.
+      // resize() value-initializes to zero, which is precisely what
+      // `wac3_in_next` and `wac3_var_dirty` need (the kernel relies on these
+      // being all-zero on entry and keeps them clean at convergence).
+      // WWAC3 reuses these buffers at TILE granularity: a tile id is in
+      // [0, ceil(num_bc/32)) <= num_bc, so the bytecode-sized frontier/in_next
+      // buffers are big enough (only the leading num_tiles entries are used).
+      if(unified_data.root.config.fixpoint == FixpointKind::WAC3
+      || unified_data.root.config.fixpoint == FixpointKind::WWAC3) {
+        const int num_bc   = iprop->num_deductions();
+        const int num_vars = store->vars();
+        wac3_frontier_a.resize(num_bc);
+        wac3_frontier_b.resize(num_bc);
+        wac3_in_next.resize(num_bc);
+        wac3_var_dirty.resize(num_vars);
+        wac3_dirty_list.resize(num_vars);
+      }
     }
   }
 
@@ -399,7 +578,7 @@ struct BlockData {
     //   decisions[depth-1].ropes[0], decisions[depth-1].ropes[1]);
     // Reallocate decisions if needed.
     if(decisions.size() == depth) {
-      printf("resize to %d\n", (int)decisions.size() * 2);
+      // printf("resize to %d\n", (int)decisions.size() * 2);
       decisions.resize(decisions.size() * 2);
     }
   }
@@ -454,10 +633,10 @@ struct GridData {
 
 MemoryConfig configure_gpu_barebones(CP<Itv>&);
 __global__ void initialize_global_data(UnifiedData*, bt::unique_ptr<GridData, bt::global_allocator>*);
+template <FixpointKind FP>
 __global__ void gpu_barebones_solve(UnifiedData*, GridData*);
-template <class FPEngine>
-__device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data, BlockData& block_data,
-   FPEngine& fp_engine, bool& stop, bool& has_changed, bool& is_leaf_node);
+template <FixpointKind FP>
+__device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data, BlockData& block_data, bool& stop, bool& has_changed, bool& is_leaf_node);
 __global__ void reduce_blocks(UnifiedData*, GridData*);
 __global__ void deallocate_global_data(bt::unique_ptr<GridData, bt::global_allocator>*);
 
@@ -484,11 +663,21 @@ void barebones_dive_and_solve(const Configuration<battery::standard_allocator>& 
   /** We wait that either the solving is interrupted, or that all threads have finished. */
   /** Block the signal CTRL-C to notify the threads if we must exit. */
   block_signal_ctrlc();
-  gpu_barebones_solve
-    <<<static_cast<unsigned int>(cp.stats.num_blocks),
-      CUDA_THREADS_PER_BLOCK,
-      mem_config.shared_bytes>>>
-    (unified_data.get(), grid_data->get());
+  auto launch = [&](auto fp_kind) {
+    constexpr FixpointKind FP = decltype(fp_kind)::value;
+    gpu_barebones_solve<FP><<<static_cast<unsigned int>(cp.stats.num_blocks), CUDA_THREADS_PER_BLOCK, mem_config.shared_bytes>>>(unified_data.get(), grid_data->get());
+  };
+  switch(config.fixpoint) {
+    case FixpointKind::WAC1:
+      launch(std::integral_constant<FixpointKind, FixpointKind::WAC1>{});
+      break;
+    case FixpointKind::WAC3:
+      launch(std::integral_constant<FixpointKind, FixpointKind::WAC3>{});
+      break;
+    case FixpointKind::WWAC3:
+      launch(std::integral_constant<FixpointKind, FixpointKind::WWAC3>{});
+      break;
+  }
   auto now = std::chrono::steady_clock::now();
   int64_t time_to_kernel_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now - start).count();
   bool interrupted = wait_solving_ends(unified_data->stop, unified_data->root, start);
@@ -526,12 +715,22 @@ void barebones_dive_and_solve(const Configuration<battery::standard_allocator>& 
  */
 MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
   auto& config = cp.config;
+  auto kernel_ptr = [&]() -> void* {
+    switch(config.fixpoint) {
+      case FixpointKind::WAC1:   return (void*) gpu_barebones_solve<FixpointKind::WAC1>;
+      case FixpointKind::WAC3:   return (void*) gpu_barebones_solve<FixpointKind::WAC3>;
+      case FixpointKind::WWAC3:  return (void*) gpu_barebones_solve<FixpointKind::WWAC3>;
+      default:
+        fprintf(stderr, "ERROR: fixpoint method is not supported on -arch barebones\n");
+        exit(EXIT_FAILURE);
+    }
+  }();
 
   /** I. Number of blocks per SM. */
   cudaDeviceProp deviceProp;
   cudaGetDeviceProperties(&deviceProp, 0);
   int max_block_per_sm;
-  cudaOccupancyMaxActiveBlocksPerMultiprocessor(&max_block_per_sm, (void*) gpu_barebones_solve, CUDA_THREADS_PER_BLOCK, 0);
+  cudaOccupancyMaxActiveBlocksPerMultiprocessor(&max_block_per_sm, kernel_ptr, CUDA_THREADS_PER_BLOCK, 0);
   if(cp.config.verbose_solving) {
     printf("%% max_blocks_per_sm=%d\n", max_block_per_sm);
   }
@@ -599,7 +798,7 @@ MemoryConfig configure_gpu_barebones(CP<Itv>& cp) {
     mem_config = MemoryConfig(store_bytes, iprop_bytes);
   }
   else {
-    mem_config = MemoryConfig((void*) gpu_barebones_solve, config.verbose_solving, blocks_per_sm, store_bytes, iprop_bytes);
+    mem_config = MemoryConfig(kernel_ptr, config.verbose_solving, blocks_per_sm, store_bytes, iprop_bytes);
   }
   mem_config.print_mzn_statistics(config, cp.stats);
   return mem_config;
@@ -617,7 +816,8 @@ __global__ void initialize_global_data(
     block_data.timer = block_data.stats.stop_timer(Timer::KIND, block_data.timer); \
   }
 
-__global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_data) {
+template <FixpointKind FP>
+__global__ __launch_bounds__(CUDA_THREADS_PER_BLOCK, 2) void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_data) {
   extern __shared__ unsigned char shared_mem[];
   auto& config = unified_data->root.config;
   BlockData& block_data = grid_data->blocks[blockIdx.x];
@@ -630,12 +830,6 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
   block_data.allocate(*unified_data, *grid_data, shared_mem);
   __syncthreads();
   IProp& iprop = *block_data.iprop;
-#ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
-  __shared__ BlockAsynchronousFixpointGPU<true> fp_engine;
-#else
-  __shared__ FixpointSubsetGPU<BlockAsynchronousFixpointGPU<true>, bt::global_allocator, CUDA_THREADS_PER_BLOCK> fp_engine;
-  fp_engine.init(iprop.num_deductions());
-#endif
   /** This shared variable is necessary to avoid multiple threads to read into `unified_data.stop.test()`,
    * potentially reading different values and leading to deadlock. */
   __shared__ bool stop;
@@ -666,9 +860,6 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
     block_data.next_unassigned_var = 0;
     block_data.depth = 0;
     unified_data->root.store->copy_to(group, *block_data.store);
-#ifndef TURBO_NO_ENTAILED_PROP_REMOVAL
-    fp_engine.reset(iprop.num_deductions());
-#endif
     __syncthreads();
 
     // D. Dive into the search tree until we reach the target subproblem.
@@ -680,7 +871,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
     __syncthreads();
     while(remaining_depth > 0 && !is_leaf_node && !stop) {
       __syncthreads();
-      propagate(*unified_data, *grid_data, block_data, fp_engine, stop, has_changed, is_leaf_node);
+      propagate<FP>(*unified_data, *grid_data, block_data, stop, has_changed, is_leaf_node);
       __syncthreads();
       if(!is_leaf_node) {
         block_data.split(has_changed, grid_data->search_strategies);
@@ -775,7 +966,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
         }
 
         // II. Propagate the current node.
-        propagate(*unified_data, *grid_data, block_data, fp_engine, stop, has_changed, is_leaf_node);
+        propagate<FP>(*unified_data, *grid_data, block_data, stop, has_changed, is_leaf_node);
         __syncthreads();
 
         // III. Branching
@@ -823,9 +1014,6 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
             break;
           }
           // Restore from root by copying the store and re-applying all decisions from root to block_data.depth-1.
-#ifndef TURBO_NO_ENTAILED_PROP_REMOVAL
-          fp_engine.reset(iprop.num_deductions());
-#endif
           block_data.root_store->copy_to(group, *block_data.store);
           // __syncthreads();
           // if(threadIdx.x == 0) {
@@ -893,19 +1081,12 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
     block_data.stats.cumulative_time_block = block_data.stats.timers.time_of(Timer::FIRST_BLOCK_IDLE);
   }
   __syncthreads();
-#ifndef TURBO_NO_ENTAILED_PROP_REMOVAL
-  fp_engine.destroy();
-#endif
   block_data.deallocate_shared_data();
   __syncthreads();
 }
-
-template <class FPEngine>
-__device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data, BlockData& block_data,
-   FPEngine& fp_engine, bool& stop, bool& has_changed, bool& is_leaf_node)
+template <FixpointKind FP>
+__device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data, BlockData& block_data, bool& stop, bool& has_changed, bool& is_leaf_node)
 {
-  __shared__ int warp_iterations[CUDA_THREADS_PER_BLOCK/32];
-  warp_iterations[threadIdx.x / 32] = 0;
   auto& config = unified_data.root.config;
   IProp& iprop = *block_data.iprop;
   auto group = cooperative_groups::this_thread_block();
@@ -917,50 +1098,59 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
 
   // II. Compute the fixpoint of the current node.
   int fp_iterations;
-#ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
   int num_active = iprop.num_deductions();
-#else
-  int num_active = fp_engine.num_active();
-#endif
-  switch(config.fixpoint) {
-    case FixpointKind::AC1: {
-      fp_iterations = fp_engine.fixpoint(
-#ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
-        iprop.num_deductions(),
-#endif
-        [&](int i){ return iprop.deduce(i); },
-        [&](){ return iprop.is_bot(); });
-      if(threadIdx.x == 0) {
-        block_data.stats.num_deductions += fp_iterations * num_active;
-      }
-      break;
+  // switch(config.fixpoint) {
+    // case FixpointKind::AC1: {
+    //   fp_iterations = fp_engine.fixpoint(
+    //     iprop.num_deductions(),
+    //     [&](int i){ return iprop.deduce(i); },
+    //     [&](){ return iprop.is_bot(); });
+    //   if(threadIdx.x == 0) {
+    //     block_data.stats.num_deductions += fp_iterations * num_active;
+    //   }
+    //   break;
+    // }
+  if constexpr (FP == FixpointKind::WAC1) {
+    __shared__ int num_deduces;
+    if(threadIdx.x == 0) num_deduces = 0;
+    __syncthreads();
+    fp_iterations = wac1_fixpoint<CUDA_THREADS_PER_BLOCK>(iprop, &num_deduces);
+    if(threadIdx.x == 0) {
+      block_data.stats.num_deductions += num_deduces;
     }
-    case FixpointKind::WAC1: {
-      if(num_active <= config.wac1_threshold) {
-        fp_iterations = fp_engine.fixpoint(
-#ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
-        iprop.num_deductions(),
-#endif
-          [&](int i){ return iprop.deduce(i); },
-          [&](){ return iprop.is_bot(); });
-        if(threadIdx.x == 0) {
-          block_data.stats.num_deductions += fp_iterations * num_active;
-        }
-      }
-      else {
-        fp_iterations = fp_engine.fixpoint(
-#ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
-          iprop.num_deductions(),
-#endif
-          [&](int i){ return warp_fixpoint<CUDA_THREADS_PER_BLOCK>(iprop, i, warp_iterations); },
-          [&](){ return iprop.is_bot(); });
-        if(threadIdx.x == 0) {
-          for(int i = 0; i < CUDA_THREADS_PER_BLOCK/32; ++i) {
-            block_data.stats.num_deductions += warp_iterations[i] * 32;
-          }
-        }
-      }
-      break;
+  } else if constexpr (FP == FixpointKind::WAC3) {
+    __shared__ int num_deduces;
+    if(threadIdx.x == 0) num_deduces = 0;
+    __syncthreads();
+    fp_iterations = wac3_fixpoint<CUDA_THREADS_PER_BLOCK>(
+      iprop,
+      unified_data.wac3_adj_off.data(),
+      unified_data.wac3_adj_bc.data(),
+      block_data.wac3_frontier_a.data(),
+      block_data.wac3_frontier_b.data(),
+      block_data.wac3_in_next.data(),
+      block_data.wac3_var_dirty.data(),
+      block_data.wac3_dirty_list.data(),
+      &num_deduces);
+    if(threadIdx.x == 0) {
+      block_data.stats.num_deductions += num_deduces;
+    }
+  } else if constexpr (FP == FixpointKind::WWAC3) {
+    __shared__ int num_deduces;
+    if(threadIdx.x == 0) num_deduces = 0;
+    __syncthreads();
+    fp_iterations = wwac3_fixpoint<CUDA_THREADS_PER_BLOCK>(
+      iprop,
+      unified_data.wwac3_vt_off.data(),
+      unified_data.wwac3_vt.data(),
+      block_data.wac3_frontier_a.data(),   // tile-id frontier buffer A
+      block_data.wac3_frontier_b.data(),   // tile-id frontier buffer B
+      block_data.wac3_in_next.data(),      // dedup over tiles
+      block_data.wac3_var_dirty.data(),
+      block_data.wac3_dirty_list.data(),
+      &num_deduces);
+    if(threadIdx.x == 0) {
+      block_data.stats.num_deductions += num_deduces;
     }
   }
   TIMEPOINT(FIXPOINT);
@@ -968,7 +1158,6 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
   // III. Analyze the result of propagation
 
   if(!iprop.is_bot()) {
-#ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
     if(threadIdx.x == 0) {
       has_changed = false;
     }
@@ -980,10 +1169,6 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
     }
     __syncthreads();
     num_active = has_changed ? 1 : 0;
-#else
-    fp_engine.select([&](int i) { return !iprop.ask(i); });
-    num_active = fp_engine.num_active();
-#endif
     TIMEPOINT(SELECT_FP_FUNCTIONS);
     /** Whenever we reach a solution node, we must have a bound better than the best bound of the local block.
      * Note that it doesn't mean the best bound of the block must be the best bound of the grid.
