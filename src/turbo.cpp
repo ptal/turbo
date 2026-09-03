@@ -45,11 +45,11 @@ int main(int argc, char** argv) {
       fbarebones::fbarebones_dive_and_solve(config);
     }
     else if (config.arch == Arch::JET) {
-#ifdef __CUDACC__
-      jet::jet_test(config);
-#else 
-      printf("%% JET is only supported on GPU.\n");
-#endif
+// #ifdef __CUDACC__
+//       jet::jet_test(config);
+// #else 
+//       printf("%% JET is only supported on GPU.\n");
+// #endif
     }
 #ifndef DISABLE_HYBRID_GPU_SOLVING
     else if(config.arch == Arch::HYBRID) {
