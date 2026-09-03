@@ -9,6 +9,9 @@
 #include <thread>
 #include <csignal>
 #include <random>
+#include <cstring>
+#include <set>
+#include <string>
 
 #include "config.hpp"
 #include "statistics.hpp"
@@ -212,6 +215,24 @@ struct AbstractDomains {
     search_tree = deps.template clone<IST>(other.search_tree);
     bab = deps.template clone<IBAB>(other.bab);
     best = bab->optimum_ptr();
+    /** Meet-free forward inclusion test (Definition `def-verify`): clone the
+     * two INDEPENDENT store/propagator pairs built by `setup_verification_oracle`
+     * (one told with the network's own equations only, one told with the
+     * postcondition's own atoms only -- see that method for why they must be
+     * separate rather than derived from `store`/`iprop`), plus the small
+     * host-computed maps connecting their shared (output) variables. `aty()`
+     * of `verify_store`/`postcondition_store` differ from `store`'s own, so
+     * `deps`'s clone-by-`aty()` cache does not alias them together. */
+    has_verify_oracle = other.has_verify_oracle;
+    if(has_verify_oracle) {
+      verify_store = deps.template clone<IStore>(other.verify_store);
+      verify_iprop = deps.template clone<IProp>(other.verify_iprop);
+      postcondition_store = deps.template clone<IStore>(other.postcondition_store);
+      postcondition_iprop = deps.template clone<IProp>(other.postcondition_iprop);
+      shared_var_map_verify = battery::vector<AVar, BasicAllocator>(other.shared_var_map_verify, basic_allocator);
+      shared_var_map_postcondition = battery::vector<AVar, BasicAllocator>(other.shared_var_map_postcondition, basic_allocator);
+      verify_input_map = battery::vector<AVar, BasicAllocator>(other.verify_input_map, basic_allocator);
+    }
   }
 
   template <class U2, class BasicAlloc2, class PropAllocator2, class StoreAllocator2>
@@ -269,6 +290,73 @@ struct AbstractDomains {
 
   abstract_ptr<IStore> store;
   abstract_ptr<IProp> iprop;
+
+  /** Meet-free forward inclusion test (Definition `def-verify`).
+   *
+   * `PIR::deduce` SORTS its bytecode array by operator type every time it
+   * tells a batch (see `pir.hpp`) -- so bytecodes coming from `network_formula`
+   * and `postcondition_formula` end up INTERLEAVED in `iprop`'s bytecode
+   * array, not in two contiguous ranges. An earlier version of this code
+   * tried to recover a single `network_bytecode_boundary` INDEX into that
+   * array (via a marker bytecode); that index is meaningless once the sort
+   * runs. Separately, even a correct index range would not have helped for a
+   * postcondition that is a simple bound (e.g. `Y_0 >= c`): `PIR::interpret`
+   * tries `VStore::interpret` first, and a plain `x <op> constant` atom is
+   * fully absorbed as a domain restriction on `x` -- it never becomes a
+   * bytecode at all, so it silently narrows the SAME store that
+   * `verify_store` would have been copied from, reproducing the
+   * phantom-fixed-point bug inside store initialization itself.
+   *
+   * The only design that avoids both problems: `verify_store`/`verify_iprop`
+   * are a COMPLETELY INDEPENDENT store/propagator pair, built by
+   * `setup_verification_oracle` and told with ONLY `network_formula`'s own
+   * (already-ternarized) atoms -- the postcondition is never told into them,
+   * neither as a bytecode nor as a domain restriction. `postcondition_store`/
+   * `postcondition_iprop` are a second, equally independent pair told with
+   * ONLY the postcondition's own atoms. Both split formulas are recovered by
+   * locating the `__turbo_boundary_marker_x = __turbo_boundary_marker_y +
+   * __turbo_boundary_marker_z` marker (inserted in `parse_cn()`) in the
+   * ternarized FORMULA `f.seq()` -- which, unlike the bytecode array, DOES
+   * preserve source order -- BEFORE `f` is told/interpreted at all.
+   *
+   * At solve time (`cpu_solving.hpp`): a candidate's singleton box is
+   * embedded into `verify_store`, `verify_iprop`'s bytecodes (100%
+   * network-derived, no boundary needed) are run forward to a fixpoint, the
+   * resulting domains of the shared (output) variables are copied via
+   * `shared_var_map_verify`/`shared_var_map_postcondition` into
+   * `postcondition_store`, and the postcondition is certified via
+   * `is_fsolution` over ALL of `postcondition_iprop`'s bytecodes (also 100%
+   * postcondition-derived). */
+  abstract_ptr<IStore> verify_store;
+  abstract_ptr<IProp> verify_iprop;
+  abstract_ptr<IStore> postcondition_store;
+  abstract_ptr<IProp> postcondition_iprop;
+  /** `verify_store_pristine`/`postcondition_store_pristine`: untouched
+   * (all-TOP-for-any-variable-not-directly-bounded-by-their-own-tell)
+   * snapshots taken right after `setup_verification_oracle` tells
+   * `verify_store`/`postcondition_store`. `verify()` (below, used by the CPU
+   * solver, `cpu_solving.hpp`) mutates `verify_store`/`postcondition_store`
+   * directly on every call, so it must reset them from these pristine
+   * snapshots first. */
+  abstract_ptr<IStore> verify_store_pristine;
+  abstract_ptr<IStore> postcondition_store_pristine;
+  /** `shared_var_map_verify[k]`/`shared_var_map_postcondition[k]` are the
+   * `AVar` of the k-th variable shared between `network_formula` and
+   * `postcondition_formula` (i.e. the network's output variables), tagged
+   * for `verify_store->aty()`/`postcondition_store->aty()` respectively --
+   * computed once, host-side, by name lookup in `env` (see
+   * `setup_verification_oracle`), so no device-side name lookups are needed. */
+  battery::vector<AVar, BasicAllocator> shared_var_map_verify;
+  battery::vector<AVar, BasicAllocator> shared_var_map_postcondition;
+  /** `verify_input_map[i]` (for `i` a variable id in `store`'s own numbering)
+   * is the corresponding `AVar` in `verify_store`'s numbering, or an untyped
+   * `AVar` (default-constructed) if variable `i` is not one of the network's
+   * own variables (e.g. it is one of the postcondition's own auxiliary
+   * variables). Sized `store->vars()`. Used to embed a candidate's singleton
+   * box (indexed by `strat.vars`, tagged for `store`'s `aty()`) into
+   * `verify_store` at verification time. */
+  battery::vector<AVar, BasicAllocator> verify_input_map;
+  bool has_verify_oracle = false;
   abstract_ptr<ISimplifier> simplifier;
   abstract_ptr<Split> split;
   abstract_ptr<IST> search_tree;
@@ -411,6 +499,15 @@ public:
 
   using FormulaPtr = battery::shared_ptr<TFormula<basic_allocator_type>, basic_allocator_type>;
 
+  /** Set by `parse_cn()` for NNV problems only: the network's own equations
+   * and the (negated) postcondition, kept separate so `preprocess_tcn` can
+   * locate the boundary marker between them for the meet-free forward
+   * inclusion test (Definition `def-verify`), before they get merged (and
+   * flattened) into the single combined formula told as usual. Empty/null
+   * for non-NNV problems. */
+  FormulaPtr network_formula;
+  FormulaPtr postcondition_formula;
+
   /** Parse a constraint network in the FlatZinc or XCSP3 format.
    * The parsed formula is then syntactically simplified (`eval` function).
   */
@@ -429,7 +526,56 @@ public:
     else if (config.input_format() == InputFormat::VNNLIB ||
              config.input_format() == InputFormat::ONNX) {
       solver_output.set_type(OutputType::NNV);
-      f = parse_nnv<basic_allocator_type>(config.onnx_path.data(), config.vnnlib_path.data(), input_neurons, hidden_neurons, solver_output, true);
+      auto split = parse_nnv_split<basic_allocator_type>(config.onnx_path.data(), config.vnnlib_path.data(), input_neurons, hidden_neurons, solver_output, true);
+      network_formula = split.network;
+      postcondition_formula = split.postcondition;
+      typename F::Sequence seq;
+      seq.push_back(*network_formula);
+      /** Boundary marker (Definition `def-verify`, meet-free forward
+       * inclusion test): a trivial, harmless fact `__turbo_boundary_marker_x =
+       * __turbo_boundary_marker_y + __turbo_boundary_marker_z` over three
+       * FRESH, otherwise-unused variables, inserted between the network's own
+       * equations and the postcondition. `split_by_marker` locates it in the
+       * ternarized FORMULA (`f.seq()`, still in source order) BEFORE `f` is
+       * told/interpreted, splitting `f` into `network_formula`'s own atoms
+       * and `postcondition_formula`'s own atoms -- WITHOUT ever calling
+       * `ternarize`'s `compute()` on `network_formula` in isolation (risks a
+       * stack overflow on larger networks), and WITHOUT relying on `PIR`'s
+       * bytecode array preserving source order after telling, which it does
+       * not (`PIR::deduce` sorts bytecodes by operator type).
+       *
+       * A relation between a variable and a CONSTANT (e.g. `x = 1`, tried
+       * first) does NOT work as a marker: `PIR::interpret` (pir.hpp) tries
+       * `VStore::interpret` before its own bytecode-producing
+       * `interpret_formula`, and a plain `x = c` unary domain restriction is
+       * fully resolved by `VStore` alone (narrowing `x`'s own interval), so
+       * it NEVER becomes a `PIR` bytecode at all. A genuine ternary relation
+       * between three DISTINCT variables (no constant operand) cannot be
+       * resolved by `VStore` alone -- it is already in
+       * `is_extended_ternary_form` (ternarize.hpp), so `compute()` pushes it
+       * straight into `PIR`'s bytecode-producing path with no further
+       * decomposition, reliably yielding exactly one locatable bytecode. All
+       * three variables are otherwise unused and remain completely
+       * unconstrained, so this relation is trivially satisfiable for any
+       * input and never affects pruning/search. */
+      seq.push_back(F::make_exists(UNTYPED,
+        LVar<basic_allocator_type>("__turbo_boundary_marker_x"),
+        Sort<basic_allocator_type>(Sort<basic_allocator_type>::Real)));
+      seq.push_back(F::make_exists(UNTYPED,
+        LVar<basic_allocator_type>("__turbo_boundary_marker_y"),
+        Sort<basic_allocator_type>(Sort<basic_allocator_type>::Real)));
+      seq.push_back(F::make_exists(UNTYPED,
+        LVar<basic_allocator_type>("__turbo_boundary_marker_z"),
+        Sort<basic_allocator_type>(Sort<basic_allocator_type>::Real)));
+      seq.push_back(F::make_binary(
+        F::make_lvar(UNTYPED, LVar<basic_allocator_type>("__turbo_boundary_marker_x")),
+        lala::EQ,
+        F::make_binary(
+          F::make_lvar(UNTYPED, LVar<basic_allocator_type>("__turbo_boundary_marker_y")),
+          lala::ADD,
+          F::make_lvar(UNTYPED, LVar<basic_allocator_type>("__turbo_boundary_marker_z")))));
+      seq.push_back(*postcondition_formula);
+      f = battery::make_shared<F, basic_allocator_type>(std::move(F::make_nary(AND, std::move(seq))));
     }
     else if (config.input_format() == InputFormat::SMT2) {
       solver_output.set_type(OutputType::SMT2);
@@ -542,6 +688,286 @@ public:
     stats.print_array_stat("preprocessing_eliminated_variables", preprocessing_stats.eliminated_useless_variables_, [](auto v) { return std::to_string(v); });
   }
 
+#ifdef WITH_NNV
+  /** Recursively collects the names of all (not-yet-interpreted) logical
+   * variables referenced anywhere in `f`, i.e. every `LV` leaf reached by
+   * descending into `Seq`/`ESeq` nodes. `E` (existential declaration) nodes
+   * are not a "use" of a variable and are not descended into for that
+   * purpose -- only actual occurrences in the conjuncts' bodies matter. */
+  static void collect_free_var_names(const F& f, std::set<std::string>& names) {
+    if(f.is(F::LV)) {
+      names.insert(std::string(f.lv().data()));
+    }
+    else if(f.is(F::Seq)) {
+      for(int i = 0; i < f.seq().size(); ++i) {
+        collect_free_var_names(f.seq(i), names);
+      }
+    }
+    else if(f.is(F::ESeq)) {
+      for(int i = 0; i < f.eseq().size(); ++i) {
+        collect_free_var_names(f.eseq(i), names);
+      }
+    }
+  }
+
+  /** Split the ternarized-but-not-yet-interpreted `f` into the network's own
+   * atoms and the postcondition's own atoms, by locating the
+   * `__turbo_boundary_marker_x = __turbo_boundary_marker_y +
+   * __turbo_boundary_marker_z` marker inserted between them in `parse_cn()`.
+   * Unlike `PIR`'s bytecode array (sorted by operator after telling, see the
+   * `verify_store` member comment), `f.seq()` here is the ternarized AST,
+   * still in source order, so this split is reliable. All existentials are
+   * included on the network side (harmless there: an unused declared
+   * variable just wastes a store slot, and the network conjuncts reference
+   * most of them anyway). The postcondition side, however, is typically a
+   * tiny formula over a handful of output variables -- copying every
+   * existential onto it too would size `postcondition_only` after the WHOLE
+   * network (hundreds of thousands of variables), inflating
+   * `postcondition_store`/`postcondition_iprop` (see
+   * `setup_verification_oracle`) for no benefit -- so we keep only the
+   * existentials that the postcondition's own conjuncts actually reference. */
+  bool split_by_marker(const F& f, F& network_out, F& postcondition_out) {
+    typename F::Sequence existentials;
+    for(int i = 0; i < f.seq().size(); ++i) {
+      if(f.seq(i).is(F::E)) {
+        existentials.push_back(f.seq(i));
+      }
+    }
+    typename F::Sequence net_body;
+    typename F::Sequence post_body;
+    bool found_marker = false;
+    bool past_marker = false;
+    for(int i = 0; i < f.seq().size(); ++i) {
+      const auto& child = f.seq(i);
+      if(child.is(F::E)) {
+        continue;
+      }
+      if(!past_marker && child.is_binary() && child.sig() == lala::EQ &&
+         child.seq(0).is_variable() &&
+         std::strcmp(child.seq(0).lv().data(), "__turbo_boundary_marker_x") == 0)
+      {
+        past_marker = true;
+        found_marker = true;
+        continue;
+      }
+      (past_marker ? post_body : net_body).push_back(child);
+    }
+    if(!found_marker) {
+      return false;
+    }
+    std::set<std::string> post_free_vars;
+    for(int i = 0; i < post_body.size(); ++i) {
+      collect_free_var_names(post_body[i], post_free_vars);
+    }
+    typename F::Sequence post_existentials;
+    for(int i = 0; i < existentials.size(); ++i) {
+      if(post_free_vars.count(std::string(battery::get<0>(existentials[i].exists()).data())) > 0) {
+        post_existentials.push_back(existentials[i]);
+      }
+    }
+    typename F::Sequence net_seq(existentials);
+    for(int i = 0; i < net_body.size(); ++i) {
+      net_seq.push_back(std::move(net_body[i]));
+    }
+    typename F::Sequence post_seq(std::move(post_existentials));
+    for(int i = 0; i < post_body.size(); ++i) {
+      post_seq.push_back(std::move(post_body[i]));
+    }
+    network_out = F::make_nary(AND, std::move(net_seq));
+    postcondition_out = F::make_nary(AND, std::move(post_seq));
+    return true;
+  }
+
+  /** Build `verify_store`/`verify_iprop` (told with ONLY `network_only`'s
+   * atoms) and `postcondition_store`/`postcondition_iprop` (told with ONLY
+   * `postcondition_only`'s atoms): two genuinely independent store/propagator
+   * pairs, each never seeing the other side's atoms at all -- see the
+   * `verify_store` member declaration for why this is required (bytecode
+   * sorting + VStore-absorption contamination both rule out any scheme based
+   * on partitioning a single, combined `iprop`). Must run AFTER `interpret(f)`
+   * so `env` already has entries for every shared variable name; `env` is
+   * reused (not a fresh copy) so the two sides' AVars can be connected by
+   * name below. Must run BEFORE the simplifier's fixpoint loop, since that
+   * loop may rewrite/eliminate variables `env` doesn't know about yet. */
+  void setup_verification_oracle(F& network_only, F& postcondition_only) {
+    /** `env_verify`/`env_post` are FRESH, INDEPENDENT `VarEnv`s -- NOT the
+     * shared `env` used for `store`/`iprop`. This is required, not just
+     * simpler: a plain (untyped) variable REFERENCE `x` (as opposed to its
+     * `exists` declaration) is resolved by `VarEnv::interpret_lv`
+     * (env.hpp) to `avars[0]` -- the FIRST AVar EVER registered for that
+     * name, regardless of which domain is currently being interpreted into.
+     * With the shared `env`, every network variable's `avars[0]` is already
+     * `store`'s AVar (from the main `interpret(f)` pass), so telling
+     * `network_only` into `verify_iprop` via the shared `env` would silently
+     * resolve every variable reference to `store`'s AVar instead of
+     * `verify_store`'s. A fresh `VarEnv` per side has no such ambiguity: each
+     * variable's `avars[0]` is exactly the one AVar it has, for that side's
+     * own domain. */
+    VarEnv<BasicAllocator> env_verify{basic_allocator};
+    VarEnv<BasicAllocator> env_post{basic_allocator};
+    size_t num_net_vars = num_quantified_vars(network_only);
+    size_t num_post_vars = num_quantified_vars(postcondition_only);
+
+    /** `verify_store`/`verify_iprop`/`postcondition_store`/`postcondition_iprop` must each get
+     * a GLOBALLY unique `AType`, not merely unique within `env_verify`/`env_post`: `AbstractDeps::clone`
+     * (used to replicate this whole hierarchy per GPU block) caches clones in one FLAT array indexed by
+     * the raw `AType` integer, shared across every object cloned in that pass (`store`, `iprop`, these
+     * four, etc). Since `env_verify`/`env_post` are FRESH, INDEPENDENT `VarEnv`s (see above), their own
+     * `extends_abstract_dom()` counters each restart at 0 -- so `verify_iprop`'s atype (1, from
+     * `env_verify`'s 2nd call) collided with the MAIN `iprop`'s atype (1, from `env`'s 2nd call in
+     * `allocate()`), and `postcondition_iprop`'s atype (1, from `env_post`'s 2nd call) collided with
+     * BOTH. `clone<IProp>(other.iprop)` populated `deps[1]` first; the two verification propagators,
+     * cloned afterward under the same colliding key, silently received `iprop`'s own cached clone
+     * instead of their own -- both ending up with `iprop`'s full bytecode set (network equations AND
+     * the boundary marker) rather than their own distinct (network-only / postcondition-only) content.
+     * Drawing these four atypes from the MAIN `env`'s ongoing counter instead guarantees they cannot
+     * collide with `iprop`'s, each other's, or any other domain's atype in this `AbstractDeps` scope.
+     * This does not affect name resolution: `env_verify`/`env_post` still self-extend their own
+     * `avar2lvar` bookkeeping up to whatever atype they're given the first time a variable is
+     * interpreted at it (`VarEnv::extends_vars` pads via `extends_abstract_doms`), so the actual
+     * numeric origin of the atype value is irrelevant to their correctness. */
+    verify_store = battery::allocate_shared<IStore, StoreAllocator>(store_allocator, env.extends_abstract_dom(), num_net_vars, store_allocator);
+    verify_iprop = battery::allocate_shared<IProp, PropAllocator>(prop_allocator, env.extends_abstract_dom(), verify_store, prop_allocator);
+    postcondition_store = battery::allocate_shared<IStore, StoreAllocator>(store_allocator, env.extends_abstract_dom(), num_post_vars, store_allocator);
+    postcondition_iprop = battery::allocate_shared<IProp, PropAllocator>(prop_allocator, env.extends_abstract_dom(), postcondition_store, prop_allocator);
+
+    IDiagnostics diag_net;
+    typename IProp::template tell_type<PropAllocator> net_tell(prop_allocator);
+    if(!top_level_ginterpret_in<IKind::TELL, false>(*verify_iprop, network_only, env_verify, net_tell, diag_net)) {
+      std::cerr << "%% WARNING: failed to tell the network-only verification oracle; "
+                   "the corrected SAT check (verify) will be unavailable." << std::endl;
+      verify_store = nullptr;
+      verify_iprop = nullptr;
+      return;
+    }
+    verify_iprop->deduce(net_tell);
+
+    IDiagnostics diag_post;
+    typename IProp::template tell_type<PropAllocator> post_tell(prop_allocator);
+    if(!top_level_ginterpret_in<IKind::TELL, false>(*postcondition_iprop, postcondition_only, env_post, post_tell, diag_post)) {
+      std::cerr << "%% WARNING: failed to tell the postcondition-only verification oracle; "
+                   "the corrected SAT check (verify) will be unavailable." << std::endl;
+      postcondition_store = nullptr;
+      postcondition_iprop = nullptr;
+      return;
+    }
+    postcondition_iprop->deduce(post_tell);
+
+    /** Bridge the three domains (`store`, `verify_store`, `postcondition_store`)
+     * purely by NAME, since they each have their own, independent AVar
+     * numbering. */
+    shared_var_map_verify = battery::vector<AVar, BasicAllocator>(basic_allocator);
+    shared_var_map_postcondition = battery::vector<AVar, BasicAllocator>(basic_allocator);
+    verify_input_map = battery::vector<AVar, BasicAllocator>(store->vars(), AVar{}, basic_allocator);
+
+    /** `verify_input_map`: for each variable known to BOTH `store` (the main,
+     * combined domain, whose numbering `strat.vars` is tagged for) and
+     * `verify_store` (the network-only domain), record the mapping so a
+     * candidate's singleton box can be embedded into `verify_store`. */
+    for(size_t i = 0; i < env.num_vars(); ++i) {
+      const auto& v = env[static_cast<int>(i)];
+      auto avar_main = v.avar_of(store->aty());
+      if(!avar_main.has_value()) {
+        continue;
+      }
+      auto verify_var = env_verify.variable_of(v.name);
+      if(verify_var.has_value()) {
+        auto avar_verify = verify_var->get().avar_of(verify_store->aty());
+        if(avar_verify.has_value()) {
+          verify_input_map[avar_main.value().vid()] = avar_verify.value();
+        }
+      }
+    }
+
+    /** The variables SHARED between the two sides (the network's own output
+     * variables) are exactly the names known to BOTH `env_verify` and
+     * `env_post`. */
+    for(size_t i = 0; i < env_verify.num_vars(); ++i) {
+      const auto& v = env_verify[static_cast<int>(i)];
+      auto avar_verify = v.avar_of(verify_store->aty());
+      if(!avar_verify.has_value()) {
+        continue;
+      }
+      auto post_var = env_post.variable_of(v.name);
+      if(post_var.has_value()) {
+        auto avar_post = post_var->get().avar_of(postcondition_store->aty());
+        if(avar_post.has_value()) {
+          shared_var_map_verify.push_back(avar_verify.value());
+          shared_var_map_postcondition.push_back(avar_post.value());
+        }
+      }
+    }
+    verify_store_pristine = battery::allocate_shared<IStore, StoreAllocator>(store_allocator, *verify_store, store_allocator);
+    postcondition_store_pristine = battery::allocate_shared<IStore, StoreAllocator>(store_allocator, *postcondition_store, store_allocator);
+
+    if(config.verbose_solving) {
+      printf("%% Verification oracle ready: %d network bytecodes, %d postcondition bytecodes, %zu shared variables.\n",
+        verify_iprop->num_deductions(), postcondition_iprop->num_deductions(), shared_var_map_verify.size());
+    }
+    has_verify_oracle = true;
+  }
+
+  /** The meet-free forward inclusion test (Definition `def-verify`), for the
+   * CPU solver (`cpu_solving.hpp`).
+   *
+   * Must be called only once `store`'s own current box is a genuine
+   * candidate (e.g. `search_tree->is_solution(env)` holds): re-seeds
+   * `verify_store`/`postcondition_store` from their pristine snapshots,
+   * embeds the network's OWN input variables (by name, via `input_neurons`)
+   * from `store`'s current (singleton) values, forward-derives every other
+   * variable via a clean fixpoint over `verify_iprop`'s bytecodes (100%
+   * network-derived, never meeting against the postcondition), transfers the
+   * computed output variables into `postcondition_store`, and certifies via
+   * `is_fsolution` over ALL of `postcondition_iprop`'s bytecodes (100%
+   * postcondition-derived). Returns `false` (never declare `sat`) if no
+   * verification oracle is available at all. */
+  bool verify() {
+    if(!has_verify_oracle) {
+      return false;
+    }
+    verify_store_pristine->copy_to(*verify_store);
+    postcondition_store_pristine->copy_to(*postcondition_store);
+    for(int k = 0; k < input_neurons.size(); ++k) {
+      auto var = env.variable_of(input_neurons[k].data());
+      if(!var.has_value()) {
+        continue;
+      }
+      auto avar_main = var->get().avar_of(store->aty());
+      if(!avar_main.has_value()) {
+        continue;
+      }
+      AVar va = verify_input_map[avar_main.value().vid()];
+      if(!va.is_untyped()) {
+        verify_store->embed(va, (*store)[avar_main.value().vid()]);
+      }
+    }
+    bool has_changed = true;
+    while(has_changed && !verify_iprop->is_bot()) {
+      has_changed = false;
+      for(int i = 0; i < verify_iprop->num_deductions(); ++i) {
+        if(verify_iprop->fdeduce(i, config.epsilon)) {
+          has_changed = true;
+        }
+      }
+    }
+    if(verify_iprop->is_bot()) {
+      return false;
+    }
+    for(int k = 0; k < shared_var_map_verify.size(); ++k) {
+      postcondition_store->embed(shared_var_map_postcondition[k], (*verify_store)[shared_var_map_verify[k].vid()]);
+    }
+    if(postcondition_iprop->is_bot()) {
+      return false;
+    }
+    for(int i = 0; i < postcondition_iprop->num_deductions(); ++i) {
+      if(!postcondition_iprop->is_fsolution(i, config.epsilon)) {
+        return false;
+      }
+    }
+    return true;
+  }
+#endif
+
   void preprocess_tcn(F& f) {
 #ifdef WITH_NNV
     f = ternarize(f, VarEnv<BasicAllocator>(), false);
@@ -550,11 +976,29 @@ public:
 #endif
     battery::vector<F> extra;
     f = normalize(f, extra);
+#ifdef WITH_NNV
+    F network_only_formula;
+    F postcondition_only_formula;
+    bool have_split = false;
+    if(network_formula && postcondition_formula) {
+      have_split = split_by_marker(f, network_only_formula, postcondition_only_formula);
+      if(!have_split) {
+        std::cerr << "%% WARNING: could not locate the network/postcondition boundary marker; "
+                     "the corrected SAT check (verify) will be unavailable."
+                  << std::endl;
+      }
+    }
+#endif
     size_t num_vars = num_quantified_vars(f);
     allocate(num_vars, true);
     if(!interpret(f)) {
       exit(EXIT_FAILURE);
     }
+#ifdef WITH_NNV
+    if(have_split) {
+      setup_verification_oracle(network_only_formula, postcondition_only_formula);
+    }
+#endif
     analyze_tcn("tcn");
     simplifier->init_env(env);
     if(config.disable_simplify) {

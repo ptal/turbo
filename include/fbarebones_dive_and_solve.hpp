@@ -36,8 +36,8 @@ namespace bt = ::battery;
 
 #include <cuda/std/chrono>
 #include <cuda/semaphore>
-#include "lala/onnxruntime-linux-x64-gpu-1.19.2/include/onnxruntime_cxx_api.h" 
-#include <cuda_runtime.h>
+// #include "lala/onnxruntime-linux-x64-gpu-1.19.2/include/onnxruntime_cxx_api.h" 
+// #include <cuda_runtime.h>
 
 #endif
 
@@ -110,6 +110,40 @@ struct BlockData {
    * */
   abstract_ptr<FProp> iprop;
 
+  /** Meet-free forward inclusion test (Definition `def-verify`).
+   *
+   * `verify_store`/`verify_iprop` and `postcondition_store`/`postcondition_iprop`
+   * are built directly from `unified_data.root.verify_store`/`verify_iprop`
+   * and `.postcondition_store`/`.postcondition_iprop` (see `allocate()`) --
+   * TWO INDEPENDENT store/propagator pairs, told host-side (in
+   * `CP::setup_verification_oracle`, common_solving.hpp) with ONLY the
+   * network's own equations and ONLY the postcondition's own atoms,
+   * respectively. Neither ever sees the other side's atoms: `verify_iprop`'s
+   * bytecodes are 100% network-derived (no boundary index needed -- ALL of
+   * them get run forward), and `postcondition_iprop`'s bytecodes are 100%
+   * postcondition-derived. This avoids both failure modes a single, combined
+   * `iprop` has: `PIR::deduce` sorting bytecodes by operator (destroying any
+   * notion of a contiguous "network vs postcondition" index range), and a
+   * simple bound postcondition atom (e.g. `Y_0 >= c`) being silently absorbed
+   * into a shared store's domain at TELL time.
+   *
+   * `verify_store` does NOT share `store`'s `aty()`/`AVar` numbering (they are
+   * genuinely independent), so `strat.vars[i]` cannot be used to index into
+   * it directly -- `unified_data.root.verify_input_map` (see `allocate()`)
+   * gives the corresponding `AVar` for each strategy variable. After the
+   * forward-only fixpoint on `verify_iprop`, the shared (output) variables'
+   * computed domains are copied into `postcondition_store` via
+   * `unified_data.root.shared_var_map_verify`/`shared_var_map_postcondition`,
+   * and the postcondition is certified via `is_fsolution` over ALL of
+   * `postcondition_iprop`'s bytecodes. `has_verify_oracle` mirrors
+   * `CP::has_verify_oracle`: if it's false, we conservatively never
+   * declare `sat` rather than fall back to the old, unsound check. */
+  abstract_ptr<FStore> verify_store;
+  abstract_ptr<FProp> verify_iprop;
+  abstract_ptr<FStore> postcondition_store;
+  abstract_ptr<FProp> postcondition_iprop;
+  bool has_verify_oracle;
+
   /** The statistics of the current block. */
   Statistics<bt::global_allocator> stats;
 
@@ -148,11 +182,11 @@ struct BlockData {
   cuda::std::chrono::system_clock::time_point start_time;
 
   /** The gradients from the neural network. */
-  float* h_gradients;
-  float* h_mid_gradients;
+  // float* h_gradients;
+  // float* h_mid_gradients;
   // float* h_lb_gradients;
   // float* h_ub_gradients;
-  int num_h_gradients;
+  // int num_h_gradients;
 
   /* For underapproximation search strategy. */
   bool is_uass;
@@ -163,7 +197,7 @@ struct BlockData {
    , next_unassigned_var(0)
    , decisions(5000)
    , depth(0)
-   , h_gradients(nullptr)
+  //  , h_gradients(nullptr)
   //  , h_mid_gradients(nullptr)
   //  , h_lb_gradients(nullptr)
   //  , h_ub_gradients(nullptr)
@@ -184,10 +218,28 @@ struct BlockData {
       inner_box = bt::make_shared<VStore<FItv, bt::global_allocator>, bt::global_allocator>(u_store);
       store = bt::allocate_shared<FStore, bt::pool_allocator>(store_allocator, u_store, store_allocator);
       iprop = bt::allocate_shared<FProp, bt::pool_allocator>(prop_allocator, u_iprop, store, prop_allocator);
-      num_h_gradients = u_store.vars(); // only take input neurons.
-      size_t gradient_bytes = sizeof(float) * static_cast<size_t>(num_h_gradients) * 4;
-      void* gradient_mem = bt::global_allocator{}.allocate(gradient_bytes);
-      h_gradients = static_cast<float*>(gradient_mem);
+      has_verify_oracle = unified_data.root.has_verify_oracle;
+      if(has_verify_oracle) {
+        /** Built from `unified_data.root.verify_store`/`.verify_iprop` and
+         * `.postcondition_store`/`.postcondition_iprop` -- TWO INDEPENDENT
+         * store/propagator pairs (told host-side with only the network's own
+         * equations, and only the postcondition's own atoms, respectively;
+         * see `CP::setup_verification_oracle`). See the NOTE on
+         * `verify_store`/`verify_iprop`'s declaration above for why they must
+         * NOT be derived from `u_store`/`u_iprop`. */
+        const auto& u_verify_store = *(unified_data.root.verify_store);
+        const auto& u_verify_iprop = *(unified_data.root.verify_iprop);
+        const auto& u_postcondition_store = *(unified_data.root.postcondition_store);
+        const auto& u_postcondition_iprop = *(unified_data.root.postcondition_iprop);
+        verify_store = bt::allocate_shared<FStore, bt::pool_allocator>(store_allocator, u_verify_store, store_allocator);
+        verify_iprop = bt::allocate_shared<FProp, bt::pool_allocator>(prop_allocator, u_verify_iprop, verify_store, prop_allocator);
+        postcondition_store = bt::allocate_shared<FStore, bt::pool_allocator>(store_allocator, u_postcondition_store, store_allocator);
+        postcondition_iprop = bt::allocate_shared<FProp, bt::pool_allocator>(prop_allocator, u_postcondition_iprop, postcondition_store, prop_allocator);
+      }
+      // num_h_gradients = u_store.vars(); // only take input neurons.
+      // size_t gradient_bytes = sizeof(float) * static_cast<size_t>(num_h_gradients) * 4;
+      // void* gradient_mem = bt::global_allocator{}.allocate(gradient_bytes);
+      // h_gradients = static_cast<float*>(gradient_mem);
       // h_mid_gradients = h_gradients + num_h_gradients;
       // h_lb_gradients = h_mid_gradients + num_h_gradients;
       // h_ub_gradients = h_lb_gradients + num_h_gradients;
@@ -201,6 +253,10 @@ struct BlockData {
       // NOTE: .reset() does not work because it does not reset the allocator, which is itself allocated in global memory.
       store = abstract_ptr<FStore>();
       iprop = abstract_ptr<FProp>();
+      verify_store = abstract_ptr<FStore>();
+      verify_iprop = abstract_ptr<FProp>();
+      postcondition_store = abstract_ptr<FStore>();
+      postcondition_iprop = abstract_ptr<FProp>();
     }
   }
 
@@ -234,7 +290,7 @@ struct BlockData {
         }
         case VariableOrder::GRA_ANTI_FIRST_FAIL: {
           lattice_smallest_split(has_changed, idx, strategies[i], epsilon,
-            [&](const FItv& u, int g_idx) { return LB2(battery::mul_up(u.width().ub().value(), h_gradients[g_idx])); });
+            [&](const FItv& u, int g_idx) { return LB2(u.width().ub().value()); });
           break;
         }
         case VariableOrder::LARGEST: {
@@ -681,10 +737,10 @@ struct GridData {
 
 MemoryConfig configure_gpu_fbarebones(CP<FItv>&);
 __global__ void initialize_global_data(UnifiedData*, bt::unique_ptr<GridData, bt::global_allocator>*);
-__global__ void gpu_fbarebones_solve(UnifiedData*, GridData*, Ort::Session&);
+__global__ void gpu_fbarebones_solve(UnifiedData*, GridData*);
 template <class FPEngine>
 __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data, BlockData& block_data,
-   FPEngine& fp_engine, bool& stop, bool& has_changed, bool& is_leaf_node, Ort::Session&);
+   FPEngine& fp_engine, bool& stop, bool& has_changed, bool& is_leaf_node);
 // __device__ INLINE void back_propagation(BlockData& block_data, Ort::Session& session);
 __global__ void reduce_blocks(UnifiedData*, GridData*);
 __global__ void deallocate_global_data(bt::unique_ptr<GridData, bt::global_allocator>*);
@@ -709,12 +765,12 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
   auto unified_data = bt::make_unique<UnifiedData, ConcurrentAllocator>(cp, mem_config);
   auto grid_data = bt::make_unique<bt::unique_ptr<GridData, bt::global_allocator>, ConcurrentAllocator>();
   initialize_global_data<<<1,1>>>(unified_data.get(), grid_data.get());
-  Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "nnv");
-  Ort::SessionOptions session_options;
-  OrtCUDAProviderOptions cuda_options;
-  cuda_options.device_id = 0; 
-  session_options.AppendExecutionProvider_CUDA(cuda_options);
-  Ort::Session session(env, config.onnx_path.data(), session_options);
+  // Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "nnv");
+  // Ort::SessionOptions session_options;
+  // OrtCUDAProviderOptions cuda_options;
+  // cuda_options.device_id = 0; 
+  // session_options.AppendExecutionProvider_CUDA(cuda_options);
+  // Ort::Session session(env, config.onnx_path.data(), session_options);
   CUDAEX(cudaDeviceSynchronize());
   /** We wait that either the solving is interrupted, or that all threads have finished. */
   /** Block the signal CTRL-C to notify the threads if we must exit. */
@@ -723,7 +779,7 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
     <<<static_cast<unsigned int>(cp.stats.num_blocks),
       CUDA_THREADS_PER_BLOCK,
       mem_config.shared_bytes>>>
-    (unified_data.get(), grid_data->get(), session);
+    (unified_data.get(), grid_data->get());
   auto now = std::chrono::steady_clock::now();
   int64_t time_to_kernel_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now - start).count();
   bool interrupted = wait_solving_ends(unified_data->stop, unified_data->root, start);
@@ -799,11 +855,29 @@ MemoryConfig configure_gpu_fbarebones(CP<FItv>& cp) {
   size_t store_bytes = gpu_sizeof<FStore>() + gpu_sizeof<abstract_ptr<FStore>>() + cp.store->vars() * gpu_sizeof<FItv>();
   size_t iprop_bytes = gpu_sizeof<FProp>() + gpu_sizeof<abstract_ptr<FProp>>() + cp.iprop->num_deductions() * gpu_sizeof<bytecode_type>() + gpu_sizeof<typename FProp::bytecodes_type>();
   // size_t gradient_bytes = sizeof(float) * static_cast<size_t>(cp.store->vars()) * 4;
+  /** Meet-free forward inclusion test (Definition `def-verify`): each block
+   * additionally owns a `verify_store`/`verify_iprop` pair (told with ONLY
+   * the network's own equations) and a `postcondition_store`/
+   * `postcondition_iprop` pair (told with ONLY the postcondition's own
+   * atoms) -- two genuinely independent domains, budgeted from their OWN
+   * sizes, not `store`/`iprop`'s. */
+  size_t verify_store_bytes = 0;
+  size_t verify_iprop_bytes = 0;
+  size_t postcondition_store_bytes = 0;
+  size_t postcondition_iprop_bytes = 0;
+  if(cp.has_verify_oracle) {
+    verify_store_bytes = gpu_sizeof<FStore>() + gpu_sizeof<abstract_ptr<FStore>>() + cp.verify_store->vars() * gpu_sizeof<FItv>();
+    verify_iprop_bytes = gpu_sizeof<FProp>() + gpu_sizeof<abstract_ptr<FProp>>() + cp.verify_iprop->num_deductions() * gpu_sizeof<bytecode_type>() + gpu_sizeof<typename FProp::bytecodes_type>();
+    postcondition_store_bytes = gpu_sizeof<FStore>() + gpu_sizeof<abstract_ptr<FStore>>() + cp.postcondition_store->vars() * gpu_sizeof<FItv>();
+    postcondition_iprop_bytes = gpu_sizeof<FProp>() + gpu_sizeof<abstract_ptr<FProp>>() + cp.postcondition_iprop->num_deductions() * gpu_sizeof<bytecode_type>() + gpu_sizeof<typename FProp::bytecodes_type>();
+  }
   size_t mem_per_block = gpu_sizeof<BlockData>()
     + store_bytes * size_t{3}  // current, root, best.
     + store_bytes * size_t{2}  // search strategies
     + iprop_bytes * size_t{2}
-    + cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<bound_type>()  // fixpoint engine
+    + verify_store_bytes + verify_iprop_bytes  // verify_store + verify_iprop
+    + postcondition_store_bytes + postcondition_iprop_bytes  // postcondition_store + postcondition_iprop
+    + cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<bound_type>()  // fixpoint engine (verify's own fixpoint is a plain hand-rolled loop, no extra engine to budget)
     // + gradient_bytes
     + (gpu_sizeof<bound_type>() + gpu_sizeof<LightBranch<FItv>>()) * size_t{MAX_SEARCH_DEPTH};
   // size_t estimated_global_mem = gpu_sizeof<UnifiedData>() + store_bytes * size_t{5} + iprop_bytes + gradient_bytes +
@@ -835,14 +909,21 @@ MemoryConfig configure_gpu_fbarebones(CP<FItv>& cp) {
     cp.stats.print_memory_statistics(cp.config.verbose_solving, "stack_memory", total_stack_size);
   }
 
-  /** V. Configure the shared memory size. */
+  /** V. Configure the shared memory size.
+   * `store_allocator`/`prop_allocator` (see `BlockData::allocate`) are each a
+   * SINGLE pool per block, drawn from for `store`/`iprop` AND (when the
+   * verify oracle is available) `verify_store`+`postcondition_store` /
+   * `verify_iprop`+`postcondition_iprop` -- the pool's budget must cover all
+   * of them, not just `store`/`iprop` alone. */
+  size_t total_store_bytes = store_bytes + verify_store_bytes + postcondition_store_bytes;
+  size_t total_prop_bytes = iprop_bytes + verify_iprop_bytes + postcondition_iprop_bytes;
   int blocks_per_sm = std::max(1, (cp.stats.num_blocks + deviceProp.multiProcessorCount - 1) / deviceProp.multiProcessorCount);
   MemoryConfig mem_config;
   if(config.only_global_memory) {
-    mem_config = MemoryConfig(store_bytes, iprop_bytes);
+    mem_config = MemoryConfig(total_store_bytes, total_prop_bytes);
   }
   else {
-    mem_config = MemoryConfig((void*) gpu_fbarebones_solve, config.verbose_solving, blocks_per_sm, store_bytes, iprop_bytes);
+    mem_config = MemoryConfig((void*) gpu_fbarebones_solve, config.verbose_solving, blocks_per_sm, total_store_bytes, total_prop_bytes);
   }
   mem_config.print_mzn_statistics(config, cp.stats);
   return mem_config;
@@ -860,7 +941,7 @@ __global__ void initialize_global_data(
     block_data.timer = block_data.stats.stop_timer(Timer::KIND, block_data.timer); \
   }
 
-__global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_data, Ort::Session& session) {
+__global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_data) {
   extern __shared__ unsigned char shared_mem[];
   auto& config = unified_data->root.config;
   BlockData& block_data = grid_data->blocks[blockIdx.x];
@@ -922,7 +1003,7 @@ __global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_d
     __syncthreads();
     while(remaining_depth > 0 && !is_leaf_node && !stop) {
       __syncthreads();
-      propagate(*unified_data, *grid_data, block_data, fp_engine, stop, has_changed, is_leaf_node, session);
+      propagate(*unified_data, *grid_data, block_data, fp_engine, stop, has_changed, is_leaf_node);
       __syncthreads();
       if(!is_leaf_node) {
         block_data.split(has_changed, grid_data->search_strategies, config.epsilon);
@@ -994,7 +1075,7 @@ __global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_d
       while(!stop) {
 
         // I. Propagate the current node.
-        propagate(*unified_data, *grid_data, block_data, fp_engine, stop, has_changed, is_leaf_node, session);
+        propagate(*unified_data, *grid_data, block_data, fp_engine, stop, has_changed, is_leaf_node);
         __syncthreads();
 
         // II. Branching
@@ -1119,25 +1200,25 @@ __global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_d
   __syncthreads();
 }
 
-void back_propagation(BlockData& block_data, Ort::Session& session) {
-  // Step 1. 
-  Ort::MemoryInfo cuda_mem_info("Cuda", OrtAllocatorType::OrtDeviceAllocator, 0, OrtMemType::OrtMemTypeDefault);
+void back_propagation(BlockData& block_data) {
+  // // Step 1. 
+  // Ort::MemoryInfo cuda_mem_info("Cuda", OrtAllocatorType::OrtDeviceAllocator, 0, OrtMemType::OrtMemTypeDefault);
 
-  // Step 2. 
-  Ort::TypeInfo input_type_info = session.GetInputTypeInfo(0);
-  battery::vector<int64_t> input_dims = input_type_info.GetTensorTypeAndShapeInfo().GetShape();
-  size_t total_elements = 1;
-  for (size_t i = 0; i < input_dims.size(); ++i) {
-    total_elements *= input_dims[i];
-  }
+  // // Step 2. 
+  // Ort::TypeInfo input_type_info = session.GetInputTypeInfo(0);
+  // battery::vector<int64_t> input_dims = input_type_info.GetTensorTypeAndShapeInfo().GetShape();
+  // size_t total_elements = 1;
+  // for (size_t i = 0; i < input_dims.size(); ++i) {
+  //   total_elements *= input_dims[i];
+  // }
 
-  Ort::Value input_mid_tensor = Ort::Value::CreateTensor<float>(
-    cuda_mem_info,
-    block_data.h_mid_gradients,
-    total_elements,
-    input_dims.data(),
-    input_dims.size()
-  );
+  // Ort::Value input_mid_tensor = Ort::Value::CreateTensor<float>(
+  //   cuda_mem_info,
+  //   block_data.h_mid_gradients,
+  //   total_elements,
+  //   input_dims.data(),
+  //   input_dims.size()
+  // );
   // Ort::Value input_lb_tensor = Ort::Value::CreateTensor<float>(
   //   cuda_mem_info,
   //   block_data.h_lb_gradients,
@@ -1154,30 +1235,30 @@ void back_propagation(BlockData& block_data, Ort::Session& session) {
   // );
 
   // Step 3.
-  Ort::RunOptions run_opts;
-  Ort::AllocatorWithDefaultOptions ort_allocator;
-  Ort::AllocatedStringPtr input_name_alloc = session.GetInputNameAllocated(0, ort_allocator);
-  std::string real_input_name = input_name_alloc.get();
-  Ort::AllocatedStringPtr output_name_alloc = session.GetOutputNameAllocated(0, ort_allocator);
-  std::string real_output_name = output_name_alloc.get();
+  // Ort::RunOptions run_opts;
+  // Ort::AllocatorWithDefaultOptions ort_allocator;
+  // Ort::AllocatedStringPtr input_name_alloc = session.GetInputNameAllocated(0, ort_allocator);
+  // std::string real_input_name = input_name_alloc.get();
+  // Ort::AllocatedStringPtr output_name_alloc = session.GetOutputNameAllocated(0, ort_allocator);
+  // std::string real_output_name = output_name_alloc.get();
 
-  const char* input_names[] = { real_input_name.c_str() };
-  const char* output_names[] = { real_output_name.c_str() };
-  const char* const* input_names_ptr = input_names;
-  const char* const* output_names_ptr = output_names;
+  // const char* input_names[] = { real_input_name.c_str() };
+  // const char* output_names[] = { real_output_name.c_str() };
+  // const char* const* input_names_ptr = input_names;
+  // const char* const* output_names_ptr = output_names;
 
   // Step 4.
-  std::vector<Ort::Value> output_mid_tensors;
+  // std::vector<Ort::Value> output_mid_tensors;
   // std::vector<Ort::Value> output_lb_tensors;
   // std::vector<Ort::Value> output_ub_tensors;
-  output_mid_tensors = session.Run(
-    run_opts,
-    input_names_ptr, 
-    &input_mid_tensor,
-    1,
-    output_names_ptr,
-    1
-  );
+  // output_mid_tensors = session.Run(
+  //   run_opts,
+  //   input_names_ptr, 
+  //   &input_mid_tensor,
+  //   1,
+  //   output_names_ptr,
+  //   1
+  // );
   // output_lb_tensors = session.Run(
   //   run_opts,
   //   input_names_ptr,
@@ -1196,25 +1277,25 @@ void back_propagation(BlockData& block_data, Ort::Session& session) {
   // );
 
   // Step 5. 
-  block_data.h_mid_gradients = output_mid_tensors[0].GetTensorMutableData<float>();
+  // block_data.h_mid_gradients = output_mid_tensors[0].GetTensorMutableData<float>();
   // block_data.h_lb_gradients = output_lb_tensors[0].GetTensorMutableData<float>();
   // block_data.h_ub_gradients = output_ub_tensors[0].GetTensorMutableData<float>();
 
   // TODO: combine these gradients together. just use average
   // we also have to consider floating-point errors.
   // to simplicitly, we use only upper-towards rounding function
-  for(size_t i = 0; i < block_data.num_h_gradients; ++i){
+  // for(size_t i = 0; i < block_data.num_h_gradients; ++i){
     // block_data.h_gradients[i] = battery::div_up(battery::add_up(battery::add_up(block_data.h_mid_gradients[i], block_data.h_lb_gradients[i]), block_data.h_ub_gradients[i]), float{3.0});
-    block_data.h_gradients[i] = block_data.h_mid_gradients[i];
+    // block_data.h_gradients[i] = block_data.h_mid_gradients[i];
     // block_data.h_gradients[i] = block_data.h_ub_gradients[i];
-  }
+  // }
 
-  cudaDeviceSynchronize();
+  // cudaDeviceSynchronize();
 }
 
 template <class FPEngine>
 __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data, BlockData& block_data,
-   FPEngine& fp_engine, bool& stop, bool& has_changed, bool& is_leaf_node, Ort::Session& session)
+   FPEngine& fp_engine, bool& stop, bool& has_changed, bool& is_leaf_node)
 {
   __shared__ int warp_iterations[CUDA_THREADS_PER_BLOCK/32];
   warp_iterations[threadIdx.x / 32] = 0;
@@ -1289,7 +1370,7 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
     __syncthreads();
     // This is an underapproximation caes. 
     for(int i = (int)group.thread_rank(); i < strat.vars.size(); i+=group.num_threads()){
-      if(store[i].lb().value() != store[i].ub().value()){
+      if(store[strat.vars[i].vid()].lb().value() != store[strat.vars[i].vid()].ub().value()){
         has_changed = true;
         break;
       }
@@ -1298,15 +1379,127 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
     num_active = has_changed ? 1 : 0;
     TIMEPOINT(SELECT_FP_FUNCTIONS);
     if (num_active == 0) {
-      // This is SAT case.
       is_leaf_node = true;
+      /** All input/strategy variables are singleton and `!iprop.is_bot()`.
+       * This is NECESSARY but NOT SUFFICIENT evidence of a real solution
+       * (see the paper's Example on a spurious fixed point): `iprop` was
+       * told BOTH the network's equations AND the postcondition, so a
+       * sound-but-not-exact forward enclosure of an auxiliary/output
+       * variable can have been met against the goal region and collapsed
+       * to a non-bottom singleton that does not correspond to any real
+       * solution. We certify via the meet-free forward inclusion test
+       * (Definition `def-verify`) before ever declaring `sat`. */
+      __shared__ bool verified;
       if(threadIdx.x == 0) {
-        block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);
+        verified = false;
       }
-      block_data.store->copy_to(group, *block_data.inner_box);
-      if(threadIdx.x == 0) {
-        block_data.stats.solutions++;
-        unified_data.stop.test_and_set();
+      __syncthreads();
+      if(block_data.has_verify_oracle) {
+        /** `verify_store` starts fully TOP (built fresh from
+         * `unified_data.root.verify_store`, which was never told anything
+         * but the network's own equations -- see `BlockData::allocate`), so
+         * pinning only the input/strategy variables here, then re-deriving
+         * every downstream (hidden/output) domain via a clean forward-only
+         * fixpoint below, makes the starting point for those dimensions
+         * irrelevant to soundness. `verify_store` does NOT share `store`'s
+         * `aty()`/`AVar` numbering (it is a genuinely independent domain), so
+         * `strat.vars[i]` must be translated via
+         * `unified_data.root.verify_input_map` before indexing into it.
+         *
+         * `block_data.verify_store`/`postcondition_store` are per-block, LONG
+         * -LIVED objects reused across every candidate this block checks:
+         * `embed` is a MEET, so without resetting them to a pristine TOP
+         * state first, narrowing from a previous candidate would silently
+         * persist into the next one. Re-seed both, each candidate, from the
+         * corresponding (untouched, always-TOP-for-network/postcondition-
+         * derived-variables) root object -- same `aty()`, so `copy_to` applies
+         * directly. */
+        unified_data.root.verify_store->copy_to(group, *block_data.verify_store);
+        unified_data.root.postcondition_store->copy_to(group, *block_data.postcondition_store);
+        __syncthreads();
+        for(int i = (int)group.thread_rank(); i < strat.vars.size(); i += group.num_threads()) {
+          AVar va = unified_data.root.verify_input_map[strat.vars[i].vid()];
+          if(!va.is_untyped()) {
+            block_data.verify_store->embed(va, store[strat.vars[i].vid()]);
+          }
+        }
+        __syncthreads();
+        FProp& viprop = *block_data.verify_iprop;
+        /** Forward-only fixpoint over ALL of `viprop`'s bytecodes: unlike an
+         * earlier version of this code, no boundary index is needed here --
+         * `verify_iprop` was told ONLY the network's own equations (never the
+         * postcondition, neither as a bytecode nor as a domain restriction),
+         * so every one of its bytecodes is already network-only. This can
+         * never reproduce the meet-based collapse of a spurious fixed point.
+         * Plain hand-rolled Gauss-Seidel loop (same idiom as e.g.
+         * `input_order_split` above), not `FixpointSubsetGPU`: this is a
+         * small, purely-forward propagator subset checked once per
+         * candidate. */
+        __shared__ bool verify_has_changed;
+        if(threadIdx.x == 0) {
+          verify_has_changed = true;
+        }
+        __syncthreads();
+        while(verify_has_changed && !viprop.is_bot()) {
+          __syncthreads();
+          if(threadIdx.x == 0) {
+            verify_has_changed = false;
+          }
+          __syncthreads();
+          for(int i = (int)group.thread_rank(); i < viprop.num_deductions(); i += group.num_threads()) {
+            if(viprop.fdeduce(i, config.epsilon)) {
+              verify_has_changed = true;
+            }
+          }
+          __syncthreads();
+        }
+
+        /** Transfer the network's forward-computed domains for the SHARED
+         * (output) variables into `postcondition_store` (which starts fully
+         * TOP, having been told ONLY the postcondition's own atoms), then
+         * certify via `is_fsolution` over ALL of `postcondition_iprop`'s
+         * bytecodes -- also 100% postcondition-derived, so again no boundary
+         * index is needed. `is_fsolution` checks both that each postcondition
+         * atom is entailed by the whole current enclosure (not merely some
+         * point of it) AND that every variable it touches is within
+         * `epsilon` width, matching the precision of a genuine
+         * floating-point counterexample. Every postcondition bytecode must
+         * hold (conjunction semantics). */
+        if(threadIdx.x == 0 && !viprop.is_bot()) {
+          FProp& piprop = *block_data.postcondition_iprop;
+          const auto& shared_verify = unified_data.root.shared_var_map_verify;
+          const auto& shared_post = unified_data.root.shared_var_map_postcondition;
+          for(int i = 0; i < shared_verify.size(); ++i) {
+            block_data.postcondition_store->embed(shared_post[i], (*block_data.verify_store)[shared_verify[i].vid()]);
+          }
+          verified = !piprop.is_bot();
+          for(int i = 0; verified && i < piprop.num_deductions(); ++i) {
+            verified = piprop.is_fsolution(i, config.epsilon);
+          }
+        }
+        __syncthreads();
+      }
+      if(verified) {
+        // Genuine SAT, certified by `verify` (Lemma on SAT-rule soundness).
+        if(threadIdx.x == 0) {
+          block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);
+        }
+        block_data.store->copy_to(group, *block_data.inner_box);
+        if(threadIdx.x == 0) {
+          block_data.stats.solutions++;
+          unified_data.stop.test_and_set();
+        }
+      }
+      else {
+        /** Spurious fixed point (candidate failed `verify`), or no
+         * verification oracle was available at all: drop this candidate
+         * rather than declare a possibly-unsound `sat`. Treated like an
+         * unresolved leaf, matching the bookkeeping of the `is_bot()`
+         * branch below. */
+        if(threadIdx.x == 0) {
+          block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);
+          block_data.stats.unknowns++;
+        }
       }
     }
     // else if(strat.var_order == VariableOrder::GRA_ANTI_FIRST_FAIL){
