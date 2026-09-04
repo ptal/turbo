@@ -1,12 +1,12 @@
 // Copyright 2021 Pierre Talbot
 
 #include "lala/vstore.hpp"
-#include "lala/interval.hpp"
+#include "lala/zinterval.hpp"
 #include "abstract_testing.hpp"
 
-using zlb = local::ZLB;
-using zub = local::ZUB;
-using Itv = Interval<zlb>;
+using zlb = LB<int>;
+using zub = UB<int>;
+using Itv = ZInterval<int>;
 using ZStore = VStore<zlb, standard_allocator>;
 using IStore = VStore<Itv, standard_allocator>;
 

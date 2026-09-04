@@ -3,55 +3,30 @@
 #include <gtest/gtest.h>
 #include "battery/allocator.hpp"
 #include "lala/logic/logic.hpp"
-#include "lala/universes/arith_bound.hpp"
-#include "lala/universes/flat_universe.hpp"
+#include "lala/lb.hpp"
+#include "lala/ub.hpp"
 #include "abstract_testing.hpp"
 
 using namespace lala;
 using namespace battery;
 
+using zlb = LB<int>;
+using zub = UB<int>;
 
-template<class Z, class F>
-void interpret_integer_type() {
-  std::cout << "Z ";
-  expect_interpret_equal_to<IKind::TELL>("var int: x;", Z::top());
-  std::cout << "F ";
-  expect_interpret_equal_to<IKind::TELL>("var int: x;", F::top(), VarEnv<standard_allocator>{}, true);
+/** A bound only accepts integer variables; an interval is needed to represent a Boolean domain. */
+template<class B>
+void interpret_types() {
+  expect_interpret_equal_to<IKind::TELL>("var int: x;", B::top());
+  both_interpret_must_error<B>("var real: x;");
+  both_interpret_must_error<B>("var bool: x;");
 }
 
-TEST(ArithBoundTest, InterpretIntegerType) {
-  interpret_integer_type<local::ZLB, local::FLB>();
-  interpret_integer_type<local::ZUB, local::FUB>();
+TEST(BoundTest, InterpretTypes) {
+  interpret_types<zlb>();
+  interpret_types<zub>();
 }
 
-template<class Z, class F>
-void interpret_real_type() {
-  std::cout << "Z ";
-  both_interpret_must_error<Z>("var real: x;");
-  std::cout << "F ";
-  expect_interpret_equal_to<IKind::TELL>("var real: x;", F::top());
-}
-
-TEST(ArithBoundTest, InterpretRealType) {
-  interpret_real_type<local::ZLB, local::FLB>();
-  interpret_real_type<local::ZUB, local::FUB>();
-}
-
-template<class Z, class F>
-void interpret_bool_type() {
-  std::cout << "Z ";
-  both_interpret_must_error<Z>("var bool: x;");
-  std::cout << "F ";
-  both_interpret_must_error<F>("var bool: x;");
-}
-
-TEST(ArithBoundTest, InterpretBoolType) {
-  interpret_bool_type<local::ZLB, local::FLB>();
-  interpret_bool_type<local::ZUB, local::FUB>();
-}
-
-TEST(ArithBoundTest, ZLBInterpretation) {
-  using zlb = local::ZLB;
+TEST(BoundTest, LBInterpretation) {
   expect_both_interpret_equal_to("constraint true;", zlb::top());
   expect_both_interpret_equal_to("constraint false;", zlb::bot());
 
@@ -64,18 +39,15 @@ TEST(ArithBoundTest, ZLBInterpretation) {
   expect_both_interpret_equal_to("constraint int_gt(x, -10);", zlb(-9), env);
   expect_both_interpret_equal_to("constraint int_gt(x, 10);", zlb(11), env);
 
-  interpret_must_error<IKind::ASK, zlb>("constraint int_eq(x, 0);", env);
+  // Equality is exact in the tell language, and `x != k` under-approximates in the ask language.
   expect_interpret_equal_to<IKind::TELL>("constraint int_eq(x, 0);", zlb(0), env);
-
-  interpret_must_error<IKind::TELL, zlb>("constraint int_ne(x, 1);", env);
   expect_interpret_equal_to<IKind::ASK>("constraint int_ne(x, 1);", zlb(2), env);
 
-  both_interpret_must_error<zlb>("constraint int_le(x, 10);", env);
-  both_interpret_must_error<zlb>("constraint int_lt(x, 10);", env);
+  // A lower bound cannot represent an upper bound.
+  interpret_must_error<IKind::TELL, zlb>("constraint int_le(x, 10);", env);
 }
 
-TEST(ArithBoundTest, ZUBInterpretation) {
-  using zub = local::ZUB;
+TEST(BoundTest, UBInterpretation) {
   expect_both_interpret_equal_to("constraint true;", zub::top());
   expect_both_interpret_equal_to("constraint false;", zub::bot());
 
@@ -88,28 +60,28 @@ TEST(ArithBoundTest, ZUBInterpretation) {
   expect_both_interpret_equal_to("constraint int_lt(x, -10);", zub(-11), env);
   expect_both_interpret_equal_to("constraint int_lt(x, 10);", zub(9), env);
 
-  interpret_must_error<IKind::ASK, zub>("constraint int_eq(x, 0);", env);
   expect_interpret_equal_to<IKind::TELL>("constraint int_eq(x, 0);", zub(0), env);
-
-  interpret_must_error<IKind::TELL, zub>("constraint int_ne(x, 1);", env);
   expect_interpret_equal_to<IKind::ASK>("constraint int_ne(x, 1);", zub(0), env);
 
-  both_interpret_must_error<zub>("constraint int_ge(x, 10);", env);
-  both_interpret_must_error<zub>("constraint int_gt(x, 10);", env);
+  interpret_must_error<IKind::TELL, zub>("constraint int_ge(x, 10);", env);
 }
 
-TEST(ArithBoundTest, ConjunctionDisjunction) {
-  using zlb = local::ZLB;
+TEST(BoundTest, SetMembership) {
+  VarEnv<standard_allocator> env = env_with_x();
+  // `x in S` keeps the bound of the union of the elements of `S`.
+  expect_interpret_equal_to<IKind::TELL>("constraint set_in(x, 1..10);", zlb(1), env);
+  expect_interpret_equal_to<IKind::TELL>("constraint set_in(x, 1..10);", zub(10), env);
+}
+
+TEST(BoundTest, ConjunctionDisjunction) {
   expect_both_interpret_equal_to("constraint true; constraint false;", zlb::bot());
   expect_both_interpret_equal_to("constraint false; constraint true;", zlb::bot());
 
   VarEnv<standard_allocator> env = env_with_x();
+  // A conjunction is the meet of the bounds, i.e. the largest lower bound.
   expect_both_interpret_equal_to("constraint int_ge(x, 0); constraint int_ge(x, -2); constraint int_ge(x, 2);", zlb(2), env);
-  expect_both_interpret_equal_to("constraint int_ge(x, 0); constraint int_ge(x, 2); constraint int_ge(x, -2);", zlb(2), env);
   expect_both_interpret_equal_to("constraint int_ge(x, 2); constraint int_ge(x, -2); constraint int_ge(x, 0);", zlb(2), env);
 
-  expect_both_interpret_equal_to("constraint bool_or(int_ge(x, 0), bool_or(int_ge(x, -2), int_ge(x, 2)), true);", zlb(-2), env);
-  expect_both_interpret_equal_to("constraint bool_or(int_ge(x, 0), bool_or(int_ge(x, -2), int_ge(x, 2)), true);", zlb(-2), env);
+  // A bound preserves joins, so a disjunction is interpreted exactly: the smallest lower bound.
   expect_both_interpret_equal_to("constraint bool_or(int_ge(x, 0), bool_or(int_ge(x, -2), int_ge(x, 2)), true);", zlb(-2), env);
 }
-

@@ -8,7 +8,7 @@
 #include "battery/shared_ptr.hpp"
 
 #include "lala/vstore.hpp"
-#include "lala/interval.hpp"
+#include "lala/zinterval.hpp"
 #include "lala/pir.hpp"
 #include "lala/fixpoint.hpp"
 
@@ -17,9 +17,9 @@
 using namespace lala;
 using namespace battery;
 
-using zlb = local::ZLB;
-using zub = local::ZUB;
-using Itv = Interval<zlb>;
+using zlb = LB<int>;
+using zub = UB<int>;
+using Itv = ZInterval<int>;
 using IStore = VStore<Itv, standard_allocator>;
 using IPIR = PIR<IStore>; // Interval Propagators Completion
 
@@ -32,7 +32,7 @@ void test_extract(const L& pir, bool is_ua) {
   L copy1(pir, deps);
   if(is_ua) {
     for(int i = 0; i < pir.vars(); ++i) {
-      printf("pir[%d] = [%d,%d]\n", i, pir[i].lb().value(), pir[i].ub().value());
+      printf("pir[%d] = [%d,%d]\n", i, pir[i].lb().load(), pir[i].ub().load());
     }
     for(int i = 0; i < pir.num_deductions(); ++i) {
       EXPECT_TRUE(pir.ask(i)) << "pir.ask(" << i << ") == false";
@@ -102,7 +102,7 @@ void deduce_and_test2(L& ipc, const std::vector<Itv>& before, const std::vector<
     }
   }
   // If all intervals are singleton from the beginning, we must test for completeness.
-  if(std::ranges::all_of(before, [](const Itv& itv) { return itv.lb().value() == itv.ub().value(); })) {
+  if(std::ranges::all_of(before, [](const Itv& itv) { return itv.lb().load() == itv.ub().load(); })) {
     test_completeness = true;
   }
   local::B has_changed = false;
@@ -119,7 +119,7 @@ void deduce_and_test2(L& ipc, const std::vector<Itv>& before, const std::vector<
         EXPECT_EQ(ipc[i], after[i]) << ipc[i] << " == " << after[i] << "ipc[" << i << "]";
       }
       else {
-        EXPECT_TRUE(ipc[i] >= after[i]) << ipc[i] << " >= " << after[i] << " is false (unsound) ipc[" << i << "]";
+        EXPECT_TRUE(after[i].leq(ipc[i])) << ipc[i] << " >= " << after[i] << " is false (unsound) ipc[" << i << "]";
       }
     }
   }
@@ -131,12 +131,12 @@ TEST(PIRTest, TernaryDiv) {
   Itv z = Itv(-5, -5);
 
   std::string fzn = std::format("var {}..{}: x; var {}..{}: y; var {}..{}: z;\
-    constraint {}(y, z, x);", x.lb().value(), x.ub().value(), y.lb().value(), y.ub().value(), z.lb().value(), z.ub().value(), "int_ediv");
+    constraint {}(y, z, x);", x.lb().load(), x.ub().load(), y.lb().load(), y.ub().load(), z.lb().load(), z.ub().load(), "int_ediv");
 
   std::vector<int> xs, ys, zs;
-  for(int a = x.lb().value(); a <= x.ub().value(); ++a) {
-    for(int b = y.lb().value(); b <= y.ub().value(); ++b) {
-      for(int c = z.lb().value(); c <= z.ub().value(); ++c) {
+  for(int a = x.lb().load(); a <= x.ub().load(); ++a) {
+    for(int b = y.lb().load(); b <= y.ub().load(); ++b) {
+      for(int c = z.lb().load(); c <= z.ub().load(); ++c) {
         if(c != 0 && a == battery::ediv(b, c)) {
           xs.push_back(a);
           ys.push_back(b);
@@ -643,10 +643,10 @@ TEST(PIRTest, MinConstraint3) {
   deduce_and_test(pir, 1, {Itv::top(), Itv(0, 1), Itv(0, 1)}, {Itv::top(), Itv(1,1), Itv(1, 1)}, true);
 
   interpret_must_succeed<IKind::TELL, true>("constraint int_eq(b1, int_le(x, 5));", pir, env);
-  deduce_and_test(pir, 2, {Itv::top(), Itv(1,1), Itv(1, 1)}, {Itv(Itv::LB::top(), 5), Itv(1, 1), Itv(1, 1)}, true);
+  deduce_and_test(pir, 2, {Itv::top(), Itv(1,1), Itv(1, 1)}, {Itv(Itv::lb_type::top(), 5), Itv(1, 1), Itv(1, 1)}, true);
 
   interpret_must_succeed<IKind::TELL, true>("constraint int_eq(b2, int_ge(x, 5));", pir, env);
-  deduce_and_test(pir, 3, {Itv(Itv::LB::top(), 5), Itv(1, 1), Itv(1, 1)}, {Itv(5, 5), Itv(1, 1), Itv(1, 1)}, true);
+  deduce_and_test(pir, 3, {Itv(Itv::lb_type::top(), 5), Itv(1, 1), Itv(1, 1)}, {Itv(5, 5), Itv(1, 1), Itv(1, 1)}, true);
 }
 
 // max(x, y) = z
@@ -684,10 +684,10 @@ TEST(PIRTest, MaxConstraint3) {
   deduce_and_test(pir, 1, {Itv::top(), Itv(0, 1), Itv(0, 1)}, {Itv::top(), Itv(0,0), Itv(0,0)}, true);
 
   interpret_must_succeed<IKind::TELL, true>("constraint int_eq(b1, int_le(x, 5));", pir, env);
-  deduce_and_test(pir, 2, {Itv::top(), Itv(0,0), Itv(0,0)}, {Itv(6, Itv::UB::top()), Itv(0, 0), Itv(0, 0)}, true);
+  deduce_and_test(pir, 2, {Itv::top(), Itv(0,0), Itv(0,0)}, {Itv(6, Itv::ub_type::top()), Itv(0, 0), Itv(0, 0)}, true);
 
   interpret_must_succeed<IKind::TELL, true>("constraint int_eq(b2, int_ge(x, 7));", pir, env);
-  deduce_and_test(pir, 3, {Itv(6, Itv::UB::top()), Itv(0, 0), Itv(0, 0)}, {Itv(6, 6), Itv(0, 0), Itv(0, 0)}, true);
+  deduce_and_test(pir, 3, {Itv(6, Itv::ub_type::top()), Itv(0, 0), Itv(0, 0)}, {Itv(6, 6), Itv(0, 0), Itv(0, 0)}, true);
 }
 
 TEST(PIRTest, BooleanClause1) {
@@ -912,7 +912,7 @@ TEST(PIRTest, InfiniteDomain1) {
   deduce_and_test(pir, 1, {Itv::top(), Itv(0,1)}, false);
 
   interpret_must_succeed<IKind::TELL>("constraint int_eq(b, 1);", pir, env);
-  deduce_and_test(pir, 1, {Itv::top(), Itv(1,1)}, {Itv(Itv::LB::top(), 5), Itv(1,1)}, true);
+  deduce_and_test(pir, 1, {Itv::top(), Itv(1,1)}, {Itv(Itv::lb_type::top(), 5), Itv(1,1)}, true);
 }
 
 TEST(PIRTest, InfiniteDomain2) {
@@ -924,5 +924,5 @@ TEST(PIRTest, InfiniteDomain2) {
   deduce_and_test(pir, 1, {Itv::top(), Itv(0,1)}, false);
 
   interpret_must_succeed<IKind::TELL>("constraint int_eq(b, 0);", pir, env);
-  deduce_and_test(pir, 1, {Itv::top(), Itv(0,0)}, {Itv(6, Itv::UB::top()), Itv(0,0)}, true);
+  deduce_and_test(pir, 1, {Itv::top(), Itv(0,0)}, {Itv(6, Itv::ub_type::top()), Itv(0,0)}, true);
 }

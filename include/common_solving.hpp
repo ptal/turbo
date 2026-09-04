@@ -19,7 +19,7 @@
 #include "battery/shared_ptr.hpp"
 
 #include "lala/vstore.hpp"
-#include "lala/interval.hpp"
+#include "lala/zinterval.hpp"
 #include "lala/pir.hpp"
 #include "lala/fixpoint.hpp"
 
@@ -49,7 +49,7 @@ using namespace lala;
 #else
   #error "Invalid value for TURBO_ITV_BITS: must be 16, 32 or 64."
 #endif
-using Itv = Interval<ZLB<bound_value_type, battery::local_memory>>;
+using Itv = ZInterval<bound_value_type, battery::local_memory>;
 
 static std::atomic<bool> got_signal;
 static void (*prev_sigint)(int);
@@ -141,7 +141,7 @@ template <class Universe,
   class PropAllocator,
   class StoreAllocator>
 struct AbstractDomains {
-  using universe_type = typename Universe::local_type;
+  using universe_type = typename Universe::basic_type;
 
   /** Version of the abstract domains with a simple allocator, to represent the best solutions. */
   using LIStore = VStore<universe_type, BasicAllocator>;
@@ -641,9 +641,9 @@ private:
       // = and <= cases.
       if(is_arithmetic_comparison(bytecode.op)) {
         // Not reified case.
-        if(xdom.lb().value() == xdom.ub().value()) {
+        if(xdom.lb().load() == xdom.ub().load()) {
           // Negated case.
-          if(xdom.lb().value() == 0) {
+          if(xdom.lb().load() == 0) {
             stats_tcn.ops[negate_arithmetic_comparison(bytecode.op)]++;
           }
           else {
@@ -662,18 +662,18 @@ private:
       }
     }
     for(size_t i = 0; i < store->vars(); ++i) {
-      auto width = (*store)[i].width().lb();
-      if(width.is_top()) {
+      auto card = (*store)[i].count();
+      if(card.is_top()) {
         stats_tcn.num_unbounded_vars++;
       }
       else {
-        stats_tcn.histogram_vars_dom_size[width.value() + 1]++;
+        stats_tcn.histogram_vars_dom_size[card.load()]++;
       }
-      if(width.is_top() || width.value() > 1) {
+      if(card.is_top() || card.load() > 2) {
         stats_tcn.histogram_unassigned_vars_degree[stats_tcn.vars_occurrences[i]]++;
         stats_tcn.num_unassigned_var_occurrences += stats_tcn.vars_occurrences[i];
       }
-      else if(width.value() == 1) {
+      else if(card.load() == 2) {
         stats_tcn.num_assigned_vars++;
         stats_tcn.histogram_assigned_vars_degree[stats_tcn.vars_occurrences[i]]++;
         stats_tcn.num_assigned_var_occurrences += stats_tcn.vars_occurrences[i];

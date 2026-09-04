@@ -13,9 +13,10 @@
 #include "battery/allocator.hpp"
 
 #include "lala/logic/logic.hpp"
-#include "lala/universes/arith_bound.hpp"
+#include "lala/lb.hpp"
+#include "lala/ub.hpp"
+#include "lala/zinterval.hpp"
 #include "lala/universes/nbitset.hpp"
-#include "lala/interval.hpp"
 #include "lala/vstore.hpp"
 
 #include "lala/pir.hpp"
@@ -35,8 +36,8 @@
  * The file is layered bottom-up:
  *   1. Diagnostics: `IDiagnostics` and the macros used to report why a formula is uninterpretable.
  *   2. Environment: interpretation of quantifiers and variable occurrences into `AVar`.
- *   3. Pre-universes: interpretation of *constants* (`pre_interpreter`).
- *   4. Abstract universes: `ArithBound`, `NBitset`, `Interval`.
+ *   3. Lattice properties: what interpretation needs to know about an abstract element.
+ *   4. Abstract universes: `LB`, `UB`, `NBitset`, `ZInterval`.
  *   5. Generic interpretation: `ginterpret_in` and friends, shared by all lattices.
  *   6. Abstract domains: `VStore`, `PIR`, `Simplifier`.
  *   7. Constraint network: the top-level dispatch specific to Turbo's input language.
@@ -301,315 +302,180 @@ CUDA NI bool interpret_in(const F& f, VarEnv<Alloc>& env, AVar& avar, IDiagnosti
 }
 
 /* ------------------------------------------------------------------------------------------- *
- * 3. Pre-universes: interpretation of constants
+ * 3. Lattice properties
  * ------------------------------------------------------------------------------------------- */
 
-/** Interpretation of the *constants* of a pre-universe, and the deinterpretation of a value back
- * into a logical constant. Specialize this class to give a pre-universe a different
- * interpretation of constants. */
-template <class PreUniverse>
-struct pre_interpreter;
+/** The lattice-theoretic properties of an abstract element that interpretation needs to know:
+ * whether the concretization preserves the bottom and top elements, meet and join, and the covers
+ * of the concrete domain. They describe the abstract element, but they are *used* only when
+ * interpreting a formula in it, so they live here rather than in the lattices themselves --
+ * lala-interval in particular is deliberately free of any interpretation vocabulary.
+ *
+ * Specialize this class for every abstract element that can be interpreted in. */
+template <class A>
+struct lattice_properties;
 
-/** Interpret a constant in the lattice of decreasing integers according to the downset semantics.
-    Overflows are not verified.
-    Interpretations:
-      * Formulas of kind `F::Z` are interpreted exactly: \f$ [\![ x:\mathbb{Z} \leq k:\mathbb{Z} ]\!] = k \f$.
-      * Formulas of kind `F::R` are over-approximated: \f$ [\![ x:\mathbb{Z} \leq [l..u]:\mathbb{R} ]\!] = \lfloor u \rfloor \f$.
-    Examples:
-      * \f$ [\![x <= [3.5..3.5]:R ]\!] = 3 \f$: there is no integer greater than 3 satisfying this constraint.
-      * \f$ [\![x <= [2.9..3.1]:R ]\!] = 3 \f$. */
-template <class VT>
-struct pre_interpreter<PreZUB<VT>> {
-  using pre_universe = PreZUB<VT>;
-  using value_type = typename pre_universe::value_type;
-
-private:
-  template<bool diagnose, bool is_tell, bool dualize, class F>
-  CUDA NI static bool interpret_constant(const F& f, value_type& k, IDiagnostics& diagnostics) {
-    const char* name = pre_universe::name;
-    if(f.is(F::Z)) {
-      auto z = f.z();
-      if(z == pre_universe::bot() || z == pre_universe::top()) {
-        RETURN_INTERPRETATION_ERROR("Constant of sort `Int` with the minimal or maximal representable value of the underlying integer type. We use those values to model negative and positive infinities. Example: Suppose we use a byte type, `x >= 256` is interpreted as `x >= INF` which is always false and thus is different from the intended constraint.");
-      }
-      k = z;
-      return true;
-    }
-    else if(f.is(F::R)) {
-      if constexpr(dualize) {
-        if constexpr(is_tell) {
-          k = battery::ru_cast<value_type>(battery::get<0>(f.r()));
-        }
-        else {
-          k = battery::ru_cast<value_type>(battery::get<1>(f.r()));
-        }
-      }
-      else {
-        if constexpr(is_tell) {
-          k = battery::rd_cast<value_type>(battery::get<1>(f.r()));
-        }
-        else {
-          k = battery::rd_cast<value_type>(battery::get<0>(f.r()));
-        }
-      }
-      return true;
-    }
-    else if(f.is(F::B)) {
-      k = f.b() ? pre_universe::one() : pre_universe::zero();
-      return true;
-    }
-    RETURN_INTERPRETATION_ERROR("Only constants of sorts `Int`, `Bool` and `Real` can be interpreted by an integer abstract universe.");
-  }
-
-public:
-  template<bool diagnose, class F, bool dualize = false>
-  CUDA static bool interpret_tell(const F& f, value_type& tell, IDiagnostics& diagnostics) {
-    return interpret_constant<diagnose, true, dualize>(f, tell, diagnostics);
-  }
-
-  /** Similar to `interpret_tell` but the formula is under-approximated, in particular: \f$ [\![ x:\mathbb{Z} \leq [l..u]:\mathbb{R} ]\!] = \lfloor u \rfloor \f$. */
-  template<bool diagnose, class F, bool dualize = false>
-  CUDA static bool interpret_ask(const F& f, value_type& ask, IDiagnostics& diagnostics) {
-    return interpret_constant<diagnose, false, dualize>(f, ask, diagnostics);
-  }
-
-  /** Verify if the type of a variable, introduced by an existential quantifier, is compatible with
-      the current abstract universe. Variables of type `Int` are interpreted exactly
-      (\f$ \mathbb{Z} = \gamma(\top) \f$). */
-  template<bool diagnose, class F, bool dualize = false>
-  CUDA NI static bool interpret_type(const F& f, value_type& k, IDiagnostics& diagnostics) {
-    const char* name = pre_universe::name;
-    assert(f.is(F::E));
-    const auto& sort = battery::get<1>(f.exists());
-    if(sort.is_int()) {
-      k = dualize ? pre_universe::bot() : pre_universe::top();
-      return true;
-    }
-    else {
-      const auto& vname = battery::get<0>(f.exists());
-      RETURN_INTERPRETATION_ERROR("The type of `" + vname + "` can only be `Int`.")
-    }
-  }
-
-  /** Given an Integer value, create a logical constant representing that value.
-   * Note that the lattice order has no influence here.
-   * \pre `v != bot()` and `v != top()`. */
-  template<class F>
-  CUDA static F deinterpret(const value_type& v) {
-    return F::make_z(v);
-  }
+/** A lower bound over the integers: the concretization preserves everything, and the integers
+ * have covers (`prev`/`next` are `k-1`/`k+1`). */
+template <class VT, class Mem>
+struct lattice_properties<LB<VT, Mem>> {
+  constexpr static const bool is_abstract_universe = true;
+  constexpr static const bool preserve_bot = true;
+  constexpr static const bool preserve_top = true;
+  constexpr static const bool preserve_meet = true;
+  constexpr static const bool preserve_join = true;
+  constexpr static const bool preserve_concrete_covers = true;
 };
 
-/** `PreZLB` is the dual of `PreZUB`: tell becomes ask and vice-versa. */
-template <class VT>
-struct pre_interpreter<PreZLB<VT>> {
-  using pre_universe = PreZLB<VT>;
-  using dual_type = typename pre_universe::dual_type;
-  using value_type = typename pre_universe::value_type;
+template <class VT, class Mem>
+struct lattice_properties<UB<VT, Mem>> : lattice_properties<LB<VT, Mem>> {};
 
-  template <bool diagnose, class F, bool dualize = false>
-  CUDA static bool interpret_tell(const F& f, value_type& tell, IDiagnostics& diagnostics) {
-    return pre_interpreter<dual_type>::template interpret_ask<diagnose, F, true>(f, tell, diagnostics);
-  }
-
-  template <bool diagnose, class F, bool dualize = false>
-  CUDA static bool interpret_ask(const F& f, value_type& ask, IDiagnostics& diagnostics) {
-    return pre_interpreter<dual_type>::template interpret_tell<diagnose, F, true>(f, ask, diagnostics);
-  }
-
-  template <bool diagnose, class F, bool dualize = false>
-  CUDA static bool interpret_type(const F& f, value_type& k, IDiagnostics& diagnostics) {
-    return pre_interpreter<dual_type>::template interpret_type<diagnose, F, true>(f, k, diagnostics);
-  }
-
-  template<class F>
-  CUDA static F deinterpret(const value_type& v) {
-    return pre_interpreter<dual_type>::template deinterpret<F>(v);
-  }
+/** An interval does not preserve joins: the join of two intervals over-approximates their union. */
+template <class VT, class Mem>
+struct lattice_properties<ZInterval<VT, Mem>> {
+  constexpr static const bool is_abstract_universe = true;
+  constexpr static const bool preserve_bot = true;
+  constexpr static const bool preserve_top = true;
+  constexpr static const bool preserve_meet = true;
+  constexpr static const bool preserve_join = false;
+  constexpr static const bool preserve_concrete_covers = true;
 };
 
-/** Interpret a constant in the lattice of decreasing floating-point numbers according to the
-    downset semantics.
-    Interpretations:
-      * Formulas of kind `F::Z` might be over-approximated (if the integer cannot be represented in a floating-point number because it is too large).
-      * Formulas of kind `F::R` might be over-approximated to the upper bound of the interval (if the real number is represented by an interval [lb..ub] where lb != ub).
-      * Other kind of formulas are not supported. */
-template <class VT>
-struct pre_interpreter<PreFUB<VT>> {
-  using pre_universe = PreFUB<VT>;
-  using value_type = typename pre_universe::value_type;
-
-private:
-  template<bool diagnose, bool is_tell, class F>
-  CUDA NI static bool interpret_constant(const F& f, value_type& k, IDiagnostics& diagnostics) {
-    const char* name = pre_universe::name;
-    if(f.is(F::Z)) {
-      auto z = f.z();
-      // We do not consider the min and max values of integers to be infinities when they are part of the logical formula.
-      if constexpr(is_tell) {
-        k = battery::ru_cast<value_type, decltype(z), false>(z);
-      }
-      else {
-        k = battery::rd_cast<value_type, decltype(z), false>(z);
-      }
-      return true;
-    }
-    else if(f.is(F::R)) {
-      if constexpr(is_tell) {
-        k = battery::ru_cast<value_type>(battery::get<1>(f.r()));
-      }
-      else {
-        k = battery::rd_cast<value_type>(battery::get<0>(f.r()));
-      }
-      return true;
-    }
-    RETURN_INTERPRETATION_ERROR("Only a constant of sort `Int` or `Real` can be interpreted by a floating-point abstract universe.")
-  }
-
-public:
-  template<bool diagnose, class F, bool dualize = false>
-  CUDA static bool interpret_tell(const F& f, value_type& k, IDiagnostics& diagnostics) {
-    return interpret_constant<diagnose, true>(f, k, diagnostics);
-  }
-
-  /** Same as `interpret_tell` but the constant is under-approximated instead. */
-  template<bool diagnose, class F, bool dualize = false>
-  CUDA static bool interpret_ask(const F& f, value_type& k, IDiagnostics& diagnostics) {
-    return interpret_constant<diagnose, false>(f, k, diagnostics);
-  }
-
-  /** Verify if the type of a variable, introduced by an existential quantifier, is compatible with
-      the current abstract universe.
-      Interpretations:
-        * Variables of type `Int` are always over-approximated (\f$ \mathbb{Z} \subseteq \gamma(\top) \f$).
-        * Variables of type `Real` are represented exactly (only initially because \f$ \mathbb{R} = \gamma(\top) \f$). */
-  template<bool diagnose, class F, bool dualize = false>
-  CUDA NI static bool interpret_type(const F& f, value_type& k, IDiagnostics& diagnostics) {
-    const char* name = pre_universe::name;
-    assert(f.is(F::E));
-    const auto& vname = battery::get<0>(f.exists());
-    const auto& cty = battery::get<1>(f.exists());
-    if(cty.is_int()) {
-      k = dualize ? pre_universe::bot() : pre_universe::top();
-      RETURN_INTERPRETATION_WARNING("Variable `" + vname + "` of sort `Int` is over-approximated in a floating-point abstract universe.");
-    }
-    else if(cty.is_real()) {
-      k = dualize ? pre_universe::bot() : pre_universe::top();
-      return true;
-    }
-    else {
-      RETURN_INTERPRETATION_ERROR("Variable `" + vname + "` can only be of sort `Real`, or be over-approximated if the sort is `Bool` or `Int`.");
-    }
-  }
-
-  /** Given a floating-point value, create a logical constant representing that value.
-   * The constant is represented by a singleton interval of `double` [v..v].
-   * Note that the lattice order has no influence here.
-   * \pre `v != bot()` and `v != top()`. */
-  template<class F>
-  CUDA static F deinterpret(const value_type& v) {
-    return F::make_real(v, v);
-  }
+template <size_t N, class Mem, class T>
+struct lattice_properties<NBitset<N, Mem, T>> {
+  constexpr static const bool is_abstract_universe = true;
+  constexpr static const bool preserve_bot = true;
+  constexpr static const bool preserve_top = true;
+  constexpr static const bool preserve_meet = true;
+  constexpr static const bool preserve_join = true;
+  constexpr static const bool preserve_concrete_covers = false;
 };
 
-/** `PreFLB` is the dual of `PreFUB`. */
-template <class VT>
-struct pre_interpreter<PreFLB<VT>> {
-  using pre_universe = PreFLB<VT>;
-  using dual_type = typename pre_universe::dual_type;
-  using value_type = typename pre_universe::value_type;
+/** A store of variables preserves whatever its universe preserves, and additionally has an exact
+ * bottom (a single variable at bottom makes the whole store bottom) and top. */
+template <class U, class Alloc>
+struct lattice_properties<VStore<U, Alloc>> {
+  using universe = lattice_properties<U>;
+  constexpr static const bool is_abstract_universe = false;
+  constexpr static const bool preserve_bot = true;
+  constexpr static const bool preserve_top = true;
+  constexpr static const bool preserve_meet = universe::preserve_meet;
+  constexpr static const bool preserve_join = universe::preserve_join;
+  constexpr static const bool preserve_concrete_covers = universe::preserve_concrete_covers;
+};
 
-  template <bool diagnose, class F, bool dualize = false>
-  CUDA static bool interpret_tell(const F& f, value_type& tell, IDiagnostics& diagnostics) {
-    return pre_interpreter<dual_type>::template interpret_ask<diagnose, F>(f, tell, diagnostics);
-  }
-
-  template <bool diagnose, class F, bool dualize = false>
-  CUDA static bool interpret_ask(const F& f, value_type& ask, IDiagnostics& diagnostics) {
-    return pre_interpreter<dual_type>::template interpret_tell<diagnose, F>(f, ask, diagnostics);
-  }
-
-  template<bool diagnose, class F, bool dualize = false>
-  CUDA static bool interpret_type(const F& f, value_type& k, IDiagnostics& diagnostics) {
-    return pre_interpreter<dual_type>::template interpret_type<diagnose, F, true>(f, k, diagnostics);
-  }
-
-  template<class F>
-  CUDA static F deinterpret(const value_type& v) {
-    return pre_interpreter<dual_type>::template deinterpret<F>(v);
-  }
+template <class A, class Alloc>
+struct lattice_properties<PIR<A, Alloc>> {
+  using sub = lattice_properties<A>;
+  constexpr static const bool is_abstract_universe = false;
+  constexpr static const bool preserve_bot = true;
+  constexpr static const bool preserve_top = sub::preserve_top;
+  constexpr static const bool preserve_meet = sub::preserve_meet;
+  constexpr static const bool preserve_join = sub::preserve_join;
+  constexpr static const bool preserve_concrete_covers = sub::preserve_concrete_covers;
 };
 
 /* ------------------------------------------------------------------------------------------- *
  * 4. Abstract universes
  * ------------------------------------------------------------------------------------------- */
 
-/* --- ArithBound --- */
+/* --- LB and UB --- */
+
+/** The logical symbols matching the order of a bound: `x >= k` for a lower bound, `x <= k` for an
+ * upper bound. These are logical notions, so they belong here and not in lala-interval. */
+template <class B>
+struct bound_logic;
+
+template <class VT, class Mem>
+struct bound_logic<LB<VT, Mem>> {
+  constexpr static const bool is_lower_bound = true;
+  CUDA static constexpr Sig sig_order() { return GEQ; }
+  CUDA static constexpr Sig sig_strict_order() { return GT; }
+  /** The greatest value strictly below `v`, i.e. `x > v` is `x >= v+1` over the integers. */
+  CUDA static constexpr VT strict(VT v) { return v + VT{1}; }
+};
+
+template <class VT, class Mem>
+struct bound_logic<UB<VT, Mem>> {
+  constexpr static const bool is_lower_bound = false;
+  CUDA static constexpr Sig sig_order() { return LEQ; }
+  CUDA static constexpr Sig sig_strict_order() { return LT; }
+  CUDA static constexpr VT strict(VT v) { return v - VT{1}; }
+};
 
 namespace impl {
-  /** Interpret a formula of the form `x <sig> k` in an arithmetic bound. */
-  template<bool diagnose = false, class F, class U, class Mem>
-  CUDA NI bool interpret_tell_x_op_k(const F& f, ArithBound<U, Mem>& tell, IDiagnostics& diagnostics) {
-    using A = ArithBound<U, Mem>;
-    using local_type = typename A::local_type;
-    using pre_universe = typename A::pre_universe;
-    using value_type = typename A::value_type;
-    const char* name = A::name;
-    value_type value = pre_universe::top();
-    bool res = pre_interpreter<pre_universe>::template interpret_tell<diagnose>(f.seq(1), value, diagnostics);
-    if(res) {
-      if(f.sig() == EQ || f.sig() == U::sig_order()) {  // e.g., x <= 4 or x >= 4.24
-        tell.meet(local_type(value));
+  /** Interpret an integer, Boolean or real constant into the value of a bound.
+   * A real constant is rounded towards the bound so that the interpretation is an
+   * over-approximation when telling, and an under-approximation when asking. */
+  template<bool diagnose, bool is_tell, class B, class F>
+  CUDA NI bool interpret_bound_constant(const F& f, typename B::value_type& k, IDiagnostics& diagnostics) {
+    using VT = typename B::value_type;
+    constexpr bool is_lb = bound_logic<B>::is_lower_bound;
+    const char* name = B::name;
+    if(f.is(F::Z)) {
+      auto z = f.z();
+      if(z == B::bot().load() || z == B::top().load()) {
+        RETURN_INTERPRETATION_ERROR("Constant of sort `Int` with the minimal or maximal representable value of the underlying integer type. We use those values to model negative and positive infinities. Example: Suppose we use a byte type, `x >= 256` is interpreted as `x >= INF` which is always false and thus is different from the intended constraint.");
       }
-      else if(f.sig() == U::sig_strict_order()) {  // e.g., x < 4 or x > 4.24
-        if constexpr(A::preserve_concrete_covers) {
-          tell.meet(local_type(pre_universe::prev(value)));
-        }
-        else {
-          tell.meet(local_type(value));
-        }
+      k = static_cast<VT>(z);
+      return true;
+    }
+    else if(f.is(F::B)) {
+      k = f.b() ? VT{1} : VT{0};
+      return true;
+    }
+    else if(f.is(F::R)) {
+      // A lower bound rounds up when telling (`x >= [l..u]` is entailed only from `u`), and an
+      // upper bound rounds down; asking is the dual.
+      constexpr bool round_up = (is_lb == is_tell);
+      auto r = round_up ? battery::get<1>(f.r()) : battery::get<0>(f.r());
+      k = round_up ? battery::ru_cast<VT>(r) : battery::rd_cast<VT>(r);
+      return true;
+    }
+    RETURN_INTERPRETATION_ERROR("Only constants of sorts `Int`, `Bool` and `Real` can be interpreted by an integer bound.");
+  }
+
+  /** Interpret a formula of the form `x <sig> k` in a bound. */
+  template<bool diagnose, bool is_tell, class B, class F>
+  CUDA NI bool interpret_bound_x_op_k(const F& f, B& bound, IDiagnostics& diagnostics) {
+    using VT = typename B::value_type;
+    using logic = bound_logic<typename B::basic_type>;
+    const char* name = B::name;
+    VT k;
+    if(!interpret_bound_constant<diagnose, is_tell, typename B::basic_type>(f.seq(1), k, diagnostics)) {
+      return false;
+    }
+    if constexpr(is_tell) {
+      if(f.sig() == EQ || f.sig() == logic::sig_order()) {  // e.g., x <= 4 or x >= 4
+        bound.meet(typename B::basic_type(k));
+      }
+      else if(f.sig() == logic::sig_strict_order()) {  // e.g., x < 4 or x > 4
+        bound.meet(typename B::basic_type(logic::strict(k)));
       }
       else {
         RETURN_INTERPRETATION_ERROR("The symbol `" + LVar<typename F::allocator_type>(string_of_sig(f.sig())) + "` is not supported in the tell language of this universe.");
       }
     }
-    return res;
-  }
-
-  /** Interpret a formula of the form `x <sig> k` in the ask language of an arithmetic bound. */
-  template<bool diagnose = false, class F, class U, class Mem>
-  CUDA NI bool interpret_ask_x_op_k(const F& f, ArithBound<U, Mem>& tell, IDiagnostics& diagnostics) {
-    using A = ArithBound<U, Mem>;
-    using local_type = typename A::local_type;
-    using pre_universe = typename A::pre_universe;
-    using value_type = typename A::value_type;
-    const char* name = A::name;
-    value_type value = pre_universe::top();
-    bool res = pre_interpreter<pre_universe>::template interpret_ask<diagnose>(f.seq(1), value, diagnostics);
-    if(res) {
-      if(f.sig() == U::sig_order()) {
-        tell.meet(local_type(value));
+    else {
+      if(f.sig() == logic::sig_order()) {
+        bound.meet(typename B::basic_type(k));
       }
-      else if(f.sig() == NEQ || f.sig() == U::sig_strict_order()) {
-        // We could actually do a little bit better in the case of FLB/FUB.
-        // If the real number `k` is approximated by `[f, g]`, it actually means `]f, g[` so we could safely choose `r` since it already under-approximates `k`.
-        tell.meet(local_type(pre_universe::prev(value)));
+      else if(f.sig() == NEQ || f.sig() == logic::sig_strict_order()) {
+        bound.meet(typename B::basic_type(logic::strict(k)));
       }
       else {
         RETURN_INTERPRETATION_ERROR("The symbol `" + LVar<typename F::allocator_type>(string_of_sig(f.sig())) + "` is not supported in the ask language of this universe.");
       }
     }
-    return res;
+    return true;
   }
 
-  /** Interpret `x in S` in an arithmetic bound. */
-  template<bool diagnose = false, class F, class U, class Mem>
-  CUDA NI bool interpret_tell_set(const F& f, ArithBound<U, Mem>& tell, IDiagnostics& diagnostics) {
-    using A = ArithBound<U, Mem>;
-    using local_type = typename A::local_type;
-    using pre_universe = typename A::pre_universe;
-    using value_type = typename A::value_type;
-    const char* name = A::name;
+  /** Interpret `x in S` in a bound: the bound of the union of the elements of `S`. */
+  template<bool diagnose, class B, class F>
+  CUDA NI bool interpret_bound_set(const F& f, B& tell, IDiagnostics& diagnostics) {
+    using VT = typename B::value_type;
+    using basic_type = typename B::basic_type;
+    const char* name = B::name;
     if(!f.seq(1).is(F::S)) {
       RETURN_INTERPRETATION_ERROR("The constant `S` in a constraint `x in S` must be a set.");
     }
@@ -618,72 +484,78 @@ namespace impl {
       tell.meet_bot();
       return true;
     }
-    value_type join_s = pre_universe::bot();
-    constexpr int bound_index = A::is_lower_bound ? 0 : 1;
-    // We interpret each component of the set and take the meet of all the results.
+    constexpr int bound_index = bound_logic<basic_type>::is_lower_bound ? 0 : 1;
+    basic_type join_s = basic_type::bot();
     for(int i = 0; i < set.size(); ++i) {
-      auto bound = battery::get<bound_index>(set[i]);
-      value_type set_element = pre_universe::top();
-      bool res = pre_interpreter<pre_universe>::template interpret_tell<diagnose>(bound, set_element, diagnostics);
-      if(!res) {
+      VT element;
+      if(!interpret_bound_constant<diagnose, true, basic_type>(battery::get<bound_index>(set[i]), element, diagnostics)) {
         return false;
       }
-      join_s = pre_universe::join(join_s, set_element);
+      join_s.join(basic_type(element));
     }
-    tell.meet(local_type(join_s));
+    tell.meet(join_s);
     return true;
   }
-}
 
-/** Expects a predicate of the form `x <op> k` where `x` is any variable's name, and `k` a constant.
- * The symbol `<op>` is expected to be `U::sig_order()`, `U::sig_strict_order()`,  `=` or `in`.
- * Existential formula \f$ \exists{x:T} \f$ can also be interpreted (only to top) depending on the
- * underlying pre-universe. */
-template<bool diagnose = false, class F, class Env, class U, class Mem>
-CUDA NI bool interpret_tell_in(const F& f, const Env&, ArithBound<U, Mem>& tell, IDiagnostics& diagnostics) {
-  using A = ArithBound<U, Mem>;
-  using local_type = typename A::local_type;
-  using pre_universe = typename A::pre_universe;
-  const char* name = A::name;
-  if(f.is(F::E)) {
-    typename U::value_type val;
-    bool res = pre_interpreter<pre_universe>::template interpret_type<diagnose>(f, val, diagnostics);
-    if(res) {
-      tell.meet(local_type(val));
-    }
-    return res;
-  }
-  else {
-    if(f.is_binary() && f.seq(0).is_variable() && f.seq(1).is_constant()) {
-      // `x in k` is equivalent to `x >= meet k` where `>=` is the lattice order `U::sig_order()`.
-      if(f.sig() == IN) {
-        return impl::interpret_tell_set<diagnose>(f, tell, diagnostics);
-      }
-      else {
-        return impl::interpret_tell_x_op_k<diagnose>(f, tell, diagnostics);
-      }
+  /** A bound interprets `var int: x` as its top element. A Boolean variable is only
+   * interpretable by an interval, which can represent the domain `[0..1]`. */
+  template<bool diagnose, class B, class F>
+  CUDA NI bool interpret_bound_type(const F& f, B& tell, IDiagnostics& diagnostics) {
+    const char* name = B::name;
+    assert(f.is(F::E));
+    const auto& sort = battery::get<1>(f.exists());
+    if(sort.is_int()) {
+      return true;   // `top()` is the initial value, nothing to meet.
     }
     else {
-      RETURN_INTERPRETATION_ERROR("Only binary formulas of the form `x <sig> k` where if x is a variable and k is a constant are supported.");
+      const auto& vname = battery::get<0>(f.exists());
+      RETURN_INTERPRETATION_ERROR("The type of `" + vname + "` can only be `Int`.")
     }
   }
+
+  template <class B> struct is_bound { static constexpr bool value = false; };
+  template <class VT, class Mem> struct is_bound<LB<VT, Mem>> { static constexpr bool value = true; };
+  template <class VT, class Mem> struct is_bound<UB<VT, Mem>> { static constexpr bool value = true; };
 }
 
-/** Expects a predicate of the form `x <op> k` where `x` is any variable's name, and `k` a constant.
- * The symbol `<op>` is expected to be `U::sig_order()`, `U::sig_strict_order()` or `!=`. */
-template<bool diagnose = false, class F, class Env, class U, class Mem>
-CUDA NI bool interpret_ask_in(const F& f, const Env&, ArithBound<U, Mem>& ask, IDiagnostics& diagnostics) {
-  const char* name = ArithBound<U, Mem>::name;
-  if(f.is_binary() && f.seq(0).is_variable() && f.seq(1).is_constant()) {
-    return impl::interpret_ask_x_op_k<diagnose>(f, ask, diagnostics);
+/** Expects a predicate of the form `x <op> k` where `x` is any variable's name and `k` a constant.
+ * The symbol `<op>` is expected to be the order of the bound, its strict order, `=` or `in`.
+ * An existential quantifier is interpreted as the top element. */
+template<bool diagnose = false, class F, class Env, class B>
+  requires impl::is_bound<typename B::basic_type>::value
+CUDA NI bool interpret_tell_in(const F& f, const Env&, B& tell, IDiagnostics& diagnostics) {
+  const char* name = B::name;
+  if(f.is(F::E)) {
+    return impl::interpret_bound_type<diagnose>(f, tell, diagnostics);
+  }
+  else if(f.is_binary() && f.seq(0).is_variable() && f.seq(1).is_constant()) {
+    if(f.sig() == IN) {
+      return impl::interpret_bound_set<diagnose>(f, tell, diagnostics);
+    }
+    else {
+      return impl::interpret_bound_x_op_k<diagnose, true>(f, tell, diagnostics);
+    }
   }
   else {
-    RETURN_INTERPRETATION_ERROR("Only binary formulas of the form `x <sig> k` where if x is a variable and k is a constant are supported.");
+    RETURN_INTERPRETATION_ERROR("Only binary formulas of the form `x <sig> k` where x is a variable and k is a constant are supported.");
   }
 }
 
-template<IKind kind, bool diagnose = false, class F, class Env, class U, class Mem>
-CUDA NI bool interpret_in(const F& f, const Env& env, ArithBound<U, Mem>& value, IDiagnostics& diagnostics) {
+template<bool diagnose = false, class F, class Env, class B>
+  requires impl::is_bound<typename B::basic_type>::value
+CUDA NI bool interpret_ask_in(const F& f, const Env&, B& ask, IDiagnostics& diagnostics) {
+  const char* name = B::name;
+  if(f.is_binary() && f.seq(0).is_variable() && f.seq(1).is_constant()) {
+    return impl::interpret_bound_x_op_k<diagnose, false>(f, ask, diagnostics);
+  }
+  else {
+    RETURN_INTERPRETATION_ERROR("Only binary formulas of the form `x <sig> k` where x is a variable and k is a constant are supported.");
+  }
+}
+
+template<IKind kind, bool diagnose = false, class F, class Env, class B>
+  requires impl::is_bound<typename B::basic_type>::value
+CUDA NI bool interpret_in(const F& f, const Env& env, B& value, IDiagnostics& diagnostics) {
   if constexpr(kind == IKind::TELL) {
     return interpret_tell_in<diagnose>(f, env, value, diagnostics);
   }
@@ -692,29 +564,32 @@ CUDA NI bool interpret_in(const F& f, const Env& env, ArithBound<U, Mem>& value,
   }
 }
 
-/** Deinterpret the current value to a logical constant. */
-template<class F, class U, class Mem>
-CUDA NI F deinterpret_constant(const ArithBound<U, Mem>& a) {
-  return pre_interpreter<typename ArithBound<U, Mem>::pre_universe>::template deinterpret<F>(a.value());
+/** Deinterpret a bound to the logical constant it holds. */
+template<class F, class VT, class Mem>
+CUDA NI F deinterpret_constant(const LB<VT, Mem>& a) {
+  return F::make_z(a.load());
 }
 
-/** \return \f$ x <op> i \f$ where `x` is a variable's name, `i` the current value and `<op>` depends
- * on the underlying universe. If `U` preserves top, `true` is returned whenever \f$ a = \top \f$,
- * if it preserves bottom `false` is returned whenever \f$ a = \bot \f$.
- * We always return an exact approximation. */
-template<class Env, class U, class Mem, class Allocator = typename Env::allocator_type>
-CUDA NI TFormula<Allocator> deinterpret_in(const ArithBound<U, Mem>& a, AVar avar, const Env& env, const Allocator& allocator = Allocator()) {
-  using A = ArithBound<U, Mem>;
+template<class F, class VT, class Mem>
+CUDA NI F deinterpret_constant(const UB<VT, Mem>& a) {
+  return F::make_z(a.load());
+}
+
+/** \return \f$ x <op> k \f$ where `<op>` is the order of the bound. `true` is returned when the
+ * bound is top, and `false` when it is bot: both are preserved exactly. */
+template<class Env, class B, class Allocator = typename Env::allocator_type>
+  requires impl::is_bound<typename B::basic_type>::value
+CUDA NI TFormula<Allocator> deinterpret_in(const B& a, AVar avar, const Env& env, const Allocator& allocator = Allocator()) {
   using F = TFormula<Allocator>;
-  if(A::preserve_top && a.is_top()) {
+  if(a.is_top()) {
     return F::make_true();
   }
-  else if(A::preserve_bot && a.is_bot()) {
+  else if(a.is_bot()) {
     return F::make_false();
   }
   return F::make_binary(
     F::make_avar(avar),
-    U::sig_order(),
+    bound_logic<typename B::basic_type>::sig_order(),
     deinterpret_constant<F>(a),
     UNTYPED, allocator);
 }
@@ -882,25 +757,20 @@ CUDA NI bool interpret_in(const F& f, const Env& env, NBitset<N, Mem, T>& k, IDi
   }
 }
 
-/* --- Interval --- */
+/* --- ZInterval --- */
 
-/** Support the same language than the Cartesian product, and more:
- *    * `var x:B` when the underlying universe is arithmetic and preserve concrete covers.
- * Therefore, the element `k` is always in \f$ \gamma(lb) \cap \gamma(ub) \f$. */
-template<bool diagnose = false, class F, class Env, class U2>
-CUDA NI bool interpret_tell_in(const F& f, const Env& env, Interval<U2>& k, IDiagnostics& diagnostics) {
-  using A = Interval<U2>;
-  using LB = typename A::LB;
-  using UB = typename A::UB;
-  using local_type = typename A::local_type;
+/** Support the same language as the two bounds, and more:
+ *    * `var x:B` is interpreted as the interval `[0..1]`. */
+template<bool diagnose = false, class F, class Env, class VT, class Mem>
+CUDA NI bool interpret_tell_in(const F& f, const Env& env, ZInterval<VT, Mem>& k, IDiagnostics& diagnostics) {
+  using A = ZInterval<VT, Mem>;
+  using basic_type = typename A::basic_type;
   const char* name = A::name;
-  if constexpr(LB::preserve_concrete_covers && LB::is_arithmetic) {
-    if(f.is(F::E)) {
-      auto sort = f.sort();
-      if(sort.has_value() && sort->is_bool()) {
-        k.meet(local_type(LB::geq_k(LB::pre_universe::zero()), UB::leq_k(UB::pre_universe::one())));
-        return true;
-      }
+  if(f.is(F::E)) {
+    auto sort = f.sort();
+    if(sort.has_value() && sort->is_bool()) {
+      k.meet(basic_type(VT{0}, VT{1}));
+      return true;
     }
   }
   bool r;
@@ -911,16 +781,16 @@ CUDA NI bool interpret_tell_in(const F& f, const Env& env, Interval<U2>& k, IDia
        r));
 }
 
-/** Support the same language than the Cartesian product, and more:
+/** Support the same language as the two bounds, and more:
  *    * `x != k` is under-approximated by interpreting `x != k` in the lower bound.
  *    * `x == k` is interpreted by over-approximating `x == k` in both bounds and then verifying both bounds are the same.
- *    * `x in {[l..u]} is interpreted by under-approximating `x >= l` and `x <= u`. */
-template<bool diagnose = false, class F, class Env, class U2>
-CUDA NI bool interpret_ask_in(const F& f, const Env& env, Interval<U2>& k, IDiagnostics& diagnostics) {
-  using A = Interval<U2>;
-  using local_type = typename A::local_type;
+ *    * `x in {[l..u]}` is interpreted by under-approximating `x >= l` and `x <= u`. */
+template<bool diagnose = false, class F, class Env, class VT, class Mem>
+CUDA NI bool interpret_ask_in(const F& f, const Env& env, ZInterval<VT, Mem>& k, IDiagnostics& diagnostics) {
+  using A = ZInterval<VT, Mem>;
+  using basic_type = typename A::basic_type;
   const char* name = A::name;
-  local_type itv = local_type::top();
+  basic_type itv = basic_type::top();
   if(f.is_binary() && f.sig() == NEQ) {
     return interpret_ask_in<diagnose>(f, env, k.lb(), diagnostics);
   }
@@ -929,7 +799,7 @@ CUDA NI bool interpret_ask_in(const F& f, const Env& env, Interval<U2>& k, IDiag
       "When interpreting equality, the underlying bounds LB and UB failed to agree on the same value.",
       (interpret_tell_in<diagnose>(f, env, itv.lb(), diagnostics) &&
        interpret_tell_in<diagnose>(f, env, itv.ub(), diagnostics) &&
-       itv.lb() == itv.ub()),
+       itv.lb().load() == itv.ub().load()),
       (k.meet(itv)));
   }
   else if(f.is_binary() && f.sig() == IN && f.seq(0).is_variable()
@@ -957,8 +827,8 @@ CUDA NI bool interpret_ask_in(const F& f, const Env& env, Interval<U2>& k, IDiag
        r));
 }
 
-template<IKind kind, bool diagnose = false, class F, class Env, class U2>
-CUDA NI bool interpret_in(const F& f, const Env& env, Interval<U2>& k, IDiagnostics& diagnostics) {
+template<IKind kind, bool diagnose = false, class F, class Env, class VT, class Mem>
+CUDA NI bool interpret_in(const F& f, const Env& env, ZInterval<VT, Mem>& k, IDiagnostics& diagnostics) {
   if constexpr(kind == IKind::ASK) {
     return interpret_ask_in<diagnose>(f, env, k, diagnostics);
   }
@@ -967,8 +837,8 @@ CUDA NI bool interpret_in(const F& f, const Env& env, Interval<U2>& k, IDiagnost
   }
 }
 
-template<class Env, class U, class Allocator = typename Env::allocator_type>
-CUDA NI TFormula<Allocator> deinterpret_in(const Interval<U>& a, AVar x, const Env& env, const Allocator& allocator = Allocator()) {
+template<class Env, class VT, class Mem, class Allocator = typename Env::allocator_type>
+CUDA NI TFormula<Allocator> deinterpret_in(const ZInterval<VT, Mem>& a, AVar x, const Env& env, const Allocator& allocator = Allocator()) {
   using F = TFormula<Allocator>;
   if(a.is_bot()) {
     return F::make_false();
@@ -982,32 +852,28 @@ CUDA NI TFormula<Allocator> deinterpret_in(const Interval<U>& a, AVar x, const E
   else if(a.ub().is_top()) {
     return deinterpret_in(a.lb(), x, env, allocator);
   }
-  F logical_lb = deinterpret_constant<F>(a.lb());
-  F logical_ub = deinterpret_constant<F>(a.ub());
   logic_set<F> logical_set(1, allocator);
-  logical_set[0] = battery::make_tuple(std::move(logical_lb), std::move(logical_ub));
-  F set = F::make_set(std::move(logical_set));
-  F var = F::make_avar(x);
-  return F::make_binary(var, IN, std::move(set), UNTYPED, allocator);
+  logical_set[0] = battery::make_tuple(deinterpret_constant<F>(a.lb()), deinterpret_constant<F>(a.ub()));
+  return F::make_binary(F::make_avar(x), IN, F::make_set(std::move(logical_set)), UNTYPED, allocator);
 }
 
-/** Deinterpret the current value to a logical constant.
- * The lower bound is deinterpreted, and it is up to the user to check that interval is a singleton.
- * A special case is made for real numbers where both bounds are used, since the logical
- * interpretation uses an interval. */
-template<class F, class U>
-CUDA NI F deinterpret_constant(const Interval<U>& a) {
-  F logical_lb = deinterpret_constant<F>(a.lb());
-  if(logical_lb.is(F::R)) {
-    F logical_ub = deinterpret_constant<F>(a.ub());
-    battery::get<1>(logical_lb.r()) = battery::get<0>(logical_ub.r());
-  }
-  return logical_lb;
+/** Deinterpret the interval to a logical constant, taken from the lower bound.
+ * It is up to the caller to check that the interval is a singleton. */
+template<class F, class VT, class Mem>
+CUDA NI F deinterpret_constant(const ZInterval<VT, Mem>& a) {
+  return deinterpret_constant<F>(a.lb());
 }
 
 /* ------------------------------------------------------------------------------------------- *
  * 5. Generic interpretation
  * ------------------------------------------------------------------------------------------- */
+
+/** The local-memory version of a lattice: lala-interval names it `basic_type`, the lattices of
+ * lala-core name it `local_type`. */
+template <class U> struct local_universe_of { using type = typename U::local_type; };
+template <class VT, class Mem> struct local_universe_of<LB<VT, Mem>> { using type = LB<VT>; };
+template <class VT, class Mem> struct local_universe_of<UB<VT, Mem>> { using type = UB<VT>; };
+template <class VT, class Mem> struct local_universe_of<ZInterval<VT, Mem>> { using type = ZInterval<VT>; };
 
 /** Interpret `true` in the lattice `L`.
  * \return `true` if `L` preserves the top element w.r.t. the concrete domain or if `true` is
@@ -1015,7 +881,7 @@ CUDA NI F deinterpret_constant(const Interval<U>& a) {
 template <class L, IKind kind, bool diagnose = false, class F>
 CUDA bool ginterpret_true(const F& f, IDiagnostics& diagnostics) {
   assert(f.is_true());
-  if constexpr(kind == IKind::ASK || L::preserve_top) {
+  if constexpr(kind == IKind::ASK || lattice_properties<L>::preserve_top) {
     return true;
   }
   else {
@@ -1034,7 +900,7 @@ CUDA bool ginterpret_in(const A& a, const F& f, Env& env, I& intermediate, IDiag
     return ginterpret_true<A, kind, diagnose>(f, diagnostics);
   }
   else if(f.is_false()) {
-    if constexpr(kind == IKind::TELL || A::preserve_bot) {
+    if constexpr(kind == IKind::TELL || lattice_properties<A>::preserve_bot) {
       // We don't know how `bot` is represented by this abstract domain, so we just forward the interpretation call.
       return interpret_in<kind, diagnose>(a, f, env, intermediate, diagnostics);
     }
@@ -1043,7 +909,7 @@ CUDA bool ginterpret_in(const A& a, const F& f, Env& env, I& intermediate, IDiag
     }
   }
   else if(f.is(F::Seq) && f.sig() == AND) {
-    if constexpr(kind == IKind::ASK || A::preserve_meet) {
+    if constexpr(kind == IKind::ASK || lattice_properties<A>::preserve_meet) {
       for(int i = 0; i < f.seq().size(); ++i) {
         if(!ginterpret_in<kind, diagnose>(a, f.seq(i), env, intermediate, diagnostics)) {
           return false;
@@ -1069,7 +935,7 @@ CUDA bool ginterpret_in(const F& f, const Env& env, U& value, IDiagnostics& diag
     return ginterpret_true<U, kind, diagnose>(f, diagnostics);
   }
   else if(f.is_false()) {
-    if constexpr(kind == IKind::TELL || U::preserve_bot) {
+    if constexpr(kind == IKind::TELL || lattice_properties<U>::preserve_bot) {
       value.meet_bot();
       return true;
     }
@@ -1079,7 +945,7 @@ CUDA bool ginterpret_in(const F& f, const Env& env, U& value, IDiagnostics& diag
   }
   else if(f.is(F::Seq)) {
     if(f.sig() == AND) {
-      if constexpr(kind == IKind::ASK || U::preserve_meet) {
+      if constexpr(kind == IKind::ASK || lattice_properties<U>::preserve_meet) {
         for(int i = 0; i < f.seq().size(); ++i) {
           if(!ginterpret_in<kind, diagnose>(f.seq(i), env, value, diagnostics)) {
             return false;
@@ -1092,8 +958,8 @@ CUDA bool ginterpret_in(const F& f, const Env& env, U& value, IDiagnostics& diag
       }
     }
     else if(f.sig() == OR) {
-      if constexpr(kind == IKind::TELL || U::preserve_join) {
-        using U2 = typename U::local_type;
+      if constexpr(kind == IKind::TELL || lattice_properties<U>::preserve_join) {
+        using U2 = typename local_universe_of<U>::type;
         U2 join_value = U2::bot();
         for(int i = 0; i < f.seq().size(); ++i) {
           U2 x = U2::top();
@@ -1131,7 +997,7 @@ CUDA bool top_level_ginterpret_in(const A& a, const F& f, Env& env, I& intermedi
 
 template <class A, class Alloc = battery::standard_allocator, class Env>
 CUDA A make_top(Env& env, Alloc alloc = Alloc{}) {
-  if constexpr(A::is_abstract_universe) {
+  if constexpr(lattice_properties<A>::is_abstract_universe) {
     return A::top();
   }
   else {
@@ -1141,7 +1007,7 @@ CUDA A make_top(Env& env, Alloc alloc = Alloc{}) {
 
 template <bool diagnose = false, class TellAlloc = battery::standard_allocator, class F, class Env, class L>
 CUDA bool interpret_and_tell(const F& f, Env& env, L& value, IDiagnostics& diagnostics, TellAlloc tell_alloc = TellAlloc{}) {
-  if constexpr(L::is_abstract_universe) {
+  if constexpr(lattice_properties<L>::is_abstract_universe) {
     return ginterpret_in<IKind::TELL, diagnose>(f, env, value, diagnostics);
   }
   else {

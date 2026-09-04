@@ -5,7 +5,7 @@
 #include "lala/flatzinc_parser.hpp"
 #include "lala/vstore.hpp"
 #include "lala/simplifier.hpp"
-#include "lala/interval.hpp"
+#include "lala/zinterval.hpp"
 #include "lala/fixpoint.hpp"
 #include "abstract_testing.hpp"
 #include <optional>
@@ -18,7 +18,7 @@
 using namespace lala;
 using namespace battery;
 namespace fs = std::filesystem;
-using Itv = Interval<local::ZLB>;
+using Itv = ZInterval<int>;
 using IStore = VStore<Itv, standard_allocator>;
 
 template <class F>

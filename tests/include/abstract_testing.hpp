@@ -8,7 +8,8 @@
 
 #include "lala/logic/logic.hpp"
 #include "lala/logic/ternarize.hpp"
-#include "lala/universes/arith_bound.hpp"
+#include "lala/lb.hpp"
+#include "lala/ub.hpp"
 #include "lala/flatzinc_parser.hpp"
 
 #include "interpretation.hpp"
@@ -51,13 +52,13 @@ inline VarEnv<standard_allocator> env_with_x() {
 
 template<IKind kind, class L>
 void interpret_must_error(const char* fzn, VarEnv<standard_allocator> env = VarEnv<standard_allocator>{}) {
-  static_assert(kind == IKind::TELL || L::is_abstract_universe);
+  static_assert(kind == IKind::TELL || lattice_properties<L>::is_abstract_universe);
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
   IDiagnostics diagnostics;
   L value = make_top<L>(env);
   bool res;
-  if constexpr(L::is_abstract_universe) {
+  if constexpr(lattice_properties<L>::is_abstract_universe) {
     res = ginterpret_in<kind, true>(*f, env, value, diagnostics);
   }
   else {
@@ -85,7 +86,7 @@ void both_interpret_must_error(const char* fzn, VarEnv<standard_allocator> env =
 
 template <IKind kind, bool ternarize_formula = false, class L>
 void interpret_must_succeed(const char* fzn, L& value, VarEnv<standard_allocator>& env, bool has_warning = false) {
-  static_assert(kind == IKind::TELL || L::is_abstract_universe);
+  static_assert(kind == IKind::TELL || lattice_properties<L>::is_abstract_universe);
   using F = TFormula<standard_allocator>;
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
@@ -96,7 +97,7 @@ void interpret_must_succeed(const char* fzn, L& value, VarEnv<standard_allocator
   *f = normalize(*f);
   IDiagnostics diagnostics;
   bool res;
-  if constexpr(L::is_abstract_universe) {
+  if constexpr(lattice_properties<L>::is_abstract_universe) {
     res = ginterpret_in<kind, true>(*f, env, value, diagnostics);
   }
   else {
@@ -194,7 +195,7 @@ void bot_top_interpret_test() {
   A top = A::top();
   expect_interpret_equal_to<IKind::TELL, A>("constraint true;", top);
   expect_interpret_equal_to<IKind::TELL, A>("constraint false;", bot);
-  if constexpr(A::is_abstract_universe) {
+  if constexpr(lattice_properties<A>::is_abstract_universe) {
     expect_interpret_equal_to<IKind::ASK, A>("constraint true;", top);
     expect_interpret_equal_to<IKind::ASK, A>("constraint false;", bot);
   }
