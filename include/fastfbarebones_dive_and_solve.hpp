@@ -63,25 +63,7 @@ using GridCP = AbstractDomains<FItv,
   bt::statistics_allocator<UniqueLightAlloc<ConcurrentAllocator, 0>>,
   bt::statistics_allocator<UniqueLightAlloc<ConcurrentAllocator, 1>>>;
 
-<<<<<<< HEAD
 /** Fast neural network verification design on GPU. */
-=======
-/** Fast neural network verification design on GPU.
- *
- * Layout conventions (layer 0 is the input layer):
- *  * `layers[i]` is the number of neurons of the layer `i`.
- *  * `acc_layers[i]` is the index of the first neuron of the layer `i` in a flat
- *    array of all the neurons of the network. Hence `acc_layers.size() == layers.size()`.
- *  * `weights` stores, for each layer `i >= 1`, a column-major matrix of shape
- *    `layers[i] x layers[i-1]`, starting at `weights_offset(i)`: the weight of the connection
- *    between the neuron `c` of the layer `i-1` and the neuron `j` of the layer `i` is at
- *    `weights_offset(i) + c * layers[i] + j`. All the output neurons of a given input are
- *    therefore contiguous, so the threads of a warp, which differ only by `j`, read consecutive
- *    floats instead of one row each.
- *  * `biases` stores, for each layer `i >= 1`, `layers[i]` values starting at `biases_offset(i)`.
- * The input layer has neither weights nor biases.
- */
->>>>>>> refs/remotes/origin/nnv
 struct FastNNRelu {
   using NStore = VStore<FItv, bt::pool_allocator>;
 
@@ -95,7 +77,6 @@ struct FastNNRelu {
   bt::vector<float> weights;
   bt::vector<float> biases;
 
-<<<<<<< HEAD
   /** The pool is backed by managed memory so the store is reachable from host and device.
    * `pool_allocator` does not own the buffer: it stays alive as long as we do not free it. */
   static bt::pool_allocator make_neurons_pool(int num_neurons) {
@@ -112,201 +93,18 @@ struct FastNNRelu {
   FastNNRelu(const int num_neurons, const bt::vector<int>& acc_layers, const bt::vector<float>& weights, const bt::vector<float>& biases, AType atype = 0)
     : neurons_pool(make_neurons_pool(num_neurons))
     , neurons(atype, num_neurons, neurons_pool)
-=======
-  CUDA FastNNRelu(): neurons(0, 0), num_neurons(0) {}
-
-  /** `atype` is the abstract type given to the store of neurons. It is not part of the abstract
-   * domain hierarchy of the CP model (which is not built yet when the network is parsed), hence
-   * the default value 0. */
-  CUDA FastNNRelu(const int num_neurons, const bt::vector<int>& layers, const bt::vector<int>& acc_layers, const bt::vector<float>& weights, const bt::vector<float>& biases, AType atype = 0)
-    : neurons(atype, num_neurons)
->>>>>>> refs/remotes/origin/nnv
     , num_neurons(num_neurons)
     , acc_layers(acc_layers)
     , weights(weights)
     , biases(biases)
   {}
 
-<<<<<<< HEAD
 public:
   void print() const {
     for(int i = 1; i < static_cast<int>(acc_layers.size()); ++i) {
       printf("In layer %d, we have %d neurons, and its accumulated neurons = %d\n", i, acc_layers[i]-acc_layers[i-1], acc_layers[i]);
     }
     printf("In total, we have %d neurons in the network\n", (int)neurons.vars());
-=======
-  /** Index in `biases` of the first bias of the layer `i >= 1`.
-   * `biases` has no entry for the input layer, hence the shift by `layers[0]`. */
-  CUDA int biases_offset(int i) const {
-    return acc_layers[i] - layers[0];
-  }
-
-  /** Index in `weights` of the first weight of the layer `i >= 1`.
-   * Unlike the biases, this offset is a sum of products and therefore cannot be read off
-   * `acc_layers` in constant time. When iterating over all the layers, accumulate the offset
-   * along the way (`offset += layers[i] * layers[i-1]`) instead of calling this function. */
-  CUDA int weights_offset(int i) const {
-    int offset = 0;
-    for(int k = 1; k < i; ++k) {
-      offset += layers[k] * layers[k-1];
-    }
-    return offset;
-  }
-
-public:
-  // `i` is the index of the deduction updating a single output neuron.
-  // It is structured as follows (from most significant to least significant bits):
-  //   - 8 bits for the index of the layer `l` (`l >= 1`, the input layer has no deduction).
-  //   - 24 bits for the index of the neuron `j` in the layer `l`.
-  // One thread handles one output neuron: it reads the intervals of the neurons of the layer `l-1`,
-  // multiplies them by the weights of the connections into `j`, adds the bias of `j`, applies the
-  // ReLU, and merges the result into `neurons[j]` with a meet. The affine part and the ReLU are
-  // fused, so the pre-activation never leaves the registers and the whole layer is updated in one
-  // deduction per neuron, without any intra-warp reduction.
-  // The sizes of the layers are read off `acc_layers` alone: the layer `k` has
-  // `acc_layers[k+1] - acc_layers[k]` neurons.
-  CUDA bool deduce(int i) {
-    using bound_type = typename FItv::LB::value_type;
-    /** The interval of lala-interval, held in registers. Only the final result of the neuron is
-     * merged back into `neurons`, which stores the shared `FItv` of the solver. */
-    using RItv = FInterval<bound_type>;
-    using local_itv = typename FItv::local_type;
-
-    const int num_layers = static_cast<int>(acc_layers.size());
-    const int l = static_cast<int>(static_cast<unsigned int>(i) >> 24);
-    const int j = i & 0x00FFFFFF;
-    assert(l >= 1 && l < num_layers);
-
-    const int out_base = acc_layers[l];
-    const int layer_size = ((l + 1 < num_layers) ? acc_layers[l+1] : num_neurons) - out_base;
-    const int prev_base = acc_layers[l-1];
-    const int fan_in = out_base - prev_base;
-    assert(j >= 0 && j < layer_size);
-    /** Weight of the connection `(c, j)`: the layers `1..l-1` come first, each contributing
-     * `layers[k] * layers[k-1]` weights, then `c * layer_size + j` within the layer `l` since the
-     * weights are stored column-major (see the layout conventions above). */
-    int wbase = 0;
-    for(int k = 1; k < l; ++k) {
-      wbase += (acc_layers[k+1] - acc_layers[k]) * (acc_layers[k] - acc_layers[k-1]);
-    }
-    wbase += j;
-
-    RItv sum(bound_type{0});  /**< running pre-activation without the bias. */
-    RItv r1,r2,r3;
-
-    // STEP 1: compute the pre-activation \f$ s = \sum_c w_{jc} * x_c + b_j \f$ and store it in `sum`.
-
-    /** Pre-activation \f$ s = \sum_c w_{jc} * x_c + b_j \f$. Each result is a variable that we just
-     * reset to top, so we use the forward projections instead of the relational propagators: the
-     * backward passes would only narrow operands that are already exact. */
-    for(int c = 0; c < fan_in; ++c) {
-      // Temporarily necessary to convert between the two kinds of interval (in lala-core and lala-interval).
-      r1 = RItv(neurons[prev_base + c].lb().value(), neurons[prev_base + c].ub().value());
-      r2 = RItv(static_cast<bound_type>(weights[wbase + c * layer_size]));
-      r3.join_top();
-      r3.mul(r1, r2);   // neuron X weight.
-      /** Running sum, accumulated bound by bound to avoid the copy that `add` would need (it meets
-       * its result instead of assigning it). The rounding must go outward, `+` would round to
-       * nearest and could cut off solutions on either side. */
-      if(r3.is_bot()) { sum.meet_bot(); break; }
-      sum.lb() = battery::add_down<bound_type>(sum.lb().load(), r3.lb().load());
-      sum.ub() = battery::add_up<bound_type>(sum.ub().load(), r3.ub().load());
-    }
-
-    /** A bot term makes the whole neuron bot. We write it to the store immediately so that the
-     * solver observes the failure and can stop, and we skip the rest: the backward propagation has
-     * nothing sound to say about a contradiction. */
-    if(sum.is_bot()) {
-      return neurons.embed(out_base + j, local_itv::bot());
-    }
-
-    // STEP 2: add the bias and apply the ReLU, then merge the result into the neuron `j` of layer `l`.
-
-    /** `biases` has no entry for the input layer, hence the shift by the size of the layer 0. */
-    r1 = RItv(static_cast<bound_type>(biases[out_base - (acc_layers[1] - acc_layers[0]) + j]));
-    r2.join_top();
-
-    /** Forward projection rather than `tell::fadd`: `add` takes its operands by value, so `sum`
-     * provably keeps the plain forward accumulation that STEP 3 needs to undo. */
-    r2.add(sum, r1);  // Pre-activation + bias.
-
-    RItv zero(bound_type{0});
-    r3 = RItv(neurons[out_base + j].lb().value(), neurons[out_base + j].ub().value());
-    tell::fmax(r3, r2, zero);  // ReLU. Its backward pass narrows `r2` from the domain of neuron `j`.
-
-    /** `embed` meets the result into the neuron and returns `true` if its domain got smaller. */
-    bool has_changed = neurons.embed(out_base + j,
-      local_itv(typename local_itv::LB(r3.lb().load()),
-                typename local_itv::UB(r3.ub().load())));
-
-    // STEP 3: Perform backward propagation to update the neurons of the previous layer.
-
-    /** `r2` is the pre-activation narrowed by the ReLU above, and `r1` still holds the bias. The
-     * bias is a singleton, so pairing opposite bounds costs nothing and `sub` is exact here: `nsum`
-     * is the narrowed value of \f$ \sum_c w_{jc} * x_c \f$, to be confronted with the forward
-     * `sum`, which is left untouched by STEP 2 and still holds the plain forward accumulation. */
-    RItv nsum;
-    nsum.sub(r2, r1);
-    if(!nsum.is_bot()) {
-      RItv partial;  /**< the sum of all the *other* terms. */
-      for(int c = 0; c < fan_in; ++c) {
-        r1 = RItv(neurons[prev_base + c].lb().value(), neurons[prev_base + c].ub().value());
-        r2 = RItv(static_cast<bound_type>(weights[wbase + c * layer_size]));
-        /**< r3 is the term \f$ w_{jc} * x_c \f$ that STEP 1 accumulated. */
-        r3.join_top();
-        r3.mul(r1, r2);
-
-        /** `partial = sum (-) term`, where `(-)` undoes the addition of STEP 1 bound by bound.
-         * Interval addition is separable — the lower bound of a sum is the sum of the lower bounds
-         * — so subtracting the *same* side recovers \f$ \sum_{c' \neq c} w_{jc'} * x_{c'} \f$
-         * exactly (up to one rounding). The interval subtraction `sum - term` would instead pair
-         * opposite bounds and widen the result by the width of `term` on each side, which would
-         * leave almost nothing to propagate. This is only a valid undo because `sum` is the
-         * untouched forward value; reversing a narrowed sum would cut off solutions. */
-        partial.lb() = battery::sub_down<bound_type>(sum.lb().load(), r3.lb().load());
-        partial.ub() = battery::sub_up<bound_type>(sum.ub().load(), r3.ub().load());
-
-        /** The narrowing comes from `nsum`: only `r3.sub(nsum, partial)` does work here. */
-        tell::fadd(nsum, partial, r3);
-        /** And back through the product: `r1.mul_back(r3, r2)` narrows the neuron `c`. */
-        tell::fmul(r3, r1, r2);
-        has_changed |= neurons.embed(prev_base + c,
-          local_itv(typename local_itv::LB(r1.lb().load()),
-                    typename local_itv::UB(r1.ub().load())));
-      }
-    }
-    return has_changed;
-  }
-
-  CUDA void print() const {
-    for(int i = 0; i < static_cast<int>(layers.size()); ++i) {
-      printf("In layer %d, we have %d neurons, and its accumulated neurons = %d\n", i, layers[i], acc_layers[i]);
-    }
-    printf("In total, we have %d neurons in the network\n", (int)neurons.vars());
-
-    // weights: column-major, printed one row (one output neuron) per line.
-    int w = 0;
-    for(int i = 1; i < static_cast<int>(layers.size()); ++i) {
-      printf("weights of layer %d (%d x %d):\n", i, layers[i], layers[i-1]);
-      for(int r = 0; r < layers[i]; ++r) {
-        printf("[");
-        for(int c = 0; c < layers[i-1]; ++c) {
-          printf("%f, ", weights[w + c * layers[i] + r]);
-        }
-        printf("]\n");
-      }
-      w += layers[i] * layers[i-1];
-    }
-
-    // biases
-    for(int i = 1; i < static_cast<int>(layers.size()); ++i) {
-      printf("biases of layer %d:\n[", i);
-      for(int j = 0; j < layers[i]; ++j) {
-        printf("%f, ", biases[biases_offset(i) + j]);
-      }
-      printf("]\n");
-    }
->>>>>>> refs/remotes/origin/nnv
   }
 };
 
