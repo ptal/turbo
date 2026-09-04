@@ -126,15 +126,15 @@ struct FastNNRelu {
   }
 
 public:
-  // `i` is the index of the deduction updating a single output neuron.
-  // It is structured as follows (from most significant to least significant bits):
-  //   - 8 bits for the index of the layer `l` (`l >= 1`, the input layer has no deduction).
-  //   - 24 bits for the index of the neuron `j` in the layer `l`.
-  // One thread handles one output neuron: it reads the intervals of the neurons of the layer `l-1`,
-  // multiplies them by the weights of the connections into `j`, adds the bias of `j`, applies the
-  // ReLU, and merges the result into `neurons[j]` with a meet. The affine part and the ReLU are
-  // fused, so the pre-activation never leaves the registers and the whole layer is updated in one
-  // deduction per neuron, without any intra-warp reduction.
+  // `i` designates the target neuron among those that have a deduction, that is, every neuron but
+  // those of the input layer: `i` ranges over `[0, num_deductions())` and updates the neuron
+  // `neurons[acc_layers[1] + i]`. Consecutive `i` are therefore consecutive neurons of the same
+  // layer, except across a layer boundary.
+  // One thread handles one neuron: it reads the intervals of the neurons of the previous layer,
+  // multiplies them by the weights of the connections into the target, adds its bias, applies the
+  // ReLU, and merges the result into the store with a meet. The affine part and the ReLU are fused,
+  // so the pre-activation never leaves the registers and a layer is updated in one deduction per
+  // neuron, without any intra-warp reduction.
   // The sizes of the layers are read off `acc_layers` alone: the layer `k` has
   // `acc_layers[k+1] - acc_layers[k]` neurons.
   CUDA bool deduce(int i) {
@@ -145,22 +145,28 @@ public:
     using local_itv = typename FItv::local_type;
 
     const int num_layers = static_cast<int>(acc_layers.size());
-    const int l = static_cast<int>(static_cast<unsigned int>(i) >> 24);
-    const int j = i & 0x00FFFFFF;
-    assert(l >= 1 && l < num_layers);
+    assert(num_layers >= 2);
+    assert(i >= 0 && i < num_neurons - (acc_layers[1] - acc_layers[0]));
+    const int target = acc_layers[1] + i;  /**< the neuron of `neurons` that this deduction updates. */
+
+    /** Locate the layer of `target`, accumulating the weight offset on the way: `l` is the last
+     * layer whose first neuron is at or before `target`, and each layer `k < l` contributes
+     * `layers[k] * layers[k-1]` weights before the block of the layer `l`. */
+    int l = 1;
+    int wbase = 0;
+    while(l + 1 < num_layers && acc_layers[l+1] <= target) {
+      wbase += (acc_layers[l+1] - acc_layers[l]) * (acc_layers[l] - acc_layers[l-1]);
+      ++l;
+    }
 
     const int out_base = acc_layers[l];
     const int layer_size = ((l + 1 < num_layers) ? acc_layers[l+1] : num_neurons) - out_base;
     const int prev_base = acc_layers[l-1];
     const int fan_in = out_base - prev_base;
+    const int j = target - out_base;  /**< index of the target within its own layer. */
     assert(j >= 0 && j < layer_size);
-    /** Weight of the connection `(c, j)`: the layers `1..l-1` come first, each contributing
-     * `layers[k] * layers[k-1]` weights, then `c * layer_size + j` within the layer `l` since the
-     * weights are stored column-major (see the layout conventions above). */
-    int wbase = 0;
-    for(int k = 1; k < l; ++k) {
-      wbase += (acc_layers[k+1] - acc_layers[k]) * (acc_layers[k] - acc_layers[k-1]);
-    }
+    /** Weight of the connection `(c, j)`: `c * layer_size + j` within the block of the layer `l`,
+     * the weights being stored column-major (see the layout conventions above). */
     wbase += j;
 
     RItv sum(bound_type{0});  /**< running pre-activation without the bias. */
@@ -189,13 +195,14 @@ public:
      * solver observes the failure and can stop, and we skip the rest: the backward propagation has
      * nothing sound to say about a contradiction. */
     if(sum.is_bot()) {
-      return neurons.embed(out_base + j, local_itv::bot());
+      return neurons.embed(target, local_itv::bot());
     }
 
     // STEP 2: add the bias and apply the ReLU, then merge the result into the neuron `j` of layer `l`.
 
-    /** `biases` has no entry for the input layer, hence the shift by the size of the layer 0. */
-    r1 = RItv(static_cast<bound_type>(biases[out_base - (acc_layers[1] - acc_layers[0]) + j]));
+    /** `biases` has no entry for the input layer, hence the shift by the size of the layer 0,
+     * which lands exactly on `i` when the neurons are numbered from `acc_layers[0] == 0`. */
+    r1 = RItv(static_cast<bound_type>(biases[acc_layers[0] + i]));
     r2.join_top();
 
     /** Forward projection rather than `tell::fadd`: `add` takes its operands by value, so `sum`
@@ -203,11 +210,11 @@ public:
     r2.add(sum, r1);  // Pre-activation + bias.
 
     RItv zero(bound_type{0});
-    r3 = RItv(neurons[out_base + j].lb().value(), neurons[out_base + j].ub().value());
+    r3 = RItv(neurons[target].lb().value(), neurons[target].ub().value());
     tell::fmax(r3, r2, zero);  // ReLU. Its backward pass narrows `r2` from the domain of neuron `j`.
 
     /** `embed` meets the result into the neuron and returns `true` if its domain got smaller. */
-    bool has_changed = neurons.embed(out_base + j,
+    bool has_changed = neurons.embed(target,
       local_itv(typename local_itv::LB(r3.lb().load()),
                 typename local_itv::UB(r3.ub().load())));
 
@@ -248,6 +255,10 @@ public:
       }
     }
     return has_changed;
+  }
+
+  CUDA int num_deductions() const {
+    return neurons.vars() - layers[0];  /**< the input layer has no deduction. */
   }
 
   CUDA void print() const {
