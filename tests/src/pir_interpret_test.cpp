@@ -3,7 +3,6 @@
 #include <gtest/gtest.h>
 #include <gtest/gtest-spi.h>
 #include "abstract_testing.hpp"
-#include "bound_consistency_test.hpp"
 
 #include "battery/vector.hpp"
 #include "battery/shared_ptr.hpp"
@@ -18,8 +17,9 @@
 using namespace lala;
 using namespace battery;
 
-using F = TFormula<standard_allocator>;
-
+using zlb = local::ZLB;
+using zub = local::ZUB;
+using Itv = Interval<zlb>;
 using IStore = VStore<Itv, standard_allocator>;
 using IPIR = PIR<IStore>; // Interval Propagators Completion
 
@@ -86,6 +86,45 @@ void deduce_and_test_bot(L& pir, int num_deds, const std::vector<Itv>& before) {
   EXPECT_TRUE(pir.is_bot());
 }
 
+/** Run the propagators to a fixpoint and check the resulting domains: exactly `after` when
+ * `test_completeness`, otherwise at least as weak as `after` (soundness). */
+template<class L>
+void deduce_and_test2(L& ipc, const std::vector<Itv>& before, const std::vector<Itv>& after, bool test_completeness, bool disable_before_test) {
+  bool has_bot = std::ranges::any_of(after, [](const Itv& itv) { return itv.is_bot(); });
+  // In case bottom is discovered before starting the fixpoint iteration.
+  if(ipc.is_bot()) {
+    EXPECT_TRUE(has_bot);
+    return;
+  }
+  if(!disable_before_test) {
+    for(int i = 0; i < before.size(); ++i) {
+      EXPECT_EQ(ipc[i], before[i]) << "ipc[" << i << "]";
+    }
+  }
+  // If all intervals are singleton from the beginning, we must test for completeness.
+  if(std::ranges::all_of(before, [](const Itv& itv) { return itv.lb().value() == itv.ub().value(); })) {
+    test_completeness = true;
+  }
+  local::B has_changed = false;
+  GaussSeidelIteration{}.fixpoint(
+    ipc.num_deductions(),
+    [&](size_t i) { return ipc.deduce(i); },
+    has_changed);
+  if(ipc.is_bot()) {
+    EXPECT_TRUE(has_bot);
+  }
+  else {
+    for(int i = 0; i < after.size(); ++i) {
+      if(test_completeness) {
+        EXPECT_EQ(ipc[i], after[i]) << ipc[i] << " == " << after[i] << "ipc[" << i << "]";
+      }
+      else {
+        EXPECT_TRUE(ipc[i] >= after[i]) << ipc[i] << " >= " << after[i] << " is false (unsound) ipc[" << i << "]";
+      }
+    }
+  }
+}
+
 TEST(PIRTest, TernaryDiv) {
   Itv x = Itv(-4, 4);
   Itv y = Itv(-4, 4);
@@ -114,61 +153,6 @@ TEST(PIRTest, TernaryDiv) {
   IPIR a = create_and_interpret_and_tell<IPIR, true>(fzn.data());
   deduce_and_test2(a, {x,y,z}, {x2, y2, z2}, false, false);
 }
-
-#ifdef NDEBUG
-
-TEST(PIRTest, TernaryPropagatorSoundnessExhaustiveTest) {
-  // test_bound_propagator_soundness_exhaustive<IPIR>("int_eq_reif", [](int x, int y, int z) { return (x == 0 || x == 1) && x == (y == z); }, true);
-  // test_bound_propagator_soundness_exhaustive<IPIR>("int_le_reif", [](int x, int y, int z) { return (x == 0 || x == 1) && x == (y <= z); }, true);
-  // test_bound_propagator_soundness_exhaustive<IPIR>("int_plus", [](int x, int y, int z) { return x == y + z; });
-  // test_bound_propagator_soundness_exhaustive<IPIR>("int_min", [](int x, int y, int z) { return x == std::min(y, z); });
-  // test_bound_propagator_soundness_exhaustive<IPIR>("int_max", [](int x, int y, int z) { return x == std::max(y, z); });
-  // test_bound_propagator_soundness_exhaustive<IPIR>("int_times", [](int x, int y, int z) { return x == y * z; }, false);
-  test_bound_propagator_soundness_exhaustive<IPIR>("int_ediv", [](int x, int y, int z) { return z != 0 && x == battery::ediv(y, z); }, false);
-  // test_bound_propagator_soundness_exhaustive<IPIR>("int_tdiv", [](int x, int y, int z) { return z != 0 && x == battery::tdiv(y, z); }, false);
-  // test_bound_propagator_soundness_exhaustive<IPIR>("int_cdiv", [](int x, int y, int z) { return z != 0 && x == battery::cdiv(y, z); }, false);
-  // test_bound_propagator_soundness_exhaustive<IPIR>("int_fdiv", [](int x, int y, int z) { return z != 0 && x == battery::fdiv(y, z); }, false);
-  // test_bound_propagator_soundness_exhaustive<IPIR>("int_emod", [](int x, int y, int z) { return z != 0 && x == battery::emod(y, z); }, false);
-  // test_bound_propagator_soundness_exhaustive<IPIR>("int_tmod", [](int x, int y, int z) { return z != 0 && x == battery::tmod(y, z); }, false);
-  // test_bound_propagator_soundness_exhaustive<IPIR>("int_cmod", [](int x, int y, int z) { return z != 0 && x == battery::cmod(y, z); }, false);
-  // test_bound_propagator_soundness_exhaustive<IPIR>("int_fmod", [](int x, int y, int z) { return z != 0 && x == battery::fmod(y, z); }, false);
-}
-
-// TEST(PIRTest, TernaryPropagatorSoundnessTest) {
-//   test_bound_propagator_soundness<IPIR>("int_eq_reif", [](int x, int y, int z) { return (x == 0 || x == 1) && x == (y == z); }, true, true);
-//   test_bound_propagator_soundness<IPIR>("int_le_reif", [](int x, int y, int z) { return (x == 0 || x == 1) && x == (y <= z); }, true, true);
-//   test_bound_propagator_soundness<IPIR>("int_plus", [](int x, int y, int z) { return x == y + z; });
-//   test_bound_propagator_soundness<IPIR>("int_min", [](int x, int y, int z) { return x == std::min(y, z); });
-//   test_bound_propagator_soundness<IPIR>("int_max", [](int x, int y, int z) { return x == std::max(y, z); });
-//   test_bound_propagator_soundness<IPIR>("int_times", [](int x, int y, int z) { return x == y * z; }, false);
-//   test_bound_propagator_soundness<IPIR>("int_ediv", [](int x, int y, int z) { return z != 0 && x == battery::ediv(y, z); }, false);
-//   test_bound_propagator_soundness<IPIR>("int_tdiv", [](int x, int y, int z) { return z != 0 && x == battery::tdiv(y, z); }, false);
-//   test_bound_propagator_soundness<IPIR>("int_cdiv", [](int x, int y, int z) { return z != 0 && x == battery::cdiv(y, z); }, false);
-//   test_bound_propagator_soundness<IPIR>("int_fdiv", [](int x, int y, int z) { return z != 0 && x == battery::fdiv(y, z); }, false);
-//   test_bound_propagator_soundness<IPIR>("int_emod", [](int x, int y, int z) { return z != 0 && x == battery::emod(y, z); }, false);
-//   test_bound_propagator_soundness<IPIR>("int_tmod", [](int x, int y, int z) { return z != 0 && x == battery::tmod(y, z); }, false);
-//   test_bound_propagator_soundness<IPIR>("int_cmod", [](int x, int y, int z) { return z != 0 && x == battery::cmod(y, z); }, false);
-//   test_bound_propagator_soundness<IPIR>("int_fmod", [](int x, int y, int z) { return z != 0 && x == battery::fmod(y, z); }, false);
-// }
-
-// TEST(PIRTest, TernaryPropagatorCompletenessTest) {
-//   test_bound_propagator_completeness<IPIR>("int_eq_reif", [](int x, int y, int z) { return (x == 0 || x == 1) && x == (y == z); });
-//   test_bound_propagator_completeness<IPIR>("int_le_reif", [](int x, int y, int z) { return (x == 0 || x == 1) && x == (y <= z); });
-//   test_bound_propagator_completeness<IPIR>("int_plus", [](int x, int y, int z) { return x == y + z; });
-//   test_bound_propagator_completeness<IPIR>("int_min", [](int x, int y, int z) { return x == std::min(y, z); });
-//   test_bound_propagator_completeness<IPIR>("int_max", [](int x, int y, int z) { return x == std::max(y, z); });
-//   test_bound_propagator_completeness<IPIR>("int_times", [](int x, int y, int z) { return x == y * z; });
-//   test_bound_propagator_completeness<IPIR>("int_ediv", [](int x, int y, int z) { return z != 0 && x == battery::ediv(y, z); });
-//   test_bound_propagator_completeness<IPIR>("int_tdiv", [](int x, int y, int z) { return z != 0 && x == battery::tdiv(y, z); });
-//   test_bound_propagator_completeness<IPIR>("int_cdiv", [](int x, int y, int z) { return z != 0 && x == battery::cdiv(y, z); });
-//   test_bound_propagator_completeness<IPIR>("int_fdiv", [](int x, int y, int z) { return z != 0 && x == battery::fdiv(y, z); });
-//   test_bound_propagator_completeness<IPIR>("int_emod", [](int x, int y, int z) { return z != 0 && x == battery::emod(y, z); }, true);
-//   test_bound_propagator_completeness<IPIR>("int_fmod", [](int x, int y, int z) { return z != 0 && x == battery::fmod(y, z); }, true);
-//   test_bound_propagator_completeness<IPIR>("int_cmod", [](int x, int y, int z) { return z != 0 && x == battery::cmod(y, z); }, true);
-//   test_bound_propagator_completeness<IPIR>("int_tmod", [](int x, int y, int z) { return z != 0 && x == battery::tmod(y, z); }, true);
-// }
-
-#endif
 
 TEST(PIRTest, TernaryProblem) {
   IPIR pir = create_and_interpret_and_tell<IPIR, true>("var int: x; var int: y; var int: z;\
