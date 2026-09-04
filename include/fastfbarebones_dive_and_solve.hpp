@@ -63,67 +63,42 @@ using GridCP = AbstractDomains<FItv,
   bt::statistics_allocator<UniqueLightAlloc<ConcurrentAllocator, 0>>,
   bt::statistics_allocator<UniqueLightAlloc<ConcurrentAllocator, 1>>>;
 
-/** Fast neural network verification design on GPU.
- *
- * Layout conventions (layer 0 is the input layer):
- *  * `layers[i]` is the number of neurons of the layer `i`.
- *  * `acc_layers[i]` is the index of the first neuron of the layer `i` in a flat
- *    array of all the neurons of the network. Hence `acc_layers.size() == layers.size()`.
- *  * `weights` stores, for each layer `i >= 1`, a column-major matrix of shape
- *    `layers[i] x layers[i-1]`, starting at `weights_offset(i)`: the weight of the connection
- *    between the neuron `c` of the layer `i-1` and the neuron `j` of the layer `i` is at
- *    `weights_offset(i) + c * layers[i] + j`. All the output neurons of a given input are
- *    therefore contiguous, so the threads of a warp, which differ only by `j`, read consecutive
- *    floats instead of one row each.
- *  * `biases` stores, for each layer `i >= 1`, `layers[i]` values starting at `biases_offset(i)`.
- * The input layer has neither weights nor biases.
- */
+/** Fast neural network verification design on GPU. */
 struct FastNNRelu {
-  /** The store of the neurons of the whole network, one variable per neuron.
-   * The neuron `j` of the layer `i` is the variable `acc_layers[i] + j`.
-   * It is allocated with `ConcurrentAllocator` so that it is readable from both the CPU and the GPU. */
   using NStore = VStore<FItv, bt::pool_allocator>;
+
+  /** Declared BEFORE `neurons` so it is constructing first. */
+  bt::pool_allocator neurons_pool;
   NStore neurons;
 
-  /** Total number of neurons in the network, input layer included. Equal to `neurons.vars()`. */
   int num_neurons;
-
-  bt::vector<int> layers;
   bt::vector<int> acc_layers;
   bt::vector<float> weights;
   bt::vector<float> biases;
 
-  CUDA FastNNRelu(): neurons(0, 0), num_neurons(0) {}
+  /** The pool is backed by managed memory so the store is reachable from host and device.
+   * `pool_allocator` does not own the buffer: it stays alive as long as we do not free it. */
+  static bt::pool_allocator make_neurons_pool(int num_neurons) {
+    size_t bytes = size_t(num_neurons) * sizeof(FItv) + alignof(FItv);
+    void* mem = bt::managed_allocator{}.allocate(bytes);   // returns nullptr when bytes == 0
+    return bt::pool_allocator(static_cast<unsigned char*>(mem), bytes);
+  }
 
-  /** `atype` is the abstract type given to the store of neurons. It is not part of the abstract
-   * domain hierarchy of the CP model (which is not built yet when the network is parsed), hence
-   * the default value 0. */
-  CUDA FastNNRelu(const int num_neurons, const bt::vector<int>& layers, const bt::vector<int>& acc_layers, const bt::vector<float>& weights, const bt::vector<float>& biases, AType atype = 0)
-    : neurons(atype, num_neurons)
+  FastNNRelu()
+    : neurons_pool(make_neurons_pool(0))
+    , neurons(0, 0, neurons_pool)
+    , num_neurons(0) 
+    {}
+
+  FastNNRelu(const int num_neurons, const bt::vector<int>& acc_layers,
+             const bt::vector<float>& weights, const bt::vector<float>& biases, AType atype = 0)
+    : neurons_pool(make_neurons_pool(num_neurons))
+    , neurons(atype, num_neurons, neurons_pool)
     , num_neurons(num_neurons)
-    , layers(layers)
     , acc_layers(acc_layers)
     , weights(weights)
-    , biases(biases)
-  {}
-
-  /** Index in `biases` of the first bias of the layer `i >= 1`.
-   * `biases` has no entry for the input layer, hence the shift by `layers[0]`. */
-  CUDA int biases_offset(int i) const {
-    return acc_layers[i] - layers[0];
-  }
-
-  /** Index in `weights` of the first weight of the layer `i >= 1`.
-   * Unlike the biases, this offset is a sum of products and therefore cannot be read off
-   * `acc_layers` in constant time. When iterating over all the layers, accumulate the offset
-   * along the way (`offset += layers[i] * layers[i-1]`) instead of calling this function. */
-  CUDA int weights_offset(int i) const {
-    int offset = 0;
-    for(int k = 1; k < i; ++k) {
-      offset += layers[k] * layers[k-1];
-    }
-    return offset;
-  }
+    , biases(biases) 
+    {}
 
 public:
   // `i` designates the target neuron among those that have a deduction, that is, every neuron but
@@ -262,33 +237,7 @@ public:
   }
 
   CUDA void print() const {
-    for(int i = 0; i < static_cast<int>(layers.size()); ++i) {
-      printf("In layer %d, we have %d neurons, and its accumulated neurons = %d\n", i, layers[i], acc_layers[i]);
-    }
     printf("In total, we have %d neurons in the network\n", (int)neurons.vars());
-
-    // weights: column-major, printed one row (one output neuron) per line.
-    int w = 0;
-    for(int i = 1; i < static_cast<int>(layers.size()); ++i) {
-      printf("weights of layer %d (%d x %d):\n", i, layers[i], layers[i-1]);
-      for(int r = 0; r < layers[i]; ++r) {
-        printf("[");
-        for(int c = 0; c < layers[i-1]; ++c) {
-          printf("%f, ", weights[w + c * layers[i] + r]);
-        }
-        printf("]\n");
-      }
-      w += layers[i] * layers[i-1];
-    }
-
-    // biases
-    for(int i = 1; i < static_cast<int>(layers.size()); ++i) {
-      printf("biases of layer %d:\n[", i);
-      for(int j = 0; j < layers[i]; ++j) {
-        printf("%f, ", biases[biases_offset(i) + j]);
-      }
-      printf("]\n");
-    }
   }
 };
 
@@ -968,7 +917,6 @@ FastNNRelu parse_network(const Configuration<battery::standard_allocator>& confi
   }
 
   battery::vector<int> acc_layers;
-  battery::vector<int> layers;
   battery::vector<float> weights;
   battery::vector<float> biases;
   int total_neurons = 0;
@@ -987,7 +935,6 @@ FastNNRelu parse_network(const Configuration<battery::standard_allocator>& confi
   int64_t input_width = input_shape.dim().size() > 3 ? input_shape.dim(3).dim_value() : 1;
   int64_t input_dimensions = batch_size * input_channels * input_height * input_width;  // number of input neurons.
   acc_layers.push_back(0);
-  layers.push_back(static_cast<int>(input_dimensions));
   total_neurons += static_cast<int>(input_dimensions);
 
   for (const auto& node : graph.node()) {
@@ -1001,7 +948,7 @@ FastNNRelu parse_network(const Configuration<battery::standard_allocator>& confi
       if (attr.name() == "transB") { transB = attr.i(); }
     }
 
-    for (int i = 0; i < node.input().size(); ++i) {
+    for (int i = 1; i < node.input().size(); ++i) {
       const std::string input_name = node.input()[i];
       if (tensor_map.find(input_name) != tensor_map.end()) {
         const auto& tensor = tensor_map[input_name];
@@ -1024,17 +971,6 @@ FastNNRelu parse_network(const Configuration<battery::standard_allocator>& confi
           int64_t out_features = transB ? tensor.dims(0) : tensor.dims(1);
           int64_t in_features = transB ? tensor.dims(1) : tensor.dims(0);
 
-          if(in_features != static_cast<int64_t>(layers.back())) {
-            std::cerr << "ERROR: The weight matrix of `" << input_name << "` expects " << in_features
-                      << " inputs but the previous layer has " << layers.back() << " neurons.\n";
-            return FastNNRelu();
-          }
-          if(static_cast<int64_t>(tmp_weights.size()) != out_features * in_features) {
-            std::cerr << "ERROR: The weight matrix of `" << input_name << "` has "
-                      << tmp_weights.size() << " entries instead of " << out_features * in_features << ".\n";
-            return FastNNRelu();
-          }
-
           /** We always store the weights column-major, all the output neurons of a given input
            * being contiguous (see the layout conventions of `FastNNRelu`). The ONNX layout
            * `[in_features, out_features]` is already in that order, so only a matrix given
@@ -1054,14 +990,24 @@ FastNNRelu parse_network(const Configuration<battery::standard_allocator>& confi
 
           // add the new layer
           acc_layers.push_back(total_neurons);
-          layers.push_back(static_cast<int>(out_features));
           total_neurons += static_cast<int>(out_features);
+
+	  if(in_features != static_cast<int64_t>(acc_layers[i]-acc_layers[i-1])) {
+            std::cerr << "ERROR: The weight matrix of `" << input_name << "` expects " << in_features
+                      << " inputs but the previous layer has " << acc_layers[i]-acc_layers[i-1] << " neurons.\n";
+            return FastNNRelu();
+          }
+          if(static_cast<int64_t>(tmp_weights.size()) != out_features * in_features) {
+            std::cerr << "ERROR: The weight matrix of `" << input_name << "` has "
+                      << tmp_weights.size() << " entries instead of " << out_features * in_features << ".\n";
+            return FastNNRelu();
+          }
         }
       }
     }
   }
 
-  FastNNRelu fast_network(total_neurons, layers, acc_layers, weights, biases);
+  FastNNRelu fast_network(total_neurons, acc_layers, weights, biases);
   return fast_network;
 }
 
@@ -1078,14 +1024,14 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
   FastNNRelu fast_network = parse_network(config);
   fast_network.print();
 
-  /** We start with some preprocessing to reduce the number of variables and constraints. */
+  // /** We start with some preprocessing to reduce the number of variables and constraints. */
   CP<FItv> cp(config);
   cp.preprocess();
   if(cp.iprop->is_bot()) {
-    cp.print_final_solution();
-    cp.print_mzn_statistics();
-    return;
-  }
+     cp.print_final_solution();
+     cp.print_mzn_statistics();
+     return;
+   }
 
   MemoryConfig mem_config = configure_gpu_fbarebones(cp);
   auto unified_data = bt::make_unique<UnifiedData, ConcurrentAllocator>(cp, mem_config);
