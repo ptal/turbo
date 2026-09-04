@@ -22,6 +22,7 @@ option(LOCAL_DEPS "LOCAL_DEPS" OFF)
 option(TURBO_VERBOSE "Compile with verbose output" ON)
 option(WITH_ASAN "Compile with the Address Sanitizer to check for memory corruption errors" OFF)
 option(WITH_XCSP3PARSER "Add support for parsing XCSP3 .xml files" ON)
+option(WITH_NNV "Add support for neural network verification .onnx and .vnnlib" ON)
 option(NO_CONCURRENT_MANAGED_MEMORY "Add support for platform not supporting concurrent managed access to memory on GPUs (use pinned memory instead)." OFF)
 option(TURBO_BUILD_DOC "Build the documentation of Turbo." OFF)
 option(TURBO_IPC_ABSTRACT_DOMAIN "Use the interval propagator completion (PC) abstract domain instead of PIR." OFF)
@@ -42,6 +43,7 @@ if(LOCAL_DEPS)
   FetchContent_Declare(lala_pc SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../lala-pc/")
   FetchContent_Declare(lala_parsing SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../lala-parsing/")
   FetchContent_Declare(lala_power SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../lala-power/")
+  FetchContent_Declare(lala_interval SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../lala-interval/")
 else()
   FetchContent_Declare(
     lala_pc
@@ -62,7 +64,7 @@ else()
   )
 endif()
 
-FetchContent_MakeAvailable(lala_parsing lala_pc lala_power)
+FetchContent_MakeAvailable(lala_parsing lala_pc lala_power lala_interval)
 
 # Turbo executable
 
@@ -105,11 +107,31 @@ if(WITH_XCSP3PARSER)
   target_compile_definitions(turbo PRIVATE WITH_XCSP3PARSER)
 endif()
 
+if(WITH_NNV)
+    target_compile_definitions(turbo PRIVATE WITH_NNV)
+    if(GPU)
+      get_filename_component(ONNXRUNTIME_ROOT 
+        "${CMAKE_CURRENT_LIST_DIR}/../lala-parsing/include/lala/onnxruntime-linux-x64-gpu-1.19.2" 
+        ABSOLUTE
+      )
+      # set(ONNXRUNTIME_ROOT "${CMAKE_CURRENT_LIST_DIR}/../lala-parsing/include/lala/onnxruntime-linux-x64-gpu-1.26.0")
+      include_directories(${ONNXRUNTIME_ROOT}/include)
+      add_library(ort_gpu SHARED IMPORTED)
+      set_target_properties(ort_gpu PROPERTIES
+          IMPORTED_LOCATION "${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so"
+      )
+    endif()
+endif()
+
 if(NO_CONCURRENT_MANAGED_MEMORY)
   target_compile_definitions(turbo PRIVATE NO_CONCURRENT_MANAGED_MEMORY)
 endif()
 
-target_link_libraries(turbo PRIVATE lala_parsing lala_pc lala_power)
+if(GPU AND WITH_NNV)
+  target_link_libraries(turbo PRIVATE lala_parsing lala_pc lala_power lala_interval ort_gpu cuda cudart)
+else()
+  target_link_libraries(turbo PRIVATE lala_parsing lala_pc lala_power lala_interval)
+endif()
 target_link_options(turbo PRIVATE
     $<$<AND:$<BOOL:${WITH_ASAN}>,$<CXX_COMPILER_ID:GNU>>:-fsanitize=address;-static-libasan>
     $<$<AND:$<BOOL:${WITH_ASAN}>,$<CXX_COMPILER_ID:Clang>>:-fsanitize=address>

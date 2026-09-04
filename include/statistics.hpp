@@ -142,6 +142,7 @@ struct Statistics {
   size_t nodes;
   size_t fails;
   size_t solutions;
+  size_t unknowns;
   int depth_max;
   bool exhaustive;
   size_t eps_num_subproblems;
@@ -156,7 +157,7 @@ struct Statistics {
   CUDA Statistics(size_t variables, size_t constraints, bool optimization, bool print_statistics):
     variables(variables), constraints(constraints), optimization(optimization),
     print_statistics(print_statistics), num_blocks(1),
-    nodes(0), fails(0), solutions(0),
+    nodes(0), fails(0), solutions(0), unknowns(0),
     depth_max(0), exhaustive(true),
     eps_solved_subproblems(0), eps_num_subproblems(1), eps_skipped_subproblems(0),
     num_blocks_done(0), fixpoint_iterations(0), num_deductions(0),
@@ -171,7 +172,7 @@ struct Statistics {
   CUDA Statistics(const Statistics<Alloc>& other):
     variables(other.variables), constraints(other.constraints), optimization(other.optimization),
     print_statistics(other.print_statistics), num_blocks(other.num_blocks),
-    nodes(other.nodes), fails(other.fails), solutions(other.solutions),
+    nodes(other.nodes), fails(other.fails), solutions(other.solutions), unknowns(other.unknowns),
     depth_max(other.depth_max), exhaustive(other.exhaustive),
     eps_solved_subproblems(other.eps_solved_subproblems), eps_num_subproblems(other.eps_num_subproblems),
     eps_skipped_subproblems(other.eps_skipped_subproblems), num_blocks_done(other.num_blocks_done),
@@ -184,6 +185,7 @@ struct Statistics {
     nodes += other.nodes;
     fails += other.fails;
     solutions += other.solutions;
+    unknowns += other.unknowns;
     depth_max = battery::max(depth_max, other.depth_max);
     exhaustive = exhaustive && other.exhaustive;
     eps_solved_subproblems += other.eps_solved_subproblems;
@@ -345,6 +347,7 @@ public:
     print_timing_stat("initTime", Timer::PREPROCESSING);
     print_timing_stat("solveTime", Timer::OVERALL);
     print_stat("num_solutions", solutions);
+    print_stat("num_unknowns", unknowns);
     print_stat("eps_num_subproblems", eps_num_subproblems);
     print_stat("eps_solved_subproblems", eps_solved_subproblems);
     print_stat("eps_skipped_subproblems", eps_skipped_subproblems);
@@ -399,13 +402,13 @@ public:
     }
     else {
       assert(solutions == 0);
-      if(exhaustive) {
+      if(exhaustive && unknowns == 0) {
         printf("=====UNSATISFIABLE=====\n");
       }
       else if(optimization) {
         printf("=====UNBOUNDED=====\n");
       }
-      else {
+      else if (unknowns != 0) {
         printf("=====UNKNOWN=====\n");
       }
     }

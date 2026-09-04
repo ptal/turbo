@@ -9,7 +9,7 @@
 #include <algorithm>
 
 void usage_and_exit(const std::string& program_name) {
-  std::cout << "usage: " << program_name << " [-t 2000] [-a] [-n 10] [-i] [-f] [-s] [-v] [-p <i>] [-arch <cpu|hybrid|gpu|barebones>] [-p 48] [-or 48] [-sub 12] [-stack 100] [-fp <ac1|wac1>] [-wac1_threshold 0] [-eps_var_order <input_order|first_fail|anti_first_fail|smallest|largest>] [-eps_value_order <min|max|split|reverse_split>] [-seed 0] [-network_analysis] [-cutnodes 0] [-disable_simplify] [-force_ternarize] [-globalmem] [-version 1.0.0] [xcsp3instance.xml | fzninstance.fzn]" << std::endl;
+  std::cout << "usage: " << program_name << " [-t 2000] [-a] [-n 10] [-i] [-f] [-s] [-v] [-p <i>] [-arch <cpu|hybrid|gpu|barebones|fbarebones>] [-p 48] [-or 48] [-sub 12] [-stack 100] [-fp <ac1|wac1>] [-wac1_threshold 0] [-eps_var_order <input_order|first_fail|anti_first_fail|smallest|largest>] [-eps_value_order <min|max|split|reverse_split>] [-seed 0] [-network_analysis] [-cutnodes 0] [-disable_simplify] [-force_ternarize] [-globalmem] [-version 1.0.0] [xcsp3instance.xml | fzninstance.fzn]" << std::endl;
   std::cout << "\t-t 2000: Run the solver with a timeout of 2000 milliseconds." << std::endl;
   std::cout << "\t-timeout 2000: Same as -t, but if both -t and -timeout are specified, -timeout overrides -t." << std::endl;
   std::cout << "\t-a: Instructs the solver to report all solutions in the case of satisfaction problems, or print intermediate solutions of increasing quality in the case of optimisation problems." << std::endl;
@@ -20,7 +20,7 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-v: Print log messages (verbose solving) to the standard error stream." << std::endl;
   std::cout << "\t-ast: Print the AST of the model (useful to debug)." << std::endl;
   std::cout << "\t-p 48: On CPU, multithreading is not yet implemented. On GPU, equivalent to `-or 48`." << std::endl;
-  std::cout << "\t-arch <cpu|gpu|hybrid|barebones>: Choose the architecture on which the problem will be solved." << std::endl;
+  std::cout << "\t-arch <cpu|gpu|hybrid|barebones|fbarebones>: Choose the architecture on which the problem will be solved." << std::endl;
   std::cout << "\t-fp <ac1|wac1>: Choose the fixpoint strategy (default: ac1 on CPU, wac1 on GPU):" << std::endl;
   std::cout << "\t\t ac1: All propagators are executed in parallel at each iteration." << std::endl;
   std::cout << "\t\t wac1: Behave as ac1 when the number of active propagators is less than wac1_threshold. Otherwise,  each warp must reach a local fixpoint before executing the next 32 propagators (not compatible with -arch cpu)." << std::endl;
@@ -28,6 +28,9 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-or 48: Run the subproblems on 48 streaming multiprocessors (SMs) (only for GPU architecture). Default: -or 0 for automatic selection of the number of SMs." << std::endl;
   std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the blocks (embarrasingly parallel search). The special value `-1` leaves Turbo to decide on the number of subproblems (at least 30 * number of blocks). Default: -sub -1." << std::endl;
   std::cout << "\t-subfactor 300: Create B * 300 subproblems to be solved in turns by `B` blocks (embarrasingly parallel search). Default: -subfactor 300." << std::endl;
+  std::cout << "\t-epsilon: Choose the epsilon value for the precision of the floating point intervals." << std::endl;
+  std::cout << "\t-var_order <input_order|first_fail|anti_first_fail|smallest|largest|random>: Choose the variable ordering strategy for tree search." << std::endl;
+  std::cout << "\t-value_order <indomain_min|indomain_max|indomain_split|indomain_reverse_split>: Choose the value ordering strategy for tree search." << std::endl;
   std::cout << "\t-eps_var_order <input_order|first_fail|anti_first_fail|smallest|largest|random>: Choose the variable ordering strategy for subproblems decomposition (default: same as main search strategy)." << std::endl;
   std::cout << "\t-eps_value_order <min|max|split|reverse_split>: Choose the value ordering strategy for subproblems decomposition (default: same as main search strategy)." << std::endl;
   std::cout << "\t-seed 0: Set the seed for the random number generator (default: 0)." << std::endl;
@@ -40,6 +43,8 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-force_ternarize: Force the transformation of the formula in ternary normal form, even with IPC abstract domain (note that it is enabled by default with PIR abstract domain)." << std::endl;
   std::cout << "\t-disable_simplify: Disable the simplification step." << std::endl;
   std::cout << "\t-globalmem: Store all data abstract elements in the global memory and do not try to optimise using shared memory." << std::endl;
+  std::cout << "\t-vnnlib_path <path>: Path to the VNNLIB file." << std::endl;
+  std::cout << "\t-onnx_path <path>: Path to the ONNX file." << std::endl;
   exit(EXIT_FAILURE);
 }
 
@@ -90,6 +95,16 @@ public:
     return false;
   }
 
+  bool read_double(const std::string& option, double& result) {
+    const std::string& value = getCmdOption(option);
+    if(!value.empty()) {
+      result = std::stod(value);
+      tokens_read += 2;
+      return true;
+    }
+    return false;
+  }
+
   bool read_bool(const std::string& option, bool& result) {
     result = cmdOptionExists(option);
     if(result) {
@@ -123,6 +138,22 @@ public:
     }
     result = tokens.back();
   }
+
+#ifdef WITH_NNV
+  void read_vnnlib_file(std::string& result){
+    // Make sure there are still unread tokens
+    if (tokens.size() <= tokens_read) {
+        usage_and_exit(program_name);
+    }
+    // Take the next unread token
+    result = tokens[tokens_read];
+    ++tokens_read; // mark it as read
+  }
+
+  void read_onnx_file(std::string& result){
+    read_input_file(result); 
+  }
+#endif 
 };
 
 Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
@@ -174,6 +205,9 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
     else if(architecture == "barebones") {
       config.arch = Arch::BAREBONES;
     }
+    else if (architecture == "fbarebones") {
+      config.arch = Arch::FBAREBONES;
+    }
     else {
       std::cerr << "Unknown architecture -arch " << architecture << std::endl;
       exit(EXIT_FAILURE);
@@ -193,6 +227,15 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
     }
   }
   input.read_size_t("-wac1_threshold", config.wac1_threshold);
+  input.read_double("-epsilon", config.epsilon);
+  std::string var_order;
+  if(input.read_string("-var_order", var_order)) {
+    config.var_order = battery::string<battery::standard_allocator>(var_order.data());
+  }
+  std::string value_order;
+  if(input.read_string("-value_order", value_order)) {
+    config.value_order = battery::string<battery::standard_allocator>(value_order.data());
+  }
   std::string eps_var_order;
   if(input.read_string("-eps_var_order", eps_var_order)) {
     config.eps_var_order = battery::string<battery::standard_allocator>(eps_var_order.data());
@@ -213,8 +256,25 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
   if(input.read_string("-hardware", hardware)) {
     config.hardware = battery::string<battery::standard_allocator>(hardware.data());
   }
-  std::string problem_path;
-  input.read_input_file(problem_path);
-  config.problem_path = battery::string<battery::standard_allocator>(problem_path.data());
+
+  std::string vnnlib_path;
+  if(input.read_string("-vnnlib_path", vnnlib_path)) {
+    config.vnnlib_path = battery::string<battery::standard_allocator>(vnnlib_path.data());
+    std::string onnx_path;
+    if(input.read_string("-onnx_path", onnx_path)) {
+      config.onnx_path = battery::string<battery::standard_allocator>(onnx_path.data());
+      config.problem_path = config.onnx_path;
+    }
+    else {
+      std::cerr << "Either -onnx_path or -vnnlib_path must be specified" << std::endl;
+      exit(EXIT_FAILURE);
+    }
+  }
+  else { 
+    std::string problem_path;
+    input.read_input_file(problem_path);
+    config.problem_path = battery::string<battery::standard_allocator>(problem_path.data());
+  }
+
   return config;
 }
