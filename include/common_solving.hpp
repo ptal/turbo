@@ -18,16 +18,15 @@
 #include "battery/vector.hpp"
 #include "battery/shared_ptr.hpp"
 
-#include "lala/simplifier.hpp"
 #include "lala/vstore.hpp"
-#include "lala/cartesian_product.hpp"
 #include "lala/interval.hpp"
 #include "lala/pir.hpp"
 #include "lala/fixpoint.hpp"
-#include "lala/interpretation.hpp"
 
+#include "env.hpp"
 #include "search_strategy.hpp"
 #include "interpretation.hpp"
+#include "simplifier.hpp"
 
 #include "lala/flatzinc_parser.hpp"
 
@@ -314,7 +313,7 @@ public:
     }
     if(config.print_ast) {
       printf("%% Interpreted AST:\n");
-      iprop->deinterpret(env).print();
+      deinterpret_in(*iprop, env).print();
       printf("\n");
     }
     if(config.verbose_solving) {
