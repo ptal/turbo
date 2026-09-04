@@ -233,7 +233,7 @@ public:
   }
 
   CUDA int num_deductions() const {
-    return neurons.vars() - layers[0];  /**< the input layer has no deduction. */
+    return neurons.vars() - acc_layers[1];  /**< the input layer has no deduction. */
   }
 
   CUDA void print() const {
@@ -329,13 +329,6 @@ struct BlockData {
   /** The time at which the kernel was started, useful to compute the time of the best bound. */
   cuda::std::chrono::system_clock::time_point start_time;
 
-  /** The gradients from the neural network. */
-  // float* h_gradients;
-  // float* h_mid_gradients;
-  // float* h_lb_gradients;
-  // float* h_ub_gradients;
-  // int num_h_gradients;
-
   /* For underapproximation search strategy. */
   bool is_uass;
 
@@ -345,11 +338,6 @@ struct BlockData {
    , next_unassigned_var(0)
    , decisions(5000)
    , depth(0)
-  //  , h_gradients(nullptr)
-  //  , h_mid_gradients(nullptr)
-  //  , h_lb_gradients(nullptr)
-  //  , h_ub_gradients(nullptr)
-  //  , num_h_gradients(0)
    , is_uass(false)
   {}
 
@@ -366,14 +354,6 @@ struct BlockData {
       inner_box = bt::make_shared<VStore<FItv, bt::global_allocator>, bt::global_allocator>(u_store);
       store = bt::allocate_shared<FStore, bt::pool_allocator>(store_allocator, u_store, store_allocator);
       iprop = bt::allocate_shared<FProp, bt::pool_allocator>(prop_allocator, u_iprop, store, prop_allocator);
-
-      // num_h_gradients = u_store.vars(); // only take input neurons.
-      // size_t gradient_bytes = sizeof(float) * static_cast<size_t>(num_h_gradients) * 4;
-      // void* gradient_mem = bt::global_allocator{}.allocate(gradient_bytes);
-      // h_gradients = static_cast<float*>(gradient_mem);
-      // h_mid_gradients = h_gradients + num_h_gradients;
-      // h_lb_gradients = h_mid_gradients + num_h_gradients;
-      // h_ub_gradients = h_lb_gradients + num_h_gradients;
       is_uass = false;
     }
   }
@@ -655,49 +635,6 @@ struct BlockData {
     }
   }
 
-  /**
-   *
-   * TODO: this function should be implemented later. It is for improving the performance.
-   * */
-  __device__ INLINE void floating_split(bool& has_changed, local::ZUB& idx,
-    const StrategyType<bt::global_allocator>& strategy, const float epsilon)
-  {
-    bool split_in_store = strategy.vars.empty();
-    int n = split_in_store ? store->vars() : strategy.vars.size();
-    if(threadIdx.x == 0) {
-      has_changed = true;
-      idx = n;
-    }
-    __syncthreads();
-    bt::vector<bool> E(n, false);
-    for(int i = threadIdx.x; i < iprop->num_deductions(); i += blockDim.x) {
-      if(!iprop->is_fsolution(i, epsilon)) {
-        has_changed = true;
-        E[iprop->load_deduce(i).x.vid()] = true;
-        E[iprop->load_deduce(i).y.vid()] = true;
-        E[iprop->load_deduce(i).z.vid()] = true;
-      }
-    }
-    __syncthreads();
-    for(int i = threadIdx.x; i < n; i += blockDim.x) {
-      const int dom_id = split_in_store ? i : strategy.vars[i].vid();
-      const auto& dom = (*store)[dom_id];
-      if(dom.width().ub().value() > epsilon && E[dom_id] && !dom.lb().is_top() && !dom.ub().is_top()) {
-        if(idx.meet(local::ZUB(i))) {
-          has_changed = true;
-          break;
-        }
-      }
-    }
-    __syncthreads();
-    if(threadIdx.x == 0) {
-      next_unassigned_var = idx.value();
-      if(next_unassigned_var != n) {
-        push_decision(strategy.val_order, split_in_store ? AVar{store->aty(), next_unassigned_var} : strategy.vars[next_unassigned_var], epsilon);
-      }
-    }
-  }
-
   /** Push a new decision onto the decisions stack.
    *  \precondition The domain of the variable `var` must not be empty, be a singleton or contain infinite bounds.
    *  \precondition Must be executed by thread 0 only.
@@ -868,7 +805,6 @@ __global__ void gpu_fbarebones_solve(UnifiedData*, GridData*);
 template <class FPEngine>
 __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data, BlockData& block_data,
    FPEngine& fp_engine, bool& stop, bool& has_changed, bool& is_leaf_node);
-// __device__ INLINE void back_propagation(BlockData& block_data, Ort::Session& session);
 __global__ void reduce_blocks(UnifiedData*, GridData*);
 __global__ void deallocate_global_data(bt::unique_ptr<GridData, bt::global_allocator>*);
 
@@ -1037,12 +973,6 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
   auto unified_data = bt::make_unique<UnifiedData, ConcurrentAllocator>(cp, mem_config);
   auto grid_data = bt::make_unique<bt::unique_ptr<GridData, bt::global_allocator>, ConcurrentAllocator>();
   initialize_global_data<<<1,1>>>(unified_data.get(), grid_data.get());
-  // Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "nnv");
-  // Ort::SessionOptions session_options;
-  // OrtCUDAProviderOptions cuda_options;
-  // cuda_options.device_id = 0;
-  // session_options.AppendExecutionProvider_CUDA(cuda_options);
-  // Ort::Session session(env, config.onnx_path.data(), session_options);
   CUDAEX(cudaDeviceSynchronize());
   /** We wait that either the solving is interrupted, or that all threads have finished. */
   /** Block the signal CTRL-C to notify the threads if we must exit. */
@@ -1126,16 +1056,12 @@ MemoryConfig configure_gpu_fbarebones(CP<FItv>& cp) {
    * */
   size_t store_bytes = gpu_sizeof<FStore>() + gpu_sizeof<abstract_ptr<FStore>>() + cp.store->vars() * gpu_sizeof<FItv>();
   size_t iprop_bytes = gpu_sizeof<FProp>() + gpu_sizeof<abstract_ptr<FProp>>() + cp.iprop->num_deductions() * gpu_sizeof<bytecode_type>() + gpu_sizeof<typename FProp::bytecodes_type>();
-  // size_t gradient_bytes = sizeof(float) * static_cast<size_t>(cp.store->vars()) * 4;
   size_t mem_per_block = gpu_sizeof<BlockData>()
     + store_bytes * size_t{3}  // current, root, best.
     + store_bytes * size_t{2}  // search strategies
     + iprop_bytes * size_t{2}
     + cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<bound_type>()  // fixpoint engine
-    // + gradient_bytes
     + (gpu_sizeof<bound_type>() + gpu_sizeof<LightBranch<FItv>>()) * size_t{MAX_SEARCH_DEPTH};
-  // size_t estimated_global_mem = gpu_sizeof<UnifiedData>() + store_bytes * size_t{5} + iprop_bytes + gradient_bytes +
-  //   gpu_sizeof<GridData>();
   size_t estimated_global_mem = gpu_sizeof<UnifiedData>() + store_bytes * size_t{5} + iprop_bytes +
     gpu_sizeof<GridData>();
 
@@ -1447,98 +1373,6 @@ __global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_d
   __syncthreads();
 }
 
-void back_propagation(BlockData& block_data) {
-  // // Step 1.
-  // Ort::MemoryInfo cuda_mem_info("Cuda", OrtAllocatorType::OrtDeviceAllocator, 0, OrtMemType::OrtMemTypeDefault);
-
-  // // Step 2.
-  // Ort::TypeInfo input_type_info = session.GetInputTypeInfo(0);
-  // battery::vector<int64_t> input_dims = input_type_info.GetTensorTypeAndShapeInfo().GetShape();
-  // size_t total_elements = 1;
-  // for (size_t i = 0; i < input_dims.size(); ++i) {
-  //   total_elements *= input_dims[i];
-  // }
-
-  // Ort::Value input_mid_tensor = Ort::Value::CreateTensor<float>(
-  //   cuda_mem_info,
-  //   block_data.h_mid_gradients,
-  //   total_elements,
-  //   input_dims.data(),
-  //   input_dims.size()
-  // );
-  // Ort::Value input_lb_tensor = Ort::Value::CreateTensor<float>(
-  //   cuda_mem_info,
-  //   block_data.h_lb_gradients,
-  //   total_elements,
-  //   input_dims.data(),
-  //   input_dims.size()
-  // );
-  // Ort::Value input_ub_tensor = Ort::Value::CreateTensor<float>(
-  //   cuda_mem_info,
-  //   block_data.h_ub_gradients,
-  //   total_elements,
-  //   input_dims.data(),
-  //   input_dims.size()
-  // );
-
-  // Step 3.
-  // Ort::RunOptions run_opts;
-  // Ort::AllocatorWithDefaultOptions ort_allocator;
-  // Ort::AllocatedStringPtr input_name_alloc = session.GetInputNameAllocated(0, ort_allocator);
-  // std::string real_input_name = input_name_alloc.get();
-  // Ort::AllocatedStringPtr output_name_alloc = session.GetOutputNameAllocated(0, ort_allocator);
-  // std::string real_output_name = output_name_alloc.get();
-
-  // const char* input_names[] = { real_input_name.c_str() };
-  // const char* output_names[] = { real_output_name.c_str() };
-  // const char* const* input_names_ptr = input_names;
-  // const char* const* output_names_ptr = output_names;
-
-  // Step 4.
-  // std::vector<Ort::Value> output_mid_tensors;
-  // std::vector<Ort::Value> output_lb_tensors;
-  // std::vector<Ort::Value> output_ub_tensors;
-  // output_mid_tensors = session.Run(
-  //   run_opts,
-  //   input_names_ptr,
-  //   &input_mid_tensor,
-  //   1,
-  //   output_names_ptr,
-  //   1
-  // );
-  // output_lb_tensors = session.Run(
-  //   run_opts,
-  //   input_names_ptr,
-  //   &input_lb_tensor,
-  //   1,
-  //   output_names_ptr,
-  //   1
-  // );
-  // output_ub_tensors = session.Run(
-  //   run_opts,
-  //   input_names_ptr,
-  //   &input_ub_tensor,
-  //   1,
-  //   output_names_ptr,
-  //   1
-  // );
-
-  // Step 5.
-  // block_data.h_mid_gradients = output_mid_tensors[0].GetTensorMutableData<float>();
-  // block_data.h_lb_gradients = output_lb_tensors[0].GetTensorMutableData<float>();
-  // block_data.h_ub_gradients = output_ub_tensors[0].GetTensorMutableData<float>();
-
-  // TODO: combine these gradients together. just use average
-  // we also have to consider floating-point errors.
-  // to simplicitly, we use only upper-towards rounding function
-  // for(size_t i = 0; i < block_data.num_h_gradients; ++i){
-    // block_data.h_gradients[i] = battery::div_up(battery::add_up(battery::add_up(block_data.h_mid_gradients[i], block_data.h_lb_gradients[i]), block_data.h_ub_gradients[i]), float{3.0});
-    // block_data.h_gradients[i] = block_data.h_mid_gradients[i];
-    // block_data.h_gradients[i] = block_data.h_ub_gradients[i];
-  // }
-
-  // cudaDeviceSynchronize();
-}
 
 template <class FPEngine>
 __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data, BlockData& block_data,
@@ -1636,21 +1470,6 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
         unified_data.stop.test_and_set();
       }
     }
-    // else if(strat.var_order == VariableOrder::GRA_ANTI_FIRST_FAIL){
-    //   // Obtain graident from the network by lbs, midpoints, and ubs.
-    //   // We need to split this node.
-    //   // By applying back_propagation(), we can have the latest gradient information.
-    //   // This gradient information might not work. The code itself is correct, but it might not effective.
-    //   for(int i = (int)group.thread_rank(); i < strat.vars.size(); i += group.num_threads()){
-    //     block_data.h_mid_gradients[i] = battery::midpoint(store[i].lb().value(), store[i].ub().value());
-    //     block_data.h_lb_gradients[i] = store[i].lb().value();
-    //     block_data.h_ub_gradients[i] = store[i].ub().value();
-    //   }
-    //   __syncthreads();
-    //   if(threadIdx.x == 0) {
-    //     back_propagation(block_data, session);
-    //   }
-    // }
   }
   else {
     // This is unknown checking.
@@ -1663,12 +1482,6 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
       has_changed = block_data.is_uass;
     }
     __syncthreads();
-    // for (int i = (int)group.thread_rank(); i < strat.vars.size(); i += group.num_threads()){
-    //   if(store[i].lb().value() == store[i].ub().value()){
-    //     has_changed = true;
-    //   }
-    // }
-    // __syncthreads();
     num_active = has_changed ? 0 : 1;
     TIMEPOINT(SELECT_FP_FUNCTIONS);
     if (num_active == 0) {
