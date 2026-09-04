@@ -21,7 +21,6 @@
 
 #include "lala/pir.hpp"
 
-#include "env.hpp"
 #include "search_strategy.hpp"
 
 /**

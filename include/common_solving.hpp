@@ -23,10 +23,10 @@
 #include "lala/pir.hpp"
 #include "lala/fixpoint.hpp"
 
-#include "env.hpp"
+#include "lala/simplifier.hpp"
+
 #include "search_strategy.hpp"
 #include "interpretation.hpp"
-#include "simplifier.hpp"
 
 #include "lala/flatzinc_parser.hpp"
 
@@ -449,7 +449,14 @@ public:
         simplifier->meet_equivalence_classes();
       }
       has_changed |= simplifier->algebraic_simplify(tnf, preprocessing_stats);
-      simplifier->eliminate_entailed_constraints(*iprop, tnf, preprocessing_stats);
+      simplifier->eliminate_entailed_constraints(tnf, preprocessing_stats,
+        [&](const auto& constraint) {
+          IDiagnostics diagnostics;
+          typename IProp::template ask_type<basic_allocator_type> ask_value;
+          bool ok = interpret_ask_in(*iprop, constraint, env, ask_value, diagnostics);
+          assert(ok);
+          return ok && iprop->ask(ask_value);
+        });
       // if(num_vars < 1000000) { // otherwise ICSE is too slow, needs to be improved.
         has_changed |= simplifier->i_cse(tnf, preprocessing_stats);
       // }
