@@ -21,9 +21,10 @@
  * interpret a formula in a product of domains.
  */
 
-namespace turbo {
-
-using namespace lala;
+/** The diagnostics macros (`RETURN_INTERPRETATION_ERROR`, ...) name `IDiagnostics` unqualified.
+ * We only import that one name: a `using namespace lala` at this scope would make the `Sig`
+ * enumerators (`LT`, `GT`, `EQ`, `IN`, ...) ambiguous with the XCSP3 parser's own constants. */
+using lala::IDiagnostics;
 
 /** The result of interpreting a constraint network: the constraints to be told to the
  * propagators domain `IProp`, the objective and the search strategies. */
@@ -55,21 +56,21 @@ struct interpreted_cn {
 template <bool diagnose = false, class F, class Env>
 CUDA NI bool interpret_objective(const F& f, Env& env, Objective& objective, IDiagnostics& diagnostics) {
   const char* name = "Objective";
-  assert(f.is(F::Seq) && (f.sig() == MINIMIZE || f.sig() == MAXIMIZE));
+  assert(f.is(F::Seq) && (f.sig() == lala::MINIMIZE || f.sig() == lala::MAXIMIZE));
   if(f.seq(0).is_variable()) {
     if(!objective.is_satisfaction()) {
       RETURN_INTERPRETATION_ERROR("Multi-objective optimization is not supported.");
     }
-    AVar x;
+    lala::AVar x;
     if(!env.template interpret<diagnose>(f.seq(0), x, diagnostics)) {
       return false;
     }
-    objective = Objective(x, f.sig() == MINIMIZE);
+    objective = Objective(x, f.sig() == lala::MINIMIZE);
     return true;
   }
   // If the objective variable is already fixed to a constant, we ignore this predicate.
   // If there is only one objective, it becomes a satisfaction problem.
-  else if(num_vars(f.seq(0)) == 0) {
+  else if(lala::num_vars(f.seq(0)) == 0) {
     RETURN_INTERPRETATION_WARNING("This objective is already fixed to a constant, thus it is ignored.");
   }
   else {
@@ -113,7 +114,7 @@ CUDA NI bool interpret_strategy(const F& f, Env& env, StrategyType<Alloc>& strat
   }
   for(int i = 2; i < f.eseq().size(); ++i) {
     if(f.eseq(i).is(F::LV)) {
-      strat.vars.push_back(AVar{});
+      strat.vars.push_back(lala::AVar{});
       if(!env.template interpret<diagnose>(f.eseq(i), strat.vars.back(), diagnostics)) {
         return false;
       }
@@ -121,7 +122,7 @@ CUDA NI bool interpret_strategy(const F& f, Env& env, StrategyType<Alloc>& strat
     else if(f.eseq(i).is(F::V)) {
       strat.vars.push_back(f.eseq(i).v());
     }
-    else if(num_vars(f.eseq(i)) > 0) {
+    else if(lala::num_vars(f.eseq(i)) > 0) {
       RETURN_INTERPRETATION_ERROR("The predicate `search` only supports variables or constants, but an expression containing a variable was passed to it.");
     }
     // Ignore constant expressions.
@@ -139,7 +140,7 @@ CUDA NI bool interpret_cn_in(const IProp& iprop, const F& f, Env& env,
   if(f.is_true()) {
     return true;
   }
-  else if(f.is(F::Seq) && f.sig() == AND) {
+  else if(f.is(F::Seq) && f.sig() == lala::AND) {
     for(int i = 0; i < f.seq().size(); ++i) {
       if(!interpret_cn_in<diagnose>(iprop, f.seq(i), env, intermediate, diagnostics)) {
         return false;
@@ -147,11 +148,11 @@ CUDA NI bool interpret_cn_in(const IProp& iprop, const F& f, Env& env,
     }
     return true;
   }
-  else if(f.is(F::Seq) && (f.sig() == MINIMIZE || f.sig() == MAXIMIZE)) {
+  else if(f.is(F::Seq) && (f.sig() == lala::MINIMIZE || f.sig() == lala::MAXIMIZE)) {
     return interpret_objective<diagnose>(f, env, intermediate.objective, diagnostics);
   }
   else if(f.is(F::ESeq) && f.esig() == "search") {
-    StrategyType<Alloc> strat{intermediate.get_allocator()};
+    StrategyType<Alloc> strat(intermediate.get_allocator());
     if(!interpret_strategy<diagnose>(f, env, strat, diagnostics)) {
       return false;
     }
@@ -160,7 +161,7 @@ CUDA NI bool interpret_cn_in(const IProp& iprop, const F& f, Env& env,
   }
   // Any other formula is a constraint, interpreted in the propagators domain (and, for the
   // formulas it cannot represent, in its underlying store of variables).
-  return ginterpret_in<IKind::TELL, diagnose>(iprop, f, env, intermediate.constraints, diagnostics);
+  return lala::ginterpret_in<lala::IKind::TELL, diagnose>(iprop, f, env, intermediate.constraints, diagnostics);
 }
 
 /** Interpret the constraint network `f` and, on success, deduce the constraints in `iprop` and
@@ -175,7 +176,7 @@ CUDA NI bool interpret_and_tell_cn(IProp& iprop, const F& f, Env& env,
   TellAlloc tell_alloc = TellAlloc{})
 {
   auto snap = env.snapshot();
-  interpreted_cn<IProp, TellAlloc> intermediate{tell_alloc};
+  interpreted_cn<IProp, TellAlloc> intermediate(tell_alloc);
   intermediate.objective = objective;
   if(!interpret_cn_in<diagnose>(iprop, f, env, intermediate, diagnostics)) {
     env.restore(snap);
@@ -188,7 +189,5 @@ CUDA NI bool interpret_and_tell_cn(IProp& iprop, const F& f, Env& env,
   }
   return true;
 }
-
-} // namespace turbo
 
 #endif

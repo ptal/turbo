@@ -283,7 +283,7 @@ struct AbstractDomains {
     // Note that `best` must have the same abstract type then store (otherwise projection of the variables will fail).
     best = battery::allocate_shared<LIStore, BasicAllocator>(basic_allocator, store->aty(), num_vars, basic_allocator);
     objective = Objective{};
-    strategies = strategies_type{basic_allocator};
+    strategies = strategies_type(basic_allocator);
     if(config.verbose_solving) {
       printf("%% Abstract domain allocated.\n");
     }
@@ -294,9 +294,9 @@ private:
   template <class F>
   CUDA bool interpret_and_diagnose_and_tell(const F& f) {
     IDiagnostics diagnostics;
-    if(!turbo::interpret_and_tell_cn(*iprop, f, env, objective, strategies, diagnostics)) {
+    if(!interpret_and_tell_cn(*iprop, f, env, objective, strategies, diagnostics)) {
       IDiagnostics diagnostics2;
-      turbo::interpret_and_tell_cn<true>(*iprop, f, env, objective, strategies, diagnostics2);
+      interpret_and_tell_cn<true>(*iprop, f, env, objective, strategies, diagnostics2);
       diagnostics2.print();
       return false;
     }
@@ -339,7 +339,6 @@ public:
     }
     stats.variables = store->vars();
     stats.constraints = iprop->num_deductions();
-    /** We add a search strategy by default for the variables that potentially do not occur in the previous strategies. */
     push_default_strategy();
     return true;
   }
@@ -523,11 +522,14 @@ public:
   }
 
 private:
-  /** We add a search strategy over all the variables of the store, in case some of them do not
-   * occur in the strategies declared in the model. An empty set of variables means the strategy
-   * ranges over the whole store. */
+  /** The search strategies declared in the model do not necessarily cover every variable of the
+   * store, in particular the variables introduced by ternarization, and a model may declare no
+   * strategy at all. We therefore add a last strategy ranging over the whole store (an empty set
+   * of variables means "all the variables of the store"): without it, `split` finds no variable
+   * to branch on, the subtree is skipped and the search is not exhaustive.
+   * It must come last so that it does not override the strategies declared in the model. */
   CUDA void push_default_strategy() {
-    battery::vector<AVar, basic_allocator_type> vars{basic_allocator};
+    battery::vector<AVar, basic_allocator_type> vars(basic_allocator);
     strategies.push_back(StrategyType<basic_allocator_type>(
       VariableOrder::FIRST_FAIL, ValueOrder::MIN, std::move(vars)));
   }
