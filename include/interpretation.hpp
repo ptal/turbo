@@ -839,21 +839,21 @@ namespace impl {
      || sort.value() == sort_type(sort_type::Set, sort_type(sort_type::Bool))))
     {
       const auto& set = f.seq(1).s();
-      local_type join_s(typename A::bot_constructor_tag{});
+      local_type join_s = local_type::bot();
       bool over_appx = false;
       for(int i = 0; i < set.size(); ++i) {
         int l = battery::get<0>(set[i]).to_z();
         int u = battery::get<1>(set[i]).to_z();
         join_s.join(local_type(l, u));
-        if(l < 0 || u >= join_s.size() - 2) {
+        if(l < 0 || u >= A::capacity() - 2) {
           over_appx = true;
         }
       }
       if constexpr(negated) {
         join_s = join_s.complement();
-        // In any case it must be set to true: if no element is below zero, then some elements in the negation are; and if some elements are below zero it's not all of them.
-        join_s.set(0, true);
-        join_s.set(join_s.size()-1, true);
+        // In any case both out-of-range flags must be set: if no element is below zero, then some
+        // elements in the negation are; and if some elements are below zero it's not all of them.
+        join_s.join_out_of_range();
       }
       tell.meet(join_s);
       if(over_appx) {
@@ -877,8 +877,8 @@ namespace impl {
     else if(sig == GT) {
       return interpret_tell_x_op_k_bitset<diagnose>(f, k+1, GEQ, tell, diagnostics);
     }
-    else if(k < 0 || k >= tell.size() - 2) {
-      if((k == -1 && sig == LEQ) || (k == tell.size() - 2 && sig == GEQ)) {
+    else if(k < 0 || k >= A::capacity() - 2) {
+      if((k == -1 && sig == LEQ) || (k == A::capacity() - 2 && sig == GEQ)) {
         // this is fine because x <= -1 and x >= n-2 can be represented exactly.
       }
       else {
@@ -893,7 +893,7 @@ namespace impl {
       case EQ: tell.meet(local_type(k, k)); break;
       case NEQ: tell.meet(local_type(k, k).complement()); break;
       case LEQ: tell.meet(local_type(-1, k)); break;
-      case GEQ: tell.meet(local_type(k, tell.size())); break;
+      case GEQ: tell.meet(local_type(k, A::capacity())); break;
       default: RETURN_INTERPRETATION_ERROR("This symbol is not supported.");
     }
     return true;
