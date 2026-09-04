@@ -19,10 +19,6 @@
         "GPU": {
           "type": "BOOL",
           "value": "ON"
-        },
-        "REDUCE_PTX_SIZE": {
-          "type": "BOOL",
-          "value": "OFF"
         }
       }
     },

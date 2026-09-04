@@ -5,7 +5,7 @@
 
 #include "common_solving.hpp"
 #include "memory_gpu.hpp"
-#include "lala/light_branch.hpp"
+#include "light_branch.hpp"
 #include <mutex>
 #include <thread>
 #include <chrono>
@@ -39,7 +39,6 @@ namespace bt = ::battery;
 namespace barebones {
 
 #ifdef __CUDACC__
-#ifndef TURBO_IPC_ABSTRACT_DOMAIN
 
 /** `ConcurrentAllocator` allocates memory available both on CPU and GPU. For non-Linux systems such as Windows pinned memory must be used (see PR #19). */
 #ifdef NO_CONCURRENT_MANAGED_MEMORY
@@ -447,7 +446,7 @@ struct GridData {
    , next_subproblem(root.stats.num_blocks)
    , print_lock(1)
    , has_eps_strategy(root.config.eps_var_order != "default")
-   , search_strategies(root.split->strategies_())
+   , search_strategies(root.strategies)
    , obj_var(root.minimize_obj_var)
   {}
 };
@@ -508,8 +507,8 @@ void barebones_dive_and_solve(const Configuration<battery::standard_allocator>& 
   if(uroot.config.print_statistics) {
     uroot.config.print_mzn_statistics();
     uroot.stats.print_mzn_statistics(uroot.config.verbose_solving);
-    if(uroot.bab->is_optimization() && uroot.stats.solutions > 0) {
-      uroot.stats.print_mzn_objective(uroot.best->project(uroot.bab->objective_var()), uroot.bab->is_minimization());
+    if(uroot.objective.is_optimization() && uroot.stats.solutions > 0) {
+      uroot.stats.print_mzn_objective(uroot.best->project(uroot.objective.objective_var()), uroot.objective.is_minimization());
     }
     unified_data->root.stats.print_mzn_end_stats();
   }
@@ -1044,7 +1043,7 @@ __global__ void reduce_blocks(UnifiedData* unified_data, GridData* grid_data) {
   for(int i = 0; i < grid_data->blocks.size(); ++i) {
     auto& block = grid_data->blocks[i];
     if(block.stats.solutions > 0) {
-      if(root.bab->is_satisfaction()) {
+      if(root.objective.is_satisfaction()) {
         block.best_store->extract(*root.best);
         break;
       }
@@ -1070,17 +1069,12 @@ __global__ void deallocate_global_data(bt::unique_ptr<GridData, bt::global_alloc
   grid_data->reset();
 }
 
-#endif // TURBO_IPC_ABSTRACT_DOMAIN
 #endif // __CUDACC__
 
-#if defined(TURBO_IPC_ABSTRACT_DOMAIN) || !defined(__CUDACC__)
+#ifndef __CUDACC__
 
 void barebones_dive_and_solve(const Configuration<battery::standard_allocator>& config) {
-#ifdef TURBO_IPC_ABSTRACT_DOMAIN
-  std::cerr << "-arch barebones does not support IPC abstract domain." << std::endl;
-#else
   std::cerr << "You must use a CUDA compiler (nvcc or clang) to compile Turbo on GPU." << std::endl;
-#endif
 }
 
 #endif
