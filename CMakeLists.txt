@@ -62,6 +62,13 @@ else()
     GIT_REPOSITORY "https://github.com/lattice-land/lala-power.git"
     GIT_TAG        v1.2.8
   )
+
+  # lala-interval is not released yet, hence it is tracked by branch instead of by tag.
+  FetchContent_Declare(
+    lala_interval
+    GIT_REPOSITORY "https://github.com/lattice-land/lala-interval.git"
+    GIT_TAG        main
+  )
 endif()
 
 FetchContent_MakeAvailable(lala_parsing lala_pc lala_power lala_interval)
@@ -118,7 +125,8 @@ if(WITH_NNV)
       include_directories(${ONNXRUNTIME_ROOT}/include)
       add_library(ort_gpu SHARED IMPORTED)
       set_target_properties(ort_gpu PROPERTIES
-          IMPORTED_LOCATION "${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so"
+          # The shipped tree has no unversioned `libonnxruntime.so` symlink, only the real file.
+          IMPORTED_LOCATION "${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so.1.19.2"
       )
     endif()
 endif()
