@@ -43,6 +43,7 @@ if(LOCAL_DEPS)
   FetchContent_Declare(lala_pc SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../lala-pc/")
   FetchContent_Declare(lala_parsing SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../lala-parsing/")
   FetchContent_Declare(lala_power SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../lala-power/")
+  FetchContent_Declare(lala_interval SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../lala-interval/")
 else()
   FetchContent_Declare(
     lala_pc
@@ -63,7 +64,7 @@ else()
   )
 endif()
 
-FetchContent_MakeAvailable(lala_parsing lala_pc lala_power)
+FetchContent_MakeAvailable(lala_parsing lala_pc lala_power lala_interval)
 
 # Turbo executable
 
@@ -127,9 +128,9 @@ if(NO_CONCURRENT_MANAGED_MEMORY)
 endif()
 
 if(GPU AND WITH_NNV)
-  target_link_libraries(turbo PRIVATE lala_parsing lala_pc lala_power ort_gpu cuda cudart)
+  target_link_libraries(turbo PRIVATE lala_parsing lala_pc lala_power lala_interval ort_gpu cuda cudart)
 else()
-  target_link_libraries(turbo PRIVATE lala_parsing lala_pc lala_power)
+  target_link_libraries(turbo PRIVATE lala_parsing lala_pc lala_power lala_interval)
 endif()
 target_link_options(turbo PRIVATE
     $<$<AND:$<BOOL:${WITH_ASAN}>,$<CXX_COMPILER_ID:GNU>>:-fsanitize=address;-static-libasan>

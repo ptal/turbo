@@ -16,7 +16,8 @@
 
 // #include "hybrid_dive_and_solve.hpp"
 #include "barebones_dive_and_solve.hpp"
-#include "fbarebones_dive_and_solve.hpp"
+//#include "fbarebones_dive_and_solve.hpp"
+#include "fastfbarebones_dive_and_solve.hpp"
 // #include "jet.hpp"
 
 using namespace battery;
