@@ -1,0 +1,9 @@
+var int: u;
+var int: v;
+var int: w;
+var int: x;
+var int: y;
+var int: z;
+array [1..6] of int: X_INTRODUCED_305_ = [512,512,2048,2048,4000,-1];
+constraint int_lin_le(X_INTRODUCED_305_,[u, v, w, x, y, z],0);
+solve satisfy;

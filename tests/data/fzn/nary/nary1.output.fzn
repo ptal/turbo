@@ -1,0 +1,47 @@
+var int: u;
+var int: v;
+var int: w;
+var int: x;
+var int: y;
+var int: z;
+
+var int: __CONSTANT_0;
+var int: __CONSTANT_1;
+var int: __CONSTANT_512;
+var int: __CONSTANT_2048;
+var int: __CONSTANT_4000;
+var int: __CONSTANT_m1;
+
+var int: __VAR_Z_0;
+var int: __VAR_Z_1;
+var int: __VAR_Z_2;
+var int: __VAR_Z_3;
+var int: __VAR_Z_4;
+var int: __VAR_Z_5;
+var int: __VAR_Z_6;
+var int: __VAR_Z_7;
+var int: __VAR_Z_8;
+var int: __VAR_Z_9;
+var int: __VAR_Z_10;
+
+constraint int_eq(__CONSTANT_0,0);
+constraint int_eq(__CONSTANT_1,1);
+constraint int_eq(__CONSTANT_512,512);
+constraint int_eq(__CONSTANT_2048,2048);
+constraint int_eq(__CONSTANT_4000,4000);
+constraint int_eq(__CONSTANT_m1,-1);
+
+constraint int_eq(__VAR_Z_0,int_times(__CONSTANT_512, u));
+constraint int_eq(__VAR_Z_1,int_times(__CONSTANT_512, v));
+constraint int_eq(__VAR_Z_2,int_times(__CONSTANT_2048, w));
+constraint int_eq(__VAR_Z_3,int_plus(__VAR_Z_1, __VAR_Z_2));
+constraint int_eq(__VAR_Z_4,int_plus(__VAR_Z_0, __VAR_Z_3));
+
+constraint int_eq(__VAR_Z_5,int_times(__CONSTANT_2048, x));
+constraint int_eq(__VAR_Z_6,int_times(__CONSTANT_4000, y));
+constraint int_eq(__VAR_Z_7,int_times(__CONSTANT_m1, z));
+
+constraint int_eq(__VAR_Z_8,int_plus(__VAR_Z_6, __VAR_Z_7));
+constraint int_eq(__VAR_Z_9,int_plus(__VAR_Z_5, __VAR_Z_8));
+constraint int_eq(__VAR_Z_10,int_plus(__VAR_Z_4, __VAR_Z_9));
+constraint int_le(__VAR_Z_10, 0);

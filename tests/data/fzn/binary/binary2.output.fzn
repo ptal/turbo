@@ -1,0 +1,6 @@
+var bool: w;
+var bool: z;
+var bool: r;
+
+% constraints for constraint bool_and(w,z,r);
+constraint int_eq(r, int_min(w, z));

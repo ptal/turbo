@@ -1,0 +1,18 @@
+var int: x;
+var int: y;
+var int: __VAR_Z_0;
+var int: __VAR_Z_1;
+var int: __VAR_Z_2;
+var int: __CONSTANT_2;
+var int: __CONSTANT_10;
+
+constraint int_ge(x,0);
+constraint int_le(x,10);
+constraint int_ge(y,0);
+constraint int_le(y,10);
+constraint int_times(x,__CONSTANT_2, __VAR_Z_0);
+constraint int_tdiv(__VAR_Z_0, __CONSTANT_10, __VAR_Z_1);
+constraint int_times(__CONSTANT_10, __VAR_Z_1, __VAR_Z_2);
+constraint int_plus(y, __VAR_Z_2, __VAR_Z_0);
+constraint int_eq(__CONSTANT_2,2);
+constraint int_eq(__CONSTANT_10,10);

@@ -1,0 +1,14 @@
+var int: x;
+var int: y;
+var int: __VAR_Z_0;
+var int: __CONSTANT_1;
+var int: __CONSTANT_5;
+
+constraint int_ge(x,0);
+constraint int_le(x,10);
+constraint int_ge(y,0);
+constraint int_le(y,10);
+constraint int_eq(__CONSTANT_5,5);
+constraint int_eq(__CONSTANT_1,1);
+constraint int_eq(__VAR_Z_0,int_plus(x,y));
+constraint int_le(__VAR_Z_0,5);

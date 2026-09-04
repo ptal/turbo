@@ -1,0 +1,4 @@
+var bool: w;
+var bool: z;
+var bool: r;
+constraint bool_and(w,z,r);
