@@ -13,10 +13,7 @@
 #endif
 
 enum class Arch {
-  CPU,
-  GPU,
-  BAREBONES,
-  HYBRID
+  BAREBONES
 };
 
 enum class FixpointKind {
@@ -40,7 +37,6 @@ struct Configuration {
   int verbose_solving;
   bool print_ast;
   bool only_global_memory;
-  bool force_ternarize;
   bool disable_simplify;
   bool disable_network_analysis;
   size_t timeout_ms;
@@ -67,27 +63,14 @@ struct Configuration {
     print_ast(false),
     print_statistics(false),
     only_global_memory(false),
-    force_ternarize(false),
     disable_simplify(false),
     disable_network_analysis(false),
     timeout_ms(0),
     or_nodes(0),
     subproblems_power(-1),
     subproblems_factor(300),
-    stack_kb(
-      #ifdef TURBO_IPC_ABSTRACT_DOMAIN
-        32
-      #else
-        0
-      #endif
-    ),
-    arch(
-      #ifdef __CUDACC__
-        Arch::BAREBONES
-      #else
-        Arch::CPU
-      #endif
-    ),
+    stack_kb(0),
+    arch(Arch::BAREBONES),
     fixpoint(
       #ifdef __CUDACC__
         FixpointKind::WAC1
@@ -117,7 +100,6 @@ struct Configuration {
     verbose_solving(other.verbose_solving),
     print_ast(other.print_ast),
     only_global_memory(other.only_global_memory),
-    force_ternarize(other.force_ternarize),
     disable_simplify(other.disable_simplify),
     disable_network_analysis(other.disable_network_analysis),
     timeout_ms(other.timeout_ms),
@@ -146,7 +128,6 @@ struct Configuration {
     print_ast = other.print_ast;
     print_statistics = other.print_statistics;
     only_global_memory = other.only_global_memory;
-    force_ternarize = other.force_ternarize;
     disable_simplify = other.disable_simplify;
     disable_network_analysis = other.disable_network_analysis;
     timeout_ms = other.timeout_ms;
@@ -179,15 +160,9 @@ struct Configuration {
     for(int i = 0; i < verbose_solving; ++i) {
       printf("-v ");
     }
-    if(arch != Arch::CPU) {
-      printf("-arch %s -or %" PRIu64 " -sub %d -subfactor %" PRIu64 " -stack %" PRIu64 " ", name_of_arch(arch), or_nodes, subproblems_power, subproblems_factor, stack_kb);
-      if(only_global_memory) { printf("-globalmem "); }
-    }
-    else {
-      printf("-arch cpu -p %" PRIu64 " ", or_nodes);
-    }
+    printf("-arch %s -or %" PRIu64 " -sub %d -subfactor %" PRIu64 " -stack %" PRIu64 " ", name_of_arch(arch), or_nodes, subproblems_power, subproblems_factor, stack_kb);
+    if(only_global_memory) { printf("-globalmem "); }
     if(disable_simplify) { printf("-disable_simplify "); }
-    if(force_ternarize) { printf("-force_ternarize "); }
     if(disable_network_analysis) { printf("-disable_network_analysis "); }
     printf("-fp %s ", name_of_fixpoint(fixpoint));
     if(fixpoint == FixpointKind::WAC1) {
@@ -220,14 +195,8 @@ struct Configuration {
 
   CUDA const char* name_of_arch(Arch arch) const {
     switch(arch) {
-      case Arch::CPU:
-        return "cpu";
-      case Arch::GPU:
-        return "gpu";
       case Arch::BAREBONES:
         return "barebones";
-      case Arch::HYBRID:
-        return "hybrid";
       default:
         assert(0);
         return "Unknown";
@@ -252,16 +221,14 @@ struct Configuration {
     printf("%%%%%%mzn-stat: free_search=\"%s\"\n", free_search ? "yes" : "no");
     printf("%%%%%%mzn-stat: or_nodes=%" PRIu64 "\n", or_nodes);
     printf("%%%%%%mzn-stat: timeout_ms=%" PRIu64 "\n", timeout_ms);
-    if(arch != Arch::CPU) {
-      printf("%%%%%%mzn-stat: threads_per_block=%d\n", CUDA_THREADS_PER_BLOCK);
-      printf("%%%%%%mzn-stat: stack_size=%" PRIu64 "\n", stack_kb * 1000);
-      #ifdef CUDA_VERSION
-        printf("%%%%%%mzn-stat: cuda_version=%d\n", CUDA_VERSION);
-      #endif
-      #ifdef __CUDA_ARCH__
-        printf("%%%%%%mzn-stat: cuda_architecture=%d\n", __CUDA_ARCH__);
-      #endif
-    }
+    printf("%%%%%%mzn-stat: threads_per_block=%d\n", CUDA_THREADS_PER_BLOCK);
+    printf("%%%%%%mzn-stat: stack_size=%" PRIu64 "\n", stack_kb * 1000);
+    #ifdef CUDA_VERSION
+      printf("%%%%%%mzn-stat: cuda_version=%d\n", CUDA_VERSION);
+    #endif
+    #ifdef __CUDA_ARCH__
+      printf("%%%%%%mzn-stat: cuda_architecture=%d\n", __CUDA_ARCH__);
+    #endif
     printf("%%%%%%mzn-stat: cutnodes=%" PRIu64 "\n", stop_after_n_nodes == std::numeric_limits<size_t>::max() ? 0 : stop_after_n_nodes);
   }
 

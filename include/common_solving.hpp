@@ -22,13 +22,12 @@
 #include "lala/vstore.hpp"
 #include "lala/cartesian_product.hpp"
 #include "lala/interval.hpp"
-#include "lala/pc.hpp"
 #include "lala/pir.hpp"
 #include "lala/fixpoint.hpp"
-#include "lala/search_tree.hpp"
-#include "lala/bab.hpp"
-#include "lala/split_strategy.hpp"
 #include "lala/interpretation.hpp"
+
+#include "search_strategy.hpp"
+#include "interpretation.hpp"
 
 #include "lala/flatzinc_parser.hpp"
 
@@ -149,15 +148,9 @@ struct AbstractDomains {
   using LIStore = VStore<universe_type, BasicAllocator>;
 
   using IStore = VStore<Universe, StoreAllocator>;
-#ifdef TURBO_IPC_ABSTRACT_DOMAIN
-  using IProp = PC<IStore, PropAllocator>; // Interval Propagators using general propagator completion.
-#else
   using IProp = PIR<IStore, PropAllocator>; // Interval Propagators using the TNF representation of propagators.
-#endif
   using ISimplifier = Simplifier<IProp, BasicAllocator>;
-  using Split = SplitStrategy<IProp, BasicAllocator>;
-  using IST = SearchTree<IProp, Split, BasicAllocator>;
-  using IBAB = BAB<IST, LIStore>;
+  using strategies_type = SearchStrategies<BasicAllocator>;
 
   using basic_allocator_type = BasicAllocator;
   using prop_allocator_type = PropAllocator;
@@ -193,18 +186,16 @@ struct AbstractDomains {
    , store(store_allocator)
    , iprop(prop_allocator)
    , simplifier(basic_allocator)
-   , split(basic_allocator)
-   , search_tree(basic_allocator)
    , best(basic_allocator)
-   , bab(basic_allocator)
+   , objective(other.objective)
+   , strategies(other.strategies, basic_allocator)
   {
     AbstractDeps<BasicAllocator, PropAllocator, StoreAllocator> deps{enable_sharing, basic_allocator, prop_allocator, store_allocator};
     store = deps.template clone<IStore>(other.store);
     iprop = deps.template clone<IProp>(other.iprop);
-    split = deps.template clone<Split>(other.split);
-    search_tree = deps.template clone<IST>(other.search_tree);
-    bab = deps.template clone<IBAB>(other.bab);
-    best = bab->optimum_ptr();
+    // `best` is not shared with the other abstract elements: it is a store of its own, holding the
+    // best solution found so far.
+    best = battery::allocate_shared<LIStore, BasicAllocator>(basic_allocator, *other.best, basic_allocator);
   }
 
   template <class U2, class BasicAlloc2, class PropAllocator2, class StoreAllocator2>
@@ -242,10 +233,8 @@ struct AbstractDomains {
   , store(store_allocator)
   , iprop(prop_allocator)
   , simplifier(basic_allocator)
-  , split(basic_allocator)
-  , search_tree(basic_allocator)
   , best(basic_allocator)
-  , bab(basic_allocator)
+  , strategies(basic_allocator)
   {
     if(config.subproblems_power != -1) {
       size_t num_subproblems = 1;
@@ -263,10 +252,13 @@ struct AbstractDomains {
   abstract_ptr<IStore> store;
   abstract_ptr<IProp> iprop;
   abstract_ptr<ISimplifier> simplifier;
-  abstract_ptr<Split> split;
-  abstract_ptr<IST> search_tree;
+  // The best solution found so far. It is a store of its own, not shared with `store`.
   abstract_ptr<LIStore> best;
-  abstract_ptr<IBAB> bab;
+
+  // The objective of the problem, or a satisfaction objective if the problem has none.
+  Objective objective;
+  // The search strategies, in the order they must be applied along a branch of the search tree.
+  strategies_type strategies;
 
   // The environment of variables, storing the mapping between variable's name and their representation in the abstract domains.
   VarEnv<BasicAllocator> env;
@@ -288,64 +280,23 @@ struct AbstractDomains {
     if(with_simplifier) {
       simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), store->aty(), iprop, basic_allocator);
     }
-    split = battery::allocate_shared<Split, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), store->aty(), iprop, basic_allocator);
-    search_tree = battery::allocate_shared<IST, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), iprop, split, basic_allocator);
     // Note that `best` must have the same abstract type then store (otherwise projection of the variables will fail).
     best = battery::allocate_shared<LIStore, BasicAllocator>(basic_allocator, store->aty(), num_vars, basic_allocator);
-    bab = battery::allocate_shared<IBAB, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), search_tree, best);
+    objective = Objective{};
+    strategies = strategies_type{basic_allocator};
     if(config.verbose_solving) {
       printf("%% Abstract domain allocated.\n");
     }
   }
 
-  // This force the deallocation of shared memory inside a kernel.
-  CUDA void deallocate() {
-    store = nullptr;
-    iprop = nullptr;
-    simplifier = nullptr;
-    split = nullptr;
-    search_tree = nullptr;
-    bab = nullptr;
-    env = VarEnv<BasicAllocator>{basic_allocator}; // this is to release the memory used by `VarEnv`.
-  }
-
 private:
-  // Mainly to interpret the IN constraint in IProp instead of only over-approximating in intervals.
-  template <class F>
-  CUDA void typing(F& f, bool toplevel = true) const {
-    if(toplevel && config.verbose_solving) {
-      printf("%% Typing the formula...\n");
-    }
-    switch(f.index()) {
-      case F::Seq:
-        if(f.sig() == ::lala::IN && f.seq(1).is(F::S) && f.seq(1).s().size() > 1) {
-          f.type_as(iprop->aty());
-          return;
-        }
-        for(int i = 0; i < f.seq().size(); ++i) {
-          typing(f.seq(i), false);
-        }
-        break;
-      case F::ESeq:
-        for(int i = 0; i < f.eseq().size(); ++i) {
-          typing(f.eseq(i), false);
-        }
-        break;
-    }
-    if(toplevel && config.print_ast) {
-      printf("%% Typed AST:\n");
-      f.print(true);
-      printf("\n");
-    }
-  }
-
   // We first try to interpret, and if it does not work, we interpret again with the diagnostics mode turned on.
-  template <class F, class Env, class A>
-  CUDA bool interpret_and_diagnose_and_tell(const F& f, Env& env, A& a) {
+  template <class F>
+  CUDA bool interpret_and_diagnose_and_tell(const F& f) {
     IDiagnostics diagnostics;
-    if(!interpret_and_tell(f, env, a, diagnostics)) {
+    if(!turbo::interpret_and_tell_cn(*iprop, f, env, objective, strategies, diagnostics)) {
       IDiagnostics diagnostics2;
-      interpret_and_tell<true>(f, env, a, diagnostics2);
+      turbo::interpret_and_tell_cn<true>(*iprop, f, env, objective, strategies, diagnostics2);
       diagnostics2.print();
       return false;
     }
@@ -358,7 +309,7 @@ public:
     if(config.verbose_solving) {
       printf("%% Interpreting the formula...\n");
     }
-    if(!interpret_and_diagnose_and_tell(f, env, *bab)) {
+    if(!interpret_and_diagnose_and_tell(f)) {
       return false;
     }
     if(config.print_ast) {
@@ -370,17 +321,17 @@ public:
       printf("%% Formula has been interpreted.\n");
     }
     /** If some variables were added during the interpretation, we must resize `best` as well.
-     * If we don't do it now, it will be done during the solving (when calling bab.extract) which will lead to a resize of the underlying store.
+     * If we don't do it now, it will be done during the solving (when extracting a solution) which will lead to a resize of the underlying store.
      * The problem is that the resize will be done on the device! If it was allocated in managed memory, it will be now reallocated in device memory, leading to a segfault later on.
     */
     if(store->vars() != best->vars()) {
       store->extract(*best);
       best->join_top();
     }
-    if(bab->is_minimization()) {
-      minimize_obj_var = bab->objective_var();
+    if(objective.is_minimization()) {
+      minimize_obj_var = objective.objective_var();
     }
-    else if(bab->is_maximization()) {
+    else if(objective.is_maximization()) {
       auto minobj = env.variable_of("__MINIMIZE_OBJ");
       assert(minobj.has_value());
       assert(minobj->get().avar_of(store->aty()).has_value());
@@ -388,12 +339,9 @@ public:
     }
     stats.variables = store->vars();
     stats.constraints = iprop->num_deductions();
-    bool can_interpret = true;
-    /** We add a search strategy by default for the variables that potentially do not occur in the previous strategies.
-     * Not necessary with barebones architecture: it is taken into account by the algorithm.
-     */
-    can_interpret &= interpret_default_strategy<F>();
-    return can_interpret;
+    /** We add a search strategy by default for the variables that potentially do not occur in the previous strategies. */
+    push_default_strategy();
+    return true;
   }
 
   using FormulaPtr = battery::shared_ptr<TFormula<basic_allocator_type>, basic_allocator_type>;
@@ -436,54 +384,6 @@ public:
       printf("\n");
     }
     return f;
-  }
-
-  template <class F>
-  void initialize_simplifier(const F& f) {
-    IDiagnostics diagnostics;
-    typename ISimplifier::template tell_type<basic_allocator_type> tell{basic_allocator};
-    if(!top_level_ginterpret_in<IKind::TELL>(*simplifier, f, env, tell, diagnostics)) {
-      printf("%% ERROR: Could not simplify the formula because:\n");
-      IDiagnostics diagnostics2;
-      top_level_ginterpret_in<IKind::TELL, true>(*simplifier, f, env, tell, diagnostics2);
-      diagnostics2.print();
-      exit(EXIT_FAILURE);
-    }
-    simplifier->deduce(std::move(tell));
-  }
-
-  void preprocess_ipc(F& f) {
-    size_t num_vars = num_quantified_vars(f);
-    allocate(num_vars, true);
-    typing(f);
-    if(!interpret(f)) {
-      exit(EXIT_FAILURE);
-    }
-    GaussSeidelIteration fp_engine;
-    fp_engine.fixpoint(iprop->num_deductions(), [&](size_t i) { return iprop->deduce(i); });
-    /* We need to initialize the simplifier even if we don't simplify.
-       This is because the simplifier equivalence classes is used in SolverOutput. */
-    initialize_simplifier(f);
-    if(config.disable_simplify) {
-      return;
-    }
-    if(config.verbose_solving) {
-      printf("%% Simplifying the formula...\n");
-    }
-    fp_engine.fixpoint(simplifier->num_deductions(), [&](size_t i) { return simplifier->deduce(i); });
-    f = simplifier->deinterpret();
-    if(config.verbose_solving) {
-      printf("%% Formula simplified.\n");
-    }
-    f = normalize(f);
-    num_vars = num_quantified_vars(f);
-    stats.print_stat("variables_after_simplification", num_vars);
-    stats.print_stat("constraints_after_simplification", num_constraints(f));
-    allocate(num_vars, false);
-    typing(f);
-    if(!interpret(f)) {
-      exit(EXIT_FAILURE);
-    }
   }
 
   // Given maximize(x), add the variable __MINIMIZE_OBJ with constraint __MINIMIZE_OBJ = -x.
@@ -587,11 +487,7 @@ public:
   const char* name_of_abstract_domain() const {
     #define STR_(x) #x
     #define STR(x) STR_(x)
-    #ifdef TURBO_IPC_ABSTRACT_DOMAIN
-      return "ipc_itv" STR(TURBO_ITV_BITS) "_z";
-    #else
-      return "pir_itv" STR(TURBO_ITV_BITS) "_z";
-    #endif
+    return "pir_itv" STR(TURBO_ITV_BITS) "_z";
   }
 
   const char* name_of_entailed_removal() const {
@@ -617,36 +513,23 @@ public:
         add_minimize_objective_var(*f_ptr, max_var_decl.value());
       }
     }
-  #ifdef TURBO_IPC_ABSTRACT_DOMAIN
-    constexpr bool use_ipc = true;
-  #else
-    constexpr bool use_ipc = false;
-  #endif
-    if(use_ipc && !config.force_ternarize) {
-      preprocess_ipc(*f_ptr);
-    }
-    else {
-      preprocess_tcn(*f_ptr);
-    }
+    preprocess_tcn(*f_ptr);
     push_eps_strategy();
     std::mt19937 random_generator(config.seed);
-    split->shuffle_random_strategies(random_generator);
+    ::shuffle_random_strategies(strategies, store->aty(), store->vars(), random_generator);
     stats.stop_timer(Timer::PREPROCESSING, start);
     stats.print_timing_stat("preprocessing_time", Timer::PREPROCESSING);
     stats.print_mzn_end_stats();
   }
 
 private:
-  template <class F>
-  CUDA bool interpret_default_strategy() {
-    typename F::Sequence seq;
-    seq.push_back(F::make_nary("first_fail", {}));
-    seq.push_back(F::make_nary("indomain_min", {}));
-    F search_strat = F::make_nary("search", std::move(seq));
-    if(!interpret_and_diagnose_and_tell(search_strat, env, *bab)) {
-      return false;
-    }
-    return true;
+  /** We add a search strategy over all the variables of the store, in case some of them do not
+   * occur in the strategies declared in the model. An empty set of variables means the strategy
+   * ranges over the whole store. */
+  CUDA void push_default_strategy() {
+    battery::vector<AVar, basic_allocator_type> vars{basic_allocator};
+    strategies.push_back(StrategyType<basic_allocator_type>(
+      VariableOrder::FIRST_FAIL, ValueOrder::MIN, std::move(vars)));
   }
 
   void push_eps_strategy() {
@@ -663,7 +546,7 @@ private:
       printf("Unrecognized option `-eps_value_order %s`\n", config.eps_value_order.data());
       exit(EXIT_FAILURE);
     }
-    split->push_eps_strategy(var_strat.value(), value_strat.value());
+    ::push_eps_strategy(strategies, var_strat.value(), value_strat.value());
   }
 
   template <class F>
@@ -826,18 +709,8 @@ private:
   }
 
 public:
-  CUDA bool on_node() {
-    stats.nodes++;
-    stats.depth_max = battery::max(stats.depth_max, search_tree->depth());
-    if(stats.nodes >= config.stop_after_n_nodes) {
-      prune();
-      return true;
-    }
-    return false;
-  }
-
   CUDA bool is_printing_intermediate_sol() {
-    return bab->is_satisfaction() || config.print_intermediate_solutions;
+    return objective.is_satisfaction() || config.print_intermediate_solutions;
   }
 
   CUDA void print_solution() {
@@ -850,31 +723,9 @@ public:
     stats.print_mzn_separator();
   }
 
+  /** The search is interrupted (timeout, CTRL-C, ...), hence it is not exhaustive. */
   CUDA void prune() {
     stats.exhaustive = false;
-  }
-
-  /** Return `true` if the search state must be pruned. */
-  CUDA bool update_solution_stats() {
-    stats.solutions++;
-    if(bab->is_satisfaction() && config.stop_after_n_solutions != 0 &&
-       stats.solutions >= config.stop_after_n_solutions)
-    {
-      prune();
-      return true;
-    }
-    return false;
-  }
-
-  CUDA bool on_solution_node() {
-    if(is_printing_intermediate_sol()) {
-      print_solution();
-    }
-    return update_solution_stats();
-  }
-
-  CUDA void on_failed_node() {
-    stats.fails += 1;
   }
 
   CUDA void print_final_solution() {
@@ -888,21 +739,13 @@ public:
     if(config.print_statistics) {
       config.print_mzn_statistics();
       stats.print_mzn_statistics(config.or_nodes);
-      if(!bab->objective_var().is_untyped() && !best->is_top()) {
-        stats.print_mzn_objective(best->project(bab->objective_var()), bab->is_minimization());
+      if(objective.is_optimization() && !best->is_top()) {
+        stats.print_mzn_objective(best->project(objective.objective_var()), objective.is_minimization());
       }
       stats.print_mzn_end_stats();
     }
   }
 
-  /** Extract in `this` the content of `other`. */
-  template <class U2, class BasicAlloc2, class PropAlloc2, class StoreAlloc2>
-  CUDA void meet(AbstractDomains<U2, BasicAlloc2, PropAlloc2, StoreAlloc2>& other) {
-    if(bab->is_optimization() && !other.best->is_top() && bab->compare_bound(*other.best, *best)) {
-      other.best->extract(*best);
-    }
-    stats.meet(other.stats);
-  }
 };
 
 template <class Universe, class Allocator = battery::standard_allocator>

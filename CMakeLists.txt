@@ -24,7 +24,6 @@ option(WITH_ASAN "Compile with the Address Sanitizer to check for memory corrupt
 option(WITH_XCSP3PARSER "Add support for parsing XCSP3 .xml files" ON)
 option(NO_CONCURRENT_MANAGED_MEMORY "Add support for platform not supporting concurrent managed access to memory on GPUs (use pinned memory instead)." OFF)
 option(TURBO_BUILD_DOC "Build the documentation of Turbo." OFF)
-option(TURBO_IPC_ABSTRACT_DOMAIN "Use the interval propagator completion (PC) abstract domain instead of PIR." OFF)
 option(TURBO_NO_ENTAILED_PROP_REMOVAL "Do not remove the entailed propagators." ON)
 
 if(MSVC)
@@ -41,7 +40,6 @@ include(FetchContent)
 if(LOCAL_DEPS)
   FetchContent_Declare(lala_pc SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../lala-pc/")
   FetchContent_Declare(lala_parsing SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../lala-parsing/")
-  FetchContent_Declare(lala_power SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../lala-power/")
 else()
   FetchContent_Declare(
     lala_pc
@@ -54,15 +52,9 @@ else()
     GIT_REPOSITORY "https://github.com/lattice-land/lala-parsing.git"
     GIT_TAG        v1.2.8
   )
-
-  FetchContent_Declare(
-    lala_power
-    GIT_REPOSITORY "https://github.com/lattice-land/lala-power.git"
-    GIT_TAG        v1.2.8
-  )
 endif()
 
-FetchContent_MakeAvailable(lala_parsing lala_pc lala_power)
+FetchContent_MakeAvailable(lala_parsing lala_pc)
 
 # Turbo executable
 
@@ -85,17 +77,10 @@ target_compile_options(turbo PRIVATE
     "$<$<AND:$<BOOL:${WITH_ASAN}>,$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:Clang>>:-fsanitize=address>"
     "$<$<AND:$<BOOL:${WITH_ASAN}>,$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:SHELL:--compiler-options -fsanitize=address>"
 )
-target_compile_definitions(turbo PRIVATE DISABLE_FULL_GPU_SOLVING)
-target_compile_definitions(turbo PRIVATE DISABLE_HYBRID_GPU_SOLVING)
-# target_compile_definitions(turbo PRIVATE REDUCE_PTX_SIZE)
 target_compile_options(turbo PRIVATE "$<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<CUDA_COMPILER_ID:NVIDIA>>:-lineinfo>")
 
 target_compile_definitions(turbo PRIVATE CUDA_THREADS_PER_BLOCK=256)
 target_compile_definitions(turbo PRIVATE TURBO_ITV_BITS=32)
-
-if(TURBO_IPC_ABSTRACT_DOMAIN)
-  target_compile_definitions(turbo PRIVATE TURBO_IPC_ABSTRACT_DOMAIN)
-endif()
 
 if(TURBO_NO_ENTAILED_PROP_REMOVAL)
   target_compile_definitions(turbo PRIVATE TURBO_NO_ENTAILED_PROP_REMOVAL)
@@ -109,7 +94,7 @@ if(NO_CONCURRENT_MANAGED_MEMORY)
   target_compile_definitions(turbo PRIVATE NO_CONCURRENT_MANAGED_MEMORY)
 endif()
 
-target_link_libraries(turbo PRIVATE lala_parsing lala_pc lala_power)
+target_link_libraries(turbo PRIVATE lala_parsing lala_pc)
 target_link_options(turbo PRIVATE
     $<$<AND:$<BOOL:${WITH_ASAN}>,$<CXX_COMPILER_ID:GNU>>:-fsanitize=address;-static-libasan>
     $<$<AND:$<BOOL:${WITH_ASAN}>,$<CXX_COMPILER_ID:Clang>>:-fsanitize=address>

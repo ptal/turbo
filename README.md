@@ -31,6 +31,9 @@ Other compilation builds are also available:
 * CPU Debug version: `cmake --workflow --preset cpu-debug --fresh`
 * CPU Release version: `cmake --workflow --preset cpu-release --fresh`
 
+Since v1.3.0, solving happens exclusively on the GPU (`-arch barebones`): the CPU-only, full-GPU and hybrid architectures have been removed.
+The CPU presets still build Turbo (which is useful to type-check the code without a CUDA compiler), but the resulting binary cannot solve.
+
 Alternatively, you can use these commands without presets and workflow (it is useful to set additional compilation flags not provided by the presets):
 
 ```

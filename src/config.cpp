@@ -9,7 +9,7 @@
 #include <algorithm>
 
 void usage_and_exit(const std::string& program_name) {
-  std::cout << "usage: " << program_name << " [-t 2000] [-a] [-n 10] [-i] [-f] [-s] [-v] [-p <i>] [-arch <cpu|hybrid|gpu|barebones>] [-p 48] [-or 48] [-sub 12] [-stack 100] [-fp <ac1|wac1>] [-wac1_threshold 0] [-eps_var_order <input_order|first_fail|anti_first_fail|smallest|largest>] [-eps_value_order <min|max|split|reverse_split>] [-seed 0] [-network_analysis] [-cutnodes 0] [-disable_simplify] [-force_ternarize] [-globalmem] [-version 1.0.0] [xcsp3instance.xml | fzninstance.fzn]" << std::endl;
+  std::cout << "usage: " << program_name << " [-t 2000] [-a] [-n 10] [-i] [-f] [-s] [-v] [-p <i>] [-arch barebones] [-p 48] [-or 48] [-sub 12] [-stack 100] [-fp <ac1|wac1>] [-wac1_threshold 0] [-eps_var_order <input_order|first_fail|anti_first_fail|smallest|largest>] [-eps_value_order <min|max|split|reverse_split>] [-seed 0] [-network_analysis] [-cutnodes 0] [-disable_simplify] [-globalmem] [-version 1.0.0] [xcsp3instance.xml | fzninstance.fzn]" << std::endl;
   std::cout << "\t-t 2000: Run the solver with a timeout of 2000 milliseconds." << std::endl;
   std::cout << "\t-timeout 2000: Same as -t, but if both -t and -timeout are specified, -timeout overrides -t." << std::endl;
   std::cout << "\t-a: Instructs the solver to report all solutions in the case of satisfaction problems, or print intermediate solutions of increasing quality in the case of optimisation problems." << std::endl;
@@ -20,10 +20,10 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-v: Print log messages (verbose solving) to the standard error stream." << std::endl;
   std::cout << "\t-ast: Print the AST of the model (useful to debug)." << std::endl;
   std::cout << "\t-p 48: On CPU, multithreading is not yet implemented. On GPU, equivalent to `-or 48`." << std::endl;
-  std::cout << "\t-arch <cpu|gpu|hybrid|barebones>: Choose the architecture on which the problem will be solved." << std::endl;
+  std::cout << "\t-arch barebones: Choose the architecture on which the problem will be solved (only `barebones` is available)." << std::endl;
   std::cout << "\t-fp <ac1|wac1>: Choose the fixpoint strategy (default: ac1 on CPU, wac1 on GPU):" << std::endl;
   std::cout << "\t\t ac1: All propagators are executed in parallel at each iteration." << std::endl;
-  std::cout << "\t\t wac1: Behave as ac1 when the number of active propagators is less than wac1_threshold. Otherwise,  each warp must reach a local fixpoint before executing the next 32 propagators (not compatible with -arch cpu)." << std::endl;
+  std::cout << "\t\t wac1: Behave as ac1 when the number of active propagators is less than wac1_threshold. Otherwise,  each warp must reach a local fixpoint before executing the next 32 propagators." << std::endl;
   std::cout << "\t-wac1_threshold 4096: Threshold below which we select AC1 instead of WAC1 (default: 0)." << std::endl;
   std::cout << "\t-or 48: Run the subproblems on 48 streaming multiprocessors (SMs) (only for GPU architecture). Default: -or 0 for automatic selection of the number of SMs." << std::endl;
   std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the blocks (embarrasingly parallel search). The special value `-1` leaves Turbo to decide on the number of subproblems (at least 30 * number of blocks). Default: -sub -1." << std::endl;
@@ -37,7 +37,6 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-hardware \"Intel Core i9-10900X@3.7GHz;24GO DDR4;NVIDIA RTX A5000\": The description of the hardware on which the solver is executed (\"CPU;RAM;GPU\"). It is only for documentation and replicability purposes." << std::endl;
   std::cout << "\t-cutnodes 1000: Stop the solver when 1000 nodes have been explored in a subproblem (0 for no limit)." << std::endl;
   std::cout << "Benchmarking options (should normally not be used):" << std::endl;
-  std::cout << "\t-force_ternarize: Force the transformation of the formula in ternary normal form, even with IPC abstract domain (note that it is enabled by default with PIR abstract domain)." << std::endl;
   std::cout << "\t-disable_simplify: Disable the simplification step." << std::endl;
   std::cout << "\t-globalmem: Store all data abstract elements in the global memory and do not try to optimise using shared memory." << std::endl;
   exit(EXIT_FAILURE);
@@ -157,25 +156,15 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
   input.read_bool("-s", config.print_statistics);
   input.read_bool("-globalmem", config.only_global_memory);
   input.read_bool("-disable_simplify", config.disable_simplify);
-  input.read_bool("-force_ternarize", config.force_ternarize);
   input.read_bool("-disable_network_analysis", config.disable_network_analysis);
 
   std::string architecture;
   if(input.read_string("-arch", architecture)) {
-    if(architecture == "cpu") {
-      config.arch = Arch::CPU;
-    }
-    else if(architecture == "hybrid") {
-      config.arch = Arch::HYBRID;
-    }
-    else if(architecture == "gpu") {
-      config.arch = Arch::GPU;
-    }
-    else if(architecture == "barebones") {
+    if(architecture == "barebones") {
       config.arch = Arch::BAREBONES;
     }
     else {
-      std::cerr << "Unknown architecture -arch " << architecture << std::endl;
+      std::cerr << "Unsupported architecture -arch " << architecture << " (only `barebones` is available)." << std::endl;
       exit(EXIT_FAILURE);
     }
   }
