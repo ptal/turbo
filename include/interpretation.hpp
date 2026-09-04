@@ -14,7 +14,6 @@
 
 #include "lala/logic/logic.hpp"
 #include "lala/universes/arith_bound.hpp"
-#include "lala/universes/flat_universe.hpp"
 #include "lala/universes/nbitset.hpp"
 #include "lala/interval.hpp"
 #include "lala/vstore.hpp"
@@ -37,7 +36,7 @@
  *   1. Diagnostics: `IDiagnostics` and the macros used to report why a formula is uninterpretable.
  *   2. Environment: interpretation of quantifiers and variable occurrences into `AVar`.
  *   3. Pre-universes: interpretation of *constants* (`pre_interpreter`).
- *   4. Abstract universes: `ArithBound`, `FlatUniverse`, `NBitset`, `CartesianProduct`, `Interval`.
+ *   4. Abstract universes: `ArithBound`, `NBitset`, `Interval`.
  *   5. Generic interpretation: `ginterpret_in` and friends, shared by all lattices.
  *   6. Abstract domains: `VStore`, `PIR`, `Simplifier`.
  *   7. Constraint network: the top-level dispatch specific to Turbo's input language.
@@ -716,92 +715,6 @@ CUDA NI TFormula<Allocator> deinterpret_in(const ArithBound<U, Mem>& a, AVar ava
   return F::make_binary(
     F::make_avar(avar),
     U::sig_order(),
-    deinterpret_constant<F>(a),
-    UNTYPED, allocator);
-}
-
-/* --- FlatUniverse --- */
-
-template<bool diagnose = false, class F, class Env, class U, class Mem>
-CUDA NI bool interpret_tell_in(const F& f, const Env& env, FlatUniverse<U, Mem>& tell, IDiagnostics& diagnostics) {
-  using A = FlatUniverse<U, Mem>;
-  using local_type = typename A::local_type;
-  using pre_universe = typename A::pre_universe;
-  using value_type = typename A::value_type;
-  const char* name = A::name;
-  if(f.is(F::E)) {
-    value_type k;
-    bool res = pre_interpreter<pre_universe>::template interpret_type<diagnose>(f, k, diagnostics);
-    if(res) {
-      tell.meet(local_type(k));
-    }
-    return res;
-  }
-  else {
-    if(f.is_binary() && f.sig() == EQ) {
-      int idx_constant = f.seq(0).is_constant() ? 0 : (f.seq(1).is_constant() ? 1 : 100);
-      int idx_variable = f.seq(0).is_variable() ? 0 : (f.seq(1).is_variable() ? 1 : 100);
-      if(idx_constant + idx_variable == 1) {
-        const auto& k = f.seq(idx_constant);
-        value_type t;
-        if(pre_interpreter<pre_universe>::template interpret_tell<diagnose>(k, t, diagnostics)) {
-          value_type a;
-          if(pre_interpreter<pre_universe>::template interpret_ask<diagnose>(k, a, diagnostics)) {
-            if(a == t) {
-              tell.meet(local_type(t));
-              return true;
-            }
-            else {
-              RETURN_INTERPRETATION_ERROR("The constant has no exact interpretation which is required in this abstract universe.");
-            }
-          }
-        }
-        return false;
-      }
-    }
-    RETURN_INTERPRETATION_ERROR(
-      "Tell interpretation only supports existential quantifier and binary formulas of the form `t1 = t2` where t1 is a constant and t2 is a variable (or conversely).");
-  }
-}
-
-/** Same as `interpret_tell_in` without the support for existential quantifier. */
-template<bool diagnose = false, class F, class Env, class U, class Mem>
-CUDA NI bool interpret_ask_in(const F& f, const Env& env, FlatUniverse<U, Mem>& ask, IDiagnostics& diagnostics) {
-  const char* name = FlatUniverse<U, Mem>::name;
-  if(f.is(F::E)) {
-    RETURN_INTERPRETATION_ERROR("Ask interpretation only supports binary formulas of the form `t1 = t2` where t1 is a constant and t2 is a variable (or conversely).")
-  }
-  return interpret_tell_in<diagnose>(f, env, ask, diagnostics);
-}
-
-template<IKind kind, bool diagnose = false, class F, class Env, class U, class Mem>
-CUDA NI bool interpret_in(const F& f, const Env& env, FlatUniverse<U, Mem>& value, IDiagnostics& diagnostics) {
-  if constexpr(kind == IKind::ASK) {
-    return interpret_ask_in<diagnose>(f, env, value, diagnostics);
-  }
-  else {
-    return interpret_tell_in<diagnose>(f, env, value, diagnostics);
-  }
-}
-
-/** Deinterpret the current value to a logical constant. */
-template<class F, class U, class Mem>
-CUDA NI F deinterpret_constant(const FlatUniverse<U, Mem>& a) {
-  return pre_interpreter<typename FlatUniverse<U, Mem>::pre_universe>::template deinterpret<F>(a.value());
-}
-
-template<class Env, class U, class Mem, class Allocator = typename Env::allocator_type>
-CUDA NI TFormula<Allocator> deinterpret_in(const FlatUniverse<U, Mem>& a, AVar avar, const Env& env, const Allocator& allocator = Allocator()) {
-  using F = TFormula<Allocator>;
-  if(a.is_bot()) {
-    return F::make_false();
-  }
-  else if(a.is_top()) {
-    return F::make_true();
-  }
-  return F::make_binary(
-    F::make_avar(avar),
-    EQ,
     deinterpret_constant<F>(a),
     UNTYPED, allocator);
 }
