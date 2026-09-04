@@ -78,7 +78,7 @@ struct FastNNRelu {
   /** The store of the neurons of the whole network, one variable per neuron.
    * The neuron `j` of the layer `i` is the variable `acc_layers[i] + j`.
    * It is allocated with `ConcurrentAllocator` so that it is readable from both the CPU and the GPU. */
-  using NStore = VStore<FItv, ConcurrentAllocator>;
+  using NStore = VStore<FItv, bt::pool_allocator>;
   NStore neurons;
 
   /** Total number of neurons in the network, input layer included. Equal to `neurons.vars()`. */
@@ -105,7 +105,7 @@ struct FastNNRelu {
 
   /** Index in `biases` of the first bias of the layer `i >= 1`.
    * `biases` has no entry for the input layer, hence the shift by `layers[0]`. */
-  CUDA INLINE int biases_offset(int i) const {
+  int biases_offset(int i) const {
     return acc_layers[i] - layers[0];
   }
 
@@ -113,19 +113,12 @@ struct FastNNRelu {
    * Unlike the biases, this offset is a sum of products and therefore cannot be read off
    * `acc_layers` in constant time. When iterating over all the layers, accumulate the offset
    * along the way (`offset += layers[i] * layers[i-1]`) instead of calling this function. */
-  CUDA INLINE int weights_offset(int i) const {
+  int weights_offset(int i) const {
     int offset = 0;
     for(int k = 1; k < i; ++k) {
       offset += layers[k] * layers[k-1];
     }
     return offset;
-  }
-
-  /** A copy of the store of the neurons in another memory space, typically a memory pool owned
-   * by a block (shared or global memory), see `BlockData`. */
-  template <class Alloc>
-  CUDA VStore<FItv, Alloc> copy_neurons(const Alloc& alloc) const {
-    return VStore<FItv, Alloc>(neurons, alloc);
   }
 
 public:
@@ -480,6 +473,7 @@ struct BlockData {
         }
       }
       return;
+    }
 
     /*
       Original search stategy. When using SPLIT && all widths <= epsilon, we check the solution with midpoints.
