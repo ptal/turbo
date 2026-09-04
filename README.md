@@ -37,7 +37,7 @@ The CPU presets still build Turbo (which is useful to type-check the code withou
 Alternatively, you can use these commands without presets and workflow (it is useful to set additional compilation flags not provided by the presets):
 
 ```
-cmake -DCMAKE_BUILD_TYPE=Release -DGPU=ON -DREDUCE_PTX_SIZE=ON -DCMAKE_VERBOSE_MAKEFILE=ON -Bbuild/gpu-release
+cmake -DCMAKE_BUILD_TYPE=Release -DGPU=ON -DCMAKE_VERBOSE_MAKEFILE=ON -Bbuild/gpu-release
 cmake --build build/gpu-release
 ```
 
