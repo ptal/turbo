@@ -51,7 +51,7 @@ namespace bt = ::battery;
 
 #endif
 
-namespace fbarebones {
+namespace jet {
 
 #ifdef __CUDACC__
 #ifndef TURBO_IPC_ABSTRACT_DOMAIN

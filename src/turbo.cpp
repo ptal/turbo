@@ -16,9 +16,8 @@
 
 // #include "hybrid_dive_and_solve.hpp"
 #include "barebones_dive_and_solve.hpp"
-//#include "fbarebones_dive_and_solve.hpp"
-#include "fastfbarebones_dive_and_solve.hpp"
-// #include "jet.hpp"
+#include "fbarebones_dive_and_solve.hpp"
+#include "jet_dive_and_solve.hpp"
 
 using namespace battery;
 
@@ -46,11 +45,7 @@ int main(int argc, char** argv) {
       fbarebones::fbarebones_dive_and_solve(config);
     }
     else if (config.arch == Arch::JET) {
-// #ifdef __CUDACC__
-//       jet::jet_test(config);
-// #else 
-//       printf("%% JET is only supported on GPU.\n");
-// #endif
+      jet::fbarebones_dive_and_solve(config);
     }
 #ifndef DISABLE_HYBRID_GPU_SOLVING
     else if(config.arch == Arch::HYBRID) {
