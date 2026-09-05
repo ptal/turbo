@@ -17,6 +17,8 @@
 #include <cctype>
 #include <string>
 #include <vector>
+#include <algorithm>
+#include <cfenv>
 
 #include "lala/finterval.hpp"
 #include "lala/vstore.hpp"
@@ -84,8 +86,15 @@ struct FastNNReluNetwork {
   bt::vector<float, Alloc> weights;
   bt::vector<float, Alloc> biases;
 
+  /** `has_relu[l]` tells whether the affine layer `l` is followed by a ReLU. It is indexed like
+   * `acc_layers`, so the entry `0` (the input layer) is unused.
+   * A ReLU cannot be assumed on every layer: in `tllverifybench` only every other layer has one
+   * (the pattern is `..R.R.R...`), and applying a ReLU where the graph has none would cut off the
+   * negative values of that layer and make the deduction unsound. */
+  bt::vector<int, Alloc> has_relu;
+
   FastNNReluNetwork(const Alloc& alloc = Alloc{})
-   : num_neurons(0), acc_layers(alloc), weights(alloc), biases(alloc)
+   : num_neurons(0), acc_layers(alloc), weights(alloc), biases(alloc), has_relu(alloc)
   {}
 
   template <class Alloc2>
@@ -93,17 +102,25 @@ struct FastNNReluNetwork {
     const bt::vector<int, Alloc2>& acc_layers,
     const bt::vector<float, Alloc2>& weights,
     const bt::vector<float, Alloc2>& biases,
+    const bt::vector<int, Alloc2>& has_relu,
     const Alloc& alloc = Alloc{})
    : num_neurons(num_neurons)
    , acc_layers(acc_layers, alloc)
    , weights(weights, alloc)
    , biases(biases, alloc)
+   , has_relu(has_relu, alloc)
   {}
 
   template <class Alloc2>
   FastNNReluNetwork(const FastNNReluNetwork<Alloc2>& other, const Alloc& alloc = Alloc{})
-   : FastNNReluNetwork(other.num_neurons, other.acc_layers, other.weights, other.biases, alloc)
+   : FastNNReluNetwork(other.num_neurons, other.acc_layers, other.weights, other.biases,
+       other.has_relu, alloc)
   {}
+
+  /** Whether the affine layer `l` is followed by a ReLU. */
+  CUDA INLINE bool relu_at(int l) const {
+    return l >= 0 && l < static_cast<int>(has_relu.size()) && has_relu[l] != 0;
+  }
 
   FastNNReluNetwork(const FastNNReluNetwork&) = default;
   FastNNReluNetwork(FastNNReluNetwork&&) = default;
@@ -143,7 +160,49 @@ struct FastNNReluNetwork {
   void print() const {
     printf("%% In total, we have %d neurons in the network (%d layers, %d inputs, %d outputs, %d deductions)\n",
       num_neurons, num_layers(), num_inputs(), num_outputs(), num_deductions());
+    printf("%% ReLU per layer: ");
+    for(int l = 1; l < num_layers(); ++l) { printf("%c", relu_at(l) ? 'R' : '.'); }
+    printf("\n");
   }
+};
+
+/** A binary constraint of the property: \f$ neurons[x] - neurons[y] \leq k \f$.
+ * The output constraints of `acasxu_2023` and `safenlp_2024` are comparisons between two output
+ * neurons (`(assert (<= Y_0 Y_1))`), which is `x = Y_0, y = Y_1, k = 0`. A unary bound never
+ * reaches here: it is embedded directly in the store of neurons at the root.
+ */
+struct NeuronLeq {
+  int x;
+  int y;
+  float k;
+};
+
+/** The non-unary part of the property, shared read-only by all the blocks like the network.
+ * It holds one conjunction of comparisons: a disjunctive property is expanded into DNF on the host
+ * and each disjunct is solved as a separate run (see `load_property`).
+ */
+template <class Alloc>
+struct FastProperty {
+  using allocator_type = Alloc;
+
+  bt::vector<NeuronLeq, Alloc> leqs;
+
+  FastProperty(const Alloc& alloc = Alloc{}): leqs(alloc) {}
+
+  template <class Alloc2>
+  FastProperty(const bt::vector<NeuronLeq, Alloc2>& leqs, const Alloc& alloc = Alloc{})
+   : leqs(leqs, alloc) {}
+
+  template <class Alloc2>
+  FastProperty(const FastProperty<Alloc2>& other, const Alloc& alloc = Alloc{})
+   : leqs(other.leqs, alloc) {}
+
+  FastProperty(const FastProperty&) = default;
+  FastProperty(FastProperty&&) = default;
+  FastProperty& operator=(const FastProperty&) = default;
+  FastProperty& operator=(FastProperty&&) = default;
+
+  CUDA INLINE int size() const { return static_cast<int>(leqs.size()); }
 };
 
 /** Fast neural network verification design on GPU.
@@ -159,15 +218,18 @@ struct FastNNRelu {
   using allocator_type = StoreAlloc;
   using NStore = VStore<FItv, StoreAlloc>;
   using network_type = FastNNReluNetwork<NetAlloc>;
+  using property_type = FastProperty<NetAlloc>;
   using this_type = FastNNRelu<StoreAlloc, NetAlloc>;
 
   /** The network, shared and read-only. */
   const network_type* net;
+  /** The non-unary constraints of the property, shared and read-only. */
+  const property_type* prop;
   /** The bounds of the neurons, private to the block. */
   abstract_ptr<NStore> store;
 
-  CUDA FastNNRelu(const network_type* net, abstract_ptr<NStore> store)
-   : net(net), store(store)
+  CUDA FastNNRelu(const network_type* net, const property_type* prop, abstract_ptr<NStore> store)
+   : net(net), prop(prop), store(store)
   {}
 
 public:
@@ -183,7 +245,7 @@ public:
   // neuron, without any intra-warp reduction.
   // The sizes of the layers are read off `acc_layers` alone: the layer `k` has
   // `acc_layers[k+1] - acc_layers[k]` neurons.
-  CUDA bool deduce(int i) {
+  CUDA bool deduce_neuron(int i) {
     /** Local aliases so the deduction reads exactly as if the store and the network parameters were
      * members of this class. */
     auto& neurons = *store;
@@ -262,10 +324,11 @@ public:
      * provably keeps the plain forward accumulation that STEP 3 needs to undo. */
     r2.add(sum, r1);  // Pre-activation + bias.
 
-    /** We assume that every linear layer is followed by a ReLU, which holds for every layer but the
-     * last one: the output layer of the network is affine only, and applying a ReLU to it would cut
-     * off its negative values, hence unsound conclusions on the property. */
-    const bool apply_relu = (l + 1 < num_layers);
+    /** Whether the layer `l` is followed by a ReLU is read off the graph rather than assumed: the
+     * output layer is usually affine only, but in `tllverifybench` every other hidden layer is
+     * affine too. Applying a ReLU where the graph has none would cut off the negative values of the
+     * layer, hence unsound conclusions on the property. */
+    const bool apply_relu = net->relu_at(l);
 
     RItv zero(bound_type{0});
     r3 = RItv(neurons[target].lb().value(), neurons[target].ub().value());
@@ -324,9 +387,37 @@ public:
     return has_changed;
   }
 
+  /** Deduction of the comparison `neurons[x] - neurons[y] <= k` of the property.
+   * The narrowing is the standard one for an inequality: the upper bound of `x` cannot exceed that
+   * of `y` (shifted by `k`), and the lower bound of `y` cannot go below that of `x`. Both are
+   * rounded outward so that no solution is cut off. */
+  CUDA bool deduce_property(int i) {
+    using bound_type = typename FItv::LB::value_type;
+    using local_itv = typename FItv::local_type;
+    using LB2 = typename local_itv::LB;
+    using UB2 = typename local_itv::UB;
+    auto& neurons = *store;
+    const NeuronLeq& c = prop->leqs[i];
+    const bound_type k = static_cast<bound_type>(c.k);
+    const bound_type ub_y = neurons[c.y].ub().value();
+    const bound_type lb_x = neurons[c.x].lb().value();
+    bool has_changed = neurons.embed(c.x,
+      local_itv(LB2::top(), UB2(battery::add_up<bound_type>(ub_y, k))));
+    has_changed |= neurons.embed(c.y,
+      local_itv(LB2(battery::sub_down<bound_type>(lb_x, k)), UB2::top()));
+    return has_changed;
+  }
+
+  /** The deductions of the abstract domain are the neurons first, then the comparisons of the
+   * property, so that `i` indexes them contiguously for the fixpoint engine. */
+  CUDA INLINE bool deduce(int i) {
+    const int n = net->num_deductions();
+    return i < n ? deduce_neuron(i) : deduce_property(i - n);
+  }
+
   /** The fixpoint engines of `lala-core` expect a deduction to be split into a `load_deduce` and a
-   * `deduce` (see `fwarp_fixpoint`). We have nothing to load: a neuron is entirely described by its
-   * index. */
+   * `deduce` (see `fwarp_fixpoint`). We have nothing to load: a deduction is entirely described by
+   * its index. */
   CUDA INLINE int load_deduce(int i) const {
     return i;
   }
@@ -342,7 +433,7 @@ public:
   }
 
   CUDA INLINE int num_deductions() const {
-    return net->num_deductions();
+    return net->num_deductions() + prop->size();
   }
 
   CUDA INLINE AType aty() const {
@@ -356,6 +447,7 @@ public:
 
 using NNStore = VStore<FItv, ConcurrentAllocator>;
 using Network = FastNNReluNetwork<ConcurrentAllocator>;
+using Property = FastProperty<ConcurrentAllocator>;
 
 /** The root of the problem, in managed memory, hence shared between the CPU and the GPU.
  * It replaces `GridCP` (an `AbstractDomains` over `FItv`): the abstract domain is now the store of
@@ -370,6 +462,11 @@ struct NNRoot {
 
   /** The network, shared by all the blocks. */
   Network net;
+
+  /** The non-unary constraints of the disjunct being solved, shared by all the blocks.
+   * A disjunctive property is expanded into DNF on the host and solved one disjunct per kernel
+   * launch, so this is rewritten between two runs (see `fbarebones_dive_and_solve`). */
+  Property prop;
 
   /** The bounds of the neurons at the root of the search: the input box and, the property being
    * unary in this application, the bounds of the output neurons expressing it. */
@@ -390,6 +487,7 @@ struct NNRoot {
    , stats(static_cast<size_t>(net.num_neurons), static_cast<size_t>(net.num_deductions()),
            false, config.print_statistics)
    , net(net, ConcurrentAllocator{})
+   , prop(ConcurrentAllocator{})
    , store(bt::allocate_shared<NNStore, ConcurrentAllocator>(ConcurrentAllocator{},
              AType{0}, net.num_neurons, ConcurrentAllocator{}))
    , best(bt::allocate_shared<NNStore, ConcurrentAllocator>(ConcurrentAllocator{},
@@ -520,7 +618,8 @@ struct BlockData {
       store = bt::allocate_shared<FStore, bt::pool_allocator>(store_allocator, u_store, store_allocator);
       /** The propagator is stateless apart from the store, so it only holds a pointer to the
        * network, which stays in managed memory and is shared by all the blocks. */
-      iprop = bt::allocate_shared<FProp, bt::pool_allocator>(prop_allocator, &(unified_data.root.net), store);
+      iprop = bt::allocate_shared<FProp, bt::pool_allocator>(prop_allocator,
+        &(unified_data.root.net), &(unified_data.root.prop), store);
       is_uass = false;
     }
   }
@@ -972,7 +1071,7 @@ struct GridData {
 };
 
 MemoryConfig configure_gpu_fbarebones(Configuration<battery::standard_allocator>&,
-  Statistics<battery::standard_allocator>&, const Network&);
+  Statistics<battery::standard_allocator>&, const Network&, int max_comparisons);
 __global__ void initialize_global_data(UnifiedData*, bt::unique_ptr<GridData, bt::global_allocator>*);
 __global__ void gpu_fbarebones_solve(UnifiedData*, GridData*);
 template <class FPEngine>
@@ -1028,7 +1127,13 @@ Network parse_network(const Configuration<battery::standard_allocator>& config) 
   battery::vector<int> acc_layers;
   battery::vector<float> weights;
   battery::vector<float> biases;
+  battery::vector<int> has_relu;
   int total_neurons = 0;
+
+  /** The name of the tensor that currently holds the value of the last layer added. It advances
+   * through the bias `Add` of the layer, and through a `Relu` consuming it, which is how we detect
+   * that the layer is followed by a ReLU. */
+  std::string current_output;
 
   if(graph.input_size() == 0) {
     std::cerr << "The onnx graph has no input." << std::endl;
@@ -1044,6 +1149,7 @@ Network parse_network(const Configuration<battery::standard_allocator>& config) 
   int64_t input_width = input_shape.dim().size() > 3 ? input_shape.dim(3).dim_value() : 1;
   int64_t input_dimensions = batch_size * input_channels * input_height * input_width;  // number of input neurons.
   acc_layers.push_back(0);
+  has_relu.push_back(0);  /**< the input layer has no activation. */
   total_neurons += static_cast<int>(input_dimensions);
 
   /** The number of neurons of the last layer added so far, needed to check that the weight matrix
@@ -1136,8 +1242,10 @@ Network parse_network(const Configuration<battery::standard_allocator>& config) 
 
       // add the new layer
       acc_layers.push_back(total_neurons);
+      has_relu.push_back(0);
       total_neurons += static_cast<int>(out_features);
       prev_layer_size = static_cast<int>(out_features);
+      current_output = node.output_size() > 0 ? node.output()[0] : std::string();
     }
 
     if (bias_tensor != nullptr) {
@@ -1157,6 +1265,23 @@ Network parse_network(const Configuration<battery::standard_allocator>& config) 
       if(!read_float_tensor(*bias_tensor, biases)) {
         std::cerr << "ERROR: The biases of `" << bias_tensor->name() << "` are not stored as floats.\n";
         return Network();
+      }
+      /** The bias `Add` of a `MatMul`/`Add` pair produces the value of the layer. */
+      if(node.output_size() > 0) { current_output = node.output()[0]; }
+    }
+
+    /** A `Relu` consuming the value of the last layer is the activation of that layer. We do not
+     * assume one on every layer: `tllverifybench` alternates affine and ReLU layers, and
+     * `acasxu`/`safenlp` have an affine output layer. */
+    if(weight_tensor == nullptr && bias_tensor == nullptr && node.op_type() == "Relu"
+       && acc_layers.size() >= 2 && !current_output.empty())
+    {
+      for (int i = 0; i < node.input().size(); ++i) {
+        if(node.input()[i] == current_output) {
+          has_relu[has_relu.size() - 1] = 1;
+          if(node.output_size() > 0) { current_output = node.output()[0]; }
+          break;
+        }
       }
     }
   }
@@ -1189,7 +1314,7 @@ Network parse_network(const Configuration<battery::standard_allocator>& config) 
     return Network();
   }
 
-  return Network(total_neurons, acc_layers, weights, biases);
+  return Network(total_neurons, acc_layers, weights, biases, has_relu);
 }
 
 /** A minimal s-expression: an atom when `children` is empty, a list otherwise.
@@ -1239,11 +1364,32 @@ static bool vnnlib_parse(const std::vector<std::string>& tokens, size_t& i, SExp
   return !out.children.empty();
 }
 
-/** A term of an assertion: either a neuron of the store, or a numeric literal. */
+/** Convert a decimal literal into the tightest pair of doubles enclosing it, by reading it twice
+ * with the rounding mode set outward. This is the same technique as `impl::string_to_real` of
+ * `lala-parsing/flatzinc_parser.hpp`, and it is necessary because a decimal such as
+ * `-0.303531156` is not representable: rounding it to the nearest double could move a bound inward
+ * and cut off a part of the property. The weights and the biases need no such care, they are
+ * already stored as floats in the onnx file. */
+static void vnnlib_string_to_real(const std::string& str, double& lb, double& ub) {
+  #if !defined(__GNUC__) && !defined(_MSC_VER)
+    #pragma STDC FENV_ACCESS ON
+  #endif
+  int old_round = std::fegetround();
+  std::fesetround(FE_DOWNWARD);
+  lb = std::strtod(str.c_str(), nullptr);
+  std::fesetround(FE_UPWARD);
+  ub = std::strtod(str.c_str(), nullptr);
+  std::fesetround(old_round);
+}
+
+/** A term of an assertion: either a neuron of the store, or a numeric literal.
+ * A literal is kept as the enclosure \f$ [lb, ub] \f$ of its exact decimal value, so that each
+ * bound can later be rounded in the direction that widens the property. */
 struct VnnTerm {
   bool is_var;
-  int var;       /**< index of the neuron in the store, when `is_var`. */
-  double value;  /**< the literal, otherwise. */
+  int var;    /**< index of the neuron in the store, when `is_var`. */
+  double lb;  /**< the literal rounded downward, otherwise. */
+  double ub;  /**< the literal rounded upward, otherwise. */
 };
 
 /** `X_i` is the input neuron `i` and `Y_j` the output neuron `j`, which lives at
@@ -1265,68 +1411,121 @@ static bool vnnlib_term(const SExpr& e, const Network& net, VnnTerm& out) {
         return false;
       }
       const int base = (a[0] == 'X') ? 0 : net.output_base();
-      out = VnnTerm{true, base + static_cast<int>(idx), 0.0};
+      out = VnnTerm{true, base + static_cast<int>(idx), 0.0, 0.0};
       return true;
     }
     char* endp = nullptr;
-    double v = std::strtod(a.c_str(), &endp);
+    std::strtod(a.c_str(), &endp);  /**< only to validate that the whole atom is a number. */
     if(endp == a.c_str() || *endp != '\0') {
       std::cerr << "ERROR: `" << a << "` is neither a neuron nor a number.\n";
       return false;
     }
-    out = VnnTerm{false, -1, v};
+    double lb, ub;
+    vnnlib_string_to_real(a, lb, ub);
+    out = VnnTerm{false, -1, lb, ub};
     return true;
   }
-  /** Some vnnlib files write the negative literals as `(- 1.5)`. */
+  /** Some vnnlib files write the negative literals as `(- 1.5)`. Negation is exact in floating
+   * point, but it swaps the two ends of the enclosure. */
   if(e.children.size() == 2 && e.children[0].is_atom() && e.children[0].atom == "-") {
     VnnTerm t;
     if(!vnnlib_term(e.children[1], net, t) || t.is_var) { return false; }
-    out = VnnTerm{false, -1, -t.value};
+    out = VnnTerm{false, -1, -t.ub, -t.lb};
     return true;
   }
   return false;
 }
 
-/** Interpret one assertion as bounds on the neurons.
- * We only support the *unary* fragment: a comparison between a neuron and a constant. Each bound is
- * embedded on its own, as a half-unbounded interval, and `embed` meets it into the neuron, so the
- * conjunction of the assertions builds up the box.
+/** One atom of the property, once interpreted.
+ *  * unary:  `neurons[x] <= k` when `upper`, `neurons[x] >= k` otherwise. It is embedded directly
+ *    in the store of neurons at the root, and costs no propagator.
+ *  * binary: `neurons[x] - neurons[y] <= k`, which becomes a `NeuronLeq` propagated by
+ *    `FastNNRelu::deduce_property`.
  */
-static bool vnnlib_interpret(const SExpr& e, const Network& net, NNStore& neurons) {
-  using local_itv = typename NNStore::universe_type::local_type;
-  using LB2 = typename local_itv::LB;
-  using UB2 = typename local_itv::UB;
-  using bound_t = typename LB2::value_type;
+struct PropAtom {
+  bool is_binary;
+  int x;
+  int y;
+  /** The enclosure of the constant. `apply_disjunct` picks the end that widens the property:
+   * `ub` for an upper bound, `lb` for a lower bound. */
+  double k_lb;
+  double k_ub;
+  bool upper;
+};
 
+/** A property in disjunctive normal form: a disjunction of conjunctions of atoms.
+ * `acasxu_2023` needs it, both for its output constraints
+ * (`(assert (or (and (<= Y_1 Y_0)) (and (<= Y_2 Y_0)) ...))`) and, for `prop_6` and `prop_8`, for
+ * its input box, which is a union of two boxes. Each disjunct is a box plus a conjunction of
+ * comparisons, which is exactly what one run of the solver handles, so we solve the disjuncts one
+ * after the other. */
+using Conjunction = std::vector<PropAtom>;
+using DNF = std::vector<Conjunction>;
+
+/** Guard against the combinatorial explosion of the DNF expansion. The benchmarks we target stay
+ * far below it (`acasxu`'s `prop_6` is the largest with 2 * 4 = 8 disjuncts). */
+#define MAX_PROPERTY_DISJUNCTS 4096
+
+/** `out = a /\ b` in DNF, i.e. the pairwise union of their conjunctions. */
+static bool dnf_and(const DNF& a, const DNF& b, DNF& out) {
+  if(a.size() * b.size() > MAX_PROPERTY_DISJUNCTS) {
+    std::cerr << "ERROR: the property has more than " << MAX_PROPERTY_DISJUNCTS
+              << " disjuncts once expanded into DNF.\n";
+    return false;
+  }
+  out.clear();
+  out.reserve(a.size() * b.size());
+  for(const Conjunction& ca : a) {
+    for(const Conjunction& cb : b) {
+      Conjunction c(ca);
+      c.insert(c.end(), cb.begin(), cb.end());
+      out.push_back(std::move(c));
+    }
+  }
+  return true;
+}
+
+/** Interpret one formula into a DNF over the neurons.
+ * An empty DNF means `false` (no disjunct can be satisfied), while a DNF holding one empty
+ * conjunction means `true` (no constraint at all).
+ */
+static bool vnnlib_dnf(const SExpr& e, const Network& net, DNF& out) {
+  out.clear();
   if(e.is_atom()) {
-    /** `true` and `false` are the only atoms that can stand as an assertion by themselves. */
-    if(e.atom == "true") { return true; }
-    if(e.atom == "false") { neurons.embed(0, local_itv::bot()); return true; }
-    std::cerr << "ERROR: unexpected assertion `" << e.atom << "`.\n";
+    /** `true` and `false` are the only atoms that can stand as a formula by themselves. */
+    if(e.atom == "true") { out.push_back(Conjunction{}); return true; }
+    if(e.atom == "false") { return true; }  // empty DNF
+    std::cerr << "ERROR: unexpected formula `" << e.atom << "`.\n";
     return false;
   }
   if(!e.children[0].is_atom()) {
-    std::cerr << "ERROR: the head of an assertion must be an operator.\n";
+    std::cerr << "ERROR: the head of a formula must be an operator.\n";
     return false;
   }
   const std::string& op = e.children[0].atom;
 
   if(op == "and") {
+    out.push_back(Conjunction{});  // neutral element
     for(size_t k = 1; k < e.children.size(); ++k) {
-      if(!vnnlib_interpret(e.children[k], net, neurons)) { return false; }
+      DNF child;
+      if(!vnnlib_dnf(e.children[k], net, child)) { return false; }
+      DNF merged;
+      if(!dnf_and(out, child, merged)) { return false; }
+      out = std::move(merged);
     }
     return true;
   }
   if(op == "or") {
-    /** A single disjunct is just a conjunction in disguise, which is how the `test_*.vnnlib` files
-     * are written. Several disjuncts describe a union of boxes, which a single store of neurons
-     * cannot represent. */
-    if(e.children.size() == 2) {
-      return vnnlib_interpret(e.children[1], net, neurons);
+    for(size_t k = 1; k < e.children.size(); ++k) {
+      DNF child;
+      if(!vnnlib_dnf(e.children[k], net, child)) { return false; }
+      if(out.size() + child.size() > MAX_PROPERTY_DISJUNCTS) {
+        std::cerr << "ERROR: the property has more than " << MAX_PROPERTY_DISJUNCTS << " disjuncts.\n";
+        return false;
+      }
+      for(Conjunction& c : child) { out.push_back(std::move(c)); }
     }
-    std::cerr << "ERROR: disjunctive properties are not supported yet (" << e.children.size() - 1
-              << " disjuncts): the property must be unary so it can be expressed as bounds on the neurons.\n";
-    return false;
+    return true;
   }
 
   const bool is_le = (op == "<=" || op == "<");
@@ -1350,53 +1549,52 @@ static bool vnnlib_interpret(const SExpr& e, const Network& net, NNStore& neuron
     return false;
   }
 
+  Conjunction conj;
   if(lhs.is_var && rhs.is_var) {
-    std::cerr << "ERROR: `" << op << "` between two neurons is not a unary property, and cannot be\n"
-              << "       expressed as bounds on the neurons.\n";
-    return false;
+    /** `x <= y` is `x - y <= 0`, and `x >= y` is `y - x <= 0`. This is the shape of the output
+     * constraints of `acasxu_2023` and `safenlp_2024`. The constant `0` is exact. */
+    if(is_le || is_eq) { conj.push_back(PropAtom{true, lhs.var, rhs.var, 0.0, 0.0, true}); }
+    if(is_ge || is_eq) { conj.push_back(PropAtom{true, rhs.var, lhs.var, 0.0, 0.0, true}); }
   }
-  if(!lhs.is_var && !rhs.is_var) {
-    /** A comparison between two constants is either vacuous or unsatisfiable. */
-    bool holds = is_eq ? (lhs.value == rhs.value)
-               : (is_le ? (lhs.value <= rhs.value) : (lhs.value >= rhs.value));
-    if(!holds) { neurons.embed(0, local_itv::bot()); }
-    return true;
-  }
-
-  /** We normalize to `var op constant`, flipping the operator when the neuron is on the right. */
-  const int var = lhs.is_var ? lhs.var : rhs.var;
-  const bound_t k = static_cast<bound_t>(lhs.is_var ? rhs.value : lhs.value);
-  bool upper = is_le;   /**< whether the constant bounds the neuron from above. */
-  if(!lhs.is_var) { upper = is_ge; }
-
-  if(is_eq) {
-    neurons.embed(var, local_itv(LB2(k), UB2(k)));
-  }
-  else if(upper) {
-    neurons.embed(var, local_itv(LB2::top(), UB2(k)));
+  else if(!lhs.is_var && !rhs.is_var) {
+    /** A comparison between two constants is either vacuous or unsatisfiable. We keep it when it
+     * *can* hold on the enclosures, so that a rounding never removes a disjunct. */
+    bool holds = is_eq ? (lhs.lb <= rhs.ub && rhs.lb <= lhs.ub)
+               : (is_le ? (lhs.lb <= rhs.ub) : (lhs.ub >= rhs.lb));
+    if(!holds) { return true; }  // empty DNF, i.e. `false`
   }
   else {
-    neurons.embed(var, local_itv(LB2(k), UB2::top()));
+    /** We normalize to `var op constant`, flipping the operator when the neuron is on the right. */
+    const int var = lhs.is_var ? lhs.var : rhs.var;
+    const VnnTerm& c = lhs.is_var ? rhs : lhs;
+    const bool upper = lhs.is_var ? is_le : is_ge;
+    if(is_eq) {
+      conj.push_back(PropAtom{false, var, -1, c.lb, c.ub, true});
+      conj.push_back(PropAtom{false, var, -1, c.lb, c.ub, false});
+    }
+    else {
+      conj.push_back(PropAtom{false, var, -1, c.lb, c.ub, upper});
+    }
   }
+  out.push_back(std::move(conj));
   return true;
 }
 
-/** Sets the bounds of the neurons at the root of the search, by loading the vnnlib file:
- *  * the input box, that is the bounds of the neurons `[0, net.num_inputs())` coming from the
- *    `X_i` assertions;
- *  * the property, which is unary in this application and is therefore expressed as bounds on the
- *    output neurons `[net.output_base(), net.num_neurons)` coming from the `Y_j` assertions.
+/** Load the property of the vnnlib file as a DNF over the neurons.
  *
- * `neurons` arrives with every neuron at top, i.e. `]-oo, +oo[`, and any neuron left untouched
- * keeps that value. Following the vnnlib convention, the assertions describe the region we are
- * looking for: a point of that region is a counterexample (`sat`), and an empty region is a proof
- * that the property holds (`unsat`).
+ * `X_i` is the input neuron `i` and `Y_j` the output neuron `net.output_base() + j`. Following the
+ * vnnlib convention, the assertions describe the region we are looking for: a point of that region
+ * is a counterexample (`sat`), and an empty region is a proof that the property holds (`unsat`).
+ * The assertions of a file are conjoined, and the result is expanded into DNF because a single run
+ * of the solver explores one box with one conjunction of comparisons.
  *
  * Returns `false` on a malformed or unsupported file, in which case the search must not start.
  */
-bool initialize_root_neurons(const Configuration<battery::standard_allocator>& config,
-  const Network& net, NNStore& neurons)
+bool load_property(const Configuration<battery::standard_allocator>& config,
+  const Network& net, DNF& dnf)
 {
+  dnf.clear();
+  dnf.push_back(Conjunction{});  /**< `true`: a single disjunct with no constraint. */
   if(config.vnnlib_path.size() == 0) {
     printf("%% WARNING: no vnnlib file given (-vnnlib_path), every neuron is left unbounded, hence\n\
 %% the input box is unbounded and the property is trivially satisfiable.\n");
@@ -1416,19 +1614,54 @@ bool initialize_root_neurons(const Configuration<battery::standard_allocator>& c
       std::cerr << "ERROR: syntax error in the vnnlib file `" << config.vnnlib_path.data() << "`.\n";
       return false;
     }
-    /** `declare-const`, `set-logic`, ... carry no bound, we skip them. */
+    /** `declare-const`, `set-logic`, ... carry no constraint, we skip them. */
     if(e.is_atom() || !e.children[0].is_atom() || e.children[0].atom != "assert") { continue; }
     if(e.children.size() != 2) {
       std::cerr << "ERROR: `assert` expects a single formula.\n";
       return false;
     }
-    if(!vnnlib_interpret(e.children[1], net, neurons)) { return false; }
+    DNF child;
+    if(!vnnlib_dnf(e.children[1], net, child)) { return false; }
+    DNF merged;
+    if(!dnf_and(dnf, child, merged)) { return false; }
+    dnf = std::move(merged);
     ++num_assertions;
   }
   if(config.verbose_solving >= 1) {
-    printf("%% Loaded %d assertions from `%s`.\n", num_assertions, config.vnnlib_path.data());
+    printf("%% Loaded %d assertions from `%s`, expanded into %d disjunct(s).\n",
+      num_assertions, config.vnnlib_path.data(), (int)dnf.size());
   }
   return true;
+}
+
+/** Install one disjunct: its unary atoms become the bounds of the neurons at the root, and its
+ * binary atoms become the comparisons propagated by `FastNNRelu::deduce_property`.
+ * `neurons` must arrive with every neuron at top, i.e. `]-oo, +oo[`; any neuron left untouched
+ * keeps that value.
+ */
+void apply_disjunct(const Conjunction& conj, NNStore& neurons,
+  battery::vector<NeuronLeq>& leqs)
+{
+  using local_itv = typename NNStore::universe_type::local_type;
+  using LB2 = typename local_itv::LB;
+  using UB2 = typename local_itv::UB;
+  using bound_t = typename LB2::value_type;
+  leqs.clear();
+  for(const PropAtom& a : conj) {
+    /** The cast from `double` to `bound_t` (a `float` unless `TURBO_ITV_BITS == 64`) is a second
+     * rounding, so it is directed too: `ru_cast` for an upper bound and `rd_cast` for a lower one.
+     * Both widen the property, which never cuts off a counterexample. */
+    if(a.is_binary) {
+      /** `neurons[x] - neurons[y] <= k`: the largest `k` is the weakest constraint. */
+      leqs.push_back(NeuronLeq{a.x, a.y, battery::ru_cast<float>(a.k_ub)});
+    }
+    else if(a.upper) {
+      neurons.embed(a.x, local_itv(LB2::top(), UB2(battery::ru_cast<bound_t>(a.k_ub))));
+    }
+    else {
+      neurons.embed(a.x, local_itv(LB2(battery::rd_cast<bound_t>(a.k_lb)), UB2::top()));
+    }
+  }
 }
 
 /** Resolve the branching strategy from the textual options of the configuration.
@@ -1500,44 +1733,85 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
   ValueOrder val_order;
   resolve_search_strategy(hconfig, var_order, val_order);
 
-  MemoryConfig mem_config = configure_gpu_fbarebones(hconfig, hstats, net);
+  /** III. The property. A disjunctive property (the `acasxu` output constraints, and the union of
+   * two input boxes of `prop_6`/`prop_8`) is expanded into DNF: each disjunct is one box plus one
+   * conjunction of comparisons, which is exactly what a run of the solver explores. The answer is
+   * `sat` as soon as one disjunct is `sat`, and `unsat` only when all of them are. */
+  DNF dnf;
+  if(!load_property(hconfig, net, dnf)) {
+    printf("%% ERROR: the property could not be loaded, aborting.\n");
+    return;
+  }
+  /** The comparisons of a disjunct are deductions like the neurons, so they count in the size of
+   * the fixpoint engine. We reserve for the largest disjunct. */
+  int max_comparisons = 0;
+  for(const Conjunction& c : dnf) {
+    int n = 0;
+    for(const PropAtom& a : c) { n += a.is_binary ? 1 : 0; }
+    max_comparisons = std::max(max_comparisons, n);
+  }
+
+  MemoryConfig mem_config = configure_gpu_fbarebones(hconfig, hstats, net, max_comparisons);
 
   auto unified_data = bt::make_unique<UnifiedData, ConcurrentAllocator>(
     hconfig, net, var_order, val_order, mem_config);
   unified_data->root.stats.num_blocks = hstats.num_blocks;
 
-  /** III. The bounds of the neurons at the root: the input box and the (unary) property. */
-  if(!initialize_root_neurons(hconfig, net, *(unified_data->root.store))) {
-    printf("%% ERROR: the property could not be loaded, aborting.\n");
-    return;
-  }
-  if(unified_data->root.store->is_bot()) {
-    printf("%% The root neurons are already inconsistent.\n");
-    printf("unsat\n");
-    return;
-  }
-  if(hconfig.verbose_solving >= 2) {
-    print_neurons(net, *(unified_data->root.store));
-  }
+  auto& uroot = unified_data->root;
+  bool interrupted = false;
+  int64_t time_to_kernel_start = 0;
+  battery::vector<NeuronLeq> leqs;
 
-  auto grid_data = bt::make_unique<bt::unique_ptr<GridData, bt::global_allocator>, ConcurrentAllocator>();
-  initialize_global_data<<<1,1>>>(unified_data.get(), grid_data.get());
-  CUDAEX(cudaDeviceSynchronize());
-  /** We wait that either the solving is interrupted, or that all threads have finished. */
   /** Block the signal CTRL-C to notify the threads if we must exit. */
   block_signal_ctrlc();
-  gpu_fbarebones_solve
-    <<<static_cast<unsigned int>(unified_data->root.stats.num_blocks),
-      CUDA_THREADS_PER_BLOCK,
-      mem_config.shared_bytes>>>
-    (unified_data.get(), grid_data->get());
-  auto now = std::chrono::steady_clock::now();
-  int64_t time_to_kernel_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now - start).count();
-  bool interrupted = wait_solving_ends(unified_data->stop, unified_data->root, start);
-  CUDAEX(cudaDeviceSynchronize());
-  reduce_blocks<<<1,1>>>(unified_data.get(), grid_data->get());
-  CUDAEX(cudaDeviceSynchronize());
-  auto& uroot = unified_data->root;
+
+  for(size_t d = 0; d < dnf.size() && !interrupted && uroot.stats.solutions == 0; ++d) {
+    if(hconfig.verbose_solving >= 1 && dnf.size() > 1) {
+      printf("%% Solving disjunct %d/%d of the property.\n", (int)d + 1, (int)dnf.size());
+    }
+
+    /** A fresh store of neurons, all at top, on which the disjunct is installed. Re-allocating is
+     * simpler than resetting, and happens at most once per disjunct. */
+    uroot.store = bt::allocate_shared<NNStore, ConcurrentAllocator>(ConcurrentAllocator{},
+      AType{0}, net.num_neurons, ConcurrentAllocator{});
+    apply_disjunct(dnf[d], *(uroot.store), leqs);
+    uroot.prop = Property(leqs, ConcurrentAllocator{});
+
+    if(uroot.store->is_bot()) {
+      if(hconfig.verbose_solving >= 1) {
+        printf("%% The disjunct is inconsistent before any propagation, skipping it.\n");
+      }
+      continue;
+    }
+    if(hconfig.verbose_solving >= 2) {
+      print_neurons(net, *(uroot.store));
+    }
+
+    auto grid_data = bt::make_unique<bt::unique_ptr<GridData, bt::global_allocator>, ConcurrentAllocator>();
+    initialize_global_data<<<1,1>>>(unified_data.get(), grid_data.get());
+    CUDAEX(cudaDeviceSynchronize());
+    /** We wait that either the solving is interrupted, or that all threads have finished. */
+    gpu_fbarebones_solve
+      <<<static_cast<unsigned int>(uroot.stats.num_blocks),
+        CUDA_THREADS_PER_BLOCK,
+        mem_config.shared_bytes>>>
+      (unified_data.get(), grid_data->get());
+    auto now = std::chrono::steady_clock::now();
+    if(d == 0) {
+      time_to_kernel_start = std::chrono::duration_cast<std::chrono::nanoseconds>(now - start).count();
+    }
+    interrupted = wait_solving_ends(unified_data->stop, uroot, start);
+    CUDAEX(cudaDeviceSynchronize());
+    reduce_blocks<<<1,1>>>(unified_data.get(), grid_data->get());
+    CUDAEX(cudaDeviceSynchronize());
+    deallocate_global_data<<<1,1>>>(grid_data.get());
+    CUDAEX(cudaDeviceSynchronize());
+
+    /** The blocks stop as soon as a counterexample is found, so the flag must be cleared before the
+     * next disjunct is explored. */
+    unified_data->stop.clear();
+  }
+
   if(uroot.stats.solutions > 0) {
     // We add the time before the kernel starts to the time needed to find the best bound.
     uroot.stats.timers.time_of(Timer::LATEST_BEST_OBJ_FOUND) += time_to_kernel_start;
@@ -1556,8 +1830,6 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
   else if (uroot.stats.unknowns > 0) printf("unknown\n");
   else if (interrupted) printf("timeout\n");
   else printf("unsat\n");
-  deallocate_global_data<<<1,1>>>(grid_data.get());
-  CUDAEX(cudaDeviceSynchronize());
 }
 
 /** We configure the GPU according to the user configuration:
@@ -1568,7 +1840,7 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
  * 5) Increase the stack size if requested by the user.
  */
 MemoryConfig configure_gpu_fbarebones(Configuration<battery::standard_allocator>& config,
-  Statistics<battery::standard_allocator>& stats, const Network& net)
+  Statistics<battery::standard_allocator>& stats, const Network& net, int max_comparisons)
 {
   /** I. Number of blocks per SM. */
   cudaDeviceProp deviceProp;
@@ -1608,7 +1880,7 @@ MemoryConfig configure_gpu_fbarebones(Configuration<battery::standard_allocator>
     + store_bytes * size_t{3}  // current, root, inner box.
     + store_bytes * size_t{2}  // search strategies
     + iprop_bytes * size_t{2}
-    + net.num_deductions() * size_t{4} * gpu_sizeof<bound_type>()  // fixpoint engine
+    + (net.num_deductions() + max_comparisons) * size_t{4} * gpu_sizeof<bound_type>()  // fixpoint engine
     + (gpu_sizeof<bound_type>() + gpu_sizeof<LightBranch<FItv>>()) * size_t{MAX_SEARCH_DEPTH};
   size_t estimated_global_mem = gpu_sizeof<UnifiedData>() + store_bytes * size_t{5} + iprop_bytes +
     gpu_sizeof<GridData>();
