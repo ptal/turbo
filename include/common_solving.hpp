@@ -435,7 +435,7 @@ public:
     auto& tnf = f.seq();
     simplifier->initialize_tnf(num_vars, tnf);
     SimplifierStats preprocessing_stats;
-    local::B has_changed = true;
+    UB<bool> has_changed = true;
     GaussSeidelIteration fp_engine;
     /** We apply several preprocessing steps until we reach a fixpoint. */
     while(!iprop->is_bot() && has_changed) {
@@ -448,7 +448,7 @@ public:
       if(has_changed) {
         simplifier->meet_equivalence_classes();
       }
-      has_changed |= simplifier->algebraic_simplify(tnf, preprocessing_stats);
+      has_changed.join(simplifier->algebraic_simplify(tnf, preprocessing_stats));
       simplifier->eliminate_entailed_constraints(tnf, preprocessing_stats,
         [&](const auto& constraint) {
           IDiagnostics diagnostics;
@@ -458,7 +458,7 @@ public:
           return ok && iprop->ask(ask_value);
         });
       // if(num_vars < 1000000) { // otherwise ICSE is too slow, needs to be improved.
-        has_changed |= simplifier->i_cse(tnf, preprocessing_stats);
+        has_changed.join(simplifier->i_cse(tnf, preprocessing_stats));
       // }
       if(has_changed) {
         simplifier->meet_equivalence_classes();

@@ -76,7 +76,7 @@ void deduce_and_test_bot(L& pir, int num_deds, const std::vector<Itv>& before) {
   for(int i = 0; i < before.size(); ++i) {
     EXPECT_EQ(pir[i], before[i]) << "pir[" << i << "]";
   }
-  local::B has_changed = false;
+  UB<bool> has_changed = false;
   GaussSeidelIteration{}.fixpoint(
     pir.num_deductions(),
     [&](size_t i) { return pir.deduce(i); },
@@ -105,7 +105,7 @@ void deduce_and_test2(L& ipc, const std::vector<Itv>& before, const std::vector<
   if(std::ranges::all_of(before, [](const Itv& itv) { return itv.lb().load() == itv.ub().load(); })) {
     test_completeness = true;
   }
-  local::B has_changed = false;
+  UB<bool> has_changed = false;
   GaussSeidelIteration{}.fixpoint(
     ipc.num_deductions(),
     [&](size_t i) { return ipc.deduce(i); },
