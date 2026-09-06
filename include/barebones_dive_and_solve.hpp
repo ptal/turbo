@@ -79,7 +79,6 @@ struct UnifiedData {
 struct GridData;
 using IStore = VStore<Itv, bt::pool_allocator>;
 using IProp = PIR<IStore, bt::pool_allocator>;
-using UB = ZUB<typename Itv::LB::value_type, bt::atomic_memory_grid>;
 using strategies_type = bt::vector<StrategyType<bt::global_allocator>, bt::global_allocator>;
 
 /** Data private to a single block. */
@@ -112,7 +111,7 @@ struct BlockData {
    * We always seek to minimize.
    * Invariant: `best_bound == best_store.project(obj_var).lb()`
    */
-  UB best_bound;
+  UB<typename Itv::value_type, bt::atomic_memory_grid> best_bound;
 
   /** The current strategy being used to split the store.
    * It is an index into `GridData::strategies`.
@@ -184,9 +183,9 @@ struct BlockData {
    * \precondition: We must not be on a leaf node.
    */
   __device__ INLINE void split(bool& has_changed, const strategies_type& strategies) {
-    using LB2 = typename Itv::LB::local_type;
-    using UB2 = typename Itv::UB::local_type;
-    __shared__ local::ZUB idx;
+    using LB2 = typename Itv::lb_type::basic_type;
+    using UB2 = typename Itv::ub_type::basic_type;
+    __shared__ UB<int> idx;
     decisions[depth].var = AVar{};
     int currentDepth = depth;
     for(int i = current_strategy; i < strategies.size(); ++i) {
@@ -198,22 +197,22 @@ struct BlockData {
         }
         case VariableOrder::FIRST_FAIL: {
           lattice_smallest_split(has_changed, idx, strategies[i],
-            [](const Itv& u) { return UB2(u.ub().value() - u.lb().value()); });
+            [](const Itv& u) { return UB2(u.ub().load() - u.lb().load()); });
           break;
         }
         case VariableOrder::ANTI_FIRST_FAIL: {
           lattice_smallest_split(has_changed, idx, strategies[i],
-            [](const Itv& u) { return LB2(u.ub().value() - u.lb().value()); });
+            [](const Itv& u) { return LB2(u.ub().load() - u.lb().load()); });
           break;
         }
         case VariableOrder::LARGEST: {
           lattice_smallest_split(has_changed, idx, strategies[i],
-            [](const Itv& u) { return LB2(u.ub().value()); });
+            [](const Itv& u) { return LB2(u.ub().load()); });
           break;
         }
         case VariableOrder::SMALLEST: {
           lattice_smallest_split(has_changed, idx, strategies[i],
-            [](const Itv& u) { return UB2(u.lb().value()); });
+            [](const Itv& u) { return UB2(u.lb().load()); });
           break;
         }
         default: assert(false);
@@ -236,7 +235,7 @@ struct BlockData {
    * \param has_changed is a Boolean in shared memory.
    * \param idx is a decreasing integer in shared memory.
    */
-  __device__ INLINE void input_order_split(bool& has_changed, local::ZUB& idx, const StrategyType<bt::global_allocator>& strategy)
+  __device__ INLINE void input_order_split(bool& has_changed, UB<int>& idx, const StrategyType<bt::global_allocator>& strategy)
   {
     bool split_in_store = strategy.vars.empty();
     int n = split_in_store ? store->vars() : strategy.vars.size();
@@ -247,15 +246,15 @@ struct BlockData {
     __syncthreads();
     while(has_changed) {
       __syncthreads();
-      // int n = idx.value();
+      // int n = idx.load();
       if(threadIdx.x == 0) {
         has_changed = false;
       }
       __syncthreads();
       for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-        if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()) {
-          if(idx.meet(local::ZUB(i))) {
+        if(dom.lb().load() != dom.ub().load() && !dom.lb().is_top() && !dom.ub().is_top()) {
+          if(idx.meet(UB<int>(i))) {
             has_changed = true;
           }
         }
@@ -263,7 +262,7 @@ struct BlockData {
       __syncthreads();
     }
     if(threadIdx.x == 0) {
-      next_unassigned_var = idx.value();
+      next_unassigned_var = idx.load();
       if(next_unassigned_var != n) {
         push_decision(strategy.val_order, split_in_store ? AVar{store->aty(), next_unassigned_var} : strategy.vars[next_unassigned_var]);
       }
@@ -275,7 +274,7 @@ struct BlockData {
    * \param idx is a decreasing integer in shared memory.
    * */
   template <class F>
-  __device__ INLINE void lattice_smallest_split(bool& has_changed, local::ZUB& idx,
+  __device__ INLINE void lattice_smallest_split(bool& has_changed, UB<int>& idx,
     const StrategyType<bt::global_allocator>& strategy, F f)
   {
     using T = decltype(f(Itv{}));
@@ -298,11 +297,11 @@ struct BlockData {
       __syncthreads();
       for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-        if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()) {
+        if(dom.lb().load() != dom.ub().load() && !dom.lb().is_top() && !dom.ub().is_top()) {
           if(value.meet(f(dom))) {
             has_changed = true;
           }
-          if(idx.meet(local::ZUB(i))) {
+          if(idx.meet(UB<int>(i))) {
             has_changed = true;
           }
         }
@@ -313,7 +312,7 @@ struct BlockData {
     if(!value.is_top()) {
       __syncthreads();
       if(threadIdx.x == 0) {
-        next_unassigned_var = idx.value();
+        next_unassigned_var = idx.load();
         idx = n;
         has_changed = true;
       }
@@ -321,27 +320,27 @@ struct BlockData {
       // This fixpoint loop is not strictly necessary.
       // We keep it for determinism: the variable with the smallest index is selected first.
       while(has_changed) {
-        // int n = idx.value();
+        // int n = idx.load();
         __syncthreads();
         has_changed = false;
         __syncthreads();
         for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
           const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-          if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top() && f(dom) == value) {
-            if(idx.meet(local::ZUB(i))) {
+          if(dom.lb().load() != dom.ub().load() && !dom.lb().is_top() && !dom.ub().is_top() && f(dom) == value) {
+            if(idx.meet(UB<int>(i))) {
               has_changed = true;
             }
           }
         }
         __syncthreads();
       }
-      assert(idx.value() < n);
+      assert(idx.load() < n);
       if(threadIdx.x == 0) {
         if(split_in_store) {
-          push_decision(strategy.val_order, AVar{store->aty(), idx.value()});
+          push_decision(strategy.val_order, AVar{store->aty(), idx.load()});
         }
         else {
-          push_decision(strategy.val_order, strategy.vars[idx.value()]);
+          push_decision(strategy.val_order, strategy.vars[idx.load()]);
         }
       }
     }
@@ -352,31 +351,31 @@ struct BlockData {
    *  \precondition Must be executed by thread 0 only.
   */
   __device__ INLINE void push_decision(ValueOrder val_order, AVar var) {
-    using value_type = typename Itv::LB::value_type;
+    using value_type = typename Itv::value_type;
     assert(threadIdx.x == 0);
     decisions[depth].var = var;
     decisions[depth].current_idx = -1;
     const auto& dom = store->project(decisions[depth].var);
-    assert(dom.lb().value() != dom.ub().value());
+    assert(dom.lb().load() != dom.ub().load());
     switch(val_order) {
       case ValueOrder::MIN: {
-        decisions[depth].children[0] = Itv(dom.lb().value());
-        decisions[depth].children[1] = Itv(dom.lb().value() + value_type{1}, dom.ub());
+        decisions[depth].children[0] = Itv(dom.lb().load());
+        decisions[depth].children[1] = Itv(dom.lb().load() + value_type{1}, dom.ub());
         break;
       }
       case ValueOrder::MAX: {
-        decisions[depth].children[0] = Itv(dom.ub().value());
-        decisions[depth].children[1] = Itv(dom.lb(), dom.ub().value() - value_type{1});
+        decisions[depth].children[0] = Itv(dom.ub().load());
+        decisions[depth].children[1] = Itv(dom.lb(), dom.ub().load() - value_type{1});
         break;
       }
       case ValueOrder::SPLIT: {
-        auto mid = dom.lb().value() +  (dom.ub().value() - dom.lb().value()) / value_type{2};
+        auto mid = dom.lb().load() +  (dom.ub().load() - dom.lb().load()) / value_type{2};
         decisions[depth].children[0] = Itv(dom.lb(), mid);
         decisions[depth].children[1] = Itv(mid + value_type{1}, dom.ub());
         break;
       }
       case ValueOrder::REVERSE_SPLIT: {
-        auto mid = dom.lb().value() +  (dom.ub().value() - dom.lb().value()) / value_type{2};
+        auto mid = dom.lb().load() +  (dom.ub().load() - dom.lb().load()) / value_type{2};
         decisions[depth].children[0] = Itv(mid + value_type{1}, dom.ub());
         decisions[depth].children[1] = Itv(dom.lb(), mid);
         break;
@@ -393,8 +392,8 @@ struct BlockData {
     ++depth;
     // printf("depth(%d), var = %d, children = [%d, %d] | [%d, %d], ropes = [%d, %d]\n",
     //   depth, decisions[depth-1].var.vid(),
-    //   (int)decisions[depth-1].children[0].lb().value(), (int)decisions[depth-1].children[0].ub().value(),
-    //   (int)decisions[depth-1].children[1].lb().value(), (int)decisions[depth-1].children[1].ub().value(),
+    //   (int)decisions[depth-1].children[0].lb().load(), (int)decisions[depth-1].children[0].ub().load(),
+    //   (int)decisions[depth-1].children[1].lb().load(), (int)decisions[depth-1].children[1].ub().load(),
     //   decisions[depth-1].ropes[0], decisions[depth-1].ropes[1]);
     // Reallocate decisions if needed.
     if(decisions.size() == depth) {
@@ -414,7 +413,7 @@ struct GridData {
    * A `0` means to turn left in the search tree, and a `1` means to turn right.
    * Incrementing this integer will generate the path of the next subproblem.
    */
-  ZLB<size_t, bt::atomic_memory_grid> next_subproblem;
+  LB<size_t, bt::atomic_memory_grid> next_subproblem;
 
   /** This is an approximation of the best bound found so far, globally, across all threads.
    * It is not necessarily the true best bound at each time `t`.
@@ -422,7 +421,7 @@ struct GridData {
    * It is used to share information among blocks.
    * We always seek to minimize.
    */
-  UB appx_best_bound;
+  UB<typename Itv::value_type, bt::atomic_memory_grid> appx_best_bound;
 
   /** Due to multithreading, we must protect `stdout` when printing.
    * The model of computation in this work is lock-free, but it seems unavoidable for printing.
@@ -730,7 +729,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
       if(threadIdx.x == 0) {
         size_t next_subproblem_idx = ((block_data.subproblem_idx >> remaining_depth) + size_t{1}) << remaining_depth;
         // Make sure the subtree is skipped.
-        while(grid_data->next_subproblem.meet(ZLB<size_t, bt::local_memory>(next_subproblem_idx))) {}
+        while(grid_data->next_subproblem.meet(LB<size_t>(next_subproblem_idx))) {}
         /** It is possible that other blocks skip similar subtrees.
           * Hence, we only count the subproblems skipped by the block solving the left most subproblem. */
         if((block_data.subproblem_idx & ((size_t{1} << remaining_depth) - size_t{1})) == size_t{0}) {
@@ -758,9 +757,9 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
            */
           if(!grid_data->appx_best_bound.is_top()) {
             block_data.store->embed(grid_data->obj_var,
-              Itv(Itv::LB::top(), Itv::UB(grid_data->appx_best_bound.value() - 1)));
+              Itv(Itv::lb_type::top(), Itv::ub_type(grid_data->appx_best_bound.load() - 1)));
             block_data.store->embed(grid_data->obj_var,
-              Itv(Itv::LB::top(), Itv::UB(block_data.best_bound.value() - 1)));
+              Itv(Itv::lb_type::top(), Itv::ub_type(block_data.best_bound.load() - 1)));
           }
           // Unconstrained objective, can terminate, we will not find a better solution.
           if(grid_data->appx_best_bound.is_bot()) {
@@ -878,8 +877,8 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
       block_data.subproblem_idx = grid_data->next_subproblem.atomic()++;
       /** The following commented code is completely valid and does not use atomic post-increment.
        * But honestly, we kinda need more performance so... let's avoid reexploring subproblems. */
-      // subproblem_idx = grid_data->next_subproblem.value();
-      // grid_data->next_subproblem.meet(ZLB<size_t, bt::local_memory>(subproblem_idx + size_t{1}));
+      // subproblem_idx = grid_data->next_subproblem.load();
+      // grid_data->next_subproblem.meet(LB<size_t>(subproblem_idx + size_t{1}));
     }
     __syncthreads();
   }
@@ -990,9 +989,9 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
      */
     if(num_active == 0) {
       is_leaf_node = true;
-      if(block_data.best_bound.value() > block_data.store->project(grid_data.obj_var).lb().value()) {
+      if(block_data.best_bound.load() > block_data.store->project(grid_data.obj_var).lb().load()) {
         if(threadIdx.x == 0) {
-          block_data.best_bound.meet(Itv::UB(block_data.store->project(grid_data.obj_var).lb().value()));
+          block_data.best_bound.meet(Itv::ub_type(block_data.store->project(grid_data.obj_var).lb().load()));
           grid_data.appx_best_bound.meet(block_data.best_bound);
           block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);
         }

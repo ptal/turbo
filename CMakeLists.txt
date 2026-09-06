@@ -24,6 +24,7 @@ option(WITH_ASAN "Compile with the Address Sanitizer to check for memory corrupt
 option(WITH_XCSP3PARSER "Add support for parsing XCSP3 .xml files" ON)
 option(NO_CONCURRENT_MANAGED_MEMORY "Add support for platform not supporting concurrent managed access to memory on GPUs (use pinned memory instead)." OFF)
 option(TURBO_BUILD_DOC "Build the documentation of Turbo." OFF)
+option(TURBO_BUILD_TESTS "Build the unit tests of Turbo (interpretation of logical formulas)." OFF)
 option(TURBO_NO_ENTAILED_PROP_REMOVAL "Do not remove the entailed propagators." ON)
 
 if(MSVC)
@@ -108,6 +109,34 @@ target_link_options(turbo PRIVATE
 
 if(MSVC)
   set_target_properties(turbo PROPERTIES VS_USER_PROPS "${CMAKE_CURRENT_SOURCE_DIR}/vs.props")
+endif()
+
+# Unit tests
+#
+# Interpretation is host code, so these build and run as plain C++ even when GPU is ON.
+if(TURBO_BUILD_TESTS)
+  FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG v1.15.2
+    GIT_SHALLOW 1
+  )
+  # For Windows: Prevent overriding the parent project's compiler/linker settings
+  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(googletest)
+
+  enable_testing()
+  include(GoogleTest)
+
+  file(GLOB turbo_test_files tests/src/*_test.cpp)
+  foreach(file ${turbo_test_files})
+    cmake_path(GET file STEM test_name)
+    add_executable(${test_name} ${file})
+    target_include_directories(${test_name} PRIVATE include tests/include)
+    target_link_libraries(${test_name} lala_parsing lala_pc gtest_main)
+    target_compile_definitions(${test_name} PRIVATE TURBO_ITV_BITS=32)
+    gtest_discover_tests(${test_name})
+  endforeach()
 endif()
 
 # Documentation

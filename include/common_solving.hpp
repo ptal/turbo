@@ -18,13 +18,12 @@
 #include "battery/vector.hpp"
 #include "battery/shared_ptr.hpp"
 
-#include "lala/simplifier.hpp"
 #include "lala/vstore.hpp"
-#include "lala/cartesian_product.hpp"
-#include "lala/interval.hpp"
+#include "lala/zinterval.hpp"
 #include "lala/pir.hpp"
 #include "lala/fixpoint.hpp"
-#include "lala/interpretation.hpp"
+
+#include "lala/simplifier.hpp"
 
 #include "search_strategy.hpp"
 #include "interpretation.hpp"
@@ -50,7 +49,7 @@ using namespace lala;
 #else
   #error "Invalid value for TURBO_ITV_BITS: must be 16, 32 or 64."
 #endif
-using Itv = Interval<ZLB<bound_value_type, battery::local_memory>>;
+using Itv = ZInterval<bound_value_type, battery::local_memory>;
 
 static std::atomic<bool> got_signal;
 static void (*prev_sigint)(int);
@@ -142,7 +141,7 @@ template <class Universe,
   class PropAllocator,
   class StoreAllocator>
 struct AbstractDomains {
-  using universe_type = typename Universe::local_type;
+  using universe_type = typename Universe::basic_type;
 
   /** Version of the abstract domains with a simple allocator, to represent the best solutions. */
   using LIStore = VStore<universe_type, BasicAllocator>;
@@ -314,7 +313,7 @@ public:
     }
     if(config.print_ast) {
       printf("%% Interpreted AST:\n");
-      iprop->deinterpret(env).print();
+      deinterpret_in(*iprop, env).print();
       printf("\n");
     }
     if(config.verbose_solving) {
@@ -436,7 +435,7 @@ public:
     auto& tnf = f.seq();
     simplifier->initialize_tnf(num_vars, tnf);
     SimplifierStats preprocessing_stats;
-    local::B has_changed = true;
+    UB<bool> has_changed = true;
     GaussSeidelIteration fp_engine;
     /** We apply several preprocessing steps until we reach a fixpoint. */
     while(!iprop->is_bot() && has_changed) {
@@ -449,10 +448,17 @@ public:
       if(has_changed) {
         simplifier->meet_equivalence_classes();
       }
-      has_changed |= simplifier->algebraic_simplify(tnf, preprocessing_stats);
-      simplifier->eliminate_entailed_constraints(*iprop, tnf, preprocessing_stats);
+      has_changed.join(simplifier->algebraic_simplify(tnf, preprocessing_stats));
+      simplifier->eliminate_entailed_constraints(tnf, preprocessing_stats,
+        [&](const auto& constraint) {
+          IDiagnostics diagnostics;
+          typename IProp::template ask_type<basic_allocator_type> ask_value;
+          bool ok = interpret_ask_in(*iprop, constraint, env, ask_value, diagnostics);
+          assert(ok);
+          return ok && iprop->ask(ask_value);
+        });
       // if(num_vars < 1000000) { // otherwise ICSE is too slow, needs to be improved.
-        has_changed |= simplifier->i_cse(tnf, preprocessing_stats);
+        has_changed.join(simplifier->i_cse(tnf, preprocessing_stats));
       // }
       if(has_changed) {
         simplifier->meet_equivalence_classes();
@@ -635,9 +641,9 @@ private:
       // = and <= cases.
       if(is_arithmetic_comparison(bytecode.op)) {
         // Not reified case.
-        if(xdom.lb().value() == xdom.ub().value()) {
+        if(xdom.lb().load() == xdom.ub().load()) {
           // Negated case.
-          if(xdom.lb().value() == 0) {
+          if(xdom.lb().load() == 0) {
             stats_tcn.ops[negate_arithmetic_comparison(bytecode.op)]++;
           }
           else {
@@ -656,18 +662,18 @@ private:
       }
     }
     for(size_t i = 0; i < store->vars(); ++i) {
-      auto width = (*store)[i].width().lb();
-      if(width.is_top()) {
+      auto card = (*store)[i].count();
+      if(card.is_top()) {
         stats_tcn.num_unbounded_vars++;
       }
       else {
-        stats_tcn.histogram_vars_dom_size[width.value() + 1]++;
+        stats_tcn.histogram_vars_dom_size[card.load()]++;
       }
-      if(width.is_top() || width.value() > 1) {
+      if(card.is_top() || card.load() > 2) {
         stats_tcn.histogram_unassigned_vars_degree[stats_tcn.vars_occurrences[i]]++;
         stats_tcn.num_unassigned_var_occurrences += stats_tcn.vars_occurrences[i];
       }
-      else if(width.value() == 1) {
+      else if(card.load() == 2) {
         stats_tcn.num_assigned_vars++;
         stats_tcn.histogram_assigned_vars_degree[stats_tcn.vars_occurrences[i]]++;
         stats_tcn.num_assigned_var_occurrences += stats_tcn.vars_occurrences[i];

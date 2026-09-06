@@ -1,0 +1,7 @@
+var int: x;
+constraint int_ge(x,0);
+constraint int_le(x,10);
+
+var int: y;
+constraint int_ge(y,0);
+constraint int_le(y,10);
