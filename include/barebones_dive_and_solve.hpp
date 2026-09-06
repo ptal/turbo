@@ -79,7 +79,9 @@ struct UnifiedData {
 struct GridData;
 using IStore = VStore<Itv, bt::pool_allocator>;
 using IProp = PIR<IStore, bt::pool_allocator>;
-using UB = ::lala::UB<typename Itv::value_type, bt::atomic_memory_grid>;
+/** Upper bound on the objective and index of the next subproblem, both shared across the grid. */
+using ZUB = UB<typename Itv::value_type, bt::atomic_memory_grid>;
+using ZLB = LB<size_t, bt::atomic_memory_grid>;
 using strategies_type = bt::vector<StrategyType<bt::global_allocator>, bt::global_allocator>;
 
 /** Data private to a single block. */
@@ -112,7 +114,7 @@ struct BlockData {
    * We always seek to minimize.
    * Invariant: `best_bound == best_store.project(obj_var).lb()`
    */
-  UB best_bound;
+  ZUB best_bound;
 
   /** The current strategy being used to split the store.
    * It is an index into `GridData::strategies`.
@@ -186,7 +188,7 @@ struct BlockData {
   __device__ INLINE void split(bool& has_changed, const strategies_type& strategies) {
     using LB2 = typename Itv::lb_type::basic_type;
     using UB2 = typename Itv::ub_type::basic_type;
-    __shared__ ::lala::UB<int> idx;
+    __shared__ UB<int> idx;
     decisions[depth].var = AVar{};
     int currentDepth = depth;
     for(int i = current_strategy; i < strategies.size(); ++i) {
@@ -236,7 +238,7 @@ struct BlockData {
    * \param has_changed is a Boolean in shared memory.
    * \param idx is a decreasing integer in shared memory.
    */
-  __device__ INLINE void input_order_split(bool& has_changed, ::lala::UB<int>& idx, const StrategyType<bt::global_allocator>& strategy)
+  __device__ INLINE void input_order_split(bool& has_changed, UB<int>& idx, const StrategyType<bt::global_allocator>& strategy)
   {
     bool split_in_store = strategy.vars.empty();
     int n = split_in_store ? store->vars() : strategy.vars.size();
@@ -255,7 +257,7 @@ struct BlockData {
       for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
         if(dom.lb().load() != dom.ub().load() && !dom.lb().is_top() && !dom.ub().is_top()) {
-          if(idx.meet(::lala::UB<int>(i))) {
+          if(idx.meet(UB<int>(i))) {
             has_changed = true;
           }
         }
@@ -275,7 +277,7 @@ struct BlockData {
    * \param idx is a decreasing integer in shared memory.
    * */
   template <class F>
-  __device__ INLINE void lattice_smallest_split(bool& has_changed, ::lala::UB<int>& idx,
+  __device__ INLINE void lattice_smallest_split(bool& has_changed, UB<int>& idx,
     const StrategyType<bt::global_allocator>& strategy, F f)
   {
     using T = decltype(f(Itv{}));
@@ -302,7 +304,7 @@ struct BlockData {
           if(value.meet(f(dom))) {
             has_changed = true;
           }
-          if(idx.meet(::lala::UB<int>(i))) {
+          if(idx.meet(UB<int>(i))) {
             has_changed = true;
           }
         }
@@ -328,7 +330,7 @@ struct BlockData {
         for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
           const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
           if(dom.lb().load() != dom.ub().load() && !dom.lb().is_top() && !dom.ub().is_top() && f(dom) == value) {
-            if(idx.meet(::lala::UB<int>(i))) {
+            if(idx.meet(UB<int>(i))) {
               has_changed = true;
             }
           }
@@ -414,7 +416,7 @@ struct GridData {
    * A `0` means to turn left in the search tree, and a `1` means to turn right.
    * Incrementing this integer will generate the path of the next subproblem.
    */
-  ::lala::LB<size_t, bt::atomic_memory_grid> next_subproblem;
+  ZLB next_subproblem;
 
   /** This is an approximation of the best bound found so far, globally, across all threads.
    * It is not necessarily the true best bound at each time `t`.
@@ -422,7 +424,7 @@ struct GridData {
    * It is used to share information among blocks.
    * We always seek to minimize.
    */
-  UB appx_best_bound;
+  ZUB appx_best_bound;
 
   /** Due to multithreading, we must protect `stdout` when printing.
    * The model of computation in this work is lock-free, but it seems unavoidable for printing.
@@ -730,7 +732,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
       if(threadIdx.x == 0) {
         size_t next_subproblem_idx = ((block_data.subproblem_idx >> remaining_depth) + size_t{1}) << remaining_depth;
         // Make sure the subtree is skipped.
-        while(grid_data->next_subproblem.meet(::lala::LB<size_t, bt::local_memory>(next_subproblem_idx))) {}
+        while(grid_data->next_subproblem.meet(LB<size_t, bt::local_memory>(next_subproblem_idx))) {}
         /** It is possible that other blocks skip similar subtrees.
           * Hence, we only count the subproblems skipped by the block solving the left most subproblem. */
         if((block_data.subproblem_idx & ((size_t{1} << remaining_depth) - size_t{1})) == size_t{0}) {
@@ -879,7 +881,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
       /** The following commented code is completely valid and does not use atomic post-increment.
        * But honestly, we kinda need more performance so... let's avoid reexploring subproblems. */
       // subproblem_idx = grid_data->next_subproblem.load();
-      // grid_data->next_subproblem.meet(::lala::LB<size_t, bt::local_memory>(subproblem_idx + size_t{1}));
+      // grid_data->next_subproblem.meet(LB<size_t, bt::local_memory>(subproblem_idx + size_t{1}));
     }
     __syncthreads();
   }

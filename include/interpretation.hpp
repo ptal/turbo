@@ -870,10 +870,10 @@ CUDA NI F deinterpret_constant(const ZInterval<VT, Mem>& a) {
 
 /** The local-memory version of a lattice: lala-interval names it `basic_type`, the lattices of
  * lala-core name it `local_type`. */
-template <class U> struct local_universe_of { using type = typename U::local_type; };
-template <class VT, class Mem> struct local_universe_of<LB<VT, Mem>> { using type = LB<VT>; };
-template <class VT, class Mem> struct local_universe_of<UB<VT, Mem>> { using type = UB<VT>; };
-template <class VT, class Mem> struct local_universe_of<ZInterval<VT, Mem>> { using type = ZInterval<VT>; };
+template <class U> struct basic_univ_of { using type = typename U::local_type; };
+template <class VT, class Mem> struct basic_univ_of<LB<VT, Mem>> { using type = LB<VT>; };
+template <class VT, class Mem> struct basic_univ_of<UB<VT, Mem>> { using type = UB<VT>; };
+template <class VT, class Mem> struct basic_univ_of<ZInterval<VT, Mem>> { using type = ZInterval<VT>; };
 
 /** Interpret `true` in the lattice `L`.
  * \return `true` if `L` preserves the top element w.r.t. the concrete domain or if `true` is
@@ -959,7 +959,7 @@ CUDA bool ginterpret_in(const F& f, const Env& env, U& value, IDiagnostics& diag
     }
     else if(f.sig() == OR) {
       if constexpr(kind == IKind::TELL || lattice_properties<U>::preserve_join) {
-        using U2 = typename local_universe_of<U>::type;
+        using U2 = typename basic_univ_of<U>::type;
         U2 join_value = U2::bot();
         for(int i = 0; i < f.seq().size(); ++i) {
           U2 x = U2::top();
@@ -1052,7 +1052,7 @@ namespace impl {
   {
     using Alloc2 = typename I::allocator_type;
     using A = VStore<U, Alloc>;
-    using local_universe = typename A::local_universe;
+    using basic_univ_type = typename A::basic_univ_type;
     assert(f.is(F::E));
     typename A::template var_dom<Alloc2> k;
     if(interpret_tell_in<diagnose>(f, env, k.dom, diagnostics)) {
@@ -1092,9 +1092,9 @@ namespace impl {
   {
     using Alloc2 = typename I::allocator_type;
     using A = VStore<U, Alloc>;
-    using local_universe = typename A::local_universe;
+    using basic_univ_type = typename A::basic_univ_type;
     const char* name = A::name;
-    local_universe u;
+    basic_univ_type u;
     bool res = ginterpret_in<kind, diagnose>(f, env, u, diagnostics);
     if(res) {
       const auto& varf = var_in(f);
