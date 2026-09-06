@@ -732,7 +732,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
       if(threadIdx.x == 0) {
         size_t next_subproblem_idx = ((block_data.subproblem_idx >> remaining_depth) + size_t{1}) << remaining_depth;
         // Make sure the subtree is skipped.
-        while(grid_data->next_subproblem.meet(LB<size_t, bt::local_memory>(next_subproblem_idx))) {}
+        while(grid_data->next_subproblem.meet(LB<size_t>(next_subproblem_idx))) {}
         /** It is possible that other blocks skip similar subtrees.
           * Hence, we only count the subproblems skipped by the block solving the left most subproblem. */
         if((block_data.subproblem_idx & ((size_t{1} << remaining_depth) - size_t{1})) == size_t{0}) {
@@ -881,7 +881,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
       /** The following commented code is completely valid and does not use atomic post-increment.
        * But honestly, we kinda need more performance so... let's avoid reexploring subproblems. */
       // subproblem_idx = grid_data->next_subproblem.load();
-      // grid_data->next_subproblem.meet(LB<size_t, bt::local_memory>(subproblem_idx + size_t{1}));
+      // grid_data->next_subproblem.meet(LB<size_t>(subproblem_idx + size_t{1}));
     }
     __syncthreads();
   }

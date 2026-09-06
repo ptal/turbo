@@ -599,14 +599,14 @@ CUDA NI TFormula<Allocator> deinterpret_in(const B& a, AVar avar, const Env& env
 namespace impl {
   template<bool diagnose, class F, size_t N, class Mem, class T>
   CUDA NI bool interpret_existential_bitset(const F& f, NBitset<N, Mem, T>& k, IDiagnostics& diagnostics) {
-    using local_type = typename NBitset<N, Mem, T>::local_type;
+    using basic_type = typename NBitset<N, Mem, T>::basic_type;
     const char* name = NBitset<N, Mem, T>::name;
     const auto& sort = battery::get<1>(f.exists());
     if(sort.is_int()) {
       return true;
     }
     else if(sort.is_bool()) {
-      k.meet(local_type(0,1));
+      k.meet(basic_type(0,1));
       return true;
     }
     else {
@@ -618,7 +618,7 @@ namespace impl {
   template<bool diagnose, bool negated, class F, size_t N, class Mem, class T>
   CUDA NI bool interpret_tell_set_bitset(const F& f, const F& k, NBitset<N, Mem, T>& tell, IDiagnostics& diagnostics) {
     using A = NBitset<N, Mem, T>;
-    using local_type = typename A::local_type;
+    using basic_type = typename A::basic_type;
     const char* name = A::name;
     using sort_type = Sort<typename F::allocator_type>;
     std::optional<sort_type> sort = f.seq(1).sort();
@@ -627,12 +627,12 @@ namespace impl {
      || sort.value() == sort_type(sort_type::Set, sort_type(sort_type::Bool))))
     {
       const auto& set = f.seq(1).s();
-      local_type join_s = local_type::bot();
+      basic_type join_s = basic_type::bot();
       bool over_appx = false;
       for(int i = 0; i < set.size(); ++i) {
         int l = battery::get<0>(set[i]).to_z();
         int u = battery::get<1>(set[i]).to_z();
-        join_s.join(local_type(l, u));
+        join_s.join(basic_type(l, u));
         if(l < 0 || u >= A::capacity() - 2) {
           over_appx = true;
         }
@@ -657,7 +657,7 @@ namespace impl {
   template<bool diagnose, class F, size_t N, class Mem, class T>
   CUDA NI bool interpret_tell_x_op_k_bitset(const F& f, logic_int k, Sig sig, NBitset<N, Mem, T>& tell, IDiagnostics& diagnostics) {
     using A = NBitset<N, Mem, T>;
-    using local_type = typename A::local_type;
+    using basic_type = typename A::basic_type;
     const char* name = A::name;
     if(sig == LT) {
       return interpret_tell_x_op_k_bitset<diagnose>(f, k-1, LEQ, tell, diagnostics);
@@ -678,10 +678,10 @@ namespace impl {
       }
     }
     switch(sig) {
-      case EQ: tell.meet(local_type(k, k)); break;
-      case NEQ: tell.meet(local_type(k, k).complement()); break;
-      case LEQ: tell.meet(local_type(-1, k)); break;
-      case GEQ: tell.meet(local_type(k, A::capacity())); break;
+      case EQ: tell.meet(basic_type(k, k)); break;
+      case NEQ: tell.meet(basic_type(k, k).complement()); break;
+      case LEQ: tell.meet(basic_type(-1, k)); break;
+      case GEQ: tell.meet(basic_type(k, A::capacity())); break;
       default: RETURN_INTERPRETATION_ERROR("This symbol is not supported.");
     }
     return true;
@@ -728,9 +728,9 @@ CUDA NI bool interpret_tell_in(const F& f, const Env& env, NBitset<N, Mem, T>& t
 /** Support the same language than the "tell language" without existential. */
 template<bool diagnose = false, class F, class Env, size_t N, class Mem, class T>
 CUDA NI bool interpret_ask_in(const F& f, const Env& env, NBitset<N, Mem, T>& k, IDiagnostics& diagnostics) {
-  using local_type = typename NBitset<N, Mem, T>::local_type;
+  using basic_type = typename NBitset<N, Mem, T>::basic_type;
   const char* name = NBitset<N, Mem, T>::name;
-  local_type b = local_type::top();
+  basic_type b = basic_type::top();
   auto nf = negate(f);
   if(!nf.has_value()) {
     RETURN_INTERPRETATION_ERROR("Could not negate the formula in order to ask-interpret it.");
@@ -868,13 +868,6 @@ CUDA NI F deinterpret_constant(const ZInterval<VT, Mem>& a) {
  * 5. Generic interpretation
  * ------------------------------------------------------------------------------------------- */
 
-/** The local-memory version of a lattice: lala-interval names it `basic_type`, the lattices of
- * lala-core name it `local_type`. */
-template <class U> struct basic_univ_of { using type = typename U::local_type; };
-template <class VT, class Mem> struct basic_univ_of<LB<VT, Mem>> { using type = LB<VT>; };
-template <class VT, class Mem> struct basic_univ_of<UB<VT, Mem>> { using type = UB<VT>; };
-template <class VT, class Mem> struct basic_univ_of<ZInterval<VT, Mem>> { using type = ZInterval<VT>; };
-
 /** Interpret `true` in the lattice `L`.
  * \return `true` if `L` preserves the top element w.r.t. the concrete domain or if `true` is
  * interpreted by under-approximation (kind == ASK). */
@@ -959,7 +952,7 @@ CUDA bool ginterpret_in(const F& f, const Env& env, U& value, IDiagnostics& diag
     }
     else if(f.sig() == OR) {
       if constexpr(kind == IKind::TELL || lattice_properties<U>::preserve_join) {
-        using U2 = typename basic_univ_of<U>::type;
+        using U2 = typename U::basic_type;
         U2 join_value = U2::bot();
         for(int i = 0; i < f.seq().size(); ++i) {
           U2 x = U2::top();
