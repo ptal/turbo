@@ -207,7 +207,7 @@ void generic_abs_test() {
   auto env = env_with_x();
   interpret_must_succeed<IKind::TELL>("constraint int_ge(x, 0);", a, env);
   A r{};
-  r.project(ABS, A::top());
+  r.abs(A::top());
   EXPECT_EQ(r, a);
 }
 
