@@ -79,9 +79,6 @@ struct UnifiedData {
 struct GridData;
 using IStore = VStore<Itv, bt::pool_allocator>;
 using IProp = PIR<IStore, bt::pool_allocator>;
-/** Upper bound on the objective and index of the next subproblem, both shared across the grid. */
-using ZUB = UB<typename Itv::value_type, bt::atomic_memory_grid>;
-using ZLB = LB<size_t, bt::atomic_memory_grid>;
 using strategies_type = bt::vector<StrategyType<bt::global_allocator>, bt::global_allocator>;
 
 /** Data private to a single block. */
@@ -114,7 +111,7 @@ struct BlockData {
    * We always seek to minimize.
    * Invariant: `best_bound == best_store.project(obj_var).lb()`
    */
-  ZUB best_bound;
+  UB<typename Itv::value_type, bt::atomic_memory_grid> best_bound;
 
   /** The current strategy being used to split the store.
    * It is an index into `GridData::strategies`.
@@ -416,7 +413,7 @@ struct GridData {
    * A `0` means to turn left in the search tree, and a `1` means to turn right.
    * Incrementing this integer will generate the path of the next subproblem.
    */
-  ZLB next_subproblem;
+  LB<size_t, bt::atomic_memory_grid> next_subproblem;
 
   /** This is an approximation of the best bound found so far, globally, across all threads.
    * It is not necessarily the true best bound at each time `t`.
@@ -424,7 +421,7 @@ struct GridData {
    * It is used to share information among blocks.
    * We always seek to minimize.
    */
-  ZUB appx_best_bound;
+  UB<typename Itv::value_type, bt::atomic_memory_grid> appx_best_bound;
 
   /** Due to multithreading, we must protect `stdout` when printing.
    * The model of computation in this work is lock-free, but it seems unavoidable for printing.

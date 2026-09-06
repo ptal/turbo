@@ -1045,7 +1045,7 @@ namespace impl {
   {
     using Alloc2 = typename I::allocator_type;
     using A = VStore<U, Alloc>;
-    using basic_univ_type = typename A::basic_univ_type;
+    using basic_universe_type = typename A::basic_universe_type;
     assert(f.is(F::E));
     typename A::template var_dom<Alloc2> k;
     if(interpret_tell_in<diagnose>(f, env, k.dom, diagnostics)) {
@@ -1085,9 +1085,9 @@ namespace impl {
   {
     using Alloc2 = typename I::allocator_type;
     using A = VStore<U, Alloc>;
-    using basic_univ_type = typename A::basic_univ_type;
+    using basic_universe_type = typename A::basic_universe_type;
     const char* name = A::name;
-    basic_univ_type u;
+    basic_universe_type u;
     bool res = ginterpret_in<kind, diagnose>(f, env, u, diagnostics);
     if(res) {
       const auto& varf = var_in(f);
