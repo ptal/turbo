@@ -64,83 +64,111 @@ namespace jet {
 #endif
 
 using ::FItv;
+/** The kind of a layer of the network. */
+enum LayerKind {
+  LAYER_INPUT  = 0,  /**< the input neurons, deduced by nothing. */
+  LAYER_AFFINE = 1,  /**< \f$ W \cdot src0 + b \f$, optionally followed by a ReLU. */
+  LAYER_ADD    = 2   /**< \f$ src0 + src1 \f$ elementwise: the residual connections of `cersyve`. */
+};
+
+/** One layer of the network. Layers are numbered in topological order, the layer `0` being the
+ * input, and each layer owning the contiguous range of neurons `[base, base + size)`.
+ *
+ * A layer names its operands explicitly (`src0`, `src1`) instead of implicitly taking the previous
+ * layer, which is what makes a residual network representable: in `cersyve` a layer can read a
+ * layer far above it (`Gemm(data_0)` appearing after ten other layers) and an `Add` combines two
+ * separate branches.
+ */
+struct LayerInfo {
+  int kind;
+  int base;         /**< index of the first neuron of the layer. */
+  int size;         /**< number of neurons of the layer. */
+  int src0;         /**< operand layer; the first one for `LAYER_ADD`. -1 for the input layer. */
+  int src1;         /**< second operand for `LAYER_ADD`, -1 otherwise. */
+  int weight_base;  /**< offset of the layer's block in `weights`, for `LAYER_AFFINE`. */
+  int bias_base;    /**< offset of the layer's block in `biases`, for `LAYER_AFFINE`. */
+  int has_relu;     /**< whether a ReLU is applied to the result of the layer. */
+};
+
 /** The read-only description of the neural network: its topology, weights and biases.
  * It is immutable during solving, so a single copy in managed memory is shared by every block;
  * only the store of neurons (`FastNNRelu::store`) is duplicated per block.
  *
+ * The network is a DAG of layers, not a chain: `acasxu`, `safenlp` and `tllverifybench` happen to
+ * be chains, but the `cersyve` models branch off the input several times and merge the branches
+ * back with residual `Add` nodes.
+ *
  * Layout conventions:
- *  * The neurons of all the layers are numbered consecutively, `acc_layers[k]` being the index of
- *    the first neuron of the layer `k`, and the layer `k` having `acc_layers[k+1] - acc_layers[k]`
- *    neurons (the last layer ending at `num_neurons`).
- *  * `weights` stores the layers consecutively and, within a layer, column-major: the weight of the
- *    connection `(c, j)` of the layer `l` sits at `wbase(l) + c * layer_size(l) + j`.
- *  * `biases` has no entry for the input layer, hence the bias of the neuron `acc_layers[1] + i`
- *    is `biases[i]`.
+ *  * The neurons are numbered consecutively, layer by layer in topological order: the layer `l`
+ *    owns `[layers[l].base, layers[l].base + layers[l].size)`, and the input layer comes first, so
+ *    the neurons having a deduction are exactly `[num_inputs(), num_neurons)`.
+ *  * `neuron_layer[n]` is the layer owning the neuron `n`, so locating it is O(1).
+ *  * `weights` stores the affine layers consecutively and, within a layer, column-major: the weight
+ *    of the connection `(c, j)` of the layer `l` sits at `layers[l].weight_base + c * size + j`.
+ *  * `biases` likewise stores one block of `size` entries per affine layer, at `bias_base`; the
+ *    layers without a bias in the graph get a block of zeros.
  */
 template <class Alloc>
 struct FastNNReluNetwork {
   using allocator_type = Alloc;
 
   int num_neurons;
-  bt::vector<int, Alloc> acc_layers;
+  /** The index of the layer producing the output of the graph, whose neurons the `Y_j` of the
+   * vnnlib file refer to. It is not necessarily the last layer of the topological order. */
+  int output_layer;
+
+  bt::vector<LayerInfo, Alloc> layers;
+  bt::vector<int, Alloc> neuron_layer;
   bt::vector<float, Alloc> weights;
   bt::vector<float, Alloc> biases;
 
-  /** `has_relu[l]` tells whether the affine layer `l` is followed by a ReLU. It is indexed like
-   * `acc_layers`, so the entry `0` (the input layer) is unused.
-   * A ReLU cannot be assumed on every layer: in `tllverifybench` only every other layer has one
-   * (the pattern is `..R.R.R...`), and applying a ReLU where the graph has none would cut off the
-   * negative values of that layer and make the deduction unsound. */
-  bt::vector<int, Alloc> has_relu;
-
   FastNNReluNetwork(const Alloc& alloc = Alloc{})
-   : num_neurons(0), acc_layers(alloc), weights(alloc), biases(alloc), has_relu(alloc)
+   : num_neurons(0), output_layer(0), layers(alloc), neuron_layer(alloc)
+   , weights(alloc), biases(alloc)
   {}
 
   template <class Alloc2>
-  FastNNReluNetwork(int num_neurons,
-    const bt::vector<int, Alloc2>& acc_layers,
+  FastNNReluNetwork(int num_neurons, int output_layer,
+    const bt::vector<LayerInfo, Alloc2>& layers,
+    const bt::vector<int, Alloc2>& neuron_layer,
     const bt::vector<float, Alloc2>& weights,
     const bt::vector<float, Alloc2>& biases,
-    const bt::vector<int, Alloc2>& has_relu,
     const Alloc& alloc = Alloc{})
    : num_neurons(num_neurons)
-   , acc_layers(acc_layers, alloc)
+   , output_layer(output_layer)
+   , layers(layers, alloc)
+   , neuron_layer(neuron_layer, alloc)
    , weights(weights, alloc)
    , biases(biases, alloc)
-   , has_relu(has_relu, alloc)
   {}
 
   template <class Alloc2>
   FastNNReluNetwork(const FastNNReluNetwork<Alloc2>& other, const Alloc& alloc = Alloc{})
-   : FastNNReluNetwork(other.num_neurons, other.acc_layers, other.weights, other.biases,
-       other.has_relu, alloc)
+   : FastNNReluNetwork(other.num_neurons, other.output_layer, other.layers, other.neuron_layer,
+       other.weights, other.biases, alloc)
   {}
-
-  /** Whether the affine layer `l` is followed by a ReLU. */
-  CUDA INLINE bool relu_at(int l) const {
-    return l >= 0 && l < static_cast<int>(has_relu.size()) && has_relu[l] != 0;
-  }
 
   FastNNReluNetwork(const FastNNReluNetwork&) = default;
   FastNNReluNetwork(FastNNReluNetwork&&) = default;
 
-  /** The number of neurons of the input layer, the only ones we branch on. */
-  CUDA INLINE int num_inputs() const {
-    return acc_layers.size() >= 2 ? acc_layers[1] : num_neurons;
+  /** Whether the layer `l` is followed by a ReLU. */
+  CUDA INLINE bool relu_at(int l) const {
+    return l >= 0 && l < static_cast<int>(layers.size()) && layers[l].has_relu != 0;
   }
 
-  /** The index of the first neuron of the output layer.
-   * `acc_layers` holds the *base* of each layer, so its last element is the base of the output
-   * layer and is therefore strictly smaller than `num_neurons`:
-   * \f$ acc\_layers.back() = num\_neurons - num\_outputs() \f$. */
+  /** The number of neurons of the input layer, the only ones we branch on. */
+  CUDA INLINE int num_inputs() const {
+    return layers.size() >= 1 ? layers[0].size : num_neurons;
+  }
+
+  /** The index of the first neuron of the output layer, that is the neuron `Y_0`. */
   CUDA INLINE int output_base() const {
-    return acc_layers.size() >= 2 ? acc_layers[acc_layers.size() - 1] : 0;
+    return layers.size() >= 1 ? layers[output_layer].base : 0;
   }
 
   /** The number of neurons of the output layer. */
   CUDA INLINE int num_outputs() const {
-    return num_neurons - output_base();
+    return layers.size() >= 1 ? layers[output_layer].size : 0;
   }
 
   /** The number of neurons that have a deduction, that is every neuron but the input ones. */
@@ -149,20 +177,43 @@ struct FastNNReluNetwork {
   }
 
   CUDA INLINE int num_layers() const {
-    return static_cast<int>(acc_layers.size());
+    return static_cast<int>(layers.size());
   }
 
   /** A network we failed to parse, or with no hidden layer, has nothing to propagate. */
   CUDA bool empty() const {
-    return num_neurons == 0 || acc_layers.size() < 2;
+    return num_neurons == 0 || layers.size() < 2;
   }
 
   void print() const {
-    printf("%% In total, we have %d neurons in the network (%d layers, %d inputs, %d outputs, %d deductions)\n",
-      num_neurons, num_layers(), num_inputs(), num_outputs(), num_deductions());
-    printf("%% ReLU per layer: ");
-    for(int l = 1; l < num_layers(); ++l) { printf("%c", relu_at(l) ? 'R' : '.'); }
+    int affine = 0;
+    int residual = 0;
+    for(int l = 1; l < num_layers(); ++l) {
+      affine += (layers[l].kind == LAYER_AFFINE) ? 1 : 0;
+      residual += (layers[l].kind == LAYER_ADD) ? 1 : 0;
+    }
+    printf("%% In total, we have %d neurons in the network (%d layers: %d affine, %d residual; %d inputs, %d outputs, %d deductions)\n",
+      num_neurons, num_layers(), affine, residual, num_inputs(), num_outputs(), num_deductions());
+    printf("%% Layers (A = affine, + = residual add, R = with ReLU): ");
+    for(int l = 1; l < num_layers(); ++l) {
+      printf("%c%s", layers[l].kind == LAYER_ADD ? '+' : 'A', relu_at(l) ? "R" : "");
+      if(l + 1 < num_layers()) { printf(" "); }
+    }
     printf("\n");
+    /** A chain reads each layer from the one just above it; anything else is a DAG and worth
+     * showing, since it is where the residual connections are. */
+    bool is_chain = true;
+    for(int l = 1; l < num_layers(); ++l) {
+      if(layers[l].kind != LAYER_AFFINE || layers[l].src0 != l - 1) { is_chain = false; }
+    }
+    if(!is_chain) {
+      printf("%% Topology: ");
+      for(int l = 1; l < num_layers(); ++l) {
+        if(layers[l].kind == LAYER_ADD) { printf("%d=(%d + %d) ", l, layers[l].src0, layers[l].src1); }
+        else { printf("%d<-%d ", l, layers[l].src0); }
+      }
+      printf("\n");
+    }
   }
 };
 
@@ -235,7 +286,7 @@ struct FastNNRelu {
 public:
   // `i` designates the target neuron among those that have a deduction, that is, every neuron but
   // those of the input layer: `i` ranges over `[0, num_deductions())` and updates the neuron
-  // `neurons[acc_layers[1] + i]`. Consecutive `i` are therefore consecutive neurons of the same
+  // `neurons[num_inputs() + i]`. Consecutive `i` are therefore consecutive neurons of the same
   // layer, except across a layer boundary.
   // One thread handles one neuron: it reads the intervals of the neurons of the previous layer,
   // multiplies them by the weights of the connections into the target, adds its bias, applies the
@@ -243,46 +294,87 @@ public:
   // with a meet. The affine part and the ReLU are fused,
   // so the pre-activation never leaves the registers and a layer is updated in one deduction per
   // neuron, without any intra-warp reduction.
-  // The sizes of the layers are read off `acc_layers` alone: the layer `k` has
-  // `acc_layers[k+1] - acc_layers[k]` neurons.
+  // The shape of a layer and the layer it reads from are given by its `LayerInfo`, which also says
+  // whether a ReLU applies; a residual layer is handled by `deduce_add` instead.
+  /** Deduction of one neuron `j` of a residual layer \f$ target = src0_j + src1_j \f$.
+   * `tell::fadd` does the forward projection and both backward ones in a single call, so the sum
+   * narrows the target and the target narrows the two branches. */
+  CUDA bool deduce_add(const LayerInfo& L, int target, int j) {
+    using bound_type = typename FItv::LB::value_type;
+    using RItv = FInterval<bound_type>;
+    using local_itv = typename FItv::local_type;
+    auto& neurons = *store;
+    const int a_idx = net->layers[L.src0].base + j;
+    const int b_idx = net->layers[L.src1].base + j;
+
+    RItv a(neurons[a_idx].lb().value(), neurons[a_idx].ub().value());
+    RItv b(neurons[b_idx].lb().value(), neurons[b_idx].ub().value());
+    RItv t(neurons[target].lb().value(), neurons[target].ub().value());
+
+    bool has_changed = false;
+    if(L.has_relu == 0) {
+      /** The neuron holds the sum itself, so one `fadd` propagates in the three directions. */
+      tell::fadd(t, a, b);
+      has_changed |= neurons.embed(target,
+        local_itv(typename local_itv::LB(t.lb().load()),
+                  typename local_itv::UB(t.ub().load())));
+    }
+    else {
+      /** With a ReLU the neuron holds `max(sum, 0)`, so the sum is an intermediate value: we
+       * compute it forward, let the ReLU narrow it from the domain of the neuron, then push that
+       * narrowing back to the two branches with a second `fadd`. */
+      RItv sum;
+      sum.join_top();
+      tell::fadd(sum, a, b);
+      RItv zero(bound_type{0});
+      tell::fmax(t, sum, zero);
+      tell::fadd(sum, a, b);
+      has_changed |= neurons.embed(target,
+        local_itv(typename local_itv::LB(t.lb().load()),
+                  typename local_itv::UB(t.ub().load())));
+    }
+    has_changed |= neurons.embed(a_idx,
+      local_itv(typename local_itv::LB(a.lb().load()),
+                typename local_itv::UB(a.ub().load())));
+    has_changed |= neurons.embed(b_idx,
+      local_itv(typename local_itv::LB(b.lb().load()),
+                typename local_itv::UB(b.ub().load())));
+    return has_changed;
+  }
+
   CUDA bool deduce_neuron(int i) {
     /** Local aliases so the deduction reads exactly as if the store and the network parameters were
      * members of this class. */
     auto& neurons = *store;
-    const auto& acc_layers = net->acc_layers;
     const auto& weights = net->weights;
     const auto& biases = net->biases;
-    const int num_neurons = net->num_neurons;
+
+    assert(i >= 0 && i < net->num_deductions());
+    /** The input layer owns the first neurons and has no deduction, so the deductions map onto the
+     * remaining neurons in order. The owning layer is read off `neuron_layer` in O(1), instead of
+     * walking the layers as a chain would allow. */
+    const int target = net->num_inputs() + i;
+    const LayerInfo& L = net->layers[net->neuron_layer[target]];
+    const int j = target - L.base;  /**< index of the target within its own layer. */
+    assert(j >= 0 && j < L.size);
+
+    if(L.kind == LAYER_ADD) {
+      return deduce_add(L, target, j);
+    }
+
     using bound_type = typename FItv::LB::value_type;
     /** The interval of lala-interval, held in registers. Only the final result of the neuron is
      * merged back into `neurons`, which stores the shared `FItv` of the solver. */
     using RItv = FInterval<bound_type>;
     using local_itv = typename FItv::local_type;
 
-    const int num_layers = static_cast<int>(acc_layers.size());
-    assert(num_layers >= 2);
-    assert(i >= 0 && i < num_neurons - (acc_layers[1] - acc_layers[0]));
-    const int target = acc_layers[1] + i;  /**< the neuron of `neurons` that this deduction updates. */
-
-    /** Locate the layer of `target`, accumulating the weight offset on the way: `l` is the last
-     * layer whose first neuron is at or before `target`, and each layer `k < l` contributes
-     * `layers[k] * layers[k-1]` weights before the block of the layer `l`. */
-    int l = 1;
-    int wbase = 0;
-    while(l + 1 < num_layers && acc_layers[l+1] <= target) {
-      wbase += (acc_layers[l+1] - acc_layers[l]) * (acc_layers[l] - acc_layers[l-1]);
-      ++l;
-    }
-
-    const int out_base = acc_layers[l];
-    const int layer_size = ((l + 1 < num_layers) ? acc_layers[l+1] : num_neurons) - out_base;
-    const int prev_base = acc_layers[l-1];
-    const int fan_in = out_base - prev_base;
-    const int j = target - out_base;  /**< index of the target within its own layer. */
-    assert(j >= 0 && j < layer_size);
-    /** Weight of the connection `(c, j)`: `c * layer_size + j` within the block of the layer `l`,
+    const LayerInfo& S = net->layers[L.src0];
+    const int layer_size = L.size;
+    const int prev_base = S.base;
+    const int fan_in = S.size;
+    /** Weight of the connection `(c, j)`: `c * layer_size + j` within the block of the layer,
      * the weights being stored column-major (see the layout conventions above). */
-    wbase += j;
+    const int wbase = L.weight_base + j;
 
     RItv sum(bound_type{0});  /**< running pre-activation without the bias. */
     RItv r1,r2,r3;
@@ -315,20 +407,20 @@ public:
 
     // STEP 2: add the bias and apply the ReLU, then merge the result into the neuron `j` of layer `l`.
 
-    /** `biases` has no entry for the input layer, hence the shift by the size of the layer 0,
-     * which lands exactly on `i` when the neurons are numbered from `acc_layers[0] == 0`. */
-    r1 = RItv(static_cast<bound_type>(biases[acc_layers[0] + i]));
+    /** Each affine layer owns a block of `size` biases at `bias_base`, so the bias of the neuron
+     * `j` of this layer is `biases[L.bias_base + j]`. */
+    r1 = RItv(static_cast<bound_type>(biases[L.bias_base + j]));
     r2.join_top();
 
     /** Forward projection rather than `tell::fadd`: `add` takes its operands by value, so `sum`
      * provably keeps the plain forward accumulation that STEP 3 needs to undo. */
     r2.add(sum, r1);  // Pre-activation + bias.
 
-    /** Whether the layer `l` is followed by a ReLU is read off the graph rather than assumed: the
+    /** Whether the layer is followed by a ReLU is read off the graph rather than assumed: the
      * output layer is usually affine only, but in `tllverifybench` every other hidden layer is
      * affine too. Applying a ReLU where the graph has none would cut off the negative values of the
      * layer, hence unsound conclusions on the property. */
-    const bool apply_relu = net->relu_at(l);
+    const bool apply_relu = (L.has_relu != 0);
 
     RItv zero(bound_type{0});
     r3 = RItv(neurons[target].lb().value(), neurons[target].ub().value());
@@ -1124,16 +1216,15 @@ Network parse_network(const Configuration<battery::standard_allocator>& config) 
     tensor_map[tensor.name()] = tensor;
   }
 
-  battery::vector<int> acc_layers;
+  battery::vector<LayerInfo> layers;
   battery::vector<float> weights;
   battery::vector<float> biases;
-  battery::vector<int> has_relu;
   int total_neurons = 0;
 
-  /** The name of the tensor that currently holds the value of the last layer added. It advances
-   * through the bias `Add` of the layer, and through a `Relu` consuming it, which is how we detect
-   * that the layer is followed by a ReLU. */
-  std::string current_output;
+  /** Maps the name of a tensor of the graph to the layer producing it. This is what makes a
+   * residual network representable: a node names the tensors it reads, so a layer can take its
+   * operands from anywhere above it rather than from the layer just before. */
+  std::unordered_map<std::string, int> tensor_layer;
 
   if(graph.input_size() == 0) {
     std::cerr << "The onnx graph has no input." << std::endl;
@@ -1148,17 +1239,34 @@ Network parse_network(const Configuration<battery::standard_allocator>& config) 
   int64_t input_height = input_shape.dim().size() > 2 ? input_shape.dim(2).dim_value() : 1;
   int64_t input_width = input_shape.dim().size() > 3 ? input_shape.dim(3).dim_value() : 1;
   int64_t input_dimensions = batch_size * input_channels * input_height * input_width;  // number of input neurons.
-  acc_layers.push_back(0);
-  has_relu.push_back(0);  /**< the input layer has no activation. */
+
+  layers.push_back(LayerInfo{LAYER_INPUT, 0, static_cast<int>(input_dimensions), -1, -1, 0, 0, 0});
+  tensor_layer[graph_input.name()] = 0;
   total_neurons += static_cast<int>(input_dimensions);
 
-  /** The number of neurons of the last layer added so far, needed to check that the weight matrix
-   * of the next layer has a matching number of inputs. It is NOT `node.input()`'s index: a node
-   * carries at most one weight matrix, whatever its position among the inputs of the node. */
-  int prev_layer_size = static_cast<int>(input_dimensions);
+  /** Resolve the layer feeding a node: the first input that is a computed tensor (i.e. not an
+   * initializer) and that we know. When the name is unknown we fall back to the layer added last,
+   * which is what a chain would do; that only happens for graphs whose preprocessing we did not
+   * recognize, and it is reported. */
+  auto resolve_operand = [&](const onnx::NodeProto& node, int skip, int& out_layer) -> bool {
+    int found = 0;
+    for (int i = 0; i < node.input().size(); ++i) {
+      const std::string& name = node.input()[i];
+      if(tensor_map.find(name) != tensor_map.end()) { continue; }  // an initializer, not an operand
+      auto it = tensor_layer.find(name);
+      if(it == tensor_layer.end()) { continue; }
+      if(found++ < skip) { continue; }
+      out_layer = it->second;
+      return true;
+    }
+    return false;
+  };
 
   for (const auto& node : graph.node()) {
-    std::cout << "Node: " << node.output()[0] << "| OpType: " << node.op_type() << std::endl;
+    if(config.verbose_solving >= 2) {
+      std::cout << "%% Node: " << (node.output_size() > 0 ? node.output()[0] : std::string("?"))
+                << " | OpType: " << node.op_type() << std::endl;
+    }
 
     if (node.op_type() == "Constant") { continue; }
 
@@ -1196,6 +1304,7 @@ Network parse_network(const Configuration<battery::standard_allocator>& config) 
        * `MatMul(W, X)` instead computes \f$ W \cdot X \f$, so a weight matrix found at the input
        * index `0` is transposed as well. */
       transB = transB || weight_index == 0;
+
       battery::vector<float> tmp_weights;
       if(!read_float_tensor(tensor, tmp_weights)) {
         std::cerr << "ERROR: The weights of `" << tensor.name() << "` are not stored as floats.\n";
@@ -1203,18 +1312,20 @@ Network parse_network(const Configuration<battery::standard_allocator>& config) 
       }
 
       /** `out_features` is the number of neurons of the new layer, `in_features` must match
-       * the number of neurons of the previous layer. */
+       * the number of neurons of the layer this node reads from. */
       int64_t out_features = transB ? tensor.dims(0) : tensor.dims(1);
       int64_t in_features = transB ? tensor.dims(1) : tensor.dims(0);
 
-      /** `FastNNReluNetwork` represents a sequential feed-forward network, so each layer must take
-       * its inputs from the previous one. A mismatch means the graph is a DAG with branches or skip
-       * connections (e.g. the `cart_pole`/`quadrotor` models of VNN-COMP), which this
-       * representation cannot express. */
-      if(in_features != static_cast<int64_t>(prev_layer_size)) {
-        std::cerr << "ERROR: The onnx graph is not a sequential feed-forward network: the weight matrix of `"
-                  << tensor.name() << "` expects " << in_features
-                  << " inputs but the previous layer has " << prev_layer_size << " neurons.\n";
+      int src = static_cast<int>(layers.size()) - 1;
+      if(!resolve_operand(node, 0, src)) {
+        std::cerr << "%% WARNING: could not resolve the operand of `" << tensor.name()
+                  << "`, assuming it reads the previous layer.\n";
+      }
+
+      if(in_features != static_cast<int64_t>(layers[src].size)) {
+        std::cerr << "ERROR: The weight matrix of `" << tensor.name() << "` expects " << in_features
+                  << " inputs but the layer " << src << " it reads has " << layers[src].size
+                  << " neurons.\n";
         return Network();
       }
       if(static_cast<int64_t>(tmp_weights.size()) != out_features * in_features) {
@@ -1223,6 +1334,7 @@ Network parse_network(const Configuration<battery::standard_allocator>& config) 
         return Network();
       }
 
+      const int weight_base = static_cast<int>(weights.size());
       /** We always store the weights column-major, all the output neurons of a given input
        * being contiguous (see the layout conventions of `FastNNReluNetwork`). The ONNX layout
        * `[in_features, out_features]` is already in that order, so only a matrix given
@@ -1240,81 +1352,125 @@ Network parse_network(const Configuration<battery::standard_allocator>& config) 
         }
       }
 
-      // add the new layer
-      acc_layers.push_back(total_neurons);
-      has_relu.push_back(0);
+      /** Every affine layer owns a block of biases, filled with zeros when the graph has none, so
+       * that `deduce_neuron` can read `biases[bias_base + j]` unconditionally. */
+      const int bias_base = static_cast<int>(biases.size());
+      for(int64_t k = 0; k < out_features; ++k) { biases.push_back(0.0f); }
+
+      layers.push_back(LayerInfo{LAYER_AFFINE, total_neurons, static_cast<int>(out_features),
+        src, -1, weight_base, bias_base, 0});
       total_neurons += static_cast<int>(out_features);
-      prev_layer_size = static_cast<int>(out_features);
-      current_output = node.output_size() > 0 ? node.output()[0] : std::string();
+      if(node.output_size() > 0) { tensor_layer[node.output()[0]] = static_cast<int>(layers.size()) - 1; }
     }
 
     if (bias_tensor != nullptr) {
-      /** A bias belongs to the last layer added, whether that layer comes from this node (`Gemm`)
-       * or from a previous one (`MatMul` followed by `Add`). We pad with zeros the layers of the
-       * models that carry no bias at all, since `FastNNRelu::deduce` reads `biases[i]` for every
-       * deduced neuron. */
-      int deduced_so_far = total_neurons - static_cast<int>(input_dimensions);
-      int base_of_last_layer = deduced_so_far - prev_layer_size;
-      if(base_of_last_layer < 0) {
-        std::cerr << "ERROR: The bias `" << bias_tensor->name() << "` comes before any layer.\n";
+      /** A bias belongs to the layer feeding this node, whether that layer was created by this very
+       * node (`Gemm`) or by a previous one (`MatMul` followed by `Add`). */
+      int target = static_cast<int>(layers.size()) - 1;
+      if(weight_tensor == nullptr && !resolve_operand(node, 0, target)) {
+        std::cerr << "%% WARNING: could not resolve the layer of the bias `" << bias_tensor->name()
+                  << "`, assuming it is the previous layer.\n";
+      }
+      if(layers[target].kind != LAYER_AFFINE) {
+        std::cerr << "ERROR: the bias `" << bias_tensor->name() << "` is applied to a layer that is "
+                  << "not affine, which this representation cannot express.\n";
         return Network();
       }
-      while(biases.size() < static_cast<size_t>(base_of_last_layer)) {
-        biases.push_back(0.0f);
-      }
-      if(!read_float_tensor(*bias_tensor, biases)) {
+      battery::vector<float> tmp_biases;
+      if(!read_float_tensor(*bias_tensor, tmp_biases)) {
         std::cerr << "ERROR: The biases of `" << bias_tensor->name() << "` are not stored as floats.\n";
         return Network();
       }
-      /** The bias `Add` of a `MatMul`/`Add` pair produces the value of the layer. */
-      if(node.output_size() > 0) { current_output = node.output()[0]; }
+      if(static_cast<int>(tmp_biases.size()) != layers[target].size) {
+        std::cerr << "ERROR: The bias `" << bias_tensor->name() << "` has " << tmp_biases.size()
+                  << " entries instead of " << layers[target].size << ".\n";
+        return Network();
+      }
+      for(int k = 0; k < static_cast<int>(tmp_biases.size()); ++k) {
+        biases[layers[target].bias_base + k] = tmp_biases[k];
+      }
+      if(node.output_size() > 0) { tensor_layer[node.output()[0]] = target; }
     }
 
-    /** A `Relu` consuming the value of the last layer is the activation of that layer. We do not
-     * assume one on every layer: `tllverifybench` alternates affine and ReLU layers, and
-     * `acasxu`/`safenlp` have an affine output layer. */
-    if(weight_tensor == nullptr && bias_tensor == nullptr && node.op_type() == "Relu"
-       && acc_layers.size() >= 2 && !current_output.empty())
-    {
-      for (int i = 0; i < node.input().size(); ++i) {
-        if(node.input()[i] == current_output) {
-          has_relu[has_relu.size() - 1] = 1;
-          if(node.output_size() > 0) { current_output = node.output()[0]; }
-          break;
-        }
+    if (weight_tensor != nullptr || bias_tensor != nullptr) { continue; }
+
+    /** From here the node carries no initializer at all. */
+
+    if (node.op_type() == "Relu") {
+      /** A `Relu` is the activation of the layer producing the tensor it reads. We do not assume a
+       * ReLU on every layer: `tllverifybench` alternates affine and ReLU layers, and
+       * `acasxu`/`safenlp`/`cersyve` have an affine output layer. */
+      int target = -1;
+      if(!resolve_operand(node, 0, target)) {
+        std::cerr << "ERROR: could not resolve the operand of a `Relu` node.\n";
+        return Network();
+      }
+      layers[target].has_relu = 1;
+      if(node.output_size() > 0) { tensor_layer[node.output()[0]] = target; }
+      continue;
+    }
+
+    if (node.op_type() == "Add") {
+      /** An `Add` of two computed tensors is a residual connection: the two branches are summed
+       * elementwise into a new layer. This is the shape of the `cersyve` models. */
+      int a = -1;
+      int b = -1;
+      if(!resolve_operand(node, 0, a) || !resolve_operand(node, 1, b)) {
+        std::cerr << "ERROR: could not resolve the two operands of a residual `Add` node.\n";
+        return Network();
+      }
+      if(layers[a].size != layers[b].size) {
+        std::cerr << "ERROR: the residual `Add` combines two layers of different sizes ("
+                  << layers[a].size << " and " << layers[b].size << ").\n";
+        return Network();
+      }
+      layers.push_back(LayerInfo{LAYER_ADD, total_neurons, layers[a].size, a, b, 0, 0, 0});
+      total_neurons += layers[a].size;
+      if(node.output_size() > 0) { tensor_layer[node.output()[0]] = static_cast<int>(layers.size()) - 1; }
+      continue;
+    }
+
+    /** Anything else that carries no initializer is treated as a pass-through and aliased to the
+     * layer it reads: `Flatten`, `Reshape`, `Identity`, and the `Sub` of the ACAS-Xu models whose
+     * constant is all zeros. A node that actually transforms its input would be silently ignored
+     * here, so we say so when the user asks for details. */
+    int alias = -1;
+    if(resolve_operand(node, 0, alias)) {
+      if(node.output_size() > 0) { tensor_layer[node.output()[0]] = alias; }
+      if(config.verbose_solving >= 1) {
+        printf("%% INFO: the node `%s` is treated as a pass-through.\n", node.op_type().c_str());
       }
     }
   }
 
-  if(acc_layers.size() < 2) {
+  if(layers.size() < 2) {
     std::cerr << "ERROR: No layer could be read from the onnx graph.\n";
     return Network();
   }
 
-  /** `acc_layers` holds the base index of each layer, so its last element is the base of the output
-   * layer: it must be strictly smaller than `total_neurons`, the difference being the size of the
-   * output layer. `total_neurons` itself counts every neuron of the network. */
-  if(acc_layers[acc_layers.size()-1] >= total_neurons) {
-    std::cerr << "ERROR: the last layer of the onnx graph is empty (acc_layers.back()="
-              << acc_layers[acc_layers.size()-1] << ", total_neurons=" << total_neurons << ").\n";
-    return Network();
+  /** The `Y_j` of the vnnlib file designate the neurons of the layer producing the output of the
+   * graph, which in a DAG is not necessarily the last one in topological order. */
+  int output_layer = static_cast<int>(layers.size()) - 1;
+  if(graph.output_size() > 0) {
+    auto it = tensor_layer.find(graph.output(0).name());
+    if(it != tensor_layer.end()) { output_layer = it->second; }
+    else {
+      std::cerr << "%% WARNING: the output `" << graph.output(0).name()
+                << "` of the graph was not produced by any layer, using the last layer instead.\n";
+    }
   }
 
-  /** `deduce` reads `biases[i]` for every deduced neuron, so the models that omit some (or all) of
-   * their biases are padded with zeros rather than read out of bounds. */
-  size_t expected_biases = static_cast<size_t>(total_neurons - input_dimensions);
-  if(biases.size() < expected_biases) {
-    std::cerr << "% WARNING: The onnx graph declares " << biases.size() << " biases instead of "
-              << expected_biases << ", the missing ones are set to 0.\n";
-    while(biases.size() < expected_biases) { biases.push_back(0.0f); }
-  }
-  else if(biases.size() > expected_biases) {
-    std::cerr << "ERROR: The onnx graph declares " << biases.size() << " biases instead of "
-              << expected_biases << ".\n";
-    return Network();
+  /** `neuron_layer` gives the layer owning a neuron in O(1), which is what `deduce_neuron` uses in
+   * place of walking a chain. */
+  battery::vector<int> neuron_layer;
+  neuron_layer.resize(static_cast<size_t>(total_neurons));
+  for(int l = 0; l < static_cast<int>(layers.size()); ++l) {
+    for(int k = 0; k < layers[l].size; ++k) {
+      neuron_layer[layers[l].base + k] = l;
+    }
   }
 
-  return Network(total_neurons, acc_layers, weights, biases, has_relu);
+  return Network(total_neurons, output_layer, layers, neuron_layer, weights, biases);
 }
 
 /** A minimal s-expression: an atom when `children` is empty, a list otherwise.
