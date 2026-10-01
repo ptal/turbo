@@ -752,6 +752,9 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
   if (uroot.stats.solutions > 0) printf("sat\n");
   else if (uroot.stats.unknowns > 0) printf("unknown\n");
   else if (interrupted) printf("timeout\n");
+  /** Some subtrees were skipped (e.g. an input without finite bounds cannot be split), so the absence
+   * of a counterexample proves nothing. */
+  else if (!uroot.stats.exhaustive) printf("unknown\n");
   else printf("unsat\n");
   deallocate_global_data<<<1,1>>>(grid_data.get());
   CUDAEX(cudaDeviceSynchronize());
