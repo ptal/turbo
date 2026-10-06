@@ -9,7 +9,7 @@
 #include <algorithm>
 
 void usage_and_exit(const std::string& program_name) {
-  std::cout << "usage: " << program_name << " [-t 2000] [-a] [-n 10] [-i] [-f] [-s] [-v] [-p <i>] [-arch <cpu|hybrid|gpu|barebones|fbarebones>] [-p 48] [-or 48] [-sub 12] [-stack 100] [-fp <ac1|wac1>] [-wac1_threshold 0] [-eps_var_order <input_order|first_fail|anti_first_fail|smallest|largest>] [-eps_value_order <min|max|split|reverse_split>] [-seed 0] [-network_analysis] [-cutnodes 0] [-disable_simplify] [-force_ternarize] [-globalmem] [-version 1.0.0] [xcsp3instance.xml | fzninstance.fzn]" << std::endl;
+  std::cout << "usage: " << program_name << " [-t 2000] [-a] [-n 10] [-i] [-f] [-s] [-v] [-p <i>] [-arch <cpu|hybrid|gpu|barebones|fbarebones>] [-p 48] [-or 48] [-sub 12] [-stack 100] [-fp <ac1|wac1>] [-wac1_threshold 0] [-jet_affine <v1|v2>] [-jet_symbolic] [-jet_sym_rounds 0] [-jet_sym_layout <slot|neuron>] [-pir_fdeduce <v1|v2>] [-split_on <input|relu>] [-relu_order <earliest|widest>] [-relu_leaf <input|point>] [-jet_sym_clip_hidden] [-eps_var_order <input_order|first_fail|anti_first_fail|smallest|largest>] [-eps_value_order <min|max|split|reverse_split>] [-seed 0] [-network_analysis] [-cutnodes 0] [-disable_simplify] [-force_ternarize] [-globalmem] [-version 1.0.0] [xcsp3instance.xml | fzninstance.fzn]" << std::endl;
   std::cout << "\t-t 2000: Run the solver with a timeout of 2000 milliseconds." << std::endl;
   std::cout << "\t-timeout 2000: Same as -t, but if both -t and -timeout are specified, -timeout overrides -t." << std::endl;
   std::cout << "\t-a: Instructs the solver to report all solutions in the case of satisfaction problems, or print intermediate solutions of increasing quality in the case of optimisation problems." << std::endl;
@@ -25,6 +25,27 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t\t ac1: All propagators are executed in parallel at each iteration." << std::endl;
   std::cout << "\t\t wac1: Behave as ac1 when the number of active propagators is less than wac1_threshold. Otherwise,  each warp must reach a local fixpoint before executing the next 32 propagators (not compatible with -arch cpu)." << std::endl;
   std::cout << "\t-wac1_threshold 4096: Threshold below which we select AC1 instead of WAC1 (default: 0)." << std::endl;
+  std::cout << "\t-jet_affine <v1|v2>: Deduction of the affine neurons with -arch jet (default: v1):" << std::endl;
+  std::cout << "\t\t v1: The original propagator of JET." << std::endl;
+  std::cout << "\t\t v2: Same projection with less arithmetic, and the backward pass skipped when no term can be tightened (see include/jet_affine_v2.hpp)." << std::endl;
+  std::cout << "\t-jet_symbolic: With -arch jet or fbarebones, alternate the interval fixpoint with symbolic rounds: affine bounds over the inputs, DeepPoly ReLU relaxation and input clipping (see include/jet_symbolic.hpp). With -arch fbarebones, the neurons are found among the variables of the ternarized model by their name, which requires -disable_simplify, and the bytecodes are checked to compute the network (see include/jet_symbolic_map.hpp)." << std::endl;
+  std::cout << "\t-jet_sym_rounds 0: Maximum number of symbolic rounds per search node, 0 to continue until a round changes nothing (default: 0)." << std::endl;
+  std::cout << "\t-jet_sym_layout <slot|neuron>: Memory layout of the symbolic forms of -jet_symbolic, both give the same results (default: slot):" << std::endl;
+  std::cout << "\t\t slot: A slot of all the neurons is contiguous, so that the threads of a warp access consecutive addresses." << std::endl;
+  std::cout << "\t\t neuron: All the slots of a neuron are contiguous (the first version)." << std::endl;
+  std::cout << "\t-pir_fdeduce <v1|v2>: Deduction of the bytecodes with -arch fbarebones, both give bitwise the same results (default: v1):" << std::endl;
+  std::cout << "\t\t v1: PIR::fdeduce." << std::endl;
+  std::cout << "\t\t v2: PIR::fdeduce_v2 (lala-pc): for x = c * y with a constant c, the same forward and backward projections as PIR::fdeduce, with 2 products instead of 8 forward and 2 divisions instead of 8 for y = x / c." << std::endl;
+  std::cout << "\t-split_on <input|relu>: With -arch jet or fbarebones, the variables the search branches on (default: input):" << std::endl;
+  std::cout << "\t\t input: The input neurons, at the middle of their domain (the original search)." << std::endl;
+  std::cout << "\t\t relu: The phase of a ReLU y = max(p, 0) whose phase is unknown: p <= 0, then p >= 0 (see include/relu_split.hpp). When every ReLU has a phase, the search continues as chosen by -relu_leaf." << std::endl;
+  std::cout << "\t-relu_order <earliest|widest>: With -split_on relu, the ReLU to split (default: earliest):" << std::endl;
+  std::cout << "\t\t earliest: The first one in the order of the network (first layer first)." << std::endl;
+  std::cout << "\t\t widest: The one whose pre-activation (-arch fbarebones) or output (-arch jet) has the widest domain." << std::endl;
+  std::cout << "\t-relu_leaf <input|point>: With -split_on relu, the search once every ReLU has a phase (default: input):" << std::endl;
+  std::cout << "\t\t input: The input split of -split_on input (-var_order, -value_order): the inputs are split until their width is at most -epsilon, and a solution is then looked for with the underapproximation of the value order (e.g. split: the middle of the box)." << std::endl;
+  std::cout << "\t\t point: The inputs are fixed to points at once with the underapproximation of the value order: split, all at their middle; lb_split, ub_split, mid_split, one input at a time (chosen by -var_order) at its lower bound, upper bound or middle; mid_lb_split, mid_ub_split, one input at a time at its middle, then at its lower (upper) bound. The node is a solution if the point is one, and is counted unknown otherwise (the input space is not split)." << std::endl;
+  std::cout << "\t-jet_sym_clip_hidden: With -jet_symbolic, also clip the inputs with the forms of the hidden neurons whose bounds are tighter than their forms, e.g. the phase of a ReLU split (see clip_hidden in include/jet_symbolic.hpp)." << std::endl;
   std::cout << "\t-or 48: Run the subproblems on 48 streaming multiprocessors (SMs) (only for GPU architecture). Default: -or 0 for automatic selection of the number of SMs." << std::endl;
   std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the blocks (embarrasingly parallel search). The special value `-1` leaves Turbo to decide on the number of subproblems (at least 30 * number of blocks). Default: -sub -1." << std::endl;
   std::cout << "\t-subfactor 300: Create B * 300 subproblems to be solved in turns by `B` blocks (embarrasingly parallel search). Default: -subfactor 300." << std::endl;
@@ -230,6 +251,87 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
     }
   }
   input.read_size_t("-wac1_threshold", config.wac1_threshold);
+  std::string jet_affine;
+  if(input.read_string("-jet_affine", jet_affine)) {
+    if(jet_affine == "v1") {
+      config.jet_affine = 1;
+    }
+    else if(jet_affine == "v2") {
+      config.jet_affine = 2;
+    }
+    else {
+      std::cerr << "Unknown -jet_affine " << jet_affine << " (expected v1 or v2)" << std::endl;
+      exit(EXIT_FAILURE);
+    }
+  }
+  input.read_bool("-jet_symbolic", config.jet_symbolic);
+  input.read_int("-jet_sym_rounds", config.jet_sym_rounds);
+  std::string jet_sym_layout;
+  if(input.read_string("-jet_sym_layout", jet_sym_layout)) {
+    if(jet_sym_layout == "neuron") {
+      config.jet_sym_layout = 0;
+    }
+    else if(jet_sym_layout == "slot") {
+      config.jet_sym_layout = 1;
+    }
+    else {
+      std::cerr << "Unknown -jet_sym_layout " << jet_sym_layout << " (expected slot or neuron)" << std::endl;
+      exit(EXIT_FAILURE);
+    }
+  }
+  std::string pir_fdeduce;
+  if(input.read_string("-pir_fdeduce", pir_fdeduce)) {
+    if(pir_fdeduce == "v1") {
+      config.pir_fdeduce = 1;
+    }
+    else if(pir_fdeduce == "v2") {
+      config.pir_fdeduce = 2;
+    }
+    else {
+      std::cerr << "Unknown -pir_fdeduce " << pir_fdeduce << " (expected v1 or v2)" << std::endl;
+      exit(EXIT_FAILURE);
+    }
+  }
+  std::string split_on;
+  if(input.read_string("-split_on", split_on)) {
+    if(split_on == "input") {
+      config.split_on = SPLIT_ON_INPUT;
+    }
+    else if(split_on == "relu") {
+      config.split_on = SPLIT_ON_RELU;
+    }
+    else {
+      std::cerr << "Unknown -split_on " << split_on << " (expected input or relu)" << std::endl;
+      exit(EXIT_FAILURE);
+    }
+  }
+  std::string relu_order;
+  if(input.read_string("-relu_order", relu_order)) {
+    if(relu_order == "earliest") {
+      config.relu_order = RELU_ORDER_EARLIEST;
+    }
+    else if(relu_order == "widest") {
+      config.relu_order = RELU_ORDER_WIDEST;
+    }
+    else {
+      std::cerr << "Unknown -relu_order " << relu_order << " (expected earliest or widest)" << std::endl;
+      exit(EXIT_FAILURE);
+    }
+  }
+  std::string relu_leaf;
+  if(input.read_string("-relu_leaf", relu_leaf)) {
+    if(relu_leaf == "input") {
+      config.relu_leaf = RELU_LEAF_INPUT;
+    }
+    else if(relu_leaf == "point") {
+      config.relu_leaf = RELU_LEAF_POINT;
+    }
+    else {
+      std::cerr << "Unknown -relu_leaf " << relu_leaf << " (expected input or point)" << std::endl;
+      exit(EXIT_FAILURE);
+    }
+  }
+  input.read_bool("-jet_sym_clip_hidden", config.jet_sym_clip_hidden);
   input.read_double("-epsilon", config.epsilon);
   std::string var_order;
   if(input.read_string("-var_order", var_order)) {

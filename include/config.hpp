@@ -26,6 +26,15 @@ enum class FixpointKind {
   WAC1
 };
 
+/** Values of `Configuration::split_on` (`-split_on`), `Configuration::relu_order` (`-relu_order`) and
+ * `Configuration::relu_leaf` (`-relu_leaf`). */
+constexpr int SPLIT_ON_INPUT = 0;
+constexpr int SPLIT_ON_RELU = 1;
+constexpr int RELU_ORDER_EARLIEST = 0;
+constexpr int RELU_ORDER_WIDEST = 1;
+constexpr int RELU_LEAF_INPUT = 0;
+constexpr int RELU_LEAF_POINT = 1;
+
 enum class InputFormat {
   XCSP3,
   FLATZINC,
@@ -67,6 +76,31 @@ struct Configuration {
   battery::string<allocator_type> onnx_path;
   battery::string<allocator_type> version;
   battery::string<allocator_type> hardware;
+  /** JET only: version of the deduction of the affine neurons (1: original, 2: `jet_affine_v2.hpp`). */
+  int jet_affine;
+  /** JET and fbarebones: alternate the interval fixpoint with symbolic rounds (`jet_symbolic.hpp`;
+   * `jet_symbolic_map.hpp` for fbarebones). */
+  bool jet_symbolic;
+  /** JET and fbarebones: maximum number of symbolic rounds per node, 0 for "until nothing changes". */
+  int jet_sym_rounds;
+  /** JET and fbarebones: memory layout of the symbolic forms (0: neuron-major, 1: slot-major, coalesced). */
+  int jet_sym_layout;
+  /** fbarebones only: deduction of the bytecodes (1: `PIR::fdeduce`, 2: `PIR::fdeduce_v2`, bitwise the same results). */
+  int pir_fdeduce;
+  /** JET and fbarebones: the variables the search branches on (`SPLIT_ON_INPUT`: the input neurons,
+   * `SPLIT_ON_RELU`: the phase of the ReLU neurons, see `relu_split.hpp`). */
+  int split_on;
+  /** JET and fbarebones, with `split_on == SPLIT_ON_RELU`: which ReLU is split first
+   * (`RELU_ORDER_EARLIEST`: the first one in the order of the network, `RELU_ORDER_WIDEST`: the one
+   * with the widest pre-activation). */
+  int relu_order;
+  /** JET and fbarebones, with `split_on == SPLIT_ON_RELU`: the search once every ReLU has a phase
+   * (`RELU_LEAF_INPUT`: the input split, down to boxes of width at most `epsilon` and their
+   * underapproximation, `RELU_LEAF_POINT`: the inputs fixed to points at once), see `relu_split.hpp`. */
+  int relu_leaf;
+  /** JET and fbarebones, with `jet_symbolic`: also clip the inputs with the forms of the hidden neurons
+   * (`jet_symbolic.hpp`, `clip_hidden`). */
+  bool jet_sym_clip_hidden;
 
   CUDA Configuration(const allocator_type& alloc = allocator_type{}):
     print_intermediate_solutions(false),
@@ -116,7 +150,16 @@ struct Configuration {
     vnnlib_path(alloc),
     onnx_path(alloc),
     version(alloc),
-    hardware(alloc)
+    hardware(alloc),
+    jet_affine(1),
+    jet_symbolic(false),
+    jet_sym_rounds(0),
+    jet_sym_layout(1),
+    pir_fdeduce(1),
+    split_on(SPLIT_ON_INPUT),
+    relu_order(RELU_ORDER_EARLIEST),
+    relu_leaf(RELU_LEAF_INPUT),
+    jet_sym_clip_hidden(false)
   {}
 
   Configuration(Configuration<allocator_type>&&) = default;
@@ -153,7 +196,16 @@ struct Configuration {
     vnnlib_path(other.vnnlib_path, alloc),
     onnx_path(other.onnx_path, alloc),
     version(other.version, alloc),
-    hardware(other.hardware, alloc)
+    hardware(other.hardware, alloc),
+    jet_affine(other.jet_affine),
+    jet_symbolic(other.jet_symbolic),
+    jet_sym_rounds(other.jet_sym_rounds),
+    jet_sym_layout(other.jet_sym_layout),
+    pir_fdeduce(other.pir_fdeduce),
+    split_on(other.split_on),
+    relu_order(other.relu_order),
+    relu_leaf(other.relu_leaf),
+    jet_sym_clip_hidden(other.jet_sym_clip_hidden)
   {}
 
   template <class Alloc2>
@@ -188,6 +240,15 @@ struct Configuration {
     onnx_path = other.onnx_path;
     version = other.version;
     hardware = other.hardware;
+    jet_affine = other.jet_affine;
+    jet_symbolic = other.jet_symbolic;
+    jet_sym_rounds = other.jet_sym_rounds;
+    jet_sym_layout = other.jet_sym_layout;
+    pir_fdeduce = other.pir_fdeduce;
+    split_on = other.split_on;
+    relu_order = other.relu_order;
+    relu_leaf = other.relu_leaf;
+    jet_sym_clip_hidden = other.jet_sym_clip_hidden;
   }
 
   CUDA void print_commandline(const char* program_name) {
@@ -231,6 +292,23 @@ struct Configuration {
       printf("-hardware \'%s\' ", hardware.data());
     }
     printf("-cutnodes %" PRIu64 " ", stop_after_n_nodes == std::numeric_limits<size_t>::max() ? 0 : stop_after_n_nodes);
+    if(arch == Arch::JET) {
+      printf("-jet_affine v%d ", jet_affine);
+    }
+    if((arch == Arch::JET || arch == Arch::FBAREBONES) && jet_symbolic) {
+      printf("-jet_symbolic -jet_sym_rounds %d -jet_sym_layout %s ", jet_sym_rounds, jet_sym_layout == 0 ? "neuron" : "slot");
+      if(jet_sym_clip_hidden) { printf("-jet_sym_clip_hidden "); }
+    }
+    if(arch == Arch::JET || arch == Arch::FBAREBONES) {
+      printf("-split_on %s ", split_on == SPLIT_ON_RELU ? "relu" : "input");
+      if(split_on == SPLIT_ON_RELU) {
+        printf("-relu_order %s ", relu_order == RELU_ORDER_WIDEST ? "widest" : "earliest");
+        printf("-relu_leaf %s ", relu_leaf == RELU_LEAF_POINT ? "point" : "input");
+      }
+    }
+    if(arch == Arch::FBAREBONES) {
+      printf("-pir_fdeduce v%d ", pir_fdeduce);
+    }
     printf("%s", problem_path.data());
   }
 
@@ -258,6 +336,8 @@ struct Configuration {
         return "fbarebones";
       case Arch::HYBRID:
         return "hybrid";
+      case Arch::JET:
+        return "jet";
       default:
         assert(0);
         return "Unknown";
@@ -278,6 +358,21 @@ struct Configuration {
     }
     printf("%%%%%%mzn-stat: seed=%" PRIu64 "\n", seed);
     printf("%%%%%%nnv-stat: epsilon=\"%.10f\"\n", epsilon);
+    if(arch == Arch::JET) {
+      printf("%%%%%%nnv-stat: jet_affine=\"v%d\"\n", jet_affine);
+    }
+    if(arch == Arch::JET || arch == Arch::FBAREBONES) {
+      printf("%%%%%%nnv-stat: jet_symbolic=\"%s\"\n", jet_symbolic ? "yes" : "no");
+      printf("%%%%%%nnv-stat: jet_sym_rounds=%d\n", jet_sym_rounds);
+      printf("%%%%%%nnv-stat: jet_sym_layout=\"%s\"\n", jet_sym_layout == 0 ? "neuron" : "slot");
+      printf("%%%%%%nnv-stat: jet_sym_clip_hidden=\"%s\"\n", jet_sym_clip_hidden ? "yes" : "no");
+      printf("%%%%%%nnv-stat: split_on=\"%s\"\n", split_on == SPLIT_ON_RELU ? "relu" : "input");
+      printf("%%%%%%nnv-stat: relu_order=\"%s\"\n", relu_order == RELU_ORDER_WIDEST ? "widest" : "earliest");
+      printf("%%%%%%nnv-stat: relu_leaf=\"%s\"\n", relu_leaf == RELU_LEAF_POINT ? "point" : "input");
+    }
+    if(arch == Arch::FBAREBONES) {
+      printf("%%%%%%nnv-stat: pir_fdeduce=\"v%d\"\n", pir_fdeduce);
+    }
     printf("%%%%%%mzn-stat: var_order=\"%s\"\n", var_order.data());
     printf("%%%%%%mzn-stat: value_order=\"%s\"\n", value_order.data());
     printf("%%%%%%mzn-stat: eps_var_order=\"%s\"\n", eps_var_order.data());

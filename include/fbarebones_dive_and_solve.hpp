@@ -7,8 +7,14 @@
 #include "common_solving.hpp"
 #include "memory_gpu.hpp"
 #include "lala/light_branch.hpp"
+/** For `-jet_symbolic`: the network reader of JET and the symbolic pass (`jet_symbolic.hpp`). */
+#include "jet_dive_and_solve.hpp"
+/** For `-split_on relu`. */
+#include "relu_split.hpp"
 #include <mutex>
 #include <thread>
+#include <type_traits>
+#include <utility>
 #include <chrono>
 #include <fstream>
 #include <sstream>
@@ -59,6 +65,8 @@ using GridCP = AbstractDomains<FItv,
   bt::statistics_allocator<UniqueLightAlloc<ConcurrentAllocator, 0>>,
   bt::statistics_allocator<UniqueLightAlloc<ConcurrentAllocator, 1>>>;
 
+struct SymbolicModel;
+
 /** Data shared between CPU and GPU. */
 struct UnifiedData {
   /** The root node of the problem, useful to backtrack when solving a new subproblem.
@@ -72,10 +80,19 @@ struct UnifiedData {
   /** The memory configuration of each block. */
   MemoryConfig mem_config;
 
+  /** The network and the variables of its neurons for `-jet_symbolic`, `nullptr` without it. */
+  SymbolicModel* sym;
+
+  /** For `-split_on relu`: the variables `p` of the bytecodes `y = max(p, 0)`, in the order of the
+   * bytecodes (`relu_pre_activations`). */
+  bt::vector<int, ConcurrentAllocator> relu_pre;
+
   UnifiedData(const CP<FItv>& cp, MemoryConfig mem_config)
    : root(GridCP::tag_gpu_block_copy{}, false, cp)
    , stop(false)
    , mem_config(mem_config)
+   , sym(nullptr)
+   , relu_pre()
   {
     size_t num_subproblems = 1;
     num_subproblems <<= root.config.subproblems_power;
@@ -89,6 +106,64 @@ using FProp = PIR<FStore, bt::pool_allocator>;
 using bound_type = typename FItv::LB::value_type;
 using UB = FUB<bound_type, bt::atomic_memory_grid>;
 using strategies_type = bt::vector<StrategyType<bt::global_allocator>, bt::global_allocator>;
+
+/** Whether the PIR of lala-pc has `fdeduce_v2` (`-pir_fdeduce v2`); without it, `-pir_fdeduce v2` falls
+ * back to `fdeduce`, so that Turbo still compiles with a lala-pc that predates it. */
+template <class P, class = void>
+struct has_fdeduce_v2 : std::false_type {};
+
+template <class P>
+struct has_fdeduce_v2<P, std::void_t<decltype(std::declval<P&>().fdeduce_v2(0, 0.0f))>> : std::true_type {};
+
+/** The symbolic bounds of JET (design 2) on the ternarized model, with `-jet_symbolic`: see
+ * `jet_symbolic.hpp` for the pass and `jet_symbolic_map.hpp` for how the network is matched with the
+ * variables of the store. Read-only and in managed memory, it is shared by all the blocks; each block
+ * only owns its forms (`BlockData::sym_forms`). */
+struct SymbolicModel {
+  /** The network, read a second time from the ONNX file by `jet::parse_network`. */
+  jet::Network net;
+  /** The comparisons `x - y <= 0` between neurons that the model enforces, for the input clipping. */
+  jet::Property prop;
+  /** The variable of each neuron of `net` in the store (after its ReLU, if any). */
+  bt::vector<int, ConcurrentAllocator> post;
+  /** The variable of the pre-activation of each neuron, `post[i]` for a neuron without ReLU. */
+  bt::vector<int, ConcurrentAllocator> pre;
+
+  SymbolicModel(jet::Network&& network, const bt::vector<jet::NeuronLeq>& leqs,
+    const std::vector<int>& post_vars, const std::vector<int>& pre_vars)
+   : net(std::move(network)), prop(leqs), post(post_vars.size()), pre(pre_vars.size())
+  {
+    for(size_t i = 0; i < post_vars.size(); ++i) {
+      post[i] = post_vars[i];
+      pre[i] = pre_vars[i];
+    }
+  }
+};
+
+/** The neurons of a `SymbolicModel` in the store `Store` of a block, as `jet::symbolic::pass` reads
+ * and tightens them. Unlike the store of JET, the store has a variable for the pre-activation of every
+ * ReLU (`pre_lb`, `pre_ub`, `meet_pre`), which the pass uses and tightens too. */
+template <class Store>
+struct PirNeuronsAccessT {
+  using local_itv = typename FItv::local_type;
+  Store& s;
+  const int* post;
+  const int* pre;
+  CUDA INLINE bound_type lb(int i) const { return s[post[i]].lb().value(); }
+  CUDA INLINE bound_type ub(int i) const { return s[post[i]].ub().value(); }
+  /** `embed` meets each bound only if it is strictly better, so a NaN bound is ignored. */
+  CUDA INLINE bool meet(int i, bound_type l, bound_type u) {
+    return s.embed(post[i], local_itv(typename local_itv::LB(l), typename local_itv::UB(u)));
+  }
+  CUDA INLINE bool fail(int i) { return s.embed(post[i], local_itv::bot()); }
+  CUDA INLINE bound_type pre_lb(int i) const { return s[pre[i]].lb().value(); }
+  CUDA INLINE bound_type pre_ub(int i) const { return s[pre[i]].ub().value(); }
+  CUDA INLINE bool meet_pre(int i, bound_type l, bound_type u) {
+    return s.embed(pre[i], local_itv(typename local_itv::LB(l), typename local_itv::UB(u)));
+  }
+};
+
+using PirNeuronsAccess = PirNeuronsAccessT<FStore>;
 
 /** Data private to a single block. */
 struct BlockData {
@@ -154,8 +229,12 @@ struct BlockData {
   // float* h_ub_gradients;
   // int num_h_gradients;
 
-  /* For underapproximation search strategy. */
-  bool is_uass;
+  /** The depth of the first decision of the current path that underapproximates (fixes a variable to
+   * a point), -1 if there is none: a failure below it is counted in `unknowns` (see `uass.hpp`). */
+  int uass_depth;
+
+  /** The symbolic forms of the neurons (`-jet_symbolic`), see `jet_symbolic.hpp`; empty otherwise. */
+  bt::vector<bound_type, bt::global_allocator> sym_forms;
 
   __device__ BlockData()
    : subproblem_idx(0)
@@ -168,7 +247,7 @@ struct BlockData {
   //  , h_lb_gradients(nullptr)
   //  , h_ub_gradients(nullptr)
   //  , num_h_gradients(0)
-   , is_uass(false)
+   , uass_depth(-1)
   {}
 
   __device__ void allocate(const UnifiedData& unified_data, const GridData& grid_data, unsigned char* shared_mem) {
@@ -192,7 +271,11 @@ struct BlockData {
       // h_mid_gradients = h_gradients + num_h_gradients;
       // h_lb_gradients = h_mid_gradients + num_h_gradients;
       // h_ub_gradients = h_lb_gradients + num_h_gradients;
-      is_uass = false;
+      if(unified_data.sym != nullptr) {
+        sym_forms.resize(jet::symbolic::storage_size(unified_data.sym->net.num_neurons,
+          unified_data.sym->net.num_inputs()));
+      }
+      uass::reset(*this);
     }
   }
 
@@ -349,7 +432,6 @@ struct BlockData {
         next_unassigned_var = idx.value();
         idx = n;
         has_changed = true;
-	      is_uass = false;
       }
       __syncthreads();
       // This fixpoint loop is not strictly necessary.
@@ -381,15 +463,27 @@ struct BlockData {
       return;
     }
 
-    /*
-      Original search stategy. When using SPLIT && all widths <= epsilon, we check the solution with midpoints.
-    */
+    /** `SPLIT` on a box of width at most `epsilon` (no variable of the strategy is wider): the
+     * underapproximation tries the middle of the box, all the variables at once (`uass.hpp`).
+     *   - The middles are written in the store, not in the decisions: the decision has a single child,
+     *     the current domain of a variable, so that the search never comes back to this node for
+     *     another child. With the two children of `push_decision(SPLIT)`, both points `[m0, m0]`, the
+     *     right child was explored with the store restored from the decisions only, that is with
+     *     `x0 = m0` alone (the other middles are lost): its failure proved the box empty (unsound
+     *     `unsat`), and otherwise the same split was repeated forever.
+     *   - The decision marks the node as underapproximated (`push_decision(SPLIT)` reset `is_uass`, so
+     *     a failure of the middle was a proof).
+     *   - All the variables are fixed, from the first one: those before `next_unassigned_var` are not
+     *     split any more (their width is at most `epsilon`), but are not points either, and the node is
+     *     a solution only when all of them are points.
+     * A variable without finite bounds has no middle and is left as it is: the node is then not a
+     * solution, and the next split finds nothing to branch on (the search is not exhaustive). */
     if(strategy.val_order == ValueOrder::SPLIT){
       if(threadIdx.x == 0){
         has_changed = false;
       }
       __syncthreads();
-      for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x){
+      for(int i = threadIdx.x; i < n; i += blockDim.x){
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
         if(dom.width().ub().value() <= epsilon && dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()){
           has_changed = true;
@@ -397,24 +491,28 @@ struct BlockData {
       }
       __syncthreads();
       if(has_changed) {
-        for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x){
+        for(int i = threadIdx.x; i < n; i += blockDim.x){
           AVar var = split_in_store ? AVar{store->aty(), i} : strategy.vars[i];
           const auto& dom = (*store)[var.vid()];
-          auto mid = battery::midpoint(dom.lb().value(), dom.ub().value());
-          store->embed(var, FItv(mid, mid));
+          if(dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()) {
+            auto mid = battery::midpoint(dom.lb().value(), dom.ub().value());
+            store->embed(var, FItv(mid, mid));
+          }
         }
         __syncthreads();
         if(threadIdx.x == 0){
-          is_uass = true;
-          push_decision(strategy.val_order, strategy.vars[0], epsilon);
+          AVar var = split_in_store ? AVar{store->aty(), 0} : strategy.vars[0];
+          const auto& dom = (*store)[var.vid()];
+          uass::push_point_decision(*this, var, FItv(dom.lb().value(), dom.ub().value()));
         }
       }
       return;
     }
 
-    /*
-    Underapproximation search strategy.
-    */
+    /** The underapproximation of the other value orders (`push_decision`): one variable of width at
+     * most `epsilon`, chosen by the variable order among all the variables of the strategy (from the
+     * first one, see `SPLIT` above). The decision is marked as an underapproximation whatever the value
+     * order (e.g. `REVERSE_SPLIT`, which splits the domain in two), as before. */
     if(threadIdx.x == 0){
       has_changed = true;
     }
@@ -425,7 +523,7 @@ struct BlockData {
         has_changed = false;
       }
       __syncthreads();
-      for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
+      for(int i = threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
         if(dom.width().ub().value() <= epsilon && dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()){
           if(value.meet(f(dom, strategy.vars[i].vid()))){
@@ -444,7 +542,7 @@ struct BlockData {
         next_unassigned_var = idx.value();
         idx = n;
         has_changed = true;
-	      is_uass = true;
+        uass::mark(*this);
       }
       __syncthreads();
       while(has_changed) {
@@ -533,11 +631,15 @@ struct BlockData {
     // bound_type half = battery::div_up(width, bound_type{2.0});
     // bound_type mid = battery::add_up(dom.lb().value(), half);
     bound_type mid = battery::midpoint(dom.lb().value(), dom.ub().value());
+    /** The underapproximation of `LB_SPLIT`, `UB_SPLIT` and `MID_SPLIT` (a domain of width at most
+     * `epsilon`) tries a single point: the decision has only `children[0]`, see the ropes below. */
+    bool single_child = false;
+    /** Whether the children are points of the domain instead of covering it (`uass.hpp`). */
+    bool underapproximates = false;
     // printf("split on %d, lb = %.20f, ub = %.20f, mid = %.20f \n", decisions[depth].var.vid(), dom.lb().value(), dom.ub().value(), mid);
 
     switch(val_order) {
       case ValueOrder::SPLIT: {
-				is_uass = false;
         decisions[depth].children[0] = FItv(dom.lb(), mid);
         decisions[depth].children[1] = FItv(mid, dom.ub());
         break;
@@ -549,11 +651,11 @@ struct BlockData {
       }
       case ValueOrder::LB_SPLIT: {
         if(dom.lb().value() != dom.ub().value() && dom.width().ub().value() <= epsilon) {
-		      is_uass = true;
+          underapproximates = true;
+          single_child = true;
           decisions[depth].children[0] = FItv(dom.lb().value(), dom.lb().value());
         }
         else {
-		      is_uass = false;
           decisions[depth].children[0] = FItv(dom.lb(), mid);
           decisions[depth].children[1] = FItv(mid, dom.ub());
         }
@@ -561,11 +663,11 @@ struct BlockData {
       }
       case ValueOrder::UB_SPLIT: {
         if(dom.lb().value() != dom.ub().value() && dom.width().ub().value() <= epsilon) {
-		      is_uass = true;
+          underapproximates = true;
+          single_child = true;
           decisions[depth].children[0] = FItv(dom.ub().value(), dom.ub().value());
         }
         else {
-		      is_uass = false;
           decisions[depth].children[0] = FItv(dom.lb(), mid);
           decisions[depth].children[1] = FItv(mid, dom.ub());
         }
@@ -573,11 +675,11 @@ struct BlockData {
       }
       case ValueOrder::MID_SPLIT: {
         if(dom.lb().value() != dom.ub().value() && dom.width().ub().value() <= epsilon) {
-		      is_uass = true;
+          underapproximates = true;
+          single_child = true;
           decisions[depth].children[0] = FItv(mid, mid);
         }
         else {
-		      is_uass = false;
           decisions[depth].children[0] = FItv(dom.lb(), mid);
           decisions[depth].children[1] = FItv(mid, dom.ub());
         }
@@ -585,12 +687,11 @@ struct BlockData {
       }
       case ValueOrder::MID_LB_SPLIT: {
         if(dom.lb().value() != dom.ub().value() && dom.width().ub().value() <= epsilon) {
-		      is_uass = true;
+          underapproximates = true;
           decisions[depth].children[0] = FItv(mid, mid);
           decisions[depth].children[1] = FItv(dom.lb().value(), dom.lb().value());
         }
         else {
-		      is_uass = false;
           decisions[depth].children[0] = FItv(dom.lb(), mid);
           decisions[depth].children[1] = FItv(mid, dom.ub());
         }
@@ -598,12 +699,11 @@ struct BlockData {
       }
       case ValueOrder::MID_UB_SPLIT: {
         if(dom.lb().value() != dom.ub().value() && dom.width().ub().value() <= epsilon) {
-		      is_uass = true;
+          underapproximates = true;
           decisions[depth].children[0] = FItv(mid, mid);
           decisions[depth].children[1] = FItv(dom.ub().value(), dom.ub().value());
         }
         else {
-		      is_uass = false;
           decisions[depth].children[0] = FItv(dom.lb(), mid);
           decisions[depth].children[1] = FItv(mid, dom.ub());
         }
@@ -611,6 +711,7 @@ struct BlockData {
       }
       case ValueOrder::MIX_SPLIT: {
         // TODO: not complete yet. The current version doesn't support multiple chil nodes, only binary.
+        underapproximates = true;
         decisions[depth].children[0] = FItv(mid, mid);
         decisions[depth].children[1] = FItv(dom.lb().value(), dom.lb().value());
 	      break;
@@ -621,12 +722,24 @@ struct BlockData {
       // ValueOrder::MEDIAN is not possible with interval.
       default: assert(false); 
     }
+    if(underapproximates) {
+      uass::mark(*this);
+    }
     /** Ropes are a mechanism for fast backtracking.
      * The rope of a left node is always the depth of the right node (also its depth), because after completing the exploration of the left subtree, we must visit the right subtree (rooted at the current depth).
      * The rope of the right node is inherited from its parent, we set -1 if there is no next node to visit.
      */
     decisions[depth].ropes[0] = depth + 1;
     decisions[depth].ropes[1] = depth > 0 ? decisions[depth-1].ropes[decisions[depth-1].current_idx] : -1;
+    /** A decision with a single child: once the left subtree is explored, go where the right child would
+     * go after its own subtree, so that the right child, which does not exist, is never visited (the
+     * backtracking would otherwise embed whatever `children[1]` holds: the default `[-oo, +oo]`, or the
+     * child of an older decision of this slot). The descendants inherit this rope through `ropes[0]`.
+     * Such a decision is recognized by `ropes[0] == ropes[1]`, which never holds for two children since
+     * `ropes[1]` is at most `depth`. */
+    if(single_child) {
+      decisions[depth].ropes[0] = decisions[depth].ropes[1];
+    }
     ++depth;
     // printf("depth(%d), var = %d, children = [%lf, %lf] | [%lf, %lf], ropes = [%d, %d]\n",
     //   depth, decisions[depth-1].var.vid(),
@@ -680,7 +793,9 @@ struct GridData {
   {}
 };
 
-MemoryConfig configure_gpu_fbarebones(CP<FItv>&);
+MemoryConfig configure_gpu_fbarebones(CP<FItv>&, size_t sym_bytes_per_block);
+bt::unique_ptr<SymbolicModel, ConcurrentAllocator> make_symbolic_model(const CP<FItv>& cp, std::string& why);
+std::vector<int> relu_pre_activations(const CP<FItv>& cp);
 __global__ void initialize_global_data(UnifiedData*, bt::unique_ptr<GridData, bt::global_allocator>*);
 __global__ void gpu_fbarebones_solve(UnifiedData*, GridData*);
 template <class FPEngine>
@@ -689,6 +804,26 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
 // __device__ INLINE void back_propagation(BlockData& block_data, Ort::Session& session);
 __global__ void reduce_blocks(UnifiedData*, GridData*);
 __global__ void deallocate_global_data(bt::unique_ptr<GridData, bt::global_allocator>*);
+
+/** Branch on the current node, by all the threads: with the search strategy of the model
+ * (`BlockData::split`), or on the phase of a ReLU with `-split_on relu` (`relu_split.hpp`; `p` is split
+ * at 0). Once every ReLU has a phase, `-relu_leaf input` goes on with the search strategy of the model,
+ * and `-relu_leaf point` fixes its variables to points (`relu_split::fix_inputs`). */
+__device__ INLINE void branch(const UnifiedData& unified_data, GridData& grid_data, BlockData& block_data, bool& has_changed) {
+  const auto& config = unified_data.root.config;
+  if(config.split_on == SPLIT_ON_RELU) {
+    if(relu_split::split_relu(block_data, unified_data.relu_pre.data(),
+      static_cast<int>(unified_data.relu_pre.size()), bound_type{0}, config.relu_order))
+    {
+      return;
+    }
+    if(config.relu_leaf == RELU_LEAF_POINT) {
+      relu_split::fix_inputs<BlockData, bound_type>(block_data, has_changed, grid_data.search_strategies[block_data.current_strategy]);
+      return;
+    }
+  }
+  block_data.split(has_changed, grid_data.search_strategies, config.epsilon);
+}
 
 void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>& config) {
   if(config.print_intermediate_solutions) {
@@ -706,8 +841,62 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
     return;
   }
 
-  MemoryConfig mem_config = configure_gpu_fbarebones(cp);
+  if(cp.config.pir_fdeduce == 2 && !has_fdeduce_v2<FProp>::value) {
+    printf("%% WARNING: -pir_fdeduce v2 needs PIR::fdeduce_v2, which this version of lala-pc does not have: using v1.\n");
+    cp.config.pir_fdeduce = 1;
+  }
+
+  /** `-jet_symbolic`: the symbolic bounds of JET, alternated with the fixpoint of the bytecodes. */
+  bt::unique_ptr<SymbolicModel, ConcurrentAllocator> sym_model;
+  size_t sym_bytes_per_block = 0;
+  if(cp.config.jet_symbolic) {
+    std::string why;
+    sym_model = make_symbolic_model(cp, why);
+    if(sym_model.get() == nullptr) {
+      printf("%% WARNING: -jet_symbolic is disabled: %s.\n", why.c_str());
+      cp.config.jet_symbolic = false;
+    }
+    else {
+      sym_bytes_per_block = jet::symbolic::storage_size(sym_model->net.num_neurons,
+        sym_model->net.num_inputs()) * sizeof(bound_type);
+    }
+  }
+
+  /** `-split_on relu`: the pre-activations of the ReLUs of the model. */
+  std::vector<int> relu_pre;
+  if(cp.config.split_on == SPLIT_ON_RELU) {
+    relu_pre = relu_pre_activations(cp);
+    if(relu_pre.empty()) {
+      printf("%% WARNING: -split_on relu: the model has no ReLU `y = max(p, 0)`, the search follows its strategy.\n");
+      cp.config.split_on = SPLIT_ON_INPUT;
+    }
+    else {
+      cp.stats.print_stat("relu_split_relus", static_cast<int>(relu_pre.size()));
+      const auto& strategies = cp.split->strategies_();
+      const bool point = cp.config.relu_leaf == RELU_LEAF_POINT;
+      for(int i = 0; point && i < static_cast<int>(strategies.size()); ++i) {
+        if(!relu_split::is_leaf_value_order(strategies[i].val_order)) {
+          printf("%% WARNING: -split_on relu -relu_leaf point: the value order %s does not fix the inputs of the leaves, they are fixed as with split (all at their middle).\n",
+            string_of_value_order(strategies[i].val_order));
+        }
+      }
+      if(cp.config.verbose_solving >= 1 && strategies.size() > 0) {
+        const auto& main = strategies[strategies.size() - 1];
+        printf("%% -split_on relu: the search splits the phase of %d ReLUs (-relu_order %s), then %s the inputs with %s and %s.\n",
+          static_cast<int>(relu_pre.size()), cp.config.relu_order == RELU_ORDER_WIDEST ? "widest" : "earliest",
+          point ? "fixes" : "splits (-relu_leaf input)",
+          string_of_variable_order(main.var_order), string_of_value_order(main.val_order));
+      }
+    }
+  }
+
+  MemoryConfig mem_config = configure_gpu_fbarebones(cp, sym_bytes_per_block);
   auto unified_data = bt::make_unique<UnifiedData, ConcurrentAllocator>(cp, mem_config);
+  unified_data->sym = sym_model.get();
+  unified_data->relu_pre.resize(relu_pre.size());
+  for(size_t i = 0; i < relu_pre.size(); ++i) {
+    unified_data->relu_pre[i] = relu_pre[i];
+  }
   auto grid_data = bt::make_unique<bt::unique_ptr<GridData, bt::global_allocator>, ConcurrentAllocator>();
   initialize_global_data<<<1,1>>>(unified_data.get(), grid_data.get());
   // Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "nnv");
@@ -767,7 +956,7 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
  * 4) Increase the global heap memory.
  * 5) Increase the stack size if requested by the user.
  */
-MemoryConfig configure_gpu_fbarebones(CP<FItv>& cp) {
+MemoryConfig configure_gpu_fbarebones(CP<FItv>& cp, size_t sym_bytes_per_block) {
   auto& config = cp.config;
 
   /** I. Number of blocks per SM. */
@@ -810,6 +999,11 @@ MemoryConfig configure_gpu_fbarebones(CP<FItv>& cp) {
     + cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<bound_type>()  // fixpoint engine
     // + gradient_bytes
     + (gpu_sizeof<bound_type>() + gpu_sizeof<LightBranch<FItv>>()) * size_t{MAX_SEARCH_DEPTH};
+  /** The symbolic forms of `-jet_symbolic`, one copy per block. */
+  if(sym_bytes_per_block > 0) {
+    mem_per_block += sym_bytes_per_block;
+    cp.stats.print_memory_statistics(cp.config.verbose_solving, "jet_symbolic_bytes_per_block", sym_bytes_per_block);
+  }
   // size_t estimated_global_mem = gpu_sizeof<UnifiedData>() + store_bytes * size_t{5} + iprop_bytes + gradient_bytes +
   //   gpu_sizeof<GridData>();
   size_t estimated_global_mem = gpu_sizeof<UnifiedData>() + store_bytes * size_t{5} + iprop_bytes +
@@ -850,6 +1044,104 @@ MemoryConfig configure_gpu_fbarebones(CP<FItv>& cp) {
   }
   mem_config.print_mzn_statistics(config, cp.stats);
   return mem_config;
+}
+
+/** Build the model of `-jet_symbolic` for the ternarized model of `cp` (see `jet_symbolic_map.hpp`):
+ * read the network again with `jet::parse_network`, find the variables of its neurons in `cp`, check
+ * on random points that the bytecodes compute that network, and collect the comparisons between
+ * neurons enforced by the bytecodes. Return `nullptr`, with the reason in `why`, if any step fails;
+ * the symbolic bounds are then not used, since they could be unsound for the model being solved. */
+bt::unique_ptr<SymbolicModel, ConcurrentAllocator> make_symbolic_model(const CP<FItv>& cp, std::string& why) {
+  namespace sym = jet::symbolic;
+  using model_ptr = bt::unique_ptr<SymbolicModel, ConcurrentAllocator>;
+  sym::NetworkOrigin origin;
+  jet::Network net = jet::parse_network(cp.config, &origin);
+  if(net.empty()) {
+    why = "the ONNX file could not be read as a network of affine, ReLU and residual layers";
+    return model_ptr();
+  }
+  const auto& store = *cp.store;
+  std::vector<int> post;
+  std::vector<int> pre;
+  if(!sym::map_variables(net, origin, cp.env, store.aty(), post, pre, why)) {
+    return model_ptr();
+  }
+
+  /** The constants of the model: the variables with a single value at the root, except the neurons,
+   * since the check gives them other values. */
+  const int num_vars = store.vars();
+  std::vector<char> is_neuron(static_cast<size_t>(num_vars), 0);
+  for(int t = 0; t < net.num_neurons; ++t) {
+    is_neuron[post[t]] = 1;
+    is_neuron[pre[t]] = 1;
+  }
+  std::vector<char> is_constant(static_cast<size_t>(num_vars), 0);
+  std::vector<double> value(static_cast<size_t>(num_vars), 0.0);
+  for(int v = 0; v < num_vars; ++v) {
+    const auto& d = store[v];
+    if(!is_neuron[v] && !d.lb().is_top() && !d.ub().is_top() && d.lb().value() == d.ub().value()) {
+      is_constant[v] = 1;
+      value[v] = static_cast<double>(d.lb().value());
+    }
+  }
+  if(!sym::check_network(net, *cp.iprop, is_constant, value, post, pre, why)) {
+    return model_ptr();
+  }
+
+  /** The comparisons between neurons, also through the variables equal to a neuron. */
+  std::vector<int> neuron_of_var(static_cast<size_t>(num_vars), -1);
+  for(int t = 0; t < net.num_neurons; ++t) { neuron_of_var[post[t]] = t; }
+  sym::extend_through_equalities(*cp.iprop, is_constant, value, neuron_of_var);
+  std::vector<sym::NeuronComparison> comparisons =
+    sym::comparisons_of_tnf(*cp.iprop, is_constant, value, neuron_of_var);
+  std::sort(comparisons.begin(), comparisons.end(), [](const auto& a, const auto& b) {
+    return a.x < b.x || (a.x == b.x && a.y < b.y); });
+  comparisons.erase(std::unique(comparisons.begin(), comparisons.end(), [](const auto& a, const auto& b) {
+    return a.x == b.x && a.y == b.y; }), comparisons.end());
+  bt::vector<jet::NeuronLeq> leqs;
+  for(const auto& c : comparisons) { leqs.push_back(jet::NeuronLeq{c.x, c.y, 0.0f}); }
+
+  cp.stats.print_stat("jet_symbolic_neurons", net.num_neurons);
+  cp.stats.print_stat("jet_symbolic_layers", net.num_layers());
+  cp.stats.print_stat("jet_symbolic_comparisons", static_cast<int>(leqs.size()));
+  if(cp.config.verbose_solving >= 1) {
+    printf("%% -jet_symbolic: the %d neurons of the network are matched with the variables of the model"
+      " (%d comparisons between neurons for the input clipping).\n", net.num_neurons, static_cast<int>(leqs.size()));
+    net.print();
+  }
+  return bt::make_unique<SymbolicModel, ConcurrentAllocator>(std::move(net), leqs, post, pre);
+}
+
+/** For `-split_on relu`: the variables `p` of the ReLUs of the ternarized model, the bytecodes
+ * `y = max(p, c)` whose operand `c` is a constant 0 (a variable fixed to 0 at the root) and `p` is not
+ * a constant, in the order of the bytecodes, each variable once. */
+std::vector<int> relu_pre_activations(const CP<FItv>& cp) {
+  const auto& store = *cp.store;
+  auto is_zero = [&](int v) {
+    const auto& d = store[v];
+    return !d.lb().is_top() && !d.ub().is_top() && d.lb().value() == 0 && d.ub().value() == 0;
+  };
+  auto is_constant = [&](int v) {
+    const auto& d = store[v];
+    return !d.lb().is_top() && !d.ub().is_top() && d.lb().value() == d.ub().value();
+  };
+  std::vector<int> pre;
+  std::vector<char> seen(static_cast<size_t>(store.vars()), 0);
+  const int n = static_cast<int>(cp.iprop->num_deductions());
+  for(int i = 0; i < n; ++i) {
+    const auto bc = cp.iprop->load_deduce(i);
+    if(bc.op != lala::MAX) { continue; }
+    const int y = bc.y.vid();
+    const int z = bc.z.vid();
+    int p = -1;
+    if(is_zero(z) && !is_constant(y)) { p = y; }
+    else if(is_zero(y) && !is_constant(z)) { p = z; }
+    if(p >= 0 && !seen[p]) {
+      seen[p] = 1;
+      pre.push_back(p);
+    }
+  }
+  return pre;
 }
 
 __global__ void initialize_global_data(
@@ -911,6 +1203,10 @@ __global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_d
     block_data.current_strategy = 0;
     block_data.next_unassigned_var = 0;
     block_data.depth = 0;
+    /** A subproblem starts with no underapproximation (`uass.hpp`). */
+    if(threadIdx.x == 0) {
+      uass::reset(block_data);
+    }
     unified_data->root.store->copy_to(group, *block_data.store);
 #ifndef TURBO_NO_ENTAILED_PROP_REMOVAL
     fp_engine.reset(iprop.num_deductions());
@@ -929,14 +1225,14 @@ __global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_d
       propagate(*unified_data, *grid_data, block_data, fp_engine, stop, has_changed, is_leaf_node);
       __syncthreads();
       if(!is_leaf_node) {
-        block_data.split(has_changed, grid_data->search_strategies, config.epsilon);
+        branch(*unified_data, *grid_data, block_data, has_changed);
         __syncthreads();
         // Split was not able to split a domain. It means that the search strategy is not complete due to unsplittable infinite domains.
         // We skip the subtree, and set exhaustive to `false`.
         if(block_data.decisions[0].var.is_untyped()) {
           is_leaf_node = true;
           block_data.stats.exhaustive = false;
-          if(threadIdx.x == 0 && config.verbose_solving >= 1) { printf("%% WARNING: infinite element detected during branching, search is not exhaustive\n");}
+          if(threadIdx.x == 0 && config.verbose_solving >= 1) { printf("%% WARNING: nothing to branch on (a domain without finite bounds, or a box of width at most epsilon with -var_order input_order), search is not exhaustive\n");}
         }
         else if(threadIdx.x == 0) {
           --remaining_depth;
@@ -950,7 +1246,14 @@ __global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_d
           size_t branch_idx = (block_data.subproblem_idx & (size_t{1} << remaining_depth)) >> remaining_depth;
           /** We immediately commit to the branch. */
           // printf("split on %d (", block_data.decisions[0].var.vid()); block_data.store->project(block_data.decisions[0].var).print(); printf(")\n");
-          block_data.store->embed(block_data.decisions[0].var, block_data.decisions[0].children[branch_idx]);
+          /** The right child of a decision with a single child (`push_decision`) does not exist: the
+           * subproblems of this subtree are skipped, as those of a leaf. */
+          if(branch_idx == 1 && block_data.decisions[0].ropes[0] == block_data.decisions[0].ropes[1]) {
+            is_leaf_node = true;
+          }
+          else {
+            block_data.store->embed(block_data.decisions[0].var, block_data.decisions[0].children[branch_idx]);
+          }
         }
       }
       __syncthreads();
@@ -1013,14 +1316,19 @@ __global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_d
             }
           }
           __syncthreads();
-          block_data.split(has_changed, grid_data->search_strategies, config.epsilon);
+          /** `split` writes an untyped variable in `decisions[depth]` and pushes nothing when it finds no
+           * variable to branch on: the test must be on that slot, not on `decisions[depth - 1]` (the
+           * decision of the parent, already applied: `next()` would move it to its right child, and
+           * `decisions[-1]` at the root). Thread 0 increments `depth` only after a `__syncthreads()`. */
+          const int depth_before_branch = block_data.depth;
+          branch(*unified_data, *grid_data, block_data, has_changed);
           __syncthreads();
           // Split was not able to split a domain. It means that the search strategy is not complete due to unsplittable infinite domains.
           // We trigger backtracking, and set exhaustive to `false`.
-          if(block_data.decisions[block_data.depth - 1].var.is_untyped()) {
+          if(block_data.decisions[depth_before_branch].var.is_untyped()) {
             is_leaf_node = true;
             block_data.stats.exhaustive = false;
-            if(threadIdx.x == 0 && config.verbose_solving >= 1) { printf("%% WARNING: infinite element detected during branching, search is not exhaustive\n");}
+            if(threadIdx.x == 0 && config.verbose_solving >= 1) { printf("%% WARNING: nothing to branch on (a domain without finite bounds, or a box of width at most epsilon with -var_order input_order), search is not exhaustive\n");}
           }
           else if(threadIdx.x == 0) {
             // Apply the decision.
@@ -1075,6 +1383,8 @@ __global__ void gpu_fbarebones_solve(UnifiedData* unified_data, GridData* grid_d
           if(threadIdx.x == 0) {
             block_data.store->embed(block_data.decisions[block_data.depth - 1].var, block_data.decisions[block_data.depth - 1].next());
             // printf("right decision: %d [", block_data.decisions[block_data.depth - 1].var.vid()); block_data.decisions[block_data.depth - 1].current().print(); printf("]\n");
+            /** The path of the right child has the decisions `0..depth-1` (`uass.hpp`). */
+            uass::backtrack(block_data);
             block_data.current_strategy = block_data.snapshot_root_strategy;
             block_data.next_unassigned_var = block_data.snapshot_next_unassigned_var;
           }
@@ -1216,6 +1526,63 @@ void back_propagation(BlockData& block_data) {
   // cudaDeviceSynchronize();
 }
 
+/** One symbolic round of `-jet_symbolic` on the store of the block, by all its threads, with the
+ * forms stored in the layout `layout` (`-jet_sym_layout`), and the hidden neurons clipping the inputs
+ * if `hidden_clipping` (`-jet_sym_clip_hidden`).
+ * \return `true` in every thread if the store changed. */
+__device__ bool symbolic_round(const SymbolicModel& sym, BlockData& block_data, int layout, bool hidden_clipping) {
+  jet::BlockGroup group;
+  PirNeuronsAccess access{*block_data.store, sym.post.data(), sym.pre.data()};
+  const bool changed = jet::symbolic::pass<bound_type>(group, sym.net, sym.prop, access,
+    block_data.sym_forms.data(), layout, hidden_clipping);
+  return __syncthreads_or(changed) != 0;
+}
+
+/** `fwarp_fixpoint` of lala-core with `PIR::fdeduce_v2` (`-pir_fdeduce v2`) in place of `PIR::fdeduce`. */
+template <int TPB, class A>
+__device__ local::B fwarp_fixpoint_v2(A& a, int i, int* warp_iterations, const double epsilon) {
+  auto ded = a.load_deduce(i);
+  local::B has_changed = false;
+  __shared__ bool warp_changed[TPB/32];
+  int warp_id = threadIdx.x / 32;
+  warp_changed[warp_id] = true;
+  while(warp_changed[warp_id]) {
+    __syncwarp();
+    warp_changed[warp_id] = false;
+    __syncwarp();
+    if(a.fdeduce_v2(ded, epsilon)) {
+      has_changed = true;
+      /** If something changed, we continue to iterate only if we did not reach bot. */
+      if(!a.is_bot()) {
+        warp_changed[warp_id] = true;
+      }
+    }
+    if(threadIdx.x % 32 == 0) {
+      warp_iterations[warp_id]++;
+    }
+    __syncwarp();
+  }
+  return has_changed;
+}
+
+/** `p.fdeduce_v2(i, epsilon)` if `v2` and `P` has it, `p.fdeduce(i, epsilon)` otherwise. */
+template <class P>
+__device__ INLINE local::B fdeduce_selected(P& p, int i, const float epsilon, bool v2) {
+  if constexpr(has_fdeduce_v2<P>::value) {
+    if(v2) { return p.fdeduce_v2(i, epsilon); }
+  }
+  return p.fdeduce(i, epsilon);
+}
+
+/** `fwarp_fixpoint_v2` if `v2` and `P` has `fdeduce_v2`, `fwarp_fixpoint` otherwise. */
+template <int TPB, class P>
+__device__ INLINE local::B fwarp_fixpoint_selected(P& p, int i, int* warp_iterations, const double epsilon, bool v2) {
+  if constexpr(has_fdeduce_v2<P>::value) {
+    if(v2) { return fwarp_fixpoint_v2<TPB>(p, i, warp_iterations, epsilon); }
+  }
+  return fwarp_fixpoint<TPB>(p, i, warp_iterations, epsilon);
+}
+
 template <class FPEngine>
 __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data, BlockData& block_data,
    FPEngine& fp_engine, bool& stop, bool& has_changed, bool& is_leaf_node)
@@ -1238,45 +1605,67 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
 #else
   int num_active = fp_engine.num_active();
 #endif
-  switch(config.fixpoint) {
-    case FixpointKind::AC1: {
-      fp_iterations = fp_engine.fixpoint(
-#ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
-        iprop.num_deductions(),
-#endif
-        [&](int i){ return iprop.fdeduce(i, config.epsilon); },
-        [&](){ return iprop.is_bot(); });
-      if(threadIdx.x == 0) {
-        block_data.stats.num_deductions += fp_iterations * num_active;
-      }
-      break;
-    }
-    case FixpointKind::WAC1: {
-      if(num_active <= config.wac1_threshold) {
-        fp_iterations = fp_engine.fixpoint(
-#ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
-        iprop.num_deductions(),
-#endif
-          [&](int i){ return iprop.fdeduce(i, config.epsilon); },
-          [&](){ return iprop.is_bot(); });
-        if(threadIdx.x == 0) {
-          block_data.stats.num_deductions += fp_iterations * num_active;
-        }
-      }
-      else {
-        fp_iterations = fp_engine.fixpoint(
+  /** The deduction of one bytecode, `PIR::fdeduce` or `PIR::fdeduce_v2` (`-pir_fdeduce`): the same
+   * results bitwise, `fdeduce_v2` with less floating-point work. The choice is the same for all the
+   * threads, so the branch does not diverge. */
+  const bool use_fdeduce_v2 = has_fdeduce_v2<FProp>::value && (config.pir_fdeduce == 2);
+  auto deduce = [&](int i) { return fdeduce_selected(iprop, i, config.epsilon, use_fdeduce_v2); };
+  /** The fixpoint of the bytecodes, as a function so that it can be resumed after a symbolic round. */
+  auto run_fixpoint = [&]() {
+    int its = 0;
+    switch(config.fixpoint) {
+      case FixpointKind::AC1: {
+        its = fp_engine.fixpoint(
 #ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
           iprop.num_deductions(),
 #endif
-          [&](int i){ return fwarp_fixpoint<CUDA_THREADS_PER_BLOCK>(iprop, i, warp_iterations, config.epsilon); },
+          deduce,
           [&](){ return iprop.is_bot(); });
         if(threadIdx.x == 0) {
-          for(int i = 0; i < CUDA_THREADS_PER_BLOCK/32; ++i) {
-            block_data.stats.num_deductions += warp_iterations[i] * 32;
+          block_data.stats.num_deductions += its * num_active;
+        }
+        break;
+      }
+      case FixpointKind::WAC1: {
+        if(num_active <= config.wac1_threshold) {
+          its = fp_engine.fixpoint(
+#ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
+          iprop.num_deductions(),
+#endif
+            deduce,
+            [&](){ return iprop.is_bot(); });
+          if(threadIdx.x == 0) {
+            block_data.stats.num_deductions += its * num_active;
           }
         }
+        else {
+          its = fp_engine.fixpoint(
+#ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
+            iprop.num_deductions(),
+#endif
+            [&](int i){
+              return fwarp_fixpoint_selected<CUDA_THREADS_PER_BLOCK>(iprop, i, warp_iterations, config.epsilon, use_fdeduce_v2);
+            },
+            [&](){ return iprop.is_bot(); });
+          if(threadIdx.x == 0) {
+            for(int i = 0; i < CUDA_THREADS_PER_BLOCK/32; ++i) {
+              block_data.stats.num_deductions += warp_iterations[i] * 32;
+            }
+          }
+        }
+        break;
       }
-      break;
+    }
+    return its;
+  };
+  fp_iterations = run_fixpoint();
+  /** `-jet_symbolic`: alternate a symbolic round and the fixpoint of the bytecodes until the symbolic
+   * round changes nothing (or `-jet_sym_rounds` rounds when it is not 0), as `-arch jet` does. */
+  if(unified_data.sym != nullptr) {
+    for(int round = 0; !iprop.is_bot() && (config.jet_sym_rounds <= 0 || round < config.jet_sym_rounds); ++round) {
+      if(!symbolic_round(*unified_data.sym, block_data, config.jet_sym_layout, config.jet_sym_clip_hidden)) { break; }
+      warp_iterations[threadIdx.x / 32] = 0;
+      fp_iterations += run_fixpoint();
     }
   }
   TIMEPOINT(FIXPOINT);
@@ -1336,7 +1725,7 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
     // If is_bot() is true /\ all the widths != 0.0, then it is pruned by propagation, not underapproximation.
     is_leaf_node = true;
     if (threadIdx.x == 0) {
-      has_changed = block_data.is_uass;
+      has_changed = uass::is_uass(block_data);
     }
     __syncthreads();
     // for (int i = (int)group.thread_rank(); i < strat.vars.size(); i += group.num_threads()){
