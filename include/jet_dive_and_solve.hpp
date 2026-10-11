@@ -24,7 +24,6 @@
 #include "lala/vstore.hpp"
 #include "jet_affine_v2.hpp"
 #include "jet_symbolic.hpp"
-#include "jet_symbolic_map.hpp"
 #include "uass.hpp"
 #include "relu_split.hpp"
 
@@ -1315,14 +1314,8 @@ static bool read_float_tensor(const onnx::TensorProto& tensor, battery::vector<f
   return false;
 }
 
-/** Read the network of the ONNX file `config.onnx_path`.
- * When `origin` is given, it receives the nodes of the graph computing each layer, numbered as the
- * ONNX parser of lala-parsing does, so that `-arch fbarebones -jet_symbolic` can find the neurons
- * among the variables of its ternarized model (see `jet_symbolic_map.hpp`). It does not change the
- * network that is read. */
-Network parse_network(const Configuration<battery::standard_allocator>& config,
-  symbolic::NetworkOrigin* origin = nullptr)
-{
+/** Read the network of the ONNX file `config.onnx_path`. */
+Network parse_network(const Configuration<battery::standard_allocator>& config) {
   std::ifstream input(config.onnx_path.data(), std::ios::in | std::ios::binary);
   onnx::ModelProto network;
 
@@ -1365,15 +1358,6 @@ Network parse_network(const Configuration<battery::standard_allocator>& config,
   tensor_layer[graph_input.name()] = 0;
   total_neurons += static_cast<int>(input_dimensions);
 
-  /** The number given to the current node by the ONNX parser of lala-parsing: `0` is the input
-   * layer, and every node but `Constant` takes the next number, in the order of the graph. */
-  int node_id = 0;
-  if(origin != nullptr) {
-    *origin = symbolic::NetworkOrigin{};
-    origin->pre_node.push_back(0);
-    origin->post_node.push_back(0);
-  }
-
   /** Resolve the layer feeding a node: the first input that is a computed tensor (i.e. not an
    * initializer) and that we know. When the name is unknown we fall back to the layer added last,
    * which is what a chain would do; that only happens for graphs whose preprocessing we did not
@@ -1399,12 +1383,6 @@ Network parse_network(const Configuration<battery::standard_allocator>& config,
     }
 
     if (node.op_type() == "Constant") { continue; }
-    ++node_id;
-    if(origin != nullptr && graph.output_size() > 0 && node.output_size() > 0
-      && node.output()[0] == graph.output(0).name())
-    {
-      origin->output_node = node_id;
-    }
 
     // Whether the weight matrix of this node is stored transposed, i.e. `[out_features, in_features]`.
     bool transB = false;
@@ -1496,13 +1474,6 @@ Network parse_network(const Configuration<battery::standard_allocator>& config,
       layers.push_back(LayerInfo{LAYER_AFFINE, total_neurons, static_cast<int>(out_features),
         src, -1, weight_base, bias_base, 0});
       total_neurons += static_cast<int>(out_features);
-      if(origin != nullptr) {
-        if(node.op_type() != "MatMul" && node.op_type() != "Gemm") {
-          origin->reject("the node `" + node.op_type() + "` carries a weight matrix");
-        }
-        origin->pre_node.push_back(node_id);
-        origin->post_node.push_back(node_id);
-      }
       if(node.output_size() > 0) { tensor_layer[node.output()[0]] = static_cast<int>(layers.size()) - 1; }
     }
 
@@ -1532,19 +1503,6 @@ Network parse_network(const Configuration<battery::standard_allocator>& config,
       for(int k = 0; k < static_cast<int>(tmp_biases.size()); ++k) {
         biases[layers[target].bias_base + k] = tmp_biases[k];
       }
-      /** The node adding the bias computes the pre-activation of the layer from now on. */
-      if(origin != nullptr) {
-        if(!(node.op_type() == "Add" && weight_tensor == nullptr)
-          && !(node.op_type() == "Gemm" && weight_tensor != nullptr))
-        {
-          origin->reject("the node `" + node.op_type() + "` carries a bias");
-        }
-        if(origin->post_node[target] != origin->pre_node[target]) {
-          origin->reject("a bias is added after a ReLU");
-        }
-        origin->pre_node[target] = node_id;
-        origin->post_node[target] = node_id;
-      }
       if(node.output_size() > 0) { tensor_layer[node.output()[0]] = target; }
     }
 
@@ -1563,10 +1521,6 @@ Network parse_network(const Configuration<battery::standard_allocator>& config,
       }
       layers[target].has_relu = 1;
       if(node.output_size() > 0) { tensor_layer[node.output()[0]] = target; }
-      if(origin != nullptr) {
-        if(target == 0) { origin->reject("a ReLU is applied to the input"); }
-        else { origin->post_node[target] = node_id; }
-      }
       continue;
     }
 
@@ -1586,10 +1540,6 @@ Network parse_network(const Configuration<battery::standard_allocator>& config,
       }
       layers.push_back(LayerInfo{LAYER_ADD, total_neurons, layers[a].size, a, b, 0, 0, 0});
       total_neurons += layers[a].size;
-      if(origin != nullptr) {
-        origin->pre_node.push_back(node_id);
-        origin->post_node.push_back(node_id);
-      }
       if(node.output_size() > 0) { tensor_layer[node.output()[0]] = static_cast<int>(layers.size()) - 1; }
       continue;
     }

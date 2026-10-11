@@ -7,8 +7,6 @@
 #include "common_solving.hpp"
 #include "memory_gpu.hpp"
 #include "lala/light_branch.hpp"
-/** For `-jet_symbolic`: the network reader of JET and the symbolic pass (`jet_symbolic.hpp`). */
-#include "jet_dive_and_solve.hpp"
 /** For `-split_on relu`. */
 #include "relu_split.hpp"
 #include <mutex>
@@ -65,8 +63,6 @@ using GridCP = AbstractDomains<FItv,
   bt::statistics_allocator<UniqueLightAlloc<ConcurrentAllocator, 0>>,
   bt::statistics_allocator<UniqueLightAlloc<ConcurrentAllocator, 1>>>;
 
-struct SymbolicModel;
-
 /** Data shared between CPU and GPU. */
 struct UnifiedData {
   /** The root node of the problem, useful to backtrack when solving a new subproblem.
@@ -80,9 +76,6 @@ struct UnifiedData {
   /** The memory configuration of each block. */
   MemoryConfig mem_config;
 
-  /** The network and the variables of its neurons for `-jet_symbolic`, `nullptr` without it. */
-  SymbolicModel* sym;
-
   /** For `-split_on relu`: the variables `p` of the bytecodes `y = max(p, 0)`, in the order of the
    * bytecodes (`relu_pre_activations`). */
   bt::vector<int, ConcurrentAllocator> relu_pre;
@@ -91,7 +84,6 @@ struct UnifiedData {
    : root(GridCP::tag_gpu_block_copy{}, false, cp)
    , stop(false)
    , mem_config(mem_config)
-   , sym(nullptr)
    , relu_pre()
   {
     size_t num_subproblems = 1;
@@ -114,56 +106,6 @@ struct has_fdeduce_v2 : std::false_type {};
 
 template <class P>
 struct has_fdeduce_v2<P, std::void_t<decltype(std::declval<P&>().fdeduce_v2(0, 0.0f))>> : std::true_type {};
-
-/** The symbolic bounds of JET (design 2) on the ternarized model, with `-jet_symbolic`: see
- * `jet_symbolic.hpp` for the pass and `jet_symbolic_map.hpp` for how the network is matched with the
- * variables of the store. Read-only and in managed memory, it is shared by all the blocks; each block
- * only owns its forms (`BlockData::sym_forms`). */
-struct SymbolicModel {
-  /** The network, read a second time from the ONNX file by `jet::parse_network`. */
-  jet::Network net;
-  /** The comparisons `x - y <= 0` between neurons that the model enforces, for the input clipping. */
-  jet::Property prop;
-  /** The variable of each neuron of `net` in the store (after its ReLU, if any). */
-  bt::vector<int, ConcurrentAllocator> post;
-  /** The variable of the pre-activation of each neuron, `post[i]` for a neuron without ReLU. */
-  bt::vector<int, ConcurrentAllocator> pre;
-
-  SymbolicModel(jet::Network&& network, const bt::vector<jet::NeuronLeq>& leqs,
-    const std::vector<int>& post_vars, const std::vector<int>& pre_vars)
-   : net(std::move(network)), prop(leqs), post(post_vars.size()), pre(pre_vars.size())
-  {
-    for(size_t i = 0; i < post_vars.size(); ++i) {
-      post[i] = post_vars[i];
-      pre[i] = pre_vars[i];
-    }
-  }
-};
-
-/** The neurons of a `SymbolicModel` in the store `Store` of a block, as `jet::symbolic::pass` reads
- * and tightens them. Unlike the store of JET, the store has a variable for the pre-activation of every
- * ReLU (`pre_lb`, `pre_ub`, `meet_pre`), which the pass uses and tightens too. */
-template <class Store>
-struct PirNeuronsAccessT {
-  using local_itv = typename FItv::local_type;
-  Store& s;
-  const int* post;
-  const int* pre;
-  CUDA INLINE bound_type lb(int i) const { return s[post[i]].lb().value(); }
-  CUDA INLINE bound_type ub(int i) const { return s[post[i]].ub().value(); }
-  /** `embed` meets each bound only if it is strictly better, so a NaN bound is ignored. */
-  CUDA INLINE bool meet(int i, bound_type l, bound_type u) {
-    return s.embed(post[i], local_itv(typename local_itv::LB(l), typename local_itv::UB(u)));
-  }
-  CUDA INLINE bool fail(int i) { return s.embed(post[i], local_itv::bot()); }
-  CUDA INLINE bound_type pre_lb(int i) const { return s[pre[i]].lb().value(); }
-  CUDA INLINE bound_type pre_ub(int i) const { return s[pre[i]].ub().value(); }
-  CUDA INLINE bool meet_pre(int i, bound_type l, bound_type u) {
-    return s.embed(pre[i], local_itv(typename local_itv::LB(l), typename local_itv::UB(u)));
-  }
-};
-
-using PirNeuronsAccess = PirNeuronsAccessT<FStore>;
 
 /** Data private to a single block. */
 struct BlockData {
@@ -233,9 +175,6 @@ struct BlockData {
    * a point), -1 if there is none: a failure below it is counted in `unknowns` (see `uass.hpp`). */
   int uass_depth;
 
-  /** The symbolic forms of the neurons (`-jet_symbolic`), see `jet_symbolic.hpp`; empty otherwise. */
-  bt::vector<bound_type, bt::global_allocator> sym_forms;
-
   __device__ BlockData()
    : subproblem_idx(0)
    , current_strategy(0)
@@ -271,10 +210,6 @@ struct BlockData {
       // h_mid_gradients = h_gradients + num_h_gradients;
       // h_lb_gradients = h_mid_gradients + num_h_gradients;
       // h_ub_gradients = h_lb_gradients + num_h_gradients;
-      if(unified_data.sym != nullptr) {
-        sym_forms.resize(jet::symbolic::storage_size(unified_data.sym->net.num_neurons,
-          unified_data.sym->net.num_inputs()));
-      }
       uass::reset(*this);
     }
   }
@@ -793,8 +728,7 @@ struct GridData {
   {}
 };
 
-MemoryConfig configure_gpu_fbarebones(CP<FItv>&, size_t sym_bytes_per_block);
-bt::unique_ptr<SymbolicModel, ConcurrentAllocator> make_symbolic_model(const CP<FItv>& cp, std::string& why);
+MemoryConfig configure_gpu_fbarebones(CP<FItv>&);
 std::vector<int> relu_pre_activations(const CP<FItv>& cp);
 __global__ void initialize_global_data(UnifiedData*, bt::unique_ptr<GridData, bt::global_allocator>*);
 __global__ void gpu_fbarebones_solve(UnifiedData*, GridData*);
@@ -846,20 +780,10 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
     cp.config.pir_fdeduce = 1;
   }
 
-  /** `-jet_symbolic`: the symbolic bounds of JET, alternated with the fixpoint of the bytecodes. */
-  bt::unique_ptr<SymbolicModel, ConcurrentAllocator> sym_model;
-  size_t sym_bytes_per_block = 0;
+  /** The symbolic bounds (`-jet_symbolic`, `jet_symbolic.hpp`) are computed by `-arch jet` only. */
   if(cp.config.jet_symbolic) {
-    std::string why;
-    sym_model = make_symbolic_model(cp, why);
-    if(sym_model.get() == nullptr) {
-      printf("%% WARNING: -jet_symbolic is disabled: %s.\n", why.c_str());
-      cp.config.jet_symbolic = false;
-    }
-    else {
-      sym_bytes_per_block = jet::symbolic::storage_size(sym_model->net.num_neurons,
-        sym_model->net.num_inputs()) * sizeof(bound_type);
-    }
+    printf("%% WARNING: -jet_symbolic is only supported by -arch jet, it is ignored.\n");
+    cp.config.jet_symbolic = false;
   }
 
   /** `-split_on relu`: the pre-activations of the ReLUs of the model. */
@@ -890,9 +814,8 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
     }
   }
 
-  MemoryConfig mem_config = configure_gpu_fbarebones(cp, sym_bytes_per_block);
+  MemoryConfig mem_config = configure_gpu_fbarebones(cp);
   auto unified_data = bt::make_unique<UnifiedData, ConcurrentAllocator>(cp, mem_config);
-  unified_data->sym = sym_model.get();
   unified_data->relu_pre.resize(relu_pre.size());
   for(size_t i = 0; i < relu_pre.size(); ++i) {
     unified_data->relu_pre[i] = relu_pre[i];
@@ -956,7 +879,7 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
  * 4) Increase the global heap memory.
  * 5) Increase the stack size if requested by the user.
  */
-MemoryConfig configure_gpu_fbarebones(CP<FItv>& cp, size_t sym_bytes_per_block) {
+MemoryConfig configure_gpu_fbarebones(CP<FItv>& cp) {
   auto& config = cp.config;
 
   /** I. Number of blocks per SM. */
@@ -999,11 +922,6 @@ MemoryConfig configure_gpu_fbarebones(CP<FItv>& cp, size_t sym_bytes_per_block) 
     + cp.iprop->num_deductions() * size_t{4} * gpu_sizeof<bound_type>()  // fixpoint engine
     // + gradient_bytes
     + (gpu_sizeof<bound_type>() + gpu_sizeof<LightBranch<FItv>>()) * size_t{MAX_SEARCH_DEPTH};
-  /** The symbolic forms of `-jet_symbolic`, one copy per block. */
-  if(sym_bytes_per_block > 0) {
-    mem_per_block += sym_bytes_per_block;
-    cp.stats.print_memory_statistics(cp.config.verbose_solving, "jet_symbolic_bytes_per_block", sym_bytes_per_block);
-  }
   // size_t estimated_global_mem = gpu_sizeof<UnifiedData>() + store_bytes * size_t{5} + iprop_bytes + gradient_bytes +
   //   gpu_sizeof<GridData>();
   size_t estimated_global_mem = gpu_sizeof<UnifiedData>() + store_bytes * size_t{5} + iprop_bytes +
@@ -1044,72 +962,6 @@ MemoryConfig configure_gpu_fbarebones(CP<FItv>& cp, size_t sym_bytes_per_block) 
   }
   mem_config.print_mzn_statistics(config, cp.stats);
   return mem_config;
-}
-
-/** Build the model of `-jet_symbolic` for the ternarized model of `cp` (see `jet_symbolic_map.hpp`):
- * read the network again with `jet::parse_network`, find the variables of its neurons in `cp`, check
- * on random points that the bytecodes compute that network, and collect the comparisons between
- * neurons enforced by the bytecodes. Return `nullptr`, with the reason in `why`, if any step fails;
- * the symbolic bounds are then not used, since they could be unsound for the model being solved. */
-bt::unique_ptr<SymbolicModel, ConcurrentAllocator> make_symbolic_model(const CP<FItv>& cp, std::string& why) {
-  namespace sym = jet::symbolic;
-  using model_ptr = bt::unique_ptr<SymbolicModel, ConcurrentAllocator>;
-  sym::NetworkOrigin origin;
-  jet::Network net = jet::parse_network(cp.config, &origin);
-  if(net.empty()) {
-    why = "the ONNX file could not be read as a network of affine, ReLU and residual layers";
-    return model_ptr();
-  }
-  const auto& store = *cp.store;
-  std::vector<int> post;
-  std::vector<int> pre;
-  if(!sym::map_variables(net, origin, cp.env, store.aty(), post, pre, why)) {
-    return model_ptr();
-  }
-
-  /** The constants of the model: the variables with a single value at the root, except the neurons,
-   * since the check gives them other values. */
-  const int num_vars = store.vars();
-  std::vector<char> is_neuron(static_cast<size_t>(num_vars), 0);
-  for(int t = 0; t < net.num_neurons; ++t) {
-    is_neuron[post[t]] = 1;
-    is_neuron[pre[t]] = 1;
-  }
-  std::vector<char> is_constant(static_cast<size_t>(num_vars), 0);
-  std::vector<double> value(static_cast<size_t>(num_vars), 0.0);
-  for(int v = 0; v < num_vars; ++v) {
-    const auto& d = store[v];
-    if(!is_neuron[v] && !d.lb().is_top() && !d.ub().is_top() && d.lb().value() == d.ub().value()) {
-      is_constant[v] = 1;
-      value[v] = static_cast<double>(d.lb().value());
-    }
-  }
-  if(!sym::check_network(net, *cp.iprop, is_constant, value, post, pre, why)) {
-    return model_ptr();
-  }
-
-  /** The comparisons between neurons, also through the variables equal to a neuron. */
-  std::vector<int> neuron_of_var(static_cast<size_t>(num_vars), -1);
-  for(int t = 0; t < net.num_neurons; ++t) { neuron_of_var[post[t]] = t; }
-  sym::extend_through_equalities(*cp.iprop, is_constant, value, neuron_of_var);
-  std::vector<sym::NeuronComparison> comparisons =
-    sym::comparisons_of_tnf(*cp.iprop, is_constant, value, neuron_of_var);
-  std::sort(comparisons.begin(), comparisons.end(), [](const auto& a, const auto& b) {
-    return a.x < b.x || (a.x == b.x && a.y < b.y); });
-  comparisons.erase(std::unique(comparisons.begin(), comparisons.end(), [](const auto& a, const auto& b) {
-    return a.x == b.x && a.y == b.y; }), comparisons.end());
-  bt::vector<jet::NeuronLeq> leqs;
-  for(const auto& c : comparisons) { leqs.push_back(jet::NeuronLeq{c.x, c.y, 0.0f}); }
-
-  cp.stats.print_stat("jet_symbolic_neurons", net.num_neurons);
-  cp.stats.print_stat("jet_symbolic_layers", net.num_layers());
-  cp.stats.print_stat("jet_symbolic_comparisons", static_cast<int>(leqs.size()));
-  if(cp.config.verbose_solving >= 1) {
-    printf("%% -jet_symbolic: the %d neurons of the network are matched with the variables of the model"
-      " (%d comparisons between neurons for the input clipping).\n", net.num_neurons, static_cast<int>(leqs.size()));
-    net.print();
-  }
-  return bt::make_unique<SymbolicModel, ConcurrentAllocator>(std::move(net), leqs, post, pre);
 }
 
 /** For `-split_on relu`: the variables `p` of the ReLUs of the ternarized model, the bytecodes
@@ -1526,18 +1378,6 @@ void back_propagation(BlockData& block_data) {
   // cudaDeviceSynchronize();
 }
 
-/** One symbolic round of `-jet_symbolic` on the store of the block, by all its threads, with the
- * forms stored in the layout `layout` (`-jet_sym_layout`), and the hidden neurons clipping the inputs
- * if `hidden_clipping` (`-jet_sym_clip_hidden`).
- * \return `true` in every thread if the store changed. */
-__device__ bool symbolic_round(const SymbolicModel& sym, BlockData& block_data, int layout, bool hidden_clipping) {
-  jet::BlockGroup group;
-  PirNeuronsAccess access{*block_data.store, sym.post.data(), sym.pre.data()};
-  const bool changed = jet::symbolic::pass<bound_type>(group, sym.net, sym.prop, access,
-    block_data.sym_forms.data(), layout, hidden_clipping);
-  return __syncthreads_or(changed) != 0;
-}
-
 /** `fwarp_fixpoint` of lala-core with `PIR::fdeduce_v2` (`-pir_fdeduce v2`) in place of `PIR::fdeduce`. */
 template <int TPB, class A>
 __device__ local::B fwarp_fixpoint_v2(A& a, int i, int* warp_iterations, const double epsilon) {
@@ -1610,7 +1450,7 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
    * threads, so the branch does not diverge. */
   const bool use_fdeduce_v2 = has_fdeduce_v2<FProp>::value && (config.pir_fdeduce == 2);
   auto deduce = [&](int i) { return fdeduce_selected(iprop, i, config.epsilon, use_fdeduce_v2); };
-  /** The fixpoint of the bytecodes, as a function so that it can be resumed after a symbolic round. */
+  /** The fixpoint of the bytecodes. */
   auto run_fixpoint = [&]() {
     int its = 0;
     switch(config.fixpoint) {
@@ -1659,15 +1499,6 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
     return its;
   };
   fp_iterations = run_fixpoint();
-  /** `-jet_symbolic`: alternate a symbolic round and the fixpoint of the bytecodes until the symbolic
-   * round changes nothing (or `-jet_sym_rounds` rounds when it is not 0), as `-arch jet` does. */
-  if(unified_data.sym != nullptr) {
-    for(int round = 0; !iprop.is_bot() && (config.jet_sym_rounds <= 0 || round < config.jet_sym_rounds); ++round) {
-      if(!symbolic_round(*unified_data.sym, block_data, config.jet_sym_layout, config.jet_sym_clip_hidden)) { break; }
-      warp_iterations[threadIdx.x / 32] = 0;
-      fp_iterations += run_fixpoint();
-    }
-  }
   TIMEPOINT(FIXPOINT);
 
   const auto current_strat = block_data.current_strategy;

@@ -78,12 +78,12 @@ struct Configuration {
   battery::string<allocator_type> hardware;
   /** JET only: version of the deduction of the affine neurons (1: original, 2: `jet_affine_v2.hpp`). */
   int jet_affine;
-  /** JET and fbarebones: alternate the interval fixpoint with symbolic rounds (`jet_symbolic.hpp`;
-   * `jet_symbolic_map.hpp` for fbarebones). */
+  /** JET only: alternate the interval fixpoint with symbolic rounds (`jet_symbolic.hpp`); fbarebones
+   * ignores it with a warning. */
   bool jet_symbolic;
-  /** JET and fbarebones: maximum number of symbolic rounds per node, 0 for "until nothing changes". */
+  /** JET only: maximum number of symbolic rounds per node, 0 for "until nothing changes". */
   int jet_sym_rounds;
-  /** JET and fbarebones: memory layout of the symbolic forms (0: neuron-major, 1: slot-major, coalesced). */
+  /** JET only: memory layout of the symbolic forms (0: neuron-major, 1: slot-major, coalesced). */
   int jet_sym_layout;
   /** fbarebones only: deduction of the bytecodes (1: `PIR::fdeduce`, 2: `PIR::fdeduce_v2`, bitwise the same results). */
   int pir_fdeduce;
@@ -98,7 +98,7 @@ struct Configuration {
    * (`RELU_LEAF_INPUT`: the input split, down to boxes of width at most `epsilon` and their
    * underapproximation, `RELU_LEAF_POINT`: the inputs fixed to points at once), see `relu_split.hpp`. */
   int relu_leaf;
-  /** JET and fbarebones, with `jet_symbolic`: also clip the inputs with the forms of the hidden neurons
+  /** JET only, with `jet_symbolic`: also clip the inputs with the forms of the hidden neurons
    * (`jet_symbolic.hpp`, `clip_hidden`). */
   bool jet_sym_clip_hidden;
 
@@ -295,7 +295,7 @@ struct Configuration {
     if(arch == Arch::JET) {
       printf("-jet_affine v%d ", jet_affine);
     }
-    if((arch == Arch::JET || arch == Arch::FBAREBONES) && jet_symbolic) {
+    if(arch == Arch::JET && jet_symbolic) {
       printf("-jet_symbolic -jet_sym_rounds %d -jet_sym_layout %s ", jet_sym_rounds, jet_sym_layout == 0 ? "neuron" : "slot");
       if(jet_sym_clip_hidden) { printf("-jet_sym_clip_hidden "); }
     }
@@ -360,12 +360,12 @@ struct Configuration {
     printf("%%%%%%nnv-stat: epsilon=\"%.10f\"\n", epsilon);
     if(arch == Arch::JET) {
       printf("%%%%%%nnv-stat: jet_affine=\"v%d\"\n", jet_affine);
-    }
-    if(arch == Arch::JET || arch == Arch::FBAREBONES) {
       printf("%%%%%%nnv-stat: jet_symbolic=\"%s\"\n", jet_symbolic ? "yes" : "no");
       printf("%%%%%%nnv-stat: jet_sym_rounds=%d\n", jet_sym_rounds);
       printf("%%%%%%nnv-stat: jet_sym_layout=\"%s\"\n", jet_sym_layout == 0 ? "neuron" : "slot");
       printf("%%%%%%nnv-stat: jet_sym_clip_hidden=\"%s\"\n", jet_sym_clip_hidden ? "yes" : "no");
+    }
+    if(arch == Arch::JET || arch == Arch::FBAREBONES) {
       printf("%%%%%%nnv-stat: split_on=\"%s\"\n", split_on == SPLIT_ON_RELU ? "relu" : "input");
       printf("%%%%%%nnv-stat: relu_order=\"%s\"\n", relu_order == RELU_ORDER_WIDEST ? "widest" : "earliest");
       printf("%%%%%%nnv-stat: relu_leaf=\"%s\"\n", relu_leaf == RELU_LEAF_POINT ? "point" : "input");

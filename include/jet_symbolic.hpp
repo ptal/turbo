@@ -3,8 +3,6 @@
 #ifndef TURBO_JET_SYMBOLIC_HPP
 #define TURBO_JET_SYMBOLIC_HPP
 
-#include <type_traits>
-#include <utility>
 #include "battery/utility.hpp"
 
 /** Symbolic bounds of JET (design 2), enabled with `-jet_symbolic`.
@@ -31,8 +29,7 @@
  *   4. meet the bounds of the neuron into the store.
  * With `clip_hidden` (`-jet_sym_clip_hidden`), it also clips the input box, during step 3, with the
  * forms of every hidden neuron whose bounds come from elsewhere than its forms and are tighter (the
- * interval deduction, the phase of a ReLU split, the variable of the pre-activation): see
- * `clip_hidden`.
+ * interval deduction, the phase of a ReLU split): see `clip_hidden`.
  * Then it clips the input box with every bounded output neuron and every comparison of the
  * property, with the closed form of the relaxed clipping of Clip-and-Verify (Theorem 3.2,
  * `_clip_main_fn` of `complete_verifier/input_split/clip.py` in alpha-beta-CROWN) applied to these
@@ -94,11 +91,7 @@
  *   * `Net` is a `FastNNReluNetwork` (fields `layers`, `weights`, `biases`, `output_layer`,
  *     `num_neurons`, methods `num_inputs()`, `num_layers()`);
  *   * `Prop` is a `FastProperty` (`size()`, `leqs[i].x`, `.y`, `.k`);
- *   * `Access` is `FastNNRelu::NeuronsAccess` (`lb`, `ub`, `meet`, `fail`). An access may also
- *     provide the pre-activation of the ReLU neurons as separate variables (`pre_lb`, `pre_ub`,
- *     `meet_pre`, detected by `has_pre_activation`), as the ternarized model of `-arch fbarebones`
- *     does (`y = max(p, 0)` with its own variable `p`): the pass then also uses and tightens them.
- *     JET stores only `y`, and its code is unchanged.
+ *   * `Access` is `FastNNRelu::NeuronsAccess` (`lb`, `ub`, `meet`, `fail`).
  */
 namespace jet {
 namespace symbolic {
@@ -111,14 +104,6 @@ constexpr int KIND_ADD = 2;
 /** Values of `-jet_sym_layout`. */
 constexpr int LAYOUT_NEURON = 0;
 constexpr int LAYOUT_SLOT = 1;
-
-/** Whether `Access` has the pre-activation of the ReLU neurons (`pre_lb`, `pre_ub`, `meet_pre`). */
-template <class Access, class = void>
-struct has_pre_activation : std::false_type {};
-
-template <class Access>
-struct has_pre_activation<Access, std::void_t<decltype(std::declval<const Access&>().pre_lb(0))>>
-  : std::true_type {};
 
 CUDA INLINE constexpr int form_size(int n0) { return 2 * n0 + 2; }
 CUDA INLINE constexpr int neuron_stride(int n0) { return 2 * form_size(n0); }
@@ -376,7 +361,7 @@ CUDA INLINE bool clip_inputs(const Coef& coef, T const_min, T rhs, int n0, Acces
 
 /** Clip the inputs with  Low(x) <= v_ub  and  -Up(x) <= -v_lb  (`-jet_sym_clip_hidden`), where `lower`
  * and `upper` are the forms of a value with bounds `[v_lb, v_ub]` that may come from elsewhere than
- * the forms (the pre-activation of a ReLU: the deduction of the store, a ReLU split, its own variable).
+ * the forms (the pre-activation of a ReLU: the deduction of the store, a ReLU split).
  * A constraint is skipped when its bound is not tighter than the concretization of the forms
  * (`form_lb`, `form_ub`), since it then holds on the whole box (`max Low <= max Up <= form_ub`).
  * \return `true` if an input changed. */
@@ -467,19 +452,11 @@ CUDA bool pass(Group& group, const Net& net, const Prop& prop, Access& neurons, 
       T p_lb = form_lb;
       T p_ub = battery::min(form_ub, neurons.ub(target));
       if(neurons.lb(target) > T{0}) { p_lb = battery::max(p_lb, neurons.lb(target)); }
-      /** The bounds of `p` itself, when the model has a variable for it. */
-      if constexpr(has_pre_activation<Access>::value) {
-        p_lb = battery::max(p_lb, neurons.pre_lb(target));
-        p_ub = battery::min(p_ub, neurons.pre_ub(target));
-      }
       if(p_lb > p_ub) {
         changed |= neurons.fail(target);
         set_const(lower, n0, T{0}, T{0});
         set_const(upper, n0, T{0}, T{0});
         continue;
-      }
-      if constexpr(has_pre_activation<Access>::value) {
-        changed |= neurons.meet_pre(target, p_lb, p_ub);
       }
       /** The forms of `p`, before they become those of `y`. */
       if(hidden_clipping) {

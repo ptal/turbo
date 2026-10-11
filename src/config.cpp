@@ -28,7 +28,7 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-jet_affine <v1|v2>: Deduction of the affine neurons with -arch jet (default: v1):" << std::endl;
   std::cout << "\t\t v1: The original propagator of JET." << std::endl;
   std::cout << "\t\t v2: Same projection with less arithmetic, and the backward pass skipped when no term can be tightened (see include/jet_affine_v2.hpp)." << std::endl;
-  std::cout << "\t-jet_symbolic: With -arch jet or fbarebones, alternate the interval fixpoint with symbolic rounds: affine bounds over the inputs, DeepPoly ReLU relaxation and input clipping (see include/jet_symbolic.hpp). With -arch fbarebones, the neurons are found among the variables of the ternarized model by their name, which requires -disable_simplify, and the bytecodes are checked to compute the network (see include/jet_symbolic_map.hpp)." << std::endl;
+  std::cout << "\t-jet_symbolic: With -arch jet, alternate the interval fixpoint with symbolic rounds: affine bounds over the inputs, DeepPoly ReLU relaxation and input clipping (see include/jet_symbolic.hpp). With -arch fbarebones, it is ignored with a warning." << std::endl;
   std::cout << "\t-jet_sym_rounds 0: Maximum number of symbolic rounds per search node, 0 to continue until a round changes nothing (default: 0)." << std::endl;
   std::cout << "\t-jet_sym_layout <slot|neuron>: Memory layout of the symbolic forms of -jet_symbolic, both give the same results (default: slot):" << std::endl;
   std::cout << "\t\t slot: A slot of all the neurons is contiguous, so that the threads of a warp access consecutive addresses." << std::endl;
