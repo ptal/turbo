@@ -34,6 +34,14 @@ constexpr int RELU_ORDER_EARLIEST = 0;
 constexpr int RELU_ORDER_WIDEST = 1;
 constexpr int RELU_LEAF_INPUT = 0;
 constexpr int RELU_LEAF_POINT = 1;
+/** Values of `Configuration::jet_interval_prop` (`-jet_interval_prop`). */
+constexpr int JET_INTERVAL_FIXPOINT = 0;
+constexpr int JET_INTERVAL_FORWARD = 1;
+constexpr int JET_INTERVAL_FORWARD_BACKWARD = 2;
+/** The name of a value of `Configuration::jet_interval_prop`, as `-jet_interval_prop` reads it. */
+CUDA inline const char* name_of_jet_interval_prop(int p) {
+  return p == JET_INTERVAL_FORWARD ? "forward" : (p == JET_INTERVAL_FORWARD_BACKWARD ? "forward_backward" : "fixpoint");
+}
 
 enum class InputFormat {
   XCSP3,
@@ -101,6 +109,24 @@ struct Configuration {
   /** JET only, with `jet_symbolic`: also clip the inputs with the forms of the hidden neurons
    * (`jet_symbolic.hpp`, `clip_hidden`). */
   bool jet_sym_clip_hidden;
+  /** JET only, with `jet_symbolic`: the symbolic rounds are done on the root node only, once before the
+   * search (`gpu_root_symbolic`); the nodes of the search run the interval fixpoint only. */
+  bool jet_sym_root_only;
+  /** JET only, with `jet_symbolic` and `jet_sym_rounds > 0`: no interval propagation after the last
+   * symbolic round (`node_fixpoint`), e.g. with `jet_sym_rounds = 1`, a node is the interval
+   * propagation, then one symbolic round (forms and clipping), and nothing more. */
+  bool jet_sym_skip_final_interval;
+  /** JET and fbarebones: forward propagation only. The deductions of the neurons project from a layer
+   * onto the next ones and never tighten the neurons they read (`affine_v2::deduce`, `deduce_neuron`,
+   * `deduce_add`; the directed bytecodes of `fbarebones_forward.hpp`), and the symbolic rounds clip
+   * nothing (`symbolic::pass`). With JET, it implies `jet_interval_prop` forward. */
+  bool forward_only;
+  /** JET only: the interval propagation (`-jet_interval_prop`). `JET_INTERVAL_FIXPOINT`: the deductions
+   * of the neurons project forward and backward. `JET_INTERVAL_FORWARD`: forward only, as with
+   * `forward_only`, but the symbolic rounds of `jet_symbolic` still clip. `JET_INTERVAL_FORWARD_BACKWARD`:
+   * no fixpoint, one forward sweep (layers in order, forward projections only), the comparisons of the
+   * property once, then one backward sweep (layers in reverse order, forward and backward projections). */
+  int jet_interval_prop;
 
   CUDA Configuration(const allocator_type& alloc = allocator_type{}):
     print_intermediate_solutions(false),
@@ -159,7 +185,11 @@ struct Configuration {
     split_on(SPLIT_ON_INPUT),
     relu_order(RELU_ORDER_EARLIEST),
     relu_leaf(RELU_LEAF_INPUT),
-    jet_sym_clip_hidden(false)
+    jet_sym_clip_hidden(false),
+    jet_sym_root_only(false),
+    jet_sym_skip_final_interval(false),
+    forward_only(false),
+    jet_interval_prop(JET_INTERVAL_FIXPOINT)
   {}
 
   Configuration(Configuration<allocator_type>&&) = default;
@@ -205,7 +235,11 @@ struct Configuration {
     split_on(other.split_on),
     relu_order(other.relu_order),
     relu_leaf(other.relu_leaf),
-    jet_sym_clip_hidden(other.jet_sym_clip_hidden)
+    jet_sym_clip_hidden(other.jet_sym_clip_hidden),
+    jet_sym_root_only(other.jet_sym_root_only),
+    jet_sym_skip_final_interval(other.jet_sym_skip_final_interval),
+    forward_only(other.forward_only),
+    jet_interval_prop(other.jet_interval_prop)
   {}
 
   template <class Alloc2>
@@ -249,6 +283,10 @@ struct Configuration {
     relu_order = other.relu_order;
     relu_leaf = other.relu_leaf;
     jet_sym_clip_hidden = other.jet_sym_clip_hidden;
+    jet_sym_root_only = other.jet_sym_root_only;
+    jet_sym_skip_final_interval = other.jet_sym_skip_final_interval;
+    forward_only = other.forward_only;
+    jet_interval_prop = other.jet_interval_prop;
   }
 
   CUDA void print_commandline(const char* program_name) {
@@ -294,10 +332,16 @@ struct Configuration {
     printf("-cutnodes %" PRIu64 " ", stop_after_n_nodes == std::numeric_limits<size_t>::max() ? 0 : stop_after_n_nodes);
     if(arch == Arch::JET) {
       printf("-jet_affine v%d ", jet_affine);
+      printf("-jet_interval_prop %s ", name_of_jet_interval_prop(jet_interval_prop));
     }
     if(arch == Arch::JET && jet_symbolic) {
       printf("-jet_symbolic -jet_sym_rounds %d -jet_sym_layout %s ", jet_sym_rounds, jet_sym_layout == 0 ? "neuron" : "slot");
       if(jet_sym_clip_hidden) { printf("-jet_sym_clip_hidden "); }
+      if(jet_sym_root_only) { printf("-jet_sym_root_only "); }
+      if(jet_sym_skip_final_interval) { printf("-jet_sym_skip_final_interval "); }
+    }
+    if((arch == Arch::JET || arch == Arch::FBAREBONES) && forward_only) {
+      printf("-forward_only ");
     }
     if(arch == Arch::JET || arch == Arch::FBAREBONES) {
       printf("-split_on %s ", split_on == SPLIT_ON_RELU ? "relu" : "input");
@@ -360,12 +404,16 @@ struct Configuration {
     printf("%%%%%%nnv-stat: epsilon=\"%.10f\"\n", epsilon);
     if(arch == Arch::JET) {
       printf("%%%%%%nnv-stat: jet_affine=\"v%d\"\n", jet_affine);
+      printf("%%%%%%nnv-stat: jet_interval_prop=\"%s\"\n", name_of_jet_interval_prop(jet_interval_prop));
       printf("%%%%%%nnv-stat: jet_symbolic=\"%s\"\n", jet_symbolic ? "yes" : "no");
       printf("%%%%%%nnv-stat: jet_sym_rounds=%d\n", jet_sym_rounds);
       printf("%%%%%%nnv-stat: jet_sym_layout=\"%s\"\n", jet_sym_layout == 0 ? "neuron" : "slot");
       printf("%%%%%%nnv-stat: jet_sym_clip_hidden=\"%s\"\n", jet_sym_clip_hidden ? "yes" : "no");
+      printf("%%%%%%nnv-stat: jet_sym_root_only=\"%s\"\n", jet_sym_root_only ? "yes" : "no");
+      printf("%%%%%%nnv-stat: jet_sym_skip_final_interval=\"%s\"\n", jet_sym_skip_final_interval ? "yes" : "no");
     }
     if(arch == Arch::JET || arch == Arch::FBAREBONES) {
+      printf("%%%%%%nnv-stat: forward_only=\"%s\"\n", forward_only ? "yes" : "no");
       printf("%%%%%%nnv-stat: split_on=\"%s\"\n", split_on == SPLIT_ON_RELU ? "relu" : "input");
       printf("%%%%%%nnv-stat: relu_order=\"%s\"\n", relu_order == RELU_ORDER_WIDEST ? "widest" : "earliest");
       printf("%%%%%%nnv-stat: relu_leaf=\"%s\"\n", relu_leaf == RELU_LEAF_POINT ? "point" : "input");

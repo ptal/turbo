@@ -30,8 +30,8 @@
  * With `clip_hidden` (`-jet_sym_clip_hidden`), it also clips the input box, during step 3, with the
  * forms of every hidden neuron whose bounds come from elsewhere than its forms and are tighter (the
  * interval deduction, the phase of a ReLU split): see `clip_hidden`.
- * Then it clips the input box with every bounded output neuron and every comparison of the
- * property, with the closed form of the relaxed clipping of Clip-and-Verify (Theorem 3.2,
+ * Then (unless `-forward_only`, see `pass`) it clips the input box with every bounded output neuron
+ * and every comparison of the property, with the closed form of the relaxed clipping of Clip-and-Verify (Theorem 3.2,
  * `_clip_main_fn` of `complete_verifier/input_split/clip.py` in alpha-beta-CROWN) applied to these
  * short constraints over the inputs:  Low_o(x) <= ub(o),  -Up_o(x) <= -lb(o),  Low_x(x) - Up_y(x) <= k.
  * Unlike Clip-and-Verify, the forms are composed forward (above), not by back-substitution, and the
@@ -385,16 +385,35 @@ CUDA INLINE bool clip_hidden(F lower, F upper, T form_lb, T form_ub, T v_lb, T v
   return changed;
 }
 
+/** A lower bound of  min_x Low_x(x) - Up_y(x)  over the input box, from the lower form `lower_x` of a
+ * neuron and the upper form `upper_y` of another: `-inf` when it is NaN or `+inf` (no bound), as
+ * `concretize_lb`. It is a lower bound of `x - y` for every point of the box. */
+template <class T, class F, class Access>
+CUDA INLINE T difference_lb(F lower_x, F upper_y, int n0, const Access& neurons) {
+  T sum = battery::sub_down<T>(lower_x[const_min_slot(n0)], upper_y[const_max_slot(n0)]);
+  for(int k = 0; k < n0; ++k) {
+    const T coef_min = battery::sub_down<T>(lower_x[coef_min_slot(k)], upper_y[coef_max_slot(n0, k)]);
+    const T coef_max = battery::sub_up<T>(lower_x[coef_max_slot(n0, k)], upper_y[coef_min_slot(k)]);
+    sum = battery::add_down<T>(sum, interval_product_min<T>(coef_min, coef_max, neurons.lb(k), neurons.ub(k)));
+  }
+  return (sum < battery::limits<T>::inf()) ? sum : battery::limits<T>::neg_inf();
+}
+
 /** One symbolic pass followed by input clipping, executed cooperatively by the threads of `group`.
  * `forms` is a layout (`NeuronMajor` or `SlotMajor`) over `storage_size(...)` values.
  * `hidden_clipping`: also clip the inputs with the hidden neurons (`clip_hidden`).
+ * `forward_only` (`-forward_only`): the forms only bound the neurons (steps 1-4); nothing is clipped,
+ * neither the inputs nor with the hidden neurons (`hidden_clipping` is ignored), and the comparisons
+ * `x - y <= k` of the property are only checked: the store fails if  min_x Low_x(x) - Up_y(x) > k
+ * (`difference_lb`). The bounds of the output neurons against the store are checked by their meet.
  * \return `true` (in at least one thread) if the store changed. */
 template <class T, class Layout, class Group, class Net, class Prop, class Access>
 CUDA bool pass(Group& group, const Net& net, const Prop& prop, Access& neurons, const Layout& forms,
-  bool hidden_clipping = false)
+  bool hidden_clipping = false, bool forward_only = false)
 {
   const int n0 = net.num_inputs();
   bool changed = false;
+  if(forward_only) { hidden_clipping = false; }
 
   /** 1-4: forms, concretization, ReLU relaxation and meet, layer by layer. */
   for(int l = 1; l < net.num_layers(); ++l) {
@@ -484,6 +503,19 @@ CUDA bool pass(Group& group, const Net& net, const Prop& prop, Access& neurons, 
     group.sync();
   }
 
+  /** `forward_only`: the comparisons of the property are checked, one per thread. */
+  if(forward_only) {
+    for(int q = group.rank(); q < prop.size(); q += group.size()) {
+      const auto& leq = prop.leqs[q];
+      if(leq.x < n0 || leq.y < n0) { continue; }  // comparisons on inputs are handled by the interval deduction.
+      if(difference_lb<T>(forms.lower(leq.x), forms.upper(leq.y), n0, neurons) > static_cast<T>(leq.k)) {
+        changed |= neurons.fail(leq.x);
+      }
+    }
+    group.sync();
+    return changed;
+  }
+
   /** Input clipping with the bounded output neurons and the comparisons of the property, one
    * constraint per thread (`clip_inputs` walks the inputs). */
   const auto& out_layer = net.layers[net.output_layer];
@@ -529,14 +561,14 @@ CUDA bool pass(Group& group, const Net& net, const Prop& prop, Access& neurons, 
  * for all the threads, so the branch does not diverge. */
 template <class T, class Group, class Net, class Prop, class Access>
 CUDA bool pass(Group& group, const Net& net, const Prop& prop, Access& neurons, T* data, int layout,
-  bool hidden_clipping = false)
+  bool hidden_clipping = false, bool forward_only = false)
 {
   const int n0 = net.num_inputs();
   if(layout == LAYOUT_NEURON) {
-    return pass<T>(group, net, prop, neurons, NeuronMajor<T>{data, n0}, hidden_clipping);
+    return pass<T>(group, net, prop, neurons, NeuronMajor<T>{data, n0}, hidden_clipping, forward_only);
   }
   return pass<T>(group, net, prop, neurons, SlotMajor<T>{data, n0, static_cast<size_t>(net.num_neurons - n0)},
-    hidden_clipping);
+    hidden_clipping, forward_only);
 }
 
 } // namespace symbolic

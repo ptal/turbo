@@ -58,10 +58,14 @@ CUDA INLINE void scalar_term(T w, T l, T u, T& tl, T& tu) {
  *     (an infinite bound means "no information"; a NaN bound must be ignored, as `LB::meet` does);
  *   * `bool fail(int i)`: make the neuron `i` empty, return `true`.
  * `WeightFn` is a callable `T W(int c)` returning the weight of the connection `c -> target`.
+ * With `backward == false` (`-forward_only`), only the forward projection is done (STEP 1 and 2): the
+ * neurons of the previous layer are never tightened.
  *
  * \return `true` if the store changed. */
 template <class T, class Neurons, class WeightFn>
-CUDA bool deduce(Neurons& neurons, const WeightFn& W, int prev_base, int fan_in, int target, T bias, bool has_relu) {
+CUDA bool deduce(Neurons& neurons, const WeightFn& W, int prev_base, int fan_in, int target, T bias, bool has_relu,
+  bool backward = true)
+{
   using RItv = lala::FInterval<T>;
   constexpr T inf = battery::limits<T>::inf();
   constexpr T neg_inf = battery::limits<T>::neg_inf();
@@ -94,7 +98,7 @@ CUDA bool deduce(Neurons& neurons, const WeightFn& W, int prev_base, int fan_in,
     pre = y;
   }
   bool has_changed = neurons.meet(target, y.lb().load(), y.ub().load());
-  if(pre.is_bot()) {
+  if(!backward || pre.is_bot()) {
     return has_changed;
   }
 

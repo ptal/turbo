@@ -287,10 +287,14 @@ struct FastNNRelu {
   /** Which deduction of the affine neurons is used: `1` is `deduce_neuron` below (default), `2`
    * is `affine_v2::deduce` (see `jet_affine_v2.hpp`). Selected with `-jet_affine <v1|v2>`. */
   int affine_version;
+  /** `-forward_only` or `-jet_interval_prop forward`: the deductions of the neurons only project
+   * forward, from a layer onto the next ones (the sum, the bias and the ReLU), and never tighten the
+   * neurons they read. */
+  bool forward_only;
 
   CUDA FastNNRelu(const network_type* net, const property_type* prop, abstract_ptr<NStore> store,
-    int affine_version = 1)
-   : net(net), prop(prop), store(store), affine_version(affine_version)
+    int affine_version = 1, bool forward_only = false)
+   : net(net), prop(prop), store(store), affine_version(affine_version), forward_only(forward_only)
   {}
 
 public:
@@ -308,8 +312,9 @@ public:
   // whether a ReLU applies; a residual layer is handled by `deduce_add` instead.
   /** Deduction of one neuron `j` of a residual layer \f$ target = src0_j + src1_j \f$.
    * `tell::fadd` does the forward projection and both backward ones in a single call, so the sum
-   * narrows the target and the target narrows the two branches. */
-  CUDA bool deduce_add(const LayerInfo& L, int target, int j) {
+   * narrows the target and the target narrows the two branches. With `fwd_only` (`forward_only`, or
+   * the forward sweep of `-jet_interval_prop forward_backward`), the two branches are left as they are. */
+  CUDA bool deduce_add(const LayerInfo& L, int target, int j, bool fwd_only) {
     using bound_type = typename FItv::LB::value_type;
     using RItv = FInterval<bound_type>;
     using local_itv = typename FItv::local_type;
@@ -343,6 +348,9 @@ public:
         local_itv(typename local_itv::LB(t.lb().load()),
                   typename local_itv::UB(t.ub().load())));
     }
+    if(fwd_only) {
+      return has_changed;
+    }
     has_changed |= neurons.embed(a_idx,
       local_itv(typename local_itv::LB(a.lb().load()),
                 typename local_itv::UB(a.ub().load())));
@@ -369,7 +377,7 @@ public:
   /** Version 2 of the deduction of an affine neuron (`-jet_affine v2`), see `jet_affine_v2.hpp`.
    * Same projection as `deduce_neuron`, with less arithmetic and a skipped backward pass when no
    * term can be tightened. */
-  CUDA bool deduce_neuron_v2(const LayerInfo& L, int target, int j) {
+  CUDA bool deduce_neuron_v2(const LayerInfo& L, int target, int j, bool fwd_only) {
     using bound_type = typename FItv::LB::value_type;
     const LayerInfo& S = net->layers[L.src0];
     const int layer_size = L.size;
@@ -380,10 +388,23 @@ public:
     return affine_v2::deduce<bound_type>(access,
       [&](int c) { return static_cast<bound_type>(weights[wbase + c * layer_size]); },
       S.base, S.size, target, static_cast<bound_type>(net->biases[L.bias_base + j]),
-      L.has_relu != 0);
+      L.has_relu != 0, !fwd_only);
   }
 
   CUDA bool deduce_neuron(int i) {
+    return deduce_neuron_dir(i, forward_only);
+  }
+
+  /** The deduction `i` of the neuron of the layer `l` at index `j` within the layer, as
+   * `deduce_neuron_dir` (used by the sweeps of `-jet_interval_prop forward_backward`). */
+  CUDA INLINE bool deduce_layer_neuron(int l, int j, bool fwd_only) {
+    return deduce_neuron_dir(net->layers[l].base + j - net->num_inputs(), fwd_only);
+  }
+
+  /** The deduction `i` of a neuron. With `fwd_only`, the forward projection only: the neuron is
+   * computed from the neurons it reads, which are left as they are. Otherwise, the forward and the
+   * backward projections. */
+  CUDA bool deduce_neuron_dir(int i, bool fwd_only) {
     /** Local aliases so the deduction reads exactly as if the store and the network parameters were
      * members of this class. */
     auto& neurons = *store;
@@ -400,11 +421,11 @@ public:
     assert(j >= 0 && j < L.size);
 
     if(L.kind == LAYER_ADD) {
-      return deduce_add(L, target, j);
+      return deduce_add(L, target, j, fwd_only);
     }
 
     if(affine_version == 2) {
-      return deduce_neuron_v2(L, target, j);
+      return deduce_neuron_v2(L, target, j, fwd_only);
     }
 
     using bound_type = typename FItv::LB::value_type;
@@ -486,6 +507,9 @@ public:
                 typename local_itv::UB(r3.ub().load())));
 
     // STEP 3: Perform backward propagation to update the neurons of the previous layer.
+    if(fwd_only) {
+      return has_changed;
+    }
 
     /** `r2` is the pre-activation narrowed by the ReLU above, and `r1` still holds the bias. The
      * bias is a singleton, so pairing opposite bounds costs nothing and `sub` is exact here: `nsum`
@@ -652,12 +676,16 @@ struct UnifiedData {
   /** The memory configuration of each block. */
   MemoryConfig mem_config;
 
+  /** `-jet_sym_root_only`: the number of symbolic rounds done on the root by `gpu_root_symbolic`. */
+  int root_sym_rounds;
+
   template <class Alloc>
   UnifiedData(const Configuration<Alloc>& config, const Network& net,
     VariableOrder var_order, ValueOrder val_order, MemoryConfig mem_config)
    : root(config, net, var_order, val_order)
    , stop(false)
    , mem_config(mem_config)
+   , root_sym_rounds(0)
   {
     size_t num_subproblems = 1;
     num_subproblems <<= root.config.subproblems_power;
@@ -761,7 +789,9 @@ struct BlockData {
        * network, which stays in managed memory and is shared by all the blocks. */
       iprop = bt::allocate_shared<FProp, bt::pool_allocator>(prop_allocator,
         &(unified_data.root.net), &(unified_data.root.prop), store,
-        unified_data.root.config.jet_affine);
+        unified_data.root.config.jet_affine,
+        /** `-forward_only` or `-jet_interval_prop forward`: the interval deductions project forward only. */
+        unified_data.root.config.forward_only || unified_data.root.config.jet_interval_prop == JET_INTERVAL_FORWARD);
       if(unified_data.root.config.jet_symbolic) {
         sym_forms.resize(symbolic::storage_size(unified_data.root.net.num_neurons,
           unified_data.root.net.num_inputs()));
@@ -1259,6 +1289,7 @@ MemoryConfig configure_gpu_fbarebones(Configuration<battery::standard_allocator>
   Statistics<battery::standard_allocator>&, const Network&, int max_comparisons);
 __global__ void initialize_global_data(UnifiedData*, bt::unique_ptr<GridData, bt::global_allocator>*);
 __global__ void gpu_fbarebones_solve(UnifiedData*, GridData*);
+__global__ void gpu_root_symbolic(UnifiedData*, GridData*);
 template <class FPEngine>
 __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data, BlockData& block_data,
    FPEngine& fp_engine, bool& stop, bool& has_changed, bool& is_leaf_node);
@@ -1995,6 +2026,9 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
    * the statistics of the host are only used to carry the number of blocks and the memory
    * statistics; the statistics of the solving are those of `unified_data->root`. */
   Configuration<battery::standard_allocator> hconfig(config);
+  if(hconfig.jet_sym_skip_final_interval && (!hconfig.jet_symbolic || hconfig.jet_sym_rounds <= 0)) {
+    printf("%% WARNING: -jet_sym_skip_final_interval needs -jet_symbolic and -jet_sym_rounds k > 0 (with -jet_sym_rounds 0, the last symbolic round changes nothing), it has no effect.\n");
+  }
   Statistics<battery::standard_allocator> hstats(
     static_cast<size_t>(net.num_neurons), static_cast<size_t>(net.num_deductions()),
     false, config.print_statistics);
@@ -2083,6 +2117,20 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
     auto grid_data = bt::make_unique<bt::unique_ptr<GridData, bt::global_allocator>, ConcurrentAllocator>();
     initialize_global_data<<<1,1>>>(unified_data.get(), grid_data.get());
     CUDAEX(cudaDeviceSynchronize());
+    /** `-jet_sym_root_only`: the symbolic rounds on the root, once, before the search. The search is
+     * launched right after, on the same stream, so it starts from the root they tightened. */
+    if(hconfig.jet_symbolic && hconfig.jet_sym_root_only) {
+      if(mem_config.shared_bytes > 0) {
+        CUDAEX(cudaFuncSetAttribute((void*) gpu_root_symbolic, cudaFuncAttributeMaxDynamicSharedMemorySize,
+          static_cast<int>(mem_config.shared_bytes)));
+      }
+      gpu_root_symbolic<<<1, CUDA_THREADS_PER_BLOCK, mem_config.shared_bytes>>>(unified_data.get(), grid_data->get());
+      if(hconfig.verbose_solving >= 2) {
+        CUDAEX(cudaDeviceSynchronize());
+        printf("%% The root after the symbolic rounds (-jet_sym_root_only):\n");
+        print_neurons(net, *(uroot.store));
+      }
+    }
     /** We wait that either the solving is interrupted, or that all threads have finished. */
     gpu_fbarebones_solve
       <<<static_cast<unsigned int>(uroot.stats.num_blocks),
@@ -2117,6 +2165,9 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
   if(uroot.config.print_statistics) {
     uroot.config.print_mzn_statistics();
     uroot.stats.print_mzn_statistics(uroot.config.verbose_solving);
+    if(uroot.config.jet_symbolic && uroot.config.jet_sym_root_only) {
+      printf("%%%%%%nnv-stat: jet_sym_root_rounds=%d\n", unified_data->root_sym_rounds);
+    }
     uroot.stats.print_mzn_end_stats();
   }
   if (uroot.stats.solutions > 0) printf("sat\n");
@@ -2523,41 +2574,81 @@ struct BlockGroup {
 
 /** One symbolic round of design 2 (`-jet_symbolic`) on the store of the block, by all its threads,
  * with the forms stored in the layout `layout` (`-jet_sym_layout`), and the hidden neurons clipping the
- * inputs if `hidden_clipping` (`-jet_sym_clip_hidden`).
+ * inputs if `hidden_clipping` (`-jet_sym_clip_hidden`). With `forward_only` (`-forward_only`), nothing
+ * is clipped and the comparisons of the property are only checked (see `symbolic::pass`).
  * \return `true` in every thread if the store changed. */
-__device__ bool symbolic_round(BlockData& block_data, int layout, bool hidden_clipping) {
+__device__ bool symbolic_round(BlockData& block_data, int layout, bool hidden_clipping, bool forward_only) {
   FProp& iprop = *block_data.iprop;
   BlockGroup group;
   FProp::NeuronsAccess access{*block_data.store};
   const bool changed = symbolic::pass<bound_type>(group, *iprop.net, *iprop.prop, access,
-    block_data.sym_forms.data(), layout, hidden_clipping);
+    block_data.sym_forms.data(), layout, hidden_clipping, forward_only);
   return __syncthreads_or(changed) != 0;
 }
 
+/** The fixpoint of a node, by all the threads of the block: the interval fixpoint (or, with
+ * `-jet_interval_prop forward_backward`, one forward and one backward sweep), alternated, when
+ * `symbolic` holds, with the symbolic rounds of design 2 until a round changes nothing (or
+ * `-jet_sym_rounds` rounds when it is not 0). `rounds` receives the number of symbolic rounds.
+ * \return the number of iterations of the fixpoint engine. */
 template <class FPEngine>
-__device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data, BlockData& block_data,
-   FPEngine& fp_engine, bool& stop, bool& has_changed, bool& is_leaf_node)
+__device__ INLINE int node_fixpoint(UnifiedData& unified_data, BlockData& block_data, FPEngine& fp_engine,
+  bool symbolic, int& rounds)
 {
   __shared__ int warp_iterations[CUDA_THREADS_PER_BLOCK/32];
   warp_iterations[threadIdx.x / 32] = 0;
   auto& config = unified_data.root.config;
   FProp& iprop = *block_data.iprop;
-  auto group = cooperative_groups::this_thread_block();
-
-  TIMEPOINT(SEARCH);
-  if(threadIdx.x == 0) {
-    is_leaf_node = false;
-  }
-
-  // II. Compute the fixpoint of the current node.
-  int fp_iterations;
 #ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
   int num_active = iprop.num_deductions();
 #else
   int num_active = fp_engine.num_active();
 #endif
+  /** `-jet_interval_prop forward_backward`: no fixpoint, one forward sweep (the layers in order, the
+   * forward projection of each neuron only), the comparisons of the property once, then one backward
+   * sweep (the layers in reverse order, the forward and backward projections of each neuron, so that a
+   * layer narrowed by the next one narrows the one it reads). The neurons of a layer are deduced in
+   * parallel, and a barrier separates two layers. Counted as one iteration. */
+  auto run_forward_backward = [&]() {
+    const auto& net = *iprop.net;
+    const int num_layers = net.num_layers();
+    /** Every thread reads `is_bot` before the barrier and nobody writes in between, so all the
+     * threads take the same branch and reach the same barriers. */
+    auto stop_sweep = [&]() {
+      const bool bot = iprop.is_bot();
+      __syncthreads();
+      return bot;
+    };
+    for(int l = 1; l < num_layers; ++l) {
+      if(stop_sweep()) { break; }
+      for(int j = threadIdx.x; j < net.layers[l].size; j += blockDim.x) {
+        iprop.deduce_layer_neuron(l, j, true);
+      }
+      __syncthreads();
+    }
+    if(!stop_sweep()) {
+      for(int k = threadIdx.x; k < iprop.prop->size(); k += blockDim.x) {
+        iprop.deduce_property(k);
+      }
+      __syncthreads();
+    }
+    for(int l = num_layers - 1; l >= 1; --l) {
+      if(stop_sweep()) { break; }
+      for(int j = threadIdx.x; j < net.layers[l].size; j += blockDim.x) {
+        iprop.deduce_layer_neuron(l, j, false);
+      }
+      __syncthreads();
+    }
+    if(threadIdx.x == 0) {
+      block_data.stats.num_deductions += 2 * net.num_deductions() + iprop.prop->size();
+    }
+    return 1;
+  };
   /** The interval fixpoint, as a function so that it can be resumed after a symbolic round. */
   auto run_fixpoint = [&]() {
+    if(config.jet_interval_prop == JET_INTERVAL_FORWARD_BACKWARD) {
+      return run_forward_backward();
+    }
     int its = 0;
     switch(config.fixpoint) {
       case FixpointKind::AC1: {
@@ -2602,16 +2693,78 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
     }
     return its;
   };
-  fp_iterations = run_fixpoint();
-  /** Design 2 (`-jet_symbolic`): alternate a symbolic round and the interval fixpoint until the
-   * symbolic round changes nothing (or `-jet_sym_rounds` rounds when it is not 0). */
-  if(config.jet_symbolic) {
+  int fp_iterations = run_fixpoint();
+  rounds = 0;
+  if(symbolic) {
     for(int round = 0; !iprop.is_bot() && (config.jet_sym_rounds <= 0 || round < config.jet_sym_rounds); ++round) {
-      if(!symbolic_round(block_data, config.jet_sym_layout, config.jet_sym_clip_hidden)) { break; }
+      ++rounds;
+      if(!symbolic_round(block_data, config.jet_sym_layout, config.jet_sym_clip_hidden, config.forward_only)) { break; }
+      /** `-jet_sym_skip_final_interval`: no interval propagation after the last symbolic round. */
+      if(config.jet_sym_skip_final_interval && config.jet_sym_rounds > 0 && round == config.jet_sym_rounds - 1) { break; }
       warp_iterations[threadIdx.x / 32] = 0;
       fp_iterations += run_fixpoint();
     }
   }
+  return fp_iterations;
+}
+
+/** `-jet_sym_root_only`: the fixpoint of the root node with the symbolic rounds of design 2, computed
+ * once, by one block, before the search (`gpu_fbarebones_solve`), and written back to the root store
+ * `unified_data->root.store`, from which every subproblem starts. The search then runs the interval
+ * fixpoint only. The root node itself (a failure, a solution) is analyzed by the search, which
+ * propagates it again, with the interval fixpoint only. Launched with one block of
+ * `CUDA_THREADS_PER_BLOCK` threads and the dynamic shared memory of `gpu_fbarebones_solve`. */
+__global__ void gpu_root_symbolic(UnifiedData* unified_data, GridData* grid_data) {
+  extern __shared__ unsigned char shared_mem[];
+  BlockData& block_data = grid_data->blocks[0];
+  block_data.allocate(*unified_data, *grid_data, shared_mem);
+  __syncthreads();
+  FProp& iprop = *block_data.iprop;
+#ifdef TURBO_NO_ENTAILED_PROP_REMOVAL
+  __shared__ BlockAsynchronousFixpointGPU<true> fp_engine;
+#else
+  __shared__ FixpointSubsetGPU<BlockAsynchronousFixpointGPU<true>, bt::global_allocator, CUDA_THREADS_PER_BLOCK> fp_engine;
+  fp_engine.init(iprop.num_deductions());
+#endif
+  auto group = cooperative_groups::this_thread_block();
+  unified_data->root.store->copy_to(group, *block_data.store);
+  __syncthreads();
+  int rounds = 0;
+  const int fp_iterations = node_fixpoint(*unified_data, block_data, fp_engine, true, rounds);
+  __syncthreads();
+  block_data.store->copy_to(group, *(unified_data->root.store));
+  if(threadIdx.x == 0) {
+    block_data.stats.fixpoint_iterations += fp_iterations;
+    unified_data->root_sym_rounds += rounds;
+  }
+  __syncthreads();
+#ifndef TURBO_NO_ENTAILED_PROP_REMOVAL
+  fp_engine.destroy();
+#endif
+  block_data.deallocate_shared_data();
+  __syncthreads();
+}
+
+template <class FPEngine>
+__device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data, BlockData& block_data,
+   FPEngine& fp_engine, bool& stop, bool& has_changed, bool& is_leaf_node)
+{
+  auto& config = unified_data.root.config;
+  FProp& iprop = *block_data.iprop;
+  auto group = cooperative_groups::this_thread_block();
+
+  TIMEPOINT(SEARCH);
+  if(threadIdx.x == 0) {
+    is_leaf_node = false;
+  }
+
+  // II. Compute the fixpoint of the current node. With `-jet_sym_root_only`, the symbolic rounds were
+  // done once on the root before the search (`gpu_root_symbolic`), and the search runs the interval
+  // fixpoint only.
+  int sym_rounds = 0;
+  const int fp_iterations = node_fixpoint(unified_data, block_data, fp_engine,
+    config.jet_symbolic && !config.jet_sym_root_only, sym_rounds);
+  int num_active;
   TIMEPOINT(FIXPOINT);
 
   const auto current_strat = block_data.current_strategy;

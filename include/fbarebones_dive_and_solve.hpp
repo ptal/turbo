@@ -9,6 +9,7 @@
 #include "lala/light_branch.hpp"
 /** For `-split_on relu`. */
 #include "relu_split.hpp"
+#include "fbarebones_forward.hpp"
 #include <mutex>
 #include <thread>
 #include <type_traits>
@@ -80,11 +81,16 @@ struct UnifiedData {
    * bytecodes (`relu_pre_activations`). */
   bt::vector<int, ConcurrentAllocator> relu_pre;
 
+  /** For `-forward_only`: the direction of each bytecode (`fbarebones_forward::analyze`), empty
+   * otherwise. */
+  bt::vector<uint8_t, ConcurrentAllocator> forward_dir;
+
   UnifiedData(const CP<FItv>& cp, MemoryConfig mem_config)
    : root(GridCP::tag_gpu_block_copy{}, false, cp)
    , stop(false)
    , mem_config(mem_config)
    , relu_pre()
+   , forward_dir()
   {
     size_t num_subproblems = 1;
     num_subproblems <<= root.config.subproblems_power;
@@ -768,6 +774,12 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
   check_support_concurrent_managed_memory();
   /** We start with some preprocessing to reduce the number of variables and constraints. */
   CP<FItv> cp(config);
+  /** `-forward_only`: the simplification runs the deductions of PIR, in every direction, on the root
+   * (and uses them to eliminate variables and bytecodes), so we disable it. */
+  if(cp.config.forward_only && !cp.config.disable_simplify) {
+    printf("%% -forward_only: the simplification of the model is disabled (-disable_simplify): it runs the deductions of the bytecodes in every direction on the root. Use -disable_simplify to compare with the fixpoint.\n");
+    cp.config.disable_simplify = true;
+  }
   cp.preprocess();
   if(cp.iprop->is_bot()) {
     cp.print_final_solution();
@@ -784,6 +796,29 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
   if(cp.config.jet_symbolic) {
     printf("%% WARNING: -jet_symbolic is only supported by -arch jet, it is ignored.\n");
     cp.config.jet_symbolic = false;
+  }
+  /** `-jet_interval_prop` selects the interval propagation of `-arch jet`; with `-arch fbarebones`,
+   * `-forward_only` gives the forward propagation of the bytecodes. */
+  if(cp.config.jet_interval_prop != JET_INTERVAL_FIXPOINT) {
+    printf("%% WARNING: -jet_interval_prop is only supported by -arch jet, it is ignored (use -forward_only for a forward propagation of the bytecodes).\n");
+    cp.config.jet_interval_prop = JET_INTERVAL_FIXPOINT;
+  }
+  /** `-forward_only`: the direction of each bytecode (`fbarebones_forward.hpp`). */
+  fbarebones_forward::Analysis forward;
+  if(cp.config.forward_only) {
+    forward = fbarebones_forward::analyze(cp);
+    cp.stats.print_stat("forward_only_network_bytecodes", forward.network);
+    cp.stats.print_stat("forward_only_property_bytecodes", forward.property);
+    cp.stats.print_stat("forward_only_onto_x", forward.onto[fbarebones_forward::ONTO_X]);
+    cp.stats.print_stat("forward_only_onto_y", forward.onto[fbarebones_forward::ONTO_Y]);
+    cp.stats.print_stat("forward_only_onto_z", forward.onto[fbarebones_forward::ONTO_Z]);
+    cp.stats.print_stat("forward_only_copies", forward.copies);
+    cp.stats.print_stat("forward_only_outputs", forward.outputs);
+    cp.stats.print_stat("forward_only_outputs_reached", forward.outputs_reached);
+    if(forward.outputs == 0 || forward.outputs_reached < forward.outputs) {
+      printf("%% WARNING: -forward_only: %d of the %d output neurons Y_* are computed by the bytecodes from the inputs; the bytecodes of the others keep all their projections.\n",
+        forward.outputs_reached, forward.outputs);
+    }
   }
 
   /** `-split_on relu`: the pre-activations of the ReLUs of the model. */
@@ -819,6 +854,10 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
   unified_data->relu_pre.resize(relu_pre.size());
   for(size_t i = 0; i < relu_pre.size(); ++i) {
     unified_data->relu_pre[i] = relu_pre[i];
+  }
+  unified_data->forward_dir.resize(forward.direction.size());
+  for(size_t i = 0; i < forward.direction.size(); ++i) {
+    unified_data->forward_dir[i] = forward.direction[i];
   }
   auto grid_data = bt::make_unique<bt::unique_ptr<GridData, bt::global_allocator>, ConcurrentAllocator>();
   initialize_global_data<<<1,1>>>(unified_data.get(), grid_data.get());
@@ -1423,6 +1462,43 @@ __device__ INLINE local::B fwarp_fixpoint_selected(P& p, int i, int* warp_iterat
   return fwarp_fixpoint<TPB>(p, i, warp_iterations, epsilon);
 }
 
+/** `-forward_only`: the deduction of the bytecode `i` in its direction `direction[i]`
+ * (`fbarebones_forward::deduce_onto`), or `fdeduce_selected` for the bytecodes of the property. */
+template <class P, class S>
+__device__ INLINE local::B fdeduce_directed(P& p, S& store, int i, const float epsilon, bool v2, const uint8_t* direction) {
+  const uint8_t d = direction[i];
+  if(d == fbarebones_forward::BOTH) {
+    return fdeduce_selected(p, i, epsilon, v2);
+  }
+  return fbarebones_forward::deduce_onto<typename P::Itv>(store, p.load_deduce(i), d);
+}
+
+/** `fwarp_fixpoint` of lala-core with `fdeduce_directed` (`-forward_only`). */
+template <int TPB, class P, class S>
+__device__ local::B fwarp_fixpoint_directed(P& p, S& store, int i, int* warp_iterations, const float epsilon, bool v2, const uint8_t* direction) {
+  local::B has_changed = false;
+  __shared__ bool warp_changed[TPB/32];
+  int warp_id = threadIdx.x / 32;
+  warp_changed[warp_id] = true;
+  while(warp_changed[warp_id]) {
+    __syncwarp();
+    warp_changed[warp_id] = false;
+    __syncwarp();
+    if(fdeduce_directed(p, store, i, epsilon, v2, direction)) {
+      has_changed = true;
+      /** If something changed, we continue to iterate only if we did not reach bot. */
+      if(!p.is_bot()) {
+        warp_changed[warp_id] = true;
+      }
+    }
+    if(threadIdx.x % 32 == 0) {
+      warp_iterations[warp_id]++;
+    }
+    __syncwarp();
+  }
+  return has_changed;
+}
+
 template <class FPEngine>
 __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data, BlockData& block_data,
    FPEngine& fp_engine, bool& stop, bool& has_changed, bool& is_leaf_node)
@@ -1449,7 +1525,14 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
    * results bitwise, `fdeduce_v2` with less floating-point work. The choice is the same for all the
    * threads, so the branch does not diverge. */
   const bool use_fdeduce_v2 = has_fdeduce_v2<FProp>::value && (config.pir_fdeduce == 2);
-  auto deduce = [&](int i) { return fdeduce_selected(iprop, i, config.epsilon, use_fdeduce_v2); };
+  /** `-forward_only`: the direction of each bytecode (the same for all the threads). */
+  const uint8_t* forward_dir = config.forward_only ? unified_data.forward_dir.data() : nullptr;
+  FStore& fstore = *block_data.store;
+  auto deduce = [&](int i) {
+    return forward_dir != nullptr
+      ? fdeduce_directed(iprop, fstore, i, config.epsilon, use_fdeduce_v2, forward_dir)
+      : fdeduce_selected(iprop, i, config.epsilon, use_fdeduce_v2);
+  };
   /** The fixpoint of the bytecodes. */
   auto run_fixpoint = [&]() {
     int its = 0;
@@ -1484,7 +1567,9 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
             iprop.num_deductions(),
 #endif
             [&](int i){
-              return fwarp_fixpoint_selected<CUDA_THREADS_PER_BLOCK>(iprop, i, warp_iterations, config.epsilon, use_fdeduce_v2);
+              return forward_dir != nullptr
+                ? fwarp_fixpoint_directed<CUDA_THREADS_PER_BLOCK>(iprop, fstore, i, warp_iterations, config.epsilon, use_fdeduce_v2, forward_dir)
+                : fwarp_fixpoint_selected<CUDA_THREADS_PER_BLOCK>(iprop, i, warp_iterations, config.epsilon, use_fdeduce_v2);
             },
             [&](){ return iprop.is_bot(); });
           if(threadIdx.x == 0) {

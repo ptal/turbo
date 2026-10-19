@@ -9,7 +9,7 @@
 #include <algorithm>
 
 void usage_and_exit(const std::string& program_name) {
-  std::cout << "usage: " << program_name << " [-t 2000] [-a] [-n 10] [-i] [-f] [-s] [-v] [-p <i>] [-arch <cpu|hybrid|gpu|barebones|fbarebones>] [-p 48] [-or 48] [-sub 12] [-stack 100] [-fp <ac1|wac1>] [-wac1_threshold 0] [-jet_affine <v1|v2>] [-jet_symbolic] [-jet_sym_rounds 0] [-jet_sym_layout <slot|neuron>] [-pir_fdeduce <v1|v2>] [-split_on <input|relu>] [-relu_order <earliest|widest>] [-relu_leaf <input|point>] [-jet_sym_clip_hidden] [-eps_var_order <input_order|first_fail|anti_first_fail|smallest|largest>] [-eps_value_order <min|max|split|reverse_split>] [-seed 0] [-network_analysis] [-cutnodes 0] [-disable_simplify] [-force_ternarize] [-globalmem] [-version 1.0.0] [xcsp3instance.xml | fzninstance.fzn]" << std::endl;
+  std::cout << "usage: " << program_name << " [-t 2000] [-a] [-n 10] [-i] [-f] [-s] [-v] [-p <i>] [-arch <cpu|hybrid|gpu|barebones|fbarebones>] [-p 48] [-or 48] [-sub 12] [-stack 100] [-fp <ac1|wac1>] [-wac1_threshold 0] [-jet_affine <v1|v2>] [-jet_interval_prop <fixpoint|forward|forward_backward>] [-jet_symbolic] [-jet_sym_rounds 0] [-jet_sym_layout <slot|neuron>] [-pir_fdeduce <v1|v2>] [-split_on <input|relu>] [-relu_order <earliest|widest>] [-relu_leaf <input|point>] [-jet_sym_clip_hidden] [-jet_sym_root_only] [-jet_sym_skip_final_interval] [-forward_only] [-eps_var_order <input_order|first_fail|anti_first_fail|smallest|largest>] [-eps_value_order <min|max|split|reverse_split>] [-seed 0] [-network_analysis] [-cutnodes 0] [-disable_simplify] [-force_ternarize] [-globalmem] [-version 1.0.0] [xcsp3instance.xml | fzninstance.fzn]" << std::endl;
   std::cout << "\t-t 2000: Run the solver with a timeout of 2000 milliseconds." << std::endl;
   std::cout << "\t-timeout 2000: Same as -t, but if both -t and -timeout are specified, -timeout overrides -t." << std::endl;
   std::cout << "\t-a: Instructs the solver to report all solutions in the case of satisfaction problems, or print intermediate solutions of increasing quality in the case of optimisation problems." << std::endl;
@@ -28,6 +28,10 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t-jet_affine <v1|v2>: Deduction of the affine neurons with -arch jet (default: v1):" << std::endl;
   std::cout << "\t\t v1: The original propagator of JET." << std::endl;
   std::cout << "\t\t v2: Same projection with less arithmetic, and the backward pass skipped when no term can be tightened (see include/jet_affine_v2.hpp)." << std::endl;
+  std::cout << "\t-jet_interval_prop <fixpoint|forward|forward_backward>: The interval propagation of -arch jet (default: fixpoint):" << std::endl;
+  std::cout << "\t\t fixpoint: The deductions of the neurons project forward and backward (affine, residual and ReLU deductions)." << std::endl;
+  std::cout << "\t\t forward: Forward only: the deduction of a neuron never tightens the neurons it reads (as -forward_only), but the symbolic rounds of -jet_symbolic still clip the inputs. The comparisons of the property still bound the output neurons. -forward_only implies it." << std::endl;
+  std::cout << "\t\t forward_backward: No fixpoint: one forward sweep (the layers in order, each neuron computed from the layers it reads, forward projections only), the comparisons of the property once, then one backward sweep (the layers in reverse order, each neuron narrows the layers it reads); the narrowed inputs are not propagated forward again. With -jet_symbolic, it replaces the interval fixpoint before and between the symbolic rounds (which clip)." << std::endl;
   std::cout << "\t-jet_symbolic: With -arch jet, alternate the interval fixpoint with symbolic rounds: affine bounds over the inputs, DeepPoly ReLU relaxation and input clipping (see include/jet_symbolic.hpp). With -arch fbarebones, it is ignored with a warning." << std::endl;
   std::cout << "\t-jet_sym_rounds 0: Maximum number of symbolic rounds per search node, 0 to continue until a round changes nothing (default: 0)." << std::endl;
   std::cout << "\t-jet_sym_layout <slot|neuron>: Memory layout of the symbolic forms of -jet_symbolic, both give the same results (default: slot):" << std::endl;
@@ -46,6 +50,9 @@ void usage_and_exit(const std::string& program_name) {
   std::cout << "\t\t input: The input split of -split_on input (-var_order, -value_order): the inputs are split until their width is at most -epsilon, and a solution is then looked for with the underapproximation of the value order (e.g. split: the middle of the box)." << std::endl;
   std::cout << "\t\t point: The inputs are fixed to points at once with the underapproximation of the value order: split, all at their middle; lb_split, ub_split, mid_split, one input at a time (chosen by -var_order) at its lower bound, upper bound or middle; mid_lb_split, mid_ub_split, one input at a time at its middle, then at its lower (upper) bound. The node is a solution if the point is one, and is counted unknown otherwise (the input space is not split)." << std::endl;
   std::cout << "\t-jet_sym_clip_hidden: With -jet_symbolic, also clip the inputs with the forms of the hidden neurons whose bounds are tighter than their forms, e.g. the phase of a ReLU split (see clip_hidden in include/jet_symbolic.hpp)." << std::endl;
+  std::cout << "\t-jet_sym_skip_final_interval: With -jet_symbolic and -jet_sym_rounds k > 0, no interval propagation after the k-th symbolic round: e.g. with -jet_sym_rounds 1, a node is the interval propagation, one symbolic round (forms and clipping), and nothing more; the clipped inputs are not propagated to the other neurons (-arch jet). By default, the interval propagation follows every symbolic round that changes a domain." << std::endl;
+  std::cout << "\t-jet_sym_root_only: With -jet_symbolic, do the symbolic rounds on the root node only, once before the search; the nodes of the search run the interval fixpoint only (-arch jet)." << std::endl;
+  std::cout << "\t-forward_only: With -arch jet or fbarebones, propagate forward only: the deduction of a neuron never tightens the neurons it reads (no backward projection of the affine, residual and ReLU deductions), and the symbolic rounds of -jet_symbolic clip nothing: the forms still tighten the bounds of the neurons, but the property only checks emptiness with them, it never narrows the inputs or the hidden neurons. The comparisons of the property still bound the output neurons. With -arch fbarebones, the bytecodes of the network project only onto the variable they compute (found by evaluating the bytecodes from the inputs), the bytecodes of the property keep all their projections, and the simplification of the model is disabled (-disable_simplify), since it runs every projection on the root. With -arch jet, -forward_only is -jet_interval_prop forward and, with -jet_symbolic, no clipping." << std::endl;
   std::cout << "\t-or 48: Run the subproblems on 48 streaming multiprocessors (SMs) (only for GPU architecture). Default: -or 0 for automatic selection of the number of SMs." << std::endl;
   std::cout << "\t-sub 12: Create 2^12 subproblems to be solved in turns by the blocks (embarrasingly parallel search). The special value `-1` leaves Turbo to decide on the number of subproblems (at least 30 * number of blocks). Default: -sub -1." << std::endl;
   std::cout << "\t-subfactor 300: Create B * 300 subproblems to be solved in turns by `B` blocks (embarrasingly parallel search). Default: -subfactor 300." << std::endl;
@@ -279,6 +286,22 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
       exit(EXIT_FAILURE);
     }
   }
+  std::string jet_interval_prop;
+  if(input.read_string("-jet_interval_prop", jet_interval_prop)) {
+    if(jet_interval_prop == "fixpoint") {
+      config.jet_interval_prop = JET_INTERVAL_FIXPOINT;
+    }
+    else if(jet_interval_prop == "forward") {
+      config.jet_interval_prop = JET_INTERVAL_FORWARD;
+    }
+    else if(jet_interval_prop == "forward_backward") {
+      config.jet_interval_prop = JET_INTERVAL_FORWARD_BACKWARD;
+    }
+    else {
+      std::cerr << "Unknown -jet_interval_prop " << jet_interval_prop << " (expected fixpoint, forward or forward_backward)" << std::endl;
+      exit(EXIT_FAILURE);
+    }
+  }
   std::string pir_fdeduce;
   if(input.read_string("-pir_fdeduce", pir_fdeduce)) {
     if(pir_fdeduce == "v1") {
@@ -332,6 +355,16 @@ Configuration<battery::standard_allocator> parse_args(int argc, char** argv) {
     }
   }
   input.read_bool("-jet_sym_clip_hidden", config.jet_sym_clip_hidden);
+  input.read_bool("-jet_sym_root_only", config.jet_sym_root_only);
+  input.read_bool("-jet_sym_skip_final_interval", config.jet_sym_skip_final_interval);
+  input.read_bool("-forward_only", config.forward_only);
+  /** With JET, `-forward_only` is `-jet_interval_prop forward` (and no clipping): the statistics show it. */
+  if(config.forward_only && config.arch == Arch::JET) {
+    if(config.jet_interval_prop == JET_INTERVAL_FORWARD_BACKWARD) {
+      std::cout << "% WARNING: -forward_only overrides -jet_interval_prop forward_backward (it is -jet_interval_prop forward)." << std::endl;
+    }
+    config.jet_interval_prop = JET_INTERVAL_FORWARD;
+  }
   input.read_double("-epsilon", config.epsilon);
   std::string var_order;
   if(input.read_string("-var_order", var_order)) {
