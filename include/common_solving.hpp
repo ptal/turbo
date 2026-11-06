@@ -189,6 +189,8 @@ struct AbstractDomains {
    , objective(other.objective)
    , strategies(other.strategies, basic_allocator)
   {
+    iprop_types.aty = other.iprop_types.aty;
+    iprop_types.sub.aty = other.iprop_types.sub.aty;
     AbstractDeps<BasicAllocator, PropAllocator, StoreAllocator> deps{enable_sharing, basic_allocator, prop_allocator, store_allocator};
     store = deps.template clone<IStore>(other.store);
     iprop = deps.template clone<IProp>(other.iprop);
@@ -250,6 +252,8 @@ struct AbstractDomains {
 
   abstract_ptr<IStore> store;
   abstract_ptr<IProp> iprop;
+  // The abstract types of `iprop` and of its sub-domain `store`: the variables are declared in `env` under the abstract type of `store`.
+  lala::atypes<IProp> iprop_types;
   abstract_ptr<ISimplifier> simplifier;
   // The best solution found so far. It is a store of its own, not shared with `store`.
   abstract_ptr<LIStore> best;
@@ -272,15 +276,22 @@ struct AbstractDomains {
   Configuration<BasicAllocator> config;
   Statistics<BasicAllocator> stats;
 
+  /** The abstract type of the variables of `store` in `env`. */
+  CUDA AType store_aty() const {
+    return iprop_types.sub.aty;
+  }
+
   CUDA void allocate(int num_vars, bool with_simplifier) {
     env = VarEnv<basic_allocator_type>{basic_allocator};
-    store = battery::allocate_shared<IStore, StoreAllocator>(store_allocator, env.extends_abstract_dom(), num_vars, store_allocator);
-    iprop = battery::allocate_shared<IProp, PropAllocator>(prop_allocator, env.extends_abstract_dom(), store, prop_allocator);
+    // The order matters: the abstract type of the store is 0 and the one of the propagators is 1 (see the annotation `abstract(n)`).
+    iprop_types.sub.aty = env.extends_abstract_dom();
+    store = battery::allocate_shared<IStore, StoreAllocator>(store_allocator, num_vars, store_allocator);
+    iprop_types.aty = env.extends_abstract_dom();
+    iprop = battery::allocate_shared<IProp, PropAllocator>(prop_allocator, store, prop_allocator);
     if(with_simplifier) {
-      simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, env.extends_abstract_dom(), store->aty(), iprop, basic_allocator);
+      simplifier = battery::allocate_shared<ISimplifier, BasicAllocator>(basic_allocator, store_aty(), iprop, basic_allocator);
     }
-    // Note that `best` must have the same abstract type then store (otherwise projection of the variables will fail).
-    best = battery::allocate_shared<LIStore, BasicAllocator>(basic_allocator, store->aty(), num_vars, basic_allocator);
+    best = battery::allocate_shared<LIStore, BasicAllocator>(basic_allocator, num_vars, basic_allocator);
     objective = Objective{};
     strategies = strategies_type(basic_allocator);
     if(config.verbose_solving) {
@@ -293,9 +304,9 @@ private:
   template <class F>
   CUDA bool interpret_and_diagnose_and_tell(const F& f) {
     IDiagnostics diagnostics;
-    if(!interpret_and_tell_cn(*iprop, f, env, objective, strategies, diagnostics)) {
+    if(!interpret_and_tell_cn(*iprop, iprop_types, f, env, objective, strategies, diagnostics)) {
       IDiagnostics diagnostics2;
-      interpret_and_tell_cn<true>(*iprop, f, env, objective, strategies, diagnostics2);
+      interpret_and_tell_cn<true>(*iprop, iprop_types, f, env, objective, strategies, diagnostics2);
       diagnostics2.print();
       return false;
     }
@@ -313,7 +324,7 @@ public:
     }
     if(config.print_ast) {
       printf("%% Interpreted AST:\n");
-      deinterpret_in(*iprop, env).print();
+      deinterpret_in(typed(*iprop, iprop_types), env).print();
       printf("\n");
     }
     if(config.verbose_solving) {
@@ -333,8 +344,8 @@ public:
     else if(objective.is_maximization()) {
       auto minobj = env.variable_of("__MINIMIZE_OBJ");
       assert(minobj.has_value());
-      assert(minobj->get().avar_of(store->aty()).has_value());
-      minimize_obj_var = minobj->get().avar_of(store->aty()).value();
+      assert(minobj->get().avar_of(store_aty()).has_value());
+      minimize_obj_var = minobj->get().avar_of(store_aty()).value();
     }
     stats.variables = store->vars();
     stats.constraints = iprop->num_deductions();
@@ -453,7 +464,7 @@ public:
         [&](const auto& constraint) {
           IDiagnostics diagnostics;
           typename IProp::template ask_type<basic_allocator_type> ask_value;
-          bool ok = interpret_ask_in(*iprop, constraint, env, ask_value, diagnostics);
+          bool ok = interpret_ask_in(typed(*iprop, iprop_types), constraint, env, ask_value, diagnostics);
           assert(ok);
           return ok && iprop->ask(ask_value);
         });
@@ -521,7 +532,7 @@ public:
     preprocess_tcn(*f_ptr);
     push_eps_strategy();
     std::mt19937 random_generator(config.seed);
-    ::shuffle_random_strategies(strategies, store->aty(), store->vars(), random_generator);
+    ::shuffle_random_strategies(strategies, store_aty(), store->vars(), random_generator);
     stats.stop_timer(Timer::PREPROCESSING, start);
     stats.print_timing_stat("preprocessing_time", Timer::PREPROCESSING);
     stats.print_mzn_end_stats();
@@ -628,9 +639,9 @@ private:
     }
     for(int i = 0; i < iprop->num_deductions(); ++i) {
       bytecode_type bytecode = iprop->load_deduce(i);
-      stats_tcn.vars_occurrences[bytecode.x.vid()]++;
-      stats_tcn.vars_occurrences[bytecode.y.vid()]++;
-      stats_tcn.vars_occurrences[bytecode.z.vid()]++;
+      stats_tcn.vars_occurrences[bytecode.x]++;
+      stats_tcn.vars_occurrences[bytecode.y]++;
+      stats_tcn.vars_occurrences[bytecode.z]++;
       /** We count the number of occurrences of each operator.
        * Because TCN has only <= and = as comparison operators, their negation is obtained using `0 = (y = z)` for `y != z` and `0 = (y <= z)` for `y > z`.
        * If we used `analyze_formula` on TCN, such operators would be counted as reified predicates since `0` and `1` are variables in TCN.
@@ -748,7 +759,7 @@ public:
       config.print_mzn_statistics();
       stats.print_mzn_statistics(config.or_nodes);
       if(objective.is_optimization() && !best->is_top()) {
-        stats.print_mzn_objective(best->project(objective.objective_var()), objective.is_minimization());
+        stats.print_mzn_objective(best->project(objective.objective_var().vid()), objective.is_minimization());
       }
       stats.print_mzn_end_stats();
     }

@@ -301,6 +301,29 @@ CUDA NI bool interpret_in(const F& f, VarEnv<Alloc>& env, AVar& avar, IDiagnosti
   }
 }
 
+/** Interpret an occurrence of a variable as an abstract variable of the abstract element typed `aty`.
+ * Contrarily to `interpret_in`, an untyped occurrence of a logical variable is not resolved to the first abstract variable declared, but to the one of type `aty`. */
+template <bool diagnose = false, class F, class Alloc>
+CUDA NI bool interpret_var_in(const F& f, const VarEnv<Alloc>& env, AType aty, AVar& avar, IDiagnostics& diagnostics) {
+  const char* name = "VarEnv";
+  if(f.is(F::LV)) {
+    return interpret_lv_in<diagnose>(f.map_atype(aty), env, avar, diagnostics);
+  }
+  else if(f.is(F::V)) {
+    if(!env.contains(f.v())) {
+      RETURN_INTERPRETATION_ERROR("Undeclared abstract variable `" + fstring<F>::from_int(f.v().aty()) + ", " + fstring<F>::from_int(f.v().vid()) + "`.");
+    }
+    if(f.v().aty() != aty) {
+      RETURN_INTERPRETATION_ERROR("The abstract variable `" + fstring<F>::from_int(f.v().aty()) + ", " + fstring<F>::from_int(f.v().vid()) + "` does not belong to the abstract element `" + fstring<F>::from_int(aty) + "`.");
+    }
+    avar = f.v();
+    return true;
+  }
+  else {
+    RETURN_INTERPRETATION_ERROR("Unsupported formula: expected an occurrence of a variable.");
+  }
+}
+
 /* ------------------------------------------------------------------------------------------- *
  * 3. Lattice properties
  * ------------------------------------------------------------------------------------------- */
@@ -374,6 +397,61 @@ struct lattice_properties<PIR<A, Alloc>> {
   constexpr static const bool preserve_join = sub::preserve_join;
   constexpr static const bool preserve_concrete_covers = sub::preserve_concrete_covers;
 };
+
+/** The abstract types (`AType`) of an abstract element of type `A`, and of its sub-elements.
+ * An abstract type identifies an abstract element in the environment (`VarEnv`): for instance,
+ * the variables of a store are declared in the environment under the abstract type of this store.
+ * The abstract elements are not aware of their abstract types: these are given alongside the
+ * element to the interpretation functions, usually through a `Typed` view.
+ * Abstract universes have no abstract type, hence the empty primary template. */
+template <class A>
+struct atypes {};
+
+template <class U, class Alloc>
+struct atypes<VStore<U, Alloc>> {
+  AType aty = UNTYPED;
+};
+
+/** The abstract type of `PIR` itself, and the abstract types of its sub-domain. */
+template <class A, class Alloc>
+struct atypes<PIR<A, Alloc>> {
+  AType aty = UNTYPED;
+  atypes<A> sub;
+};
+
+/** The abstract type of the store of variables underlying an abstract element. */
+template <class U, class Alloc>
+CUDA AType store_aty_of(const atypes<VStore<U, Alloc>>& types) {
+  return types.aty;
+}
+
+template <class A, class Alloc>
+CUDA AType store_aty_of(const atypes<PIR<A, Alloc>>& types) {
+  return store_aty_of(types.sub);
+}
+
+/** A read-only view on an abstract element of type `A` together with its abstract types.
+ * The interpretation functions of the abstract domains take such a view. */
+template <class A>
+struct Typed {
+  using value_type = A;
+  constexpr static const char* name = A::name;
+
+  const A* a;
+  atypes<A> types;
+
+  CUDA const A& operator*() const { return *a; }
+  CUDA const A* operator->() const { return a; }
+  CUDA AType aty() const { return types.aty; }
+};
+
+template <class A>
+CUDA Typed<A> typed(const A& a, const atypes<A>& types) {
+  return Typed<A>{&a, types};
+}
+
+template <class A>
+struct lattice_properties<Typed<A>> : lattice_properties<A> {};
 
 /* ------------------------------------------------------------------------------------------- *
  * 4. Abstract universes
@@ -988,24 +1066,44 @@ CUDA bool top_level_ginterpret_in(const A& a, const F& f, Env& env, I& intermedi
   }
 }
 
+namespace impl {
+  /** The top element of a store; its abstract type is declared in `env`. */
+  template <class U, class Alloc, class Env, class Alloc2>
+  CUDA VStore<U, Alloc> make_top_in(Env& env, atypes<VStore<U, Alloc>>& types, const Alloc2& alloc) {
+    types.aty = env.extends_abstract_dom();
+    return VStore<U, Alloc>::top(alloc);
+  }
+
+  /** The top element of `PIR` and of its sub-domain; the abstract type of the sub-domain is declared first in `env`. */
+  template <class A, class Alloc, class Env, class Alloc2>
+  CUDA PIR<A, Alloc> make_top_in(Env& env, atypes<PIR<A, Alloc>>& types, const Alloc2& alloc) {
+    using sub_allocator_type = typename A::allocator_type;
+    sub_allocator_type sub_alloc{};
+    auto sub = battery::allocate_shared<A>(sub_alloc, make_top_in(env, types.sub, sub_alloc));
+    types.aty = env.extends_abstract_dom();
+    return PIR<A, Alloc>(std::move(sub), alloc);
+  }
+}
+
+/** The top element of `A`. The abstract types of an abstract domain are declared in `env` and stored in `types`. */
 template <class A, class Alloc = battery::standard_allocator, class Env>
-CUDA A make_top(Env& env, Alloc alloc = Alloc{}) {
+CUDA A make_top(Env& env, atypes<A>& types, Alloc alloc = Alloc{}) {
   if constexpr(lattice_properties<A>::is_abstract_universe) {
     return A::top();
   }
   else {
-    return A::top(env, alloc);
+    return impl::make_top_in(env, types, alloc);
   }
 }
 
 template <bool diagnose = false, class TellAlloc = battery::standard_allocator, class F, class Env, class L>
-CUDA bool interpret_and_tell(const F& f, Env& env, L& value, IDiagnostics& diagnostics, TellAlloc tell_alloc = TellAlloc{}) {
+CUDA bool interpret_and_tell(const F& f, Env& env, L& value, const atypes<L>& types, IDiagnostics& diagnostics, TellAlloc tell_alloc = TellAlloc{}) {
   if constexpr(lattice_properties<L>::is_abstract_universe) {
     return ginterpret_in<IKind::TELL, diagnose>(f, env, value, diagnostics);
   }
   else {
     typename L::template tell_type<TellAlloc> tell(tell_alloc);
-    if(top_level_ginterpret_in<IKind::TELL, diagnose>(value, f, env, tell, diagnostics)) {
+    if(top_level_ginterpret_in<IKind::TELL, diagnose>(typed(value, types), f, env, tell, diagnostics)) {
       value.deduce(tell);
       return true;
     }
@@ -1017,13 +1115,13 @@ CUDA bool interpret_and_tell(const F& f, Env& env, L& value, IDiagnostics& diagn
 
 template <class A, bool diagnose = false, class F, class Env, class TellAlloc = typename A::allocator_type>
 CUDA std::optional<A> create_and_interpret_and_tell(const F& f,
- Env& env, IDiagnostics& diagnostics,
+ Env& env, atypes<A>& types, IDiagnostics& diagnostics,
  typename A::allocator_type alloc = typename A::allocator_type{},
  TellAlloc tell_alloc = TellAlloc{})
 {
   auto snap = env.snapshot();
-  A a{make_top<A>(env, alloc)};
-  if(interpret_and_tell<diagnose>(f, env, a, diagnostics, tell_alloc)) {
+  A a{make_top<A>(env, types, alloc)};
+  if(interpret_and_tell<diagnose>(f, env, a, types, diagnostics, tell_alloc)) {
     return {std::move(a)};
   }
   else {
@@ -1040,7 +1138,7 @@ CUDA std::optional<A> create_and_interpret_and_tell(const F& f,
 
 namespace impl {
   template <bool diagnose, class F, class Env, class I, class U, class Alloc>
-  CUDA NI bool interpret_existential_store(const VStore<U, Alloc>& store, const F& f, Env& env,
+  CUDA NI bool interpret_existential_store(const Typed<VStore<U, Alloc>>& store, const F& f, Env& env,
     I& tell, IDiagnostics& diagnostics)
   {
     using Alloc2 = typename I::allocator_type;
@@ -1049,8 +1147,10 @@ namespace impl {
     assert(f.is(F::E));
     typename A::template var_dom<Alloc2> k;
     if(interpret_tell_in<diagnose>(f, env, k.dom, diagnostics)) {
-      if(interpret_in<diagnose>(f.map_atype(store.aty()), env, k.avar, diagnostics)) {
-        assert(k.avar.aty() == store.aty());
+      AVar avar;
+      if(interpret_in<diagnose>(f.map_atype(store.aty()), env, avar, diagnostics)) {
+        assert(avar.aty() == store.aty());
+        k.idx = avar.vid();
         tell.push_back(k);
         return true;
       }
@@ -1060,7 +1160,7 @@ namespace impl {
 
   /** Interpret a predicate without variables. */
   template <bool diagnose, class F, class Env, class I, class U, class Alloc>
-  CUDA NI bool interpret_zero_predicate_store(const VStore<U, Alloc>& store, const F& f, const Env& env,
+  CUDA NI bool interpret_zero_predicate_store(const Typed<VStore<U, Alloc>>& store, const F& f, const Env& env,
     I& tell, IDiagnostics& diagnostics)
   {
     using Alloc2 = typename I::allocator_type;
@@ -1070,7 +1170,7 @@ namespace impl {
       return true;
     }
     else if(f.is_false()) {
-      tell.push_back(typename A::template var_dom<Alloc2>(AVar{}, U::bot()));
+      tell.push_back(typename A::template var_dom<Alloc2>(-1, U::bot()));
       return true;
     }
     else {
@@ -1080,7 +1180,7 @@ namespace impl {
 
   /** Interpret a predicate with a single variable occurrence. */
   template <IKind kind, bool diagnose, class F, class Env, class I, class U, class Alloc>
-  CUDA NI bool interpret_unary_predicate_store(const VStore<U, Alloc>& store, const F& f, const Env& env,
+  CUDA NI bool interpret_unary_predicate_store(const Typed<VStore<U, Alloc>>& store, const F& f, const Env& env,
     I& tell, IDiagnostics& diagnostics)
   {
     using Alloc2 = typename I::allocator_type;
@@ -1096,7 +1196,7 @@ namespace impl {
       // access to the environment, and to avoid passing the environment around everywhere.
       if(varf.is(F::V)) {
         if(varf.v().aty() == store.aty() || varf.v().aty() == UNTYPED) {
-          tell.push_back(typename A::template var_dom<Alloc2>(varf.v(), u));
+          tell.push_back(typename A::template var_dom<Alloc2>(varf.v().vid(), u));
         }
         else {
           RETURN_INTERPRETATION_ERROR("The variable was not declared in the current abstract element (but exists in other abstract elements).");
@@ -1112,7 +1212,7 @@ namespace impl {
           RETURN_INTERPRETATION_ERROR("The variable was not declared in the current abstract element (but exists in other abstract elements).");
         }
         assert(avar->aty() == store.aty());
-        tell.push_back(typename A::template var_dom<Alloc2>(*avar, u));
+        tell.push_back(typename A::template var_dom<Alloc2>(avar->vid(), u));
       }
       return true;
     }
@@ -1122,7 +1222,7 @@ namespace impl {
   }
 
   template <IKind kind, bool diagnose, class F, class Env, class I, class U, class Alloc>
-  CUDA NI bool interpret_predicate_store(const VStore<U, Alloc>& store, const F& f, Env& env,
+  CUDA NI bool interpret_predicate_store(const Typed<VStore<U, Alloc>>& store, const F& f, Env& env,
     I& tell, IDiagnostics& diagnostics)
   {
     const char* name = VStore<U, Alloc>::name;
@@ -1155,7 +1255,7 @@ namespace impl {
  * same order, because we attribute the first available index to variables when interpreting the
  * quantifier. In that case, the store will only be equivalent modulo the `env` structure. */
 template <IKind kind, bool diagnose = false, class F, class Env, class I, class U, class Alloc>
-CUDA NI bool interpret_in(const VStore<U, Alloc>& store, const F& f, Env& env, I& intermediate, IDiagnostics& diagnostics) {
+CUDA NI bool interpret_in(const Typed<VStore<U, Alloc>>& store, const F& f, Env& env, I& intermediate, IDiagnostics& diagnostics) {
   const char* name = VStore<U, Alloc>::name;
   if(f.is_untyped() || f.type() == store.aty()) {
     return impl::interpret_predicate_store<kind, diagnose>(store, f, env, intermediate, diagnostics);
@@ -1166,20 +1266,20 @@ CUDA NI bool interpret_in(const VStore<U, Alloc>& store, const F& f, Env& env, I
 }
 
 template <bool diagnose = false, class F, class Env, class I, class U, class Alloc>
-CUDA NI bool interpret_tell_in(const VStore<U, Alloc>& store, const F& f, Env& env, I& tell, IDiagnostics& diagnostics) {
+CUDA NI bool interpret_tell_in(const Typed<VStore<U, Alloc>>& store, const F& f, Env& env, I& tell, IDiagnostics& diagnostics) {
   return interpret_in<IKind::TELL, diagnose>(store, f, env, tell, diagnostics);
 }
 
 /** Similar to `interpret_tell_in` but does not support existential quantifiers and therefore
  * leaves `env` unchanged. */
 template <bool diagnose = false, class F, class Env, class I, class U, class Alloc>
-CUDA NI bool interpret_ask_in(const VStore<U, Alloc>& store, const F& f, const Env& env, I& ask, IDiagnostics& diagnostics) {
+CUDA NI bool interpret_ask_in(const Typed<VStore<U, Alloc>>& store, const F& f, const Env& env, I& ask, IDiagnostics& diagnostics) {
   return interpret_in<IKind::ASK, diagnose>(store, f, const_cast<Env&>(env), ask, diagnostics);
 }
 
 namespace impl {
   template<class U2, class Env, class Allocator2, class U, class Alloc>
-  CUDA TFormula<typename Env::allocator_type> deinterpret_var_store(const VStore<U, Alloc>& store,
+  CUDA TFormula<typename Env::allocator_type> deinterpret_var_store(const Typed<VStore<U, Alloc>>& store,
     AVar avar, const U2& dom, const Env& env, const Allocator2& allocator)
   {
     auto f = deinterpret_in(dom, avar, env, allocator);
@@ -1187,36 +1287,47 @@ namespace impl {
     map_avar_to_lvar(f, env);
     return std::move(f);
   }
+
+  /** Deinterpret an element `vd` of the intermediate representation of a store (the index `-1` represents `false`). */
+  template<class VarDom, class Env, class Allocator2, class U, class Alloc>
+  CUDA TFormula<typename Env::allocator_type> deinterpret_var_dom_store(const Typed<VStore<U, Alloc>>& store,
+    const VarDom& vd, const Env& env, const Allocator2& allocator)
+  {
+    if(vd.idx == -1) {
+      return TFormula<typename Env::allocator_type>::make_false();
+    }
+    return deinterpret_var_store(store, AVar(store.aty(), vd.idx), vd.dom, env, allocator);
+  }
 }
 
 template<class Env, class U, class Alloc, class Allocator2 = typename Env::allocator_type>
-CUDA NI TFormula<Allocator2> deinterpret_in(const VStore<U, Alloc>& store, const Env& env, const Allocator2& allocator = Allocator2()) {
+CUDA NI TFormula<Allocator2> deinterpret_in(const Typed<VStore<U, Alloc>>& store, const Env& env, const Allocator2& allocator = Allocator2()) {
   using F = TFormula<Allocator2>;
-  if(store.vars() == 0) {
-    return store.is_bot() ? F::make_false() : F::make_true();
+  if(store->vars() == 0) {
+    return store->is_bot() ? F::make_false() : F::make_true();
   }
   typename F::Sequence seq{allocator};
-  for(int i = 0; i < store.vars(); ++i) {
+  for(int i = 0; i < store->vars(); ++i) {
     AVar v(store.aty(), i);
     seq.push_back(F::make_exists(store.aty(), env.name_of(v), env.sort_of(v)));
-    seq.push_back(impl::deinterpret_var_store(store, v, store[i], env, allocator));
+    seq.push_back(impl::deinterpret_var_store(store, v, (*store)[i], env, allocator));
   }
   return F::make_nary(AND, std::move(seq), store.aty());
 }
 
 template<class I, class Env, class U, class Alloc, class Allocator2 = typename Env::allocator_type>
-CUDA NI TFormula<Allocator2> deinterpret_in(const VStore<U, Alloc>& store, const I& intermediate, const Env& env, const Allocator2& allocator = Allocator2()) {
+CUDA NI TFormula<Allocator2> deinterpret_in(const Typed<VStore<U, Alloc>>& store, const I& intermediate, const Env& env, const Allocator2& allocator = Allocator2()) {
   using F = TFormula<Allocator2>;
   if(intermediate.size() == 0) {
     return F::make_true();
   }
   else if(intermediate.size() == 1) {
-    return impl::deinterpret_var_store(store, intermediate[0].avar, intermediate[0].dom, env, allocator);
+    return impl::deinterpret_var_dom_store(store, intermediate[0], env, allocator);
   }
   else {
     typename F::Sequence seq{allocator};
     for(int i = 0; i < intermediate.size(); ++i) {
-      seq.push_back(impl::deinterpret_var_store(store, intermediate[i].avar, intermediate[i].dom, env, allocator));
+      seq.push_back(impl::deinterpret_var_dom_store(store, intermediate[i], env, allocator));
     }
     return F::make_nary(AND, std::move(seq), store.aty());
   }
@@ -1228,7 +1339,7 @@ namespace impl {
   /** We interpret the formula `f` in `intermediate`; only one constraint is added to
    * `intermediate` if the interpretation succeeds. */
   template <IKind kind, bool diagnose, class F, class Env, class Intermediate, class A, class Alloc>
-  CUDA bool interpret_formula_pir(const PIR<A, Alloc>& pir, const F& f, Env& env, Intermediate& intermediate, IDiagnostics& diagnostics) {
+  CUDA bool interpret_formula_pir(const Typed<PIR<A, Alloc>>& pir, const F& f, Env& env, Intermediate& intermediate, IDiagnostics& diagnostics) {
     const char* name = PIR<A, Alloc>::name;
     if(f.type() != pir.aty() && !f.is_untyped()) {
       RETURN_INTERPRETATION_ERROR("The type of the formula does not match the type of this abstract domain.");
@@ -1249,10 +1360,15 @@ namespace impl {
           || bytecode.op == MIN || bytecode.op == MAX
           || bytecode.op == EQ || bytecode.op == LEQ))
         {
-          if( interpret_in<diagnose>(X, env, bytecode.x, diagnostics)
-           && interpret_in<diagnose>(Y, env, bytecode.y, diagnostics)
-           && interpret_in<diagnose>(Z, env, bytecode.z, diagnostics))
+          // The variables are resolved in the sub-domain, and the bytecode stores their indices.
+          AVar x, y, z;
+          if( interpret_var_in<diagnose>(X, env, pir.types.sub.aty, x, diagnostics)
+           && interpret_var_in<diagnose>(Y, env, pir.types.sub.aty, y, diagnostics)
+           && interpret_var_in<diagnose>(Z, env, pir.types.sub.aty, z, diagnostics))
           {
+            bytecode.x = x.vid();
+            bytecode.y = y.vid();
+            bytecode.z = z.vid();
             intermediate.bytecodes.push_back(bytecode);
             return true;
           }
@@ -1267,7 +1383,7 @@ namespace impl {
 /** PIR expects a non-conjunctive formula \f$ c \f$ which can either be interpreted in the
  * sub-domain `A` or in the current domain. */
 template <IKind kind, bool diagnose = false, class F, class Env, class I, class A, class Alloc>
-CUDA NI bool interpret_in(const PIR<A, Alloc>& pir, const F& f, Env& env, I& intermediate, IDiagnostics& diagnostics) {
+CUDA NI bool interpret_in(const Typed<PIR<A, Alloc>>& pir, const F& f, Env& env, I& intermediate, IDiagnostics& diagnostics) {
   const char* name = PIR<A, Alloc>::name;
   size_t error_context = 0;
   if constexpr(diagnose) {
@@ -1276,8 +1392,8 @@ CUDA NI bool interpret_in(const PIR<A, Alloc>& pir, const F& f, Env& env, I& int
   }
   bool res = false;
   AType current = f.type();
-  const_cast<F&>(f).type_as(pir.subdomain()->aty()); // We will restore the type after the call to the sub-domain.
-  if(interpret_in<kind, diagnose>(*pir.subdomain(), f, env, intermediate.sub_value, diagnostics)) {
+  const_cast<F&>(f).type_as(pir.types.sub.aty); // We will restore the type after the call to the sub-domain.
+  if(interpret_in<kind, diagnose>(typed(*pir->subdomain(), pir.types.sub), f, env, intermediate.sub_value, diagnostics)) {
     res = true;
   }
   const_cast<F&>(f).type_as(current);
@@ -1291,52 +1407,53 @@ CUDA NI bool interpret_in(const PIR<A, Alloc>& pir, const F& f, Env& env, I& int
 }
 
 template <bool diagnose = false, class F, class Env, class I, class A, class Alloc>
-CUDA NI bool interpret_tell_in(const PIR<A, Alloc>& pir, const F& f, Env& env, I& tell, IDiagnostics& diagnostics) {
+CUDA NI bool interpret_tell_in(const Typed<PIR<A, Alloc>>& pir, const F& f, Env& env, I& tell, IDiagnostics& diagnostics) {
   return interpret_in<IKind::TELL, diagnose>(pir, f, env, tell, diagnostics);
 }
 
 template <bool diagnose = false, class F, class Env, class I, class A, class Alloc>
-CUDA NI bool interpret_ask_in(const PIR<A, Alloc>& pir, const F& f, const Env& env, I& ask, IDiagnostics& diagnostics) {
+CUDA NI bool interpret_ask_in(const Typed<PIR<A, Alloc>>& pir, const F& f, const Env& env, I& ask, IDiagnostics& diagnostics) {
   return interpret_in<IKind::ASK, diagnose>(pir, f, const_cast<Env&>(env), ask, diagnostics);
 }
 
 namespace impl {
   template<class Env, class Allocator2, class A, class Alloc>
-  CUDA NI TFormula<Allocator2> deinterpret_bytecode(const PIR<A, Alloc>& pir, bytecode_type bytecode, const Env& env, Allocator2 allocator) {
+  CUDA NI TFormula<Allocator2> deinterpret_bytecode(const Typed<PIR<A, Alloc>>& pir, bytecode_type bytecode, const Env& env, Allocator2 allocator) {
     using F = TFormula<Allocator2>;
-    auto X = F::make_lvar(bytecode.x.aty(), LVar<Allocator2>(env.name_of(bytecode.x), allocator));
-    auto Y = F::make_lvar(bytecode.y.aty(), LVar<Allocator2>(env.name_of(bytecode.y), allocator));
-    auto Z = F::make_lvar(bytecode.z.aty(), LVar<Allocator2>(env.name_of(bytecode.z), allocator));
+    AType sub_aty = pir.types.sub.aty;
+    auto X = F::make_lvar(sub_aty, LVar<Allocator2>(env.name_of(AVar(sub_aty, bytecode.x)), allocator));
+    auto Y = F::make_lvar(sub_aty, LVar<Allocator2>(env.name_of(AVar(sub_aty, bytecode.y)), allocator));
+    auto Z = F::make_lvar(sub_aty, LVar<Allocator2>(env.name_of(AVar(sub_aty, bytecode.z)), allocator));
     return F::make_binary(X, EQ, F::make_binary(Y, bytecode.op, Z, pir.aty(), allocator), pir.aty(), allocator);
   }
 }
 
 template<class Env, class A, class Alloc, class Allocator2 = typename Env::allocator_type>
-CUDA NI TFormula<Allocator2> deinterpret_in(const PIR<A, Alloc>& pir, const Env& env, bool remove_entailed, size_t& num_entailed, Allocator2 allocator = Allocator2()) {
+CUDA NI TFormula<Allocator2> deinterpret_in(const Typed<PIR<A, Alloc>>& pir, const Env& env, bool remove_entailed, size_t& num_entailed, Allocator2 allocator = Allocator2()) {
   using F = TFormula<Allocator2>;
   typename F::Sequence seq{allocator};
-  seq.push_back(deinterpret_in(*pir.subdomain(), env, allocator));
-  for(int i = 0; i < pir.num_deductions(); ++i) {
-    if(remove_entailed && pir.ask(i)) {
+  seq.push_back(deinterpret_in(typed(*pir->subdomain(), pir.types.sub), env, allocator));
+  for(int i = 0; i < pir->num_deductions(); ++i) {
+    if(remove_entailed && pir->ask(i)) {
       num_entailed++;
       continue;
     }
-    seq.push_back(impl::deinterpret_bytecode(pir, pir.load_deduce(i), env, allocator));
+    seq.push_back(impl::deinterpret_bytecode(pir, pir->load_deduce(i), env, allocator));
   }
   return F::make_nary(AND, std::move(seq), pir.aty());
 }
 
 template<class Env, class A, class Alloc, class Allocator2 = typename Env::allocator_type>
-CUDA NI TFormula<Allocator2> deinterpret_in(const PIR<A, Alloc>& pir, const Env& env, Allocator2 allocator = Allocator2()) {
+CUDA NI TFormula<Allocator2> deinterpret_in(const Typed<PIR<A, Alloc>>& pir, const Env& env, Allocator2 allocator = Allocator2()) {
   size_t num_entailed = 0;
   return deinterpret_in(pir, env, false, num_entailed, allocator);
 }
 
 template<class I, class Env, class A, class Alloc, class Allocator2 = typename Env::allocator_type>
-CUDA NI TFormula<Allocator2> deinterpret_in(const PIR<A, Alloc>& pir, const I& intermediate, const Env& env, Allocator2 allocator = Allocator2()) {
+CUDA NI TFormula<Allocator2> deinterpret_in(const Typed<PIR<A, Alloc>>& pir, const I& intermediate, const Env& env, Allocator2 allocator = Allocator2()) {
   using F = TFormula<Allocator2>;
   typename F::Sequence seq{allocator};
-  seq.push_back(deinterpret_in(*pir.subdomain(), intermediate.sub_value, env, allocator));
+  seq.push_back(deinterpret_in(typed(*pir->subdomain(), pir.types.sub), intermediate.sub_value, env, allocator));
   for(int i = 0; i < intermediate.bytecodes.size(); ++i) {
     seq.push_back(impl::deinterpret_bytecode(pir, intermediate.bytecodes[i], env, allocator));
   }
@@ -1379,11 +1496,11 @@ struct interpreted_cn {
   }
 };
 
-/** Interpret `minimize(x)` or `maximize(x)` in `objective`.
+/** Interpret `minimize(x)` or `maximize(x)` in `objective`, where `x` is a variable of the store typed `store_aty`.
  * An objective already fixed to a constant is ignored (warning), as it makes the problem a
  * satisfaction problem. */
 template <bool diagnose = false, class F, class Env>
-CUDA NI bool interpret_objective(const F& f, Env& env, Objective& objective, IDiagnostics& diagnostics) {
+CUDA NI bool interpret_objective(const F& f, Env& env, lala::AType store_aty, Objective& objective, IDiagnostics& diagnostics) {
   const char* name = "Objective";
   assert(f.is(F::Seq) && (f.sig() == lala::MINIMIZE || f.sig() == lala::MAXIMIZE));
   if(f.seq(0).is_variable()) {
@@ -1391,7 +1508,7 @@ CUDA NI bool interpret_objective(const F& f, Env& env, Objective& objective, IDi
       RETURN_INTERPRETATION_ERROR("Multi-objective optimization is not supported.");
     }
     lala::AVar x;
-    if(!interpret_in<diagnose>(f.seq(0), env, x, diagnostics)) {
+    if(!lala::interpret_var_in<diagnose>(f.seq(0), env, store_aty, x, diagnostics)) {
       return false;
     }
     objective = Objective(x, f.sig() == lala::MINIMIZE);
@@ -1407,9 +1524,9 @@ CUDA NI bool interpret_objective(const F& f, Env& env, Objective& objective, IDi
   }
 }
 
-/** Interpret a predicate of the form `search(VariableOrder, ValueOrder, x_1, x_2, ..., x_n)` in `strat`. */
+/** Interpret a predicate of the form `search(VariableOrder, ValueOrder, x_1, x_2, ..., x_n)` in `strat`, where `x_1, ..., x_n` are variables of the store typed `store_aty`. */
 template <bool diagnose = false, class F, class Env, class Alloc>
-CUDA NI bool interpret_strategy(const F& f, Env& env, StrategyType<Alloc>& strat, IDiagnostics& diagnostics) {
+CUDA NI bool interpret_strategy(const F& f, Env& env, lala::AType store_aty, StrategyType<Alloc>& strat, IDiagnostics& diagnostics) {
   const char* name = "SearchStrategy";
   if(!(f.is(F::ESeq)
     && f.eseq().size() >= 2
@@ -1442,14 +1559,11 @@ CUDA NI bool interpret_strategy(const F& f, Env& env, StrategyType<Alloc>& strat
     RETURN_INTERPRETATION_ERROR("This value order strategy is unsupported.");
   }
   for(int i = 2; i < f.eseq().size(); ++i) {
-    if(f.eseq(i).is(F::LV)) {
+    if(f.eseq(i).is(F::LV) || f.eseq(i).is(F::V)) {
       strat.vars.push_back(lala::AVar{});
-      if(!interpret_in<diagnose>(f.eseq(i), env, strat.vars.back(), diagnostics)) {
+      if(!lala::interpret_var_in<diagnose>(f.eseq(i), env, store_aty, strat.vars.back(), diagnostics)) {
         return false;
       }
-    }
-    else if(f.eseq(i).is(F::V)) {
-      strat.vars.push_back(f.eseq(i).v());
     }
     else if(lala::num_vars(f.eseq(i)) > 0) {
       RETURN_INTERPRETATION_ERROR("The predicate `search` only supports variables or constants, but an expression containing a variable was passed to it.");
@@ -1463,7 +1577,7 @@ CUDA NI bool interpret_strategy(const F& f, Env& env, StrategyType<Alloc>& strat
 /** Route each conjunct of the constraint network to the element interpreting it.
  * `true` is interpreted exactly since all the elements involved preserve the top element. */
 template <bool diagnose = false, class IProp, class F, class Env, class Alloc>
-CUDA NI bool interpret_cn_in(const IProp& iprop, const F& f, Env& env,
+CUDA NI bool interpret_cn_in(const lala::Typed<IProp>& iprop, const F& f, Env& env,
   interpreted_cn<IProp, Alloc>& intermediate, IDiagnostics& diagnostics)
 {
   if(f.is_true()) {
@@ -1478,11 +1592,11 @@ CUDA NI bool interpret_cn_in(const IProp& iprop, const F& f, Env& env,
     return true;
   }
   else if(f.is(F::Seq) && (f.sig() == lala::MINIMIZE || f.sig() == lala::MAXIMIZE)) {
-    return interpret_objective<diagnose>(f, env, intermediate.objective, diagnostics);
+    return interpret_objective<diagnose>(f, env, lala::store_aty_of(iprop.types), intermediate.objective, diagnostics);
   }
   else if(f.is(F::ESeq) && f.esig() == "search") {
     StrategyType<Alloc> strat(intermediate.get_allocator());
-    if(!interpret_strategy<diagnose>(f, env, strat, diagnostics)) {
+    if(!interpret_strategy<diagnose>(f, env, lala::store_aty_of(iprop.types), strat, diagnostics)) {
       return false;
     }
     intermediate.strategies.push_back(std::move(strat));
@@ -1495,19 +1609,20 @@ CUDA NI bool interpret_cn_in(const IProp& iprop, const F& f, Env& env,
 
 /** Interpret the constraint network `f` and, on success, deduce the constraints in `iprop` and
  * store the objective and the search strategies in `objective` and `strategies`.
+ * `types` are the abstract types of `iprop` (and of its sub-domain).
  * On failure, `env`, `iprop`, `objective` and `strategies` are left unchanged.
  * `TellAlloc` is the allocator of the intermediate representation, which only lives for the
  * duration of the interpretation. */
 template <bool diagnose = false, class TellAlloc = battery::standard_allocator,
   class IProp, class F, class Env, class Alloc>
-CUDA NI bool interpret_and_tell_cn(IProp& iprop, const F& f, Env& env,
+CUDA NI bool interpret_and_tell_cn(IProp& iprop, const lala::atypes<IProp>& types, const F& f, Env& env,
   Objective& objective, SearchStrategies<Alloc>& strategies, IDiagnostics& diagnostics,
   TellAlloc tell_alloc = TellAlloc{})
 {
   auto snap = env.snapshot();
   interpreted_cn<IProp, TellAlloc> intermediate(tell_alloc);
   intermediate.objective = objective;
-  if(!interpret_cn_in<diagnose>(iprop, f, env, intermediate, diagnostics)) {
+  if(!interpret_cn_in<diagnose>(lala::typed(iprop, types), f, env, intermediate, diagnostics)) {
     env.restore(snap);
     return false;
   }

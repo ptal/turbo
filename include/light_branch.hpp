@@ -8,13 +8,14 @@
 /** A binary branching decision over a universe (e.g. interval).
  * This is the branching representation used by the barebones architecture: a decision is a variable
  * and the two universes to be embedded in the store, without any intermediate logical formula.
+ * The variable is the index `var` of the store, and `-1` represents the absence of decision.
  */
 template <class U>
 struct LightBranch {
   template <class U2>
   friend class LightBranch;
 
-  lala::AVar var;
+  int var = -1;
   U children[2];
   /** Ropes are used for fast backtracking: `ropes[1]` is the depth we need to backtrack to if the right node is a leaf. */
   int ropes[2];
@@ -23,7 +24,7 @@ struct LightBranch {
   CUDA INLINE LightBranch(): current_idx(-1) {}
   LightBranch(const LightBranch&) = default;
   LightBranch(LightBranch&&) = default;
-  CUDA INLINE LightBranch(lala::AVar var, const U& left, const U& right)
+  CUDA INLINE LightBranch(int var, const U& left, const U& right)
    : var(var), current_idx(-1)
   {
     children[0] = left;

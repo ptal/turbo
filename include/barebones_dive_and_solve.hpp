@@ -186,7 +186,7 @@ struct BlockData {
     using LB2 = typename Itv::lb_type::basic_type;
     using UB2 = typename Itv::ub_type::basic_type;
     __shared__ UB<int> idx;
-    decisions[depth].var = AVar{};
+    decisions[depth].var = -1;
     int currentDepth = depth;
     for(int i = current_strategy; i < strategies.size(); ++i) {
       switch(strategies[i].var_order) {
@@ -219,7 +219,7 @@ struct BlockData {
       }
       __syncthreads();
       // If we could find a variable with the current strategy, we return.
-      if(!decisions[currentDepth].var.is_untyped()) {
+      if(decisions[currentDepth].var != -1) {
         return;
       }
       if(threadIdx.x == 0) {
@@ -264,7 +264,7 @@ struct BlockData {
     if(threadIdx.x == 0) {
       next_unassigned_var = idx.load();
       if(next_unassigned_var != n) {
-        push_decision(strategy.val_order, split_in_store ? AVar{store->aty(), next_unassigned_var} : strategy.vars[next_unassigned_var]);
+        push_decision(strategy.val_order, split_in_store ? next_unassigned_var : strategy.vars[next_unassigned_var].vid());
       }
     }
   }
@@ -337,10 +337,10 @@ struct BlockData {
       assert(idx.load() < n);
       if(threadIdx.x == 0) {
         if(split_in_store) {
-          push_decision(strategy.val_order, AVar{store->aty(), idx.load()});
+          push_decision(strategy.val_order, idx.load());
         }
         else {
-          push_decision(strategy.val_order, strategy.vars[idx.load()]);
+          push_decision(strategy.val_order, strategy.vars[idx.load()].vid());
         }
       }
     }
@@ -350,7 +350,7 @@ struct BlockData {
    *  \precondition The domain of the variable `var` must not be empty, be a singleton or contain infinite bounds.
    *  \precondition Must be executed by thread 0 only.
   */
-  __device__ INLINE void push_decision(ValueOrder val_order, AVar var) {
+  __device__ INLINE void push_decision(ValueOrder val_order, int var) {
     using value_type = typename Itv::value_type;
     assert(threadIdx.x == 0);
     decisions[depth].var = var;
@@ -391,7 +391,7 @@ struct BlockData {
     decisions[depth].ropes[1] = depth > 0 ? decisions[depth-1].ropes[decisions[depth-1].current_idx] : -1;
     ++depth;
     // printf("depth(%d), var = %d, children = [%d, %d] | [%d, %d], ropes = [%d, %d]\n",
-    //   depth, decisions[depth-1].var.vid(),
+    //   depth, decisions[depth-1].var,
     //   (int)decisions[depth-1].children[0].lb().load(), (int)decisions[depth-1].children[0].ub().load(),
     //   (int)decisions[depth-1].children[1].lb().load(), (int)decisions[depth-1].children[1].ub().load(),
     //   decisions[depth-1].ropes[0], decisions[depth-1].ropes[1]);
@@ -507,7 +507,7 @@ void barebones_dive_and_solve(const Configuration<battery::standard_allocator>& 
     uroot.config.print_mzn_statistics();
     uroot.stats.print_mzn_statistics(uroot.config.verbose_solving);
     if(uroot.objective.is_optimization() && uroot.stats.solutions > 0) {
-      uroot.stats.print_mzn_objective(uroot.best->project(uroot.objective.objective_var()), uroot.objective.is_minimization());
+      uroot.stats.print_mzn_objective(uroot.best->project(uroot.objective.objective_var().vid()), uroot.objective.is_minimization());
     }
     unified_data->root.stats.print_mzn_end_stats();
   }
@@ -685,7 +685,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
         __syncthreads();
         // Split was not able to split a domain. It means that the search strategy is not complete due to unsplittable infinite domains.
         // We skip the subtree, and set exhaustive to `false`.
-        if(block_data.decisions[0].var.is_untyped()) {
+        if(block_data.decisions[0].var == -1) {
           is_leaf_node = true;
           block_data.stats.exhaustive = false;
           if(threadIdx.x == 0 && config.verbose_solving >= 1) { printf("%% WARNING: infinite element detected during branching, search is not exhaustive\n");}
@@ -701,7 +701,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
            */
           size_t branch_idx = (block_data.subproblem_idx & (size_t{1} << remaining_depth)) >> remaining_depth;
           /** We immediately commit to the branch. */
-          // printf("split on %d (", block_data.decisions[0].var.vid()); block_data.store->project(block_data.decisions[0].var).print(); printf(")\n");
+          // printf("split on %d (", block_data.decisions[0].var); block_data.store->project(block_data.decisions[0].var).print(); printf(")\n");
           block_data.store->embed(block_data.decisions[0].var, block_data.decisions[0].children[branch_idx]);
         }
       }
@@ -756,9 +756,9 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
            * Strenghten the objective variable to get a better objective next time.
            */
           if(!grid_data->appx_best_bound.is_top()) {
-            block_data.store->embed(grid_data->obj_var,
+            block_data.store->embed(grid_data->obj_var.vid(),
               Itv(Itv::lb_type::top(), Itv::ub_type(grid_data->appx_best_bound.load() - 1)));
-            block_data.store->embed(grid_data->obj_var,
+            block_data.store->embed(grid_data->obj_var.vid(),
               Itv(Itv::lb_type::top(), Itv::ub_type(block_data.best_bound.load() - 1)));
           }
           // Unconstrained objective, can terminate, we will not find a better solution.
@@ -792,16 +792,16 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
           __syncthreads();
           // Split was not able to split a domain. It means that the search strategy is not complete due to unsplittable infinite domains.
           // We trigger backtracking, and set exhaustive to `false`.
-          if(block_data.decisions[block_data.depth - 1].var.is_untyped()) {
+          if(block_data.decisions[block_data.depth - 1].var == -1) {
             is_leaf_node = true;
             block_data.stats.exhaustive = false;
             if(threadIdx.x == 0 && config.verbose_solving >= 1) { printf("%% WARNING: infinite element detected during branching, search is not exhaustive\n");}
           }
           else if(threadIdx.x == 0) {
             // Apply the decision.
-            // printf("split on %d (", block_data.decisions[block_data.depth-1].var.vid()); block_data.store->project(block_data.decisions[block_data.depth-1].var).print(); printf(")\n");
+            // printf("split on %d (", block_data.decisions[block_data.depth-1].var); block_data.store->project(block_data.decisions[block_data.depth-1].var).print(); printf(")\n");
             block_data.store->embed(block_data.decisions[block_data.depth-1].var, block_data.decisions[block_data.depth-1].next());
-            // printf("left decision: %d [", block_data.decisions[block_data.depth - 1].var.vid()); block_data.decisions[block_data.depth - 1].current().print(); printf("]\n");
+            // printf("left decision: %d [", block_data.decisions[block_data.depth - 1].var); block_data.decisions[block_data.depth - 1].current().print(); printf("]\n");
           }
         }
 
@@ -849,7 +849,7 @@ __global__ void gpu_barebones_solve(UnifiedData* unified_data, GridData* grid_da
           }
           if(threadIdx.x == 0) {
             block_data.store->embed(block_data.decisions[block_data.depth - 1].var, block_data.decisions[block_data.depth - 1].next());
-            // printf("right decision: %d [", block_data.decisions[block_data.depth - 1].var.vid()); block_data.decisions[block_data.depth - 1].current().print(); printf("]\n");
+            // printf("right decision: %d [", block_data.decisions[block_data.depth - 1].var); block_data.decisions[block_data.depth - 1].current().print(); printf("]\n");
             block_data.current_strategy = block_data.snapshot_root_strategy;
             block_data.next_unassigned_var = block_data.snapshot_next_unassigned_var;
           }
@@ -989,9 +989,9 @@ __device__ INLINE void propagate(UnifiedData& unified_data, GridData& grid_data,
      */
     if(num_active == 0) {
       is_leaf_node = true;
-      if(block_data.best_bound.load() > block_data.store->project(grid_data.obj_var).lb().load()) {
+      if(block_data.best_bound.load() > block_data.store->project(grid_data.obj_var.vid()).lb().load()) {
         if(threadIdx.x == 0) {
-          block_data.best_bound.meet(Itv::ub_type(block_data.store->project(grid_data.obj_var).lb().load()));
+          block_data.best_bound.meet(Itv::ub_type(block_data.store->project(grid_data.obj_var.vid()).lb().load()));
           grid_data.appx_best_bound.meet(block_data.best_bound);
           block_data.stats.timers.update_timer(Timer::LATEST_BEST_OBJ_FOUND, block_data.start_time);
         }
