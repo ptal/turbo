@@ -6,24 +6,23 @@
 #include "lala/logic/ast.hpp"
 
 /** A binary branching decision over a universe (e.g. interval).
- * This is the branching representation used by the barebones architecture: a decision is a variable
- * and the two universes to be embedded in the store, without any intermediate logical formula.
+ * A decision is (1) a variable the index `var` of the store, and (2) the two universes to be embedded in the store, without any intermediate logical formula.
  */
 template <class U>
 struct LightBranch {
   template <class U2>
   friend class LightBranch;
 
-  lala::AVar var;
+  int var;
   U children[2];
   /** Ropes are used for fast backtracking: `ropes[1]` is the depth we need to backtrack to if the right node is a leaf. */
   int ropes[2];
   int current_idx;
 
-  CUDA INLINE LightBranch(): current_idx(-1) {}
+  CUDA INLINE LightBranch(): var(-1), current_idx(-1) {}
   LightBranch(const LightBranch&) = default;
   LightBranch(LightBranch&&) = default;
-  CUDA INLINE LightBranch(lala::AVar var, const U& left, const U& right)
+  CUDA INLINE LightBranch(int var, const U& left, const U& right)
    : var(var), current_idx(-1)
   {
     children[0] = left;

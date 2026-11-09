@@ -45,6 +45,16 @@ inline VarEnv<standard_allocator> env_with(const char* fzn) {
   return std::move(env);
 }
 
+/** The abstract types given by `make_top` to an abstract element created in an empty environment.
+ * The tests create their abstract elements in a fresh environment, so these are their abstract types. */
+template <class L>
+lala::atypes<L> default_atypes() {
+  VarEnv<standard_allocator> env;
+  lala::atypes<L> types;
+  make_top<L>(env, types);
+  return types;
+}
+
 /** Initialize an environment with a single integer variable named `x` in the abstract domain typed `0`. */
 inline VarEnv<standard_allocator> env_with_x() {
   return env_with("var int: x :: abstract(0);");
@@ -56,7 +66,8 @@ void interpret_must_error(const char* fzn, VarEnv<standard_allocator> env = VarE
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
   IDiagnostics diagnostics;
-  L value = make_top<L>(env);
+  lala::atypes<L> types;
+  L value = make_top<L>(env, types);
   bool res;
   if constexpr(lattice_properties<L>::is_abstract_universe) {
     res = ginterpret_in<kind, true>(*f, env, value, diagnostics);
@@ -64,11 +75,11 @@ void interpret_must_error(const char* fzn, VarEnv<standard_allocator> env = VarE
   else {
     if constexpr(kind == IKind::TELL) {
       typename L::template tell_type<standard_allocator> tell;
-      res = top_level_ginterpret_in<kind, true>(value, *f, env, tell, diagnostics);
+      res = top_level_ginterpret_in<kind, true>(typed(value, types), *f, env, tell, diagnostics);
     }
     else {
       typename L::template ask_type<standard_allocator> ask;
-      res = top_level_ginterpret_in<kind, true>(value, *f, env, ask, diagnostics);
+      res = top_level_ginterpret_in<kind, true>(typed(value, types), *f, env, ask, diagnostics);
     }
   }
   if(res) {
@@ -102,11 +113,11 @@ void interpret_must_succeed(const char* fzn, L& value, VarEnv<standard_allocator
   }
   else {
     if constexpr(kind == IKind::TELL) {
-      res = interpret_and_tell<true>(*f, env, value, diagnostics);
+      res = interpret_and_tell<true>(*f, env, value, default_atypes<L>(), diagnostics);
     }
     else {
       typename L::template ask_type<standard_allocator> ask;
-      res = top_level_ginterpret_in<kind, true>(value, *f, env, ask, diagnostics);
+      res = top_level_ginterpret_in<kind, true>(typed(value, default_atypes<L>()), *f, env, ask, diagnostics);
     }
   }
   if(!res) {
@@ -121,7 +132,7 @@ void interpret_must_succeed(const char* fzn, L& value, VarEnv<standard_allocator
 }
 
 template <class L, bool ternarize_formula = false, class Typing>
-L create_and_interpret_and_type_and_tell(const char* fzn, VarEnv<standard_allocator>& env, Typing&& typing, bool has_warning = false) {
+L create_and_interpret_and_type_and_tell(const char* fzn, VarEnv<standard_allocator>& env, lala::atypes<L>& types, Typing&& typing, bool has_warning = false) {
   auto f = parse_flatzinc_str<standard_allocator>(fzn);
   EXPECT_TRUE(f);
   if(ternarize_formula) {
@@ -132,7 +143,7 @@ L create_and_interpret_and_type_and_tell(const char* fzn, VarEnv<standard_alloca
   printf("normalized:\n"); f->print(); printf("\n");
   typing(*f);
   IDiagnostics diagnostics;
-  auto value = create_and_interpret_and_tell<L, true>(*f, env, diagnostics);
+  auto value = create_and_interpret_and_tell<L, true>(*f, env, types, diagnostics);
   if(diagnostics.is_fatal()) {
     diagnostics.print();
   }
@@ -142,9 +153,16 @@ L create_and_interpret_and_type_and_tell(const char* fzn, VarEnv<standard_alloca
   return std::move(value.value());
 }
 
+/** Create an abstract element in `env`, interpret `fzn` in it, and store its abstract types in `types`. */
+template <class L, bool ternarize_formula = false>
+L create_and_interpret_and_tell(const char* fzn, VarEnv<standard_allocator>& env, lala::atypes<L>& types, bool has_warning = false) {
+  return create_and_interpret_and_type_and_tell<L, ternarize_formula>(fzn, env, types, [](const F&){}, has_warning);
+}
+
 template <class L, bool ternarize_formula = false>
 L create_and_interpret_and_tell(const char* fzn, VarEnv<standard_allocator>& env, bool has_warning = false) {
-  return create_and_interpret_and_type_and_tell<L, ternarize_formula>(fzn, env, [](const F&){}, has_warning);
+  lala::atypes<L> types;
+  return create_and_interpret_and_tell<L, ternarize_formula>(fzn, env, types, has_warning);
 }
 
 template <class L, bool ternarize_formula = false>
@@ -179,7 +197,7 @@ bool interpret_and_ask(const char* fzn, L& value, VarEnv<standard_allocator>& en
   printf("normalized:\n"); f->print(); printf("\n");
   IDiagnostics diagnostics;
   typename L::template ask_type<standard_allocator> ask;
-  if(!ginterpret_in<IKind::ASK, true>(value, *f, env, ask, diagnostics)) {
+  if(!ginterpret_in<IKind::ASK, true>(typed(value, default_atypes<L>()), *f, env, ask, diagnostics)) {
     diagnostics.print();
     EXPECT_TRUE(false) << "The formula should be (ask-)interpretable: " << fzn;
   }
@@ -216,15 +234,16 @@ template <class L, bool ternarize_formula = false>
 void check_interpret_idempotence(const char* fzn) {
   using F = TFormula<standard_allocator>;
   VarEnv<standard_allocator> env1, env2;
-  L value1 = create_and_interpret_and_tell<L, ternarize_formula>(fzn, env1);
-  F f1 = deinterpret_in(value1, env1);
+  lala::atypes<L> types1, types2;
+  L value1 = create_and_interpret_and_tell<L, ternarize_formula>(fzn, env1, types1);
+  F f1 = deinterpret_in(typed(value1, types1), env1);
   f1.print(true);
   printf("\n");
-  L value2 = make_top<L>(env2);
+  L value2 = make_top<L>(env2, types2);
   IDiagnostics diagnostics;
-  EXPECT_TRUE(interpret_and_tell(f1, env2, value2, diagnostics));
+  EXPECT_TRUE(interpret_and_tell(f1, env2, value2, types2, diagnostics));
   EXPECT_EQ(value1, value2);
-  F f2 = deinterpret_in(value2, env2);
+  F f2 = deinterpret_in(typed(value2, types2), env2);
   f2.print(true);
   printf("\n");
   EXPECT_EQ(f1, f2);
