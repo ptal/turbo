@@ -9,6 +9,7 @@
 #include <thread>
 #include <csignal>
 #include <random>
+#include <fstream>
 
 #include "config.hpp"
 #include "statistics.hpp"
@@ -29,6 +30,8 @@
 #include "interpretation.hpp"
 
 #include "lala/flatzinc_parser.hpp"
+#include "lala/tcn_parser.hpp"
+#include "lala/tcn_writer.hpp"
 
 #ifdef WITH_XCSP3PARSER
   #include "lala/XCSP3_parser.hpp"
@@ -368,6 +371,9 @@ public:
       f = parse_xcsp3(config.problem_path.data(), solver_output);
     }
 #endif
+    else if(config.input_format() == InputFormat::TCN) {
+      f = parse_tcn(config.problem_path.data(), solver_output);
+    }
     if(!f) {
       std::cerr << "Could not parse input file." << std::endl;
       exit(EXIT_FAILURE);
@@ -500,6 +506,46 @@ public:
     analyze_tcn("preprocessed_tcn");
   }
 
+  /** Load a TCN file directly into the abstract domain, skipping ternarization,
+   *  normalization and simplification. Constraints are interpreted in the exact
+   *  order they appear in the file. */
+  void load_tcn(F& f) {
+    size_t num_vars = num_quantified_vars(f);
+    allocate(num_vars, true);
+    iprop->disable_sort_bytecodes();
+    if(!interpret(f)) {
+      exit(EXIT_FAILURE);
+    }
+    analyze_tcn("tcn");
+    simplifier->init_env(env);
+    simplifier->initialize(num_vars, 0);
+  }
+
+  void dump_preprocessed_tcn_if_needed() {
+    if(config.dump_preprocessed_tcn.size() == 0) {
+      return;
+    }
+    if(store->is_bot() || iprop->is_bot()) {
+      std::cerr << "Cannot dump preprocessed TCN because the abstract state is bottom." << std::endl;
+      exit(EXIT_FAILURE);
+    }
+    std::ofstream out(config.dump_preprocessed_tcn.data());
+    if(!out) {
+      std::cerr << "Cannot open preprocessed TCN output file " << config.dump_preprocessed_tcn.data() << std::endl;
+      exit(EXIT_FAILURE);
+    }
+    // A maximization objective is already encoded in the network by `minimize_obj_var`.
+    write_preprocessed_tcn(out, *store, *iprop, objective.is_optimization() ? minimize_obj_var.vid() : -1);
+    // The last strategy is the default one: it is added again when the file is loaded.
+    for(int i = 0; i + 1 < strategies.size(); ++i) {
+      write_tcn_search(out, string_of_variable_order(strategies[i].var_order),
+        string_of_value_order(strategies[i].val_order), strategies[i].vars);
+    }
+    if(config.verbose_solving) {
+      printf("%% Preprocessed TCN written to %s\n", config.dump_preprocessed_tcn.data());
+    }
+  }
+
   const char* name_of_abstract_domain() const {
     #define STR_(x) #x
     #define STR(x) STR_(x)
@@ -529,7 +575,13 @@ public:
         add_minimize_objective_var(*f_ptr, max_var_decl.value());
       }
     }
-    preprocess_tcn(*f_ptr);
+    if(config.input_format() == InputFormat::TCN) {
+      load_tcn(*f_ptr);
+    }
+    else {
+      preprocess_tcn(*f_ptr);
+    }
+    dump_preprocessed_tcn_if_needed();
     push_eps_strategy();
     std::mt19937 random_generator(config.seed);
     ::shuffle_random_strategies(strategies, store_aty(), store->vars(), random_generator);
