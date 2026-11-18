@@ -423,17 +423,18 @@ public:
 #ifdef WITH_XCSP3PARSER
     else if(config.input_format() == InputFormat::XCSP3) {
       solver_output.set_type(OutputType::XCSP);
+      solver_output = SolverOutput<BasicAllocator>(basic_allocator, OutputType::XCSP);
       f = parse_xcsp3(config.problem_path.data(), solver_output);
     }
 #endif
 #ifdef WITH_NNV
     else if (config.input_format() == InputFormat::VNNLIB ||
              config.input_format() == InputFormat::ONNX) {
-      solver_output.set_type(OutputType::NNV);
+      solver_output = SolverOutput<BasicAllocator>(basic_allocator, OutputType::NNV);
       f = parse_nnv<basic_allocator_type>(config.onnx_path.data(), config.vnnlib_path.data(), input_neurons, hidden_neurons, solver_output, true);
     }
     else if (config.input_format() == InputFormat::SMT2) {
-      solver_output.set_type(OutputType::SMT2);
+      solver_output = SolverOutput<BasicAllocator>(basic_allocator, OutputType::SMT2);
       f = parse_smt2(config.problem_path.data(), solver_output, false);
     }
 #endif

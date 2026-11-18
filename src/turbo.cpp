@@ -18,10 +18,20 @@
 #include "barebones_dive_and_solve.hpp"
 #include "fbarebones_dive_and_solve.hpp"
 #include "jet_dive_and_solve.hpp"
+#ifdef JET_WITH_SCIP
+#include "jet_scip.hpp"
+#endif
+#include <string>
 
 using namespace battery;
 
 int main(int argc, char** argv) {
+#ifdef JET_WITH_SCIP
+  /** `-under scip`: the SCIP workers are this executable started again with this flag (`jet_scip.hpp`). */
+  if(argc >= 2 && std::string(argv[1]) == jet::scip_under::worker_flag()) {
+    return jet::scip_under::worker_main();
+  }
+#endif
   try
   {
     Configuration<standard_allocator> config = parse_args(argc, argv);

@@ -35,6 +35,33 @@
  */
 namespace uass {
 
+/** Whether the interval `[lb, ub]` can be bisected at its middle: `battery::midpoint(lb, ub)` lies
+ * strictly inside. Two adjacent floats cannot: their middle rounds to one of them, so one child of the
+ * decision would be its parent again. With float bounds this happens for a width above `epsilon` as soon
+ * as the spacing of the floats exceeds `epsilon` (e.g. near 16 with `epsilon = 1e-6`), and the input
+ * split then split the same domain forever; such a domain is treated as narrower than `epsilon` (it is
+ * fixed by the underapproximation of the leaves). */
+template <class T>
+CUDA INLINE bool bisectable(T lb, T ub) {
+  const T mid = battery::midpoint(lb, ub);
+  return lb < mid && mid < ub;
+}
+
+/** Whether the domain `dom` is split by the input split: finite, wider than `epsilon` and bisectable. */
+template <class Dom>
+CUDA INLINE bool splittable(const Dom& dom, double epsilon) {
+  return !dom.lb().is_top() && !dom.ub().is_top() && dom.width().ub().value() > epsilon
+    && bisectable(dom.lb().value(), dom.ub().value());
+}
+
+/** Whether the domain `dom` is fixed by the underapproximation of an epsilon-box: finite, not a point,
+ * and not split by the input split (`splittable`). */
+template <class Dom>
+CUDA INLINE bool in_epsilon_box(const Dom& dom, double epsilon) {
+  return !dom.lb().is_top() && !dom.ub().is_top() && dom.lb().value() != dom.ub().value()
+    && !splittable(dom, epsilon);
+}
+
 template <class Block>
 CUDA INLINE bool is_uass(const Block& b) { return b.uass_depth >= 0; }
 

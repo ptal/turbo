@@ -310,7 +310,7 @@ struct BlockData {
       __syncthreads();
       for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-        if(dom.width().ub().value() > epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
+        if(uass::splittable(dom, epsilon)) {
           if(idx.meet(local::ZUB(split_in_store ? i : strategy.vars[i].vid()))) {
             has_changed = true;
           }
@@ -354,7 +354,7 @@ struct BlockData {
       __syncthreads();
       for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-        if(dom.width().ub().value() > epsilon && !dom.lb().is_top() && !dom.ub().is_top()) {
+        if(uass::splittable(dom, epsilon)) {
         //if (dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()) {
           if(value.meet(f(dom, strategy.vars[i].vid()))) {
             has_changed = true;
@@ -384,7 +384,7 @@ struct BlockData {
         __syncthreads();
         for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
           const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-          if(dom.width().ub().value() > epsilon && !dom.lb().is_top() && !dom.ub().is_top() && f(dom,strategy.vars[i].vid()) == value) {
+          if(uass::splittable(dom, epsilon) && f(dom,strategy.vars[i].vid()) == value) {
             if(idx.meet(local::ZUB(strategy.vars[i].vid()))) {
               has_changed = true;
             }
@@ -426,7 +426,7 @@ struct BlockData {
       __syncthreads();
       for(int i = threadIdx.x; i < n; i += blockDim.x){
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-        if(dom.width().ub().value() <= epsilon && dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()){
+        if(uass::in_epsilon_box(dom, epsilon)){
           has_changed = true;
         }
       }
@@ -466,7 +466,7 @@ struct BlockData {
       __syncthreads();
       for(int i = threadIdx.x; i < n; i += blockDim.x) {
         const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-        if(dom.width().ub().value() <= epsilon && dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top()){
+        if(uass::in_epsilon_box(dom, epsilon)){
           if(value.meet(f(dom, strategy.vars[i].vid()))){
             has_changed = true;
           }
@@ -492,7 +492,7 @@ struct BlockData {
         __syncthreads();
         for(int i = next_unassigned_var + threadIdx.x; i < n; i += blockDim.x) {
           const auto& dom = (*store)[split_in_store ? i : strategy.vars[i].vid()];
-          if(dom.width().ub().value() <= epsilon && dom.lb().value() != dom.ub().value() && !dom.lb().is_top() && !dom.ub().is_top() && f(dom, strategy.vars[i].vid()) == value){
+          if(uass::in_epsilon_box(dom, epsilon) && f(dom, strategy.vars[i].vid()) == value){
             if(idx.meet(local::ZUB(strategy.vars[i].vid()))){
               has_changed = true;
             }
@@ -539,7 +539,7 @@ struct BlockData {
     for(int i = threadIdx.x; i < n; i += blockDim.x) {
       const int dom_id = split_in_store ? i : strategy.vars[i].vid();
       const auto& dom = (*store)[dom_id];
-      if(dom.width().ub().value() > epsilon && E[dom_id] && !dom.lb().is_top() && !dom.ub().is_top()) {
+      if(uass::splittable(dom, epsilon) && E[dom_id]) {
         if(idx.meet(local::ZUB(i))) {
           has_changed = true;
           break;
@@ -591,7 +591,7 @@ struct BlockData {
         break;
       }
       case ValueOrder::LB_SPLIT: {
-        if(dom.lb().value() != dom.ub().value() && dom.width().ub().value() <= epsilon) {
+        if(uass::in_epsilon_box(dom, epsilon)) {
           underapproximates = true;
           single_child = true;
           decisions[depth].children[0] = FItv(dom.lb().value(), dom.lb().value());
@@ -603,7 +603,7 @@ struct BlockData {
 	      break;
       }
       case ValueOrder::UB_SPLIT: {
-        if(dom.lb().value() != dom.ub().value() && dom.width().ub().value() <= epsilon) {
+        if(uass::in_epsilon_box(dom, epsilon)) {
           underapproximates = true;
           single_child = true;
           decisions[depth].children[0] = FItv(dom.ub().value(), dom.ub().value());
@@ -615,7 +615,7 @@ struct BlockData {
 	      break;
       }
       case ValueOrder::MID_SPLIT: {
-        if(dom.lb().value() != dom.ub().value() && dom.width().ub().value() <= epsilon) {
+        if(uass::in_epsilon_box(dom, epsilon)) {
           underapproximates = true;
           single_child = true;
           decisions[depth].children[0] = FItv(mid, mid);
@@ -627,7 +627,7 @@ struct BlockData {
 	      break;
       }
       case ValueOrder::MID_LB_SPLIT: {
-        if(dom.lb().value() != dom.ub().value() && dom.width().ub().value() <= epsilon) {
+        if(uass::in_epsilon_box(dom, epsilon)) {
           underapproximates = true;
           decisions[depth].children[0] = FItv(mid, mid);
           decisions[depth].children[1] = FItv(dom.lb().value(), dom.lb().value());
@@ -639,7 +639,7 @@ struct BlockData {
 	      break;
       }
       case ValueOrder::MID_UB_SPLIT: {
-        if(dom.lb().value() != dom.ub().value() && dom.width().ub().value() <= epsilon) {
+        if(uass::in_epsilon_box(dom, epsilon)) {
           underapproximates = true;
           decisions[depth].children[0] = FItv(mid, mid);
           decisions[depth].children[1] = FItv(dom.ub().value(), dom.ub().value());
@@ -799,6 +799,30 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
   }
   /** `-jet_interval_prop` selects the interval propagation of `-arch jet`; with `-arch fbarebones`,
    * `-forward_only` gives the forward propagation of the bytecodes. */
+  if(cp.config.jet_leaf_check != JET_LEAF_STRICT) {
+    printf("%% WARNING: -jet_leaf_check is only supported by -arch jet, it is ignored.\n");
+    cp.config.jet_leaf_check = JET_LEAF_STRICT;
+  }
+  if(cp.config.jet_disjuncts != JET_DISJUNCTS_INTERLEAVED) {
+    printf("%% WARNING: -jet_disjuncts is only supported by -arch jet (fbarebones searches the disjunctions of the property in one tree), it is ignored.\n");
+    cp.config.jet_disjuncts = JET_DISJUNCTS_INTERLEAVED;
+  }
+  if(cp.config.jet_candidates) {
+    printf("%% WARNING: -jet_candidates is only supported by -arch jet, it is ignored.\n");
+    cp.config.jet_candidates = false;
+  }
+  if(cp.config.jet_backward != JET_BACKWARD_OFF) {
+    printf("%% WARNING: -jet_backward is only supported by -arch jet, it is ignored.\n");
+    cp.config.jet_backward = JET_BACKWARD_OFF;
+  }
+  if(cp.config.jet_linear != JET_LINEAR_BOTH) {
+    printf("%% WARNING: -jet_linear is only supported by -arch jet, it is ignored.\n");
+    cp.config.jet_linear = JET_LINEAR_BOTH;
+  }
+  if(cp.config.under != UNDER_JET) {
+    printf("%% WARNING: -under is only supported by -arch jet, it is ignored.\n");
+    cp.config.under = UNDER_JET;
+  }
   if(cp.config.jet_interval_prop != JET_INTERVAL_FIXPOINT) {
     printf("%% WARNING: -jet_interval_prop is only supported by -arch jet, it is ignored (use -forward_only for a forward propagation of the bytecodes).\n");
     cp.config.jet_interval_prop = JET_INTERVAL_FIXPOINT;
@@ -823,6 +847,18 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
 
   /** `-split_on relu`: the pre-activations of the ReLUs of the model. */
   std::vector<int> relu_pre;
+  /** The choices by score of the ReLUs and the inputs are those of `-arch jet` (`jet_abs.hpp`). */
+  if(cp.config.split_on == SPLIT_ON_MIXED) {
+    printf("%% WARNING: -split_on mixed is only available with -arch jet, the search splits the inputs.\n");
+    cp.config.split_on = SPLIT_ON_INPUT;
+  }
+  if(cp.config.relu_order == RELU_ORDER_SMEAR || cp.config.relu_order == RELU_ORDER_ABS) {
+    if(cp.config.split_on == SPLIT_ON_RELU) {
+      printf("%% WARNING: -relu_order %s is only available with -arch jet, the ReLUs are split in the order of the model (earliest).\n",
+        name_of_relu_order(cp.config.relu_order));
+    }
+    cp.config.relu_order = RELU_ORDER_EARLIEST;
+  }
   if(cp.config.split_on == SPLIT_ON_RELU) {
     relu_pre = relu_pre_activations(cp);
     if(relu_pre.empty()) {
@@ -842,7 +878,7 @@ void fbarebones_dive_and_solve(const Configuration<battery::standard_allocator>&
       if(cp.config.verbose_solving >= 1 && strategies.size() > 0) {
         const auto& main = strategies[strategies.size() - 1];
         printf("%% -split_on relu: the search splits the phase of %d ReLUs (-relu_order %s), then %s the inputs with %s and %s.\n",
-          static_cast<int>(relu_pre.size()), cp.config.relu_order == RELU_ORDER_WIDEST ? "widest" : "earliest",
+          static_cast<int>(relu_pre.size()), name_of_relu_order(cp.config.relu_order),
           point ? "fixes" : "splits (-relu_leaf input)",
           string_of_variable_order(main.var_order), string_of_value_order(main.val_order));
       }

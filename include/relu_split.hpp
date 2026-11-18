@@ -30,6 +30,9 @@
  *   * `earliest`: the first candidate in the list of the ReLUs, which follows the network (first
  *     layer first; for fbarebones, the order of the bytecodes);
  *   * `widest`: the candidate with the largest `ub(v) - lb(v)`, the earliest one on a tie.
+ *   * `smear`, `abs` (JET only): the candidate of maximum score, or the adaptive bisection of Granvilliers
+ *     over the scores, computed from the derivatives of the rows of the property (`relu_select_split` of
+ *     `jet_dive_and_solve.hpp`, `jet_jacobian.hpp`, `jet_abs.hpp`); the decision is `push_relu_decision`.
  *
  * The leaves. When no candidate is left and the node did not fail, every ReLU has a phase: the
  * network is affine on the node, but the propagation cannot decide whether a point of the input box

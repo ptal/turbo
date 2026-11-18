@@ -5,11 +5,12 @@
 
 #include "battery/utility.hpp"
 #include "lala/finterval.hpp"
+#include "jet_sigmoid.hpp"
 
 /** Second version of the deduction of an affine neuron of JET, selected with `-jet_affine v2`.
  *
  * It computes the same projection as `FastNNRelu::deduce_neuron` (version 1): the forward sum
- * \f$ s = \sum_c w_c x_c + b \f$, the ReLU (or the identity), then for every input the projection
+ * \f$ s = \sum_c w_c x_c + b \f$, the activation (ReLU, sigmoid, or the identity), then for every input the projection
  * \f$ x_c \in (N - \sum_{c' \neq c} w_{c'} x_{c'}) / w_c \f$ where `N` is the narrowed sum. The
  * differences are only in how much work is done:
  *
@@ -50,21 +51,24 @@ CUDA INLINE void scalar_term(T w, T l, T u, T& tl, T& tu) {
   }
 }
 
-/** Deduction of the affine neuron `target` = (ReLU of) \f$ \sum_{c < fan\_in} W(c) \cdot x_{prev\_base + c} + bias \f$.
+/** Deduction of the affine neuron `target` = (activation of) \f$ \sum_{c < fan\_in} W(c) \cdot x_{source(c)} + bias \f$:
+ * the `fan_in` terms of a dense layer (`source(c) = prev_base + c`, `deduce` below), or the stored
+ * weights of a row of a sparse layer (`FastNNRelu::deduce_neuron_dir`).
  *
  * `Neurons` gives access to the store of neurons:
  *   * `T lb(int i) const`, `T ub(int i) const`: the current bounds of the neuron `i`;
  *   * `bool meet(int i, T l, T u)`: intersect the neuron `i` with `[l, u]`, return `true` if it shrank
  *     (an infinite bound means "no information"; a NaN bound must be ignored, as `LB::meet` does);
  *   * `bool fail(int i)`: make the neuron `i` empty, return `true`.
- * `WeightFn` is a callable `T W(int c)` returning the weight of the connection `c -> target`.
+ * `WeightFn` is a callable `T W(int c)` returning the weight of the term `c`, and `SourceFn` a callable
+ * `int source(int c)` returning its neuron.
  * With `backward == false` (`-forward_only`), only the forward projection is done (STEP 1 and 2): the
  * neurons of the previous layer are never tightened.
  *
  * \return `true` if the store changed. */
-template <class T, class Neurons, class WeightFn>
-CUDA bool deduce(Neurons& neurons, const WeightFn& W, int prev_base, int fan_in, int target, T bias, bool has_relu,
-  bool backward = true)
+template <class T, class Neurons, class WeightFn, class SourceFn>
+CUDA bool deduce_indexed(Neurons& neurons, const WeightFn& W, const SourceFn& source, int fan_in, int target, T bias,
+  int act, bool backward = true)
 {
   using RItv = lala::FInterval<T>;
   constexpr T inf = battery::limits<T>::inf();
@@ -75,7 +79,7 @@ CUDA bool deduce(Neurons& neurons, const WeightFn& W, int prev_base, int fan_in,
   T su = T{0};
   T dmax = T{0};
   for(int c = 0; c < fan_in; ++c) {
-    const RItv x(neurons.lb(prev_base + c), neurons.ub(prev_base + c));
+    const RItv x(neurons.lb(source(c)), neurons.ub(source(c)));
     if(x.is_bot()) {
       return neurons.fail(target);
     }
@@ -86,12 +90,15 @@ CUDA bool deduce(Neurons& neurons, const WeightFn& W, int prev_base, int fan_in,
     dmax = battery::max(dmax, battery::sub_up<T>(tu, tl));
   }
 
-  // STEP 2: bias and ReLU, exactly as in version 1.
+  // STEP 2: bias and activation, exactly as in version 1.
   RItv pre(battery::add_down<T>(sl, bias), battery::add_up<T>(su, bias));
   RItv y(neurons.lb(target), neurons.ub(target));
-  if(has_relu) {
+  if(act == ACT_RELU) {
     RItv zero(T{0});
     lala::tell::fmax(y, pre, zero);  // forward on `y`, backward on `pre`.
+  }
+  else if(act == ACT_SIGMOID) {
+    sigmoid::tell<T>(y, pre);  // forward on `y`, backward on `pre`.
   }
   else {
     y.meet(pre);
@@ -116,7 +123,7 @@ CUDA bool deduce(Neurons& neurons, const WeightFn& W, int prev_base, int fan_in,
   for(int c = 0; c < fan_in; ++c) {
     const T w = W(c);
     if(w == T{0}) { continue; }
-    const int src = prev_base + c;
+    const int src = source(c);
     /** Re-read after the forward sum was formed (see the invariant above). */
     T tl, tu;
     scalar_term(w, neurons.lb(src), neurons.ub(src), tl, tu);
@@ -139,6 +146,14 @@ CUDA bool deduce(Neurons& neurons, const WeightFn& W, int prev_base, int fan_in,
     has_changed |= neurons.meet(src, xl, xu);
   }
   return has_changed;
+}
+
+/** `deduce_indexed` on the `fan_in` consecutive sources `prev_base + c` (a dense affine layer). */
+template <class T, class Neurons, class WeightFn>
+CUDA INLINE bool deduce(Neurons& neurons, const WeightFn& W, int prev_base, int fan_in, int target, T bias, int act,
+  bool backward = true)
+{
+  return deduce_indexed<T>(neurons, W, [prev_base](int c) { return prev_base + c; }, fan_in, target, bias, act, backward);
 }
 
 } // namespace affine_v2
