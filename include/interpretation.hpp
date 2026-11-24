@@ -287,15 +287,6 @@ CUDA NI bool interpret_in(const F& f, VarEnv<Alloc>& env, AVar& avar, IDiagnosti
   else if(f.is(F::LV)) {
     return interpret_lv_in<diagnose>(f, env, avar, diagnostics);
   }
-  else if(f.is(F::V)) {
-    if(env.contains(f.v())) {
-      avar = f.v();
-      return true;
-    }
-    else {
-      RETURN_INTERPRETATION_ERROR("Undeclared abstract variable `" + fstring<F>::from_int(f.v().aty()) + ", " + fstring<F>::from_int(f.v().vid()) + "`.");
-    }
-  }
   else {
     RETURN_INTERPRETATION_ERROR("Unsupported formula: `VarEnv` can only interpret quantifiers and occurrences of variables.");
   }
@@ -308,16 +299,6 @@ CUDA NI bool interpret_var_in(const F& f, const VarEnv<Alloc>& env, AType aty, A
   const char* name = "VarEnv";
   if(f.is(F::LV)) {
     return interpret_lv_in<diagnose>(f.map_atype(aty), env, avar, diagnostics);
-  }
-  else if(f.is(F::V)) {
-    if(!env.contains(f.v())) {
-      RETURN_INTERPRETATION_ERROR("Undeclared abstract variable `" + fstring<F>::from_int(f.v().aty()) + ", " + fstring<F>::from_int(f.v().vid()) + "`.");
-    }
-    if(f.v().aty() != aty) {
-      RETURN_INTERPRETATION_ERROR("The abstract variable `" + fstring<F>::from_int(f.v().aty()) + ", " + fstring<F>::from_int(f.v().vid()) + "` does not belong to the abstract element `" + fstring<F>::from_int(aty) + "`.");
-    }
-    avar = f.v();
-    return true;
   }
   else {
     RETURN_INTERPRETATION_ERROR("Unsupported formula: expected an occurrence of a variable.");
@@ -666,7 +647,7 @@ CUDA NI TFormula<Allocator> deinterpret_in(const B& a, AVar avar, const Env& env
     return F::make_false();
   }
   return F::make_binary(
-    F::make_avar(avar),
+    F::make_lvar(avar.aty(), env.name_of(avar)),
     bound_logic<typename B::basic_type>::sig_order(),
     deinterpret_constant<F>(a),
     UNTYPED, allocator);
@@ -932,7 +913,7 @@ CUDA NI TFormula<Allocator> deinterpret_in(const ZInterval<VT, Mem>& a, AVar x, 
   }
   logic_set<F> logical_set(1, allocator);
   logical_set[0] = battery::make_tuple(deinterpret_constant<F>(a.lb()), deinterpret_constant<F>(a.ub()));
-  return F::make_binary(F::make_avar(x), IN, F::make_set(std::move(logical_set)), UNTYPED, allocator);
+  return F::make_binary(F::make_lvar(x.aty(), env.name_of(x)), IN, F::make_set(std::move(logical_set)), UNTYPED, allocator);
 }
 
 /** Deinterpret the interval to a logical constant, taken from the lower bound.
@@ -1190,30 +1171,16 @@ namespace impl {
     basic_universe_type u;
     bool res = ginterpret_in<kind, diagnose>(f, env, u, diagnostics);
     if(res) {
-      const auto& varf = var_in(f);
-      // When it is not necessary, we try to avoid using the environment.
-      // This is for instance useful when deduction operators add new constraints but do not have
-      // access to the environment, and to avoid passing the environment around everywhere.
-      if(varf.is(F::V)) {
-        if(varf.v().aty() == store.aty() || varf.v().aty() == UNTYPED) {
-          tell.push_back(typename A::template var_dom<Alloc2>(varf.v().vid(), u));
-        }
-        else {
-          RETURN_INTERPRETATION_ERROR("The variable was not declared in the current abstract element (but exists in other abstract elements).");
-        }
+      auto var = var_in(f, env);
+      if(!var.has_value()) {
+        RETURN_INTERPRETATION_ERROR("Undeclared variable.");
       }
-      else {
-        auto var = var_in(f, env);
-        if(!var.has_value()) {
-          RETURN_INTERPRETATION_ERROR("Undeclared variable.");
-        }
-        auto avar = var->get().avar_of(store.aty());
-        if(!avar.has_value()) {
-          RETURN_INTERPRETATION_ERROR("The variable was not declared in the current abstract element (but exists in other abstract elements).");
-        }
-        assert(avar->aty() == store.aty());
-        tell.push_back(typename A::template var_dom<Alloc2>(avar->vid(), u));
+      auto avar = var->get().avar_of(store.aty());
+      if(!avar.has_value()) {
+        RETURN_INTERPRETATION_ERROR("The variable was not declared in the current abstract element (but exists in other abstract elements).");
       }
+      assert(avar->aty() == store.aty());
+      tell.push_back(typename A::template var_dom<Alloc2>(avar->vid(), u));
       return true;
     }
     else {
@@ -1284,7 +1251,6 @@ namespace impl {
   {
     auto f = deinterpret_in(dom, avar, env, allocator);
     f.type_as(store.aty());
-    map_avar_to_lvar(f, env);
     return std::move(f);
   }
 
@@ -1559,7 +1525,7 @@ CUDA NI bool interpret_strategy(const F& f, Env& env, lala::AType store_aty, Str
     RETURN_INTERPRETATION_ERROR("This value order strategy is unsupported.");
   }
   for(int i = 2; i < f.eseq().size(); ++i) {
-    if(f.eseq(i).is(F::LV) || f.eseq(i).is(F::V)) {
+    if(f.eseq(i).is(F::LV)) {
       strat.vars.push_back(lala::AVar{});
       if(!lala::interpret_var_in<diagnose>(f.eseq(i), env, store_aty, strat.vars.back(), diagnostics)) {
         return false;
