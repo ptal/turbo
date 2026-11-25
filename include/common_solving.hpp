@@ -413,8 +413,8 @@ public:
             Sig::AND,
             F::make_binary(
               F::make_lvar(f.seq(0).type(), minimize_obj),
-              Sig::EQ,
-              F::make_unary(Sig::NEG, f.seq(0)))));
+              battery::get<1>(max_var).is_real() ? Sig::REQ : Sig::ZEQ,
+              F::make_unary(battery::get<1>(max_var).is_real() ? Sig::RNEG : Sig::ZNEG, f.seq(0)))));
       }
       else if(f.sig() == Sig::AND) {
         for(int i = 0; i < f.seq().size(); ++i) {

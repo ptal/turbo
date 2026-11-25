@@ -448,8 +448,8 @@ struct bound_logic;
 template <class VT, class Mem>
 struct bound_logic<LB<VT, Mem>> {
   constexpr static const bool is_lower_bound = true;
-  CUDA static constexpr Sig sig_order() { return GEQ; }
-  CUDA static constexpr Sig sig_strict_order() { return GT; }
+  CUDA static constexpr Sig sig_order() { return ZGEQ; }
+  CUDA static constexpr Sig sig_strict_order() { return ZGT; }
   /** The greatest value strictly below `v`, i.e. `x > v` is `x >= v+1` over the integers. */
   CUDA static constexpr VT strict(VT v) { return v + VT{1}; }
 };
@@ -457,8 +457,8 @@ struct bound_logic<LB<VT, Mem>> {
 template <class VT, class Mem>
 struct bound_logic<UB<VT, Mem>> {
   constexpr static const bool is_lower_bound = false;
-  CUDA static constexpr Sig sig_order() { return LEQ; }
-  CUDA static constexpr Sig sig_strict_order() { return LT; }
+  CUDA static constexpr Sig sig_order() { return ZLEQ; }
+  CUDA static constexpr Sig sig_strict_order() { return ZLT; }
   CUDA static constexpr VT strict(VT v) { return v - VT{1}; }
 };
 
@@ -505,7 +505,7 @@ namespace impl {
       return false;
     }
     if constexpr(is_tell) {
-      if(f.sig() == EQ || f.sig() == logic::sig_order()) {  // e.g., x <= 4 or x >= 4
+      if(f.sig() == ZEQ || f.sig() == logic::sig_order()) {  // e.g., x <= 4 or x >= 4
         bound.meet(typename B::basic_type(k));
       }
       else if(f.sig() == logic::sig_strict_order()) {  // e.g., x < 4 or x > 4
@@ -519,7 +519,7 @@ namespace impl {
       if(f.sig() == logic::sig_order()) {
         bound.meet(typename B::basic_type(k));
       }
-      else if(f.sig() == NEQ || f.sig() == logic::sig_strict_order()) {
+      else if(f.sig() == ZNEQ || f.sig() == logic::sig_strict_order()) {
         bound.meet(typename B::basic_type(logic::strict(k)));
       }
       else {
@@ -718,29 +718,29 @@ namespace impl {
     using A = NBitset<N, Mem, T>;
     using basic_type = typename A::basic_type;
     const char* name = A::name;
-    if(sig == LT) {
-      return interpret_tell_x_op_k_bitset<diagnose>(f, k-1, LEQ, tell, diagnostics);
+    if(sig == ZLT) {
+      return interpret_tell_x_op_k_bitset<diagnose>(f, k-1, ZLEQ, tell, diagnostics);
     }
-    else if(sig == GT) {
-      return interpret_tell_x_op_k_bitset<diagnose>(f, k+1, GEQ, tell, diagnostics);
+    else if(sig == ZGT) {
+      return interpret_tell_x_op_k_bitset<diagnose>(f, k+1, ZGEQ, tell, diagnostics);
     }
     else if(k < 0 || k >= A::capacity() - 2) {
-      if((k == -1 && sig == LEQ) || (k == A::capacity() - 2 && sig == GEQ)) {
+      if((k == -1 && sig == ZLEQ) || (k == A::capacity() - 2 && sig == ZGEQ)) {
         // this is fine because x <= -1 and x >= n-2 can be represented exactly.
       }
       else {
         INTERPRETATION_WARNING("Constraint `x <op> k` is over-approximated because `k` is not representable in the bitset. Note that for a bitset of size `n`, the only values representable exactly are in the interval `[0, n-3]` because two bits are used to represent all negative values and all values exceeding the size of the bitset.");
-        // If it is NEQ, we can't give a better approximation than top.
-        if(sig == NEQ) {
+        // If it is ZNEQ, we can't give a better approximation than top.
+        if(sig == ZNEQ) {
           return true;
         }
       }
     }
     switch(sig) {
-      case EQ: tell.meet(basic_type(k, k)); break;
-      case NEQ: tell.meet(basic_type(k, k).complement()); break;
-      case LEQ: tell.meet(basic_type(-1, k)); break;
-      case GEQ: tell.meet(basic_type(k, A::capacity())); break;
+      case ZEQ: tell.meet(basic_type(k, k)); break;
+      case ZNEQ: tell.meet(basic_type(k, k).complement()); break;
+      case ZLEQ: tell.meet(basic_type(-1, k)); break;
+      case ZGEQ: tell.meet(basic_type(k, A::capacity())); break;
       default: RETURN_INTERPRETATION_ERROR("This symbol is not supported.");
     }
     return true;
@@ -850,10 +850,10 @@ CUDA NI bool interpret_ask_in(const F& f, const Env& env, ZInterval<VT, Mem>& k,
   using basic_type = typename A::basic_type;
   const char* name = A::name;
   basic_type itv = basic_type::top();
-  if(f.is_binary() && f.sig() == NEQ) {
+  if(f.is_binary() && f.sig() == ZNEQ) {
     return interpret_ask_in<diagnose>(f, env, k.lb(), diagnostics);
   }
-  else if(f.is_binary() && f.sig() == EQ) {
+  else if(f.is_binary() && f.sig() == ZEQ) {
     CALL_WITH_ERROR_CONTEXT_WITH_MERGE(
       "When interpreting equality, the underlying bounds LB and UB failed to agree on the same value.",
       (interpret_tell_in<diagnose>(f, env, itv.lb(), diagnostics) &&
@@ -869,7 +869,7 @@ CUDA NI bool interpret_ask_in(const F& f, const Env& env, ZInterval<VT, Mem>& k,
     if(lb == ub) {
       CALL_WITH_ERROR_CONTEXT(
         "Failed to interpret the decomposition of set membership `x in {[v..v]}` into equality `x == v`.",
-        (interpret_ask_in<diagnose>(F::make_binary(f.seq(0), EQ, lb), env, k, diagnostics)));
+        (interpret_ask_in<diagnose>(F::make_binary(f.seq(0), ZEQ, lb), env, k, diagnostics)));
     }
     CALL_WITH_ERROR_CONTEXT_WITH_MERGE(
       "Failed to interpret the decomposition of set membership `x in {[l..u]}` into `x >= l /\\ x <= u`.",
@@ -1315,16 +1315,16 @@ namespace impl {
       // Expect constraint of the form X = Y <OP> Z, or Y <OP> Z = X.
       int left = f.seq(0).is_binary() ? 1 : 0;
       int right = f.seq(1).is_binary() ? 1 : 0;
-      if((sig == EQ || sig == EQUIV)  && (left + right == 1)) {
+      if((sig == ZEQ || sig == EQUIV)  && (left + right == 1)) {
         auto& X = f.seq(left);
         auto& Y = f.seq(right).seq(0);
         auto& Z = f.seq(right).seq(1);
         bytecode_type bytecode;
         bytecode.op = f.seq(right).sig();
         if(X.is_variable() && Y.is_variable() && Z.is_variable() &&
-          (bytecode.op == ADD || bytecode.op == MUL || ::lala::is_z_division(bytecode.op)
-          || bytecode.op == MIN || bytecode.op == MAX
-          || bytecode.op == EQ || bytecode.op == LEQ))
+          (bytecode.op == ZADD || bytecode.op == ZMUL || ::lala::is_z_division(bytecode.op)
+          || bytecode.op == ZMIN || bytecode.op == ZMAX
+          || bytecode.op == ZEQ || bytecode.op == ZLEQ))
         {
           // The variables are resolved in the sub-domain, and the bytecode stores their indices.
           AVar x, y, z;
@@ -1390,7 +1390,7 @@ namespace impl {
     auto X = F::make_lvar(sub_aty, LVar<Allocator2>(env.name_of(AVar(sub_aty, bytecode.x)), allocator));
     auto Y = F::make_lvar(sub_aty, LVar<Allocator2>(env.name_of(AVar(sub_aty, bytecode.y)), allocator));
     auto Z = F::make_lvar(sub_aty, LVar<Allocator2>(env.name_of(AVar(sub_aty, bytecode.z)), allocator));
-    return F::make_binary(X, EQ, F::make_binary(Y, bytecode.op, Z, pir.aty(), allocator), pir.aty(), allocator);
+    return F::make_binary(X, ZEQ, F::make_binary(Y, bytecode.op, Z, pir.aty(), allocator), pir.aty(), allocator);
   }
 }
 

@@ -25,8 +25,8 @@ template <class F>
 bool contains(const F &f, const F &must_contain)
 {
   F reversed = must_contain;
-  if(must_contain.is_binary() && must_contain.sig() == EQ) {
-    reversed = F::make_binary(must_contain.seq(1), EQ, must_contain.seq(0));
+  if(must_contain.is_binary() && must_contain.sig() == ZEQ) {
+    reversed = F::make_binary(must_contain.seq(1), ZEQ, must_contain.seq(0));
   }
   for (int i = 0; i < f.seq().size(); ++i)
   {
@@ -40,7 +40,7 @@ bool contains(const F &f, const F &must_contain)
 
 bool is_PIR_symbol(Sig &sig)
 {
-  return sig == ADD || sig == MUL || is_division(sig) || is_modulo(sig) || sig == EQ || sig == LEQ || sig == MAX || sig == MIN;
+  return sig == ZADD || sig == ZMUL || is_division(sig) || is_modulo(sig) || sig == ZEQ || sig == ZLEQ || sig == ZMAX || sig == ZMIN;
 }
 
 void test_ternarize(
