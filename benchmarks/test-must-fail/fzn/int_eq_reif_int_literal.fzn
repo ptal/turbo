@@ -1,0 +1,7 @@
+% Must fail: the reification literal of `int_eq_reif` is a 0/1 integer variable.
+% expect: `equiv` expects an argument of sort Bool, but argument 2 has sort Int (use `int2bool` to convert an integer into a Boolean).
+var 0..5: x;
+var 0..5: y;
+var 0..1: r;
+constraint int_eq_reif(x, y, r);
+solve satisfy;

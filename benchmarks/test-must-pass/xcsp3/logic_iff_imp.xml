@@ -1,0 +1,17 @@
+<!-- Must pass: `iff` and `imp`. Optimum: 16. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 0..6 </var>
+    <var id="y"> 0..6 </var>
+    <var id="z"> 0..6 </var>
+  </variables>
+  <constraints>
+    <intension> iff(lt(x,3),gt(y,4)) </intension>
+    <intension> imp(gt(y,4),eq(z,0)) </intension>
+  </constraints>
+  <objectives>
+    <maximize type="sum">
+      <list> x y z </list>
+    </maximize>
+  </objectives>
+</instance>

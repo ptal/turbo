@@ -1,0 +1,19 @@
+<!-- Must pass: a sum with a strict lower bound. Optimum: 11. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 0..4 </var>
+    <var id="y"> 0..4 </var>
+    <var id="z"> 0..4 </var>
+  </variables>
+  <constraints>
+    <sum>
+      <list> x y z </list>
+      <condition> (gt,10) </condition>
+    </sum>
+  </constraints>
+  <objectives>
+    <minimize type="sum">
+      <list> x y z </list>
+    </minimize>
+  </objectives>
+</instance>

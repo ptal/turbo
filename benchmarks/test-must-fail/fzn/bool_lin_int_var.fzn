@@ -1,0 +1,6 @@
+% Must fail: an integer variable is in the variable array of `bool_lin_eq` (each variable is wrapped in `bool2int`).
+% expect: `bool2int` expects an argument of sort Bool, but argument 1 has sort Int (use `int2bool` to convert an integer into a Boolean).
+var bool: b;
+var 0..1: x;
+constraint bool_lin_eq([1, 1], [b, x], 1);
+solve satisfy;

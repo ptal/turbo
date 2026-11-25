@@ -1,0 +1,14 @@
+<!-- Must pass: `div` by a negative divisor is truncated towards zero. Optimum: -4. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 7..9 </var>
+    <var id="y"> -4..-2 </var>
+    <var id="z"> -10..10 </var>
+  </variables>
+  <constraints>
+    <intension> eq(div(x,y),z) </intension>
+  </constraints>
+  <objectives>
+    <minimize> z </minimize>
+  </objectives>
+</instance>

@@ -1,0 +1,24 @@
+<!-- Must pass: `cumulative` whose capacity is a variable, minimized. Optimum: 3. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="s0"> 0..3 </var>
+    <var id="s1"> 0..3 </var>
+    <var id="s2"> 0..3 </var>
+    <var id="cap"> 0..5 </var>
+  </variables>
+  <constraints>
+    <sum>
+      <list> s0 s1 s2 </list>
+      <condition> (le,1) </condition>
+    </sum>
+    <cumulative>
+      <origins> s0 s1 s2 </origins>
+      <lengths> 2 2 1 </lengths>
+      <heights> 2 1 2 </heights>
+      <condition> (le,cap) </condition>
+    </cumulative>
+  </constraints>
+  <objectives>
+    <minimize> cap </minimize>
+  </objectives>
+</instance>

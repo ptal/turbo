@@ -1,0 +1,6 @@
+% Must fail: the value of `array_bool_element` is a 0/1 integer variable.
+% expect: `equiv` expects an argument of sort Bool, but argument 2 has sort Int (use `int2bool` to convert an integer into a Boolean).
+var 1..2: i;
+var 0..1: x;
+constraint array_bool_element(i, [true, false], x);
+solve satisfy;

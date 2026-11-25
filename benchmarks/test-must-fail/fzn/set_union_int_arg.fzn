@@ -1,0 +1,7 @@
+% Must fail: an integer variable is an argument of `set_union`.
+% expect: `union` expects an argument of sort Set, but argument 2 has sort Int.
+var set of 1..3: s;
+var set of 1..3: t;
+var 1..3: x;
+constraint set_union(s, x, t);
+solve satisfy;

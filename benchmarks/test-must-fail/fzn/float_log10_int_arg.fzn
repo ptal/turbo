@@ -1,0 +1,6 @@
+% Must fail: the argument of `float_log10` is an integer variable.
+% expect: `rlog` expects an argument of sort Real, but argument 1 has sort Int (use `int2real` to convert an integer into a real number).
+var 1..100: x;
+var float: f;
+constraint float_log10(x, f);
+solve satisfy;

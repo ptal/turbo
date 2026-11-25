@@ -1,0 +1,20 @@
+<!-- Must pass: a sum whose condition compares with a variable. Optimum: 13. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 0..4 </var>
+    <var id="y"> 0..4 </var>
+    <var id="s"> 0..5 </var>
+  </variables>
+  <constraints>
+    <sum>
+      <list> x y </list>
+      <condition> (eq,s) </condition>
+    </sum>
+  </constraints>
+  <objectives>
+    <maximize type="sum">
+      <list> x y </list>
+      <coeffs> 3 1 </coeffs>
+    </maximize>
+  </objectives>
+</instance>

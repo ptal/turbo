@@ -1,0 +1,12 @@
+<!-- Must pass: a domain given as a list of values with holes. Optimum: 5. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 1 3 5 8 </var>
+  </variables>
+  <constraints>
+    <intension> ge(x,4) </intension>
+  </constraints>
+  <objectives>
+    <minimize> x </minimize>
+  </objectives>
+</instance>

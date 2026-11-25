@@ -1,0 +1,20 @@
+<!-- Must pass: `cumulative` with two tasks that cannot overlap. Optimum: 2. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="s0"> 0..3 </var>
+    <var id="s1"> 0..3 </var>
+  </variables>
+  <constraints>
+    <cumulative>
+      <origins> s0 s1 </origins>
+      <lengths> 2 2 </lengths>
+      <heights> 1 1 </heights>
+      <condition> (le,1) </condition>
+    </cumulative>
+  </constraints>
+  <objectives>
+    <minimize type="sum">
+      <list> s0 s1 </list>
+    </minimize>
+  </objectives>
+</instance>

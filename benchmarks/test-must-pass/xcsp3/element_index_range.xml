@@ -1,0 +1,18 @@
+<!-- Must pass: `element` whose index domain is larger than the list: the index must be valid. Optimum: 2. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <array id="x" size="[3]"> 0..9 </array>
+    <var id="i"> 0..5 </var>
+    <var id="v"> 0..9 </var>
+  </variables>
+  <constraints>
+    <element>
+      <list> x[] </list>
+      <index> i </index>
+      <value> v </value>
+    </element>
+  </constraints>
+  <objectives>
+    <maximize> i </maximize>
+  </objectives>
+</instance>

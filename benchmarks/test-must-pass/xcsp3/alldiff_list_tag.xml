@@ -1,0 +1,17 @@
+<!-- Must pass: `allDifferent` with an explicit `list` element. Optimum: 3. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 1..3 </var>
+    <var id="y"> 1..3 </var>
+    <var id="z"> 1..3 </var>
+  </variables>
+  <constraints>
+    <allDifferent>
+      <list> x y z </list>
+    </allDifferent>
+    <intension> gt(y,z) </intension>
+  </constraints>
+  <objectives>
+    <maximize> x </maximize>
+  </objectives>
+</instance>

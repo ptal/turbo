@@ -1,0 +1,6 @@
+% Must fail: the argument of `int2float` is a float variable.
+% expect: `int2real` expects an argument of sort Int, but argument 1 has sort Real (use `floor`, `ceil` or `trunc` to convert a real number into an integer).
+var float: f;
+var float: g;
+constraint int2float(f, g);
+solve satisfy;

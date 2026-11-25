@@ -1,0 +1,6 @@
+% Must fail: the coefficients of `float_lin_le` are integers (`1` instead of `1.0`).
+% expect: `rmul` expects an argument of sort Real, but argument 1 has sort Int (use `int2real` to convert an integer into a real number).
+var float: f;
+var float: g;
+constraint float_lin_le([1, 2], [f, g], 3.0);
+solve satisfy;

@@ -1,0 +1,22 @@
+<!-- Must pass: `cumulative` with three tasks where only some pairs can overlap. Optimum: 2. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="s0"> 0..4 </var>
+    <var id="s1"> 0..4 </var>
+    <var id="s2"> 0..4 </var>
+  </variables>
+  <constraints>
+    <cumulative>
+      <origins> s0 s1 s2 </origins>
+      <lengths> 2 1 3 </lengths>
+      <heights> 2 1 2 </heights>
+      <condition> (le,3) </condition>
+    </cumulative>
+  </constraints>
+  <objectives>
+    <minimize type="sum">
+      <list> s0 s1 s2 </list>
+      <coeffs> 1 1 1 </coeffs>
+    </minimize>
+  </objectives>
+</instance>

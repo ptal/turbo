@@ -1,0 +1,5 @@
+% Must fail: the minimum of an empty array (`zmin` with no argument).
+% expect: `zmin` expects at least 1 argument(s), but got 0.
+var 0..5: m;
+constraint array_int_minimum(m, []);
+solve satisfy;

@@ -1,0 +1,13 @@
+<!-- Must pass: a variable whose domain is a single value. Optimum: 9. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="c"> 7 </var>
+    <var id="y"> 0..10 </var>
+  </variables>
+  <constraints>
+    <intension> le(y,add(c,2)) </intension>
+  </constraints>
+  <objectives>
+    <maximize> y </maximize>
+  </objectives>
+</instance>

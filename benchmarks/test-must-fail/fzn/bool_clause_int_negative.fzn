@@ -1,0 +1,6 @@
+% Must fail: a 0/1 integer variable is a negative literal of `bool_clause` (checked under `not`).
+% expect: `not` expects an argument of sort Bool, but argument 1 has sort Int (use `int2bool` to convert an integer into a Boolean).
+var bool: b;
+var 0..1: x;
+constraint bool_clause([b], [x]);
+solve satisfy;

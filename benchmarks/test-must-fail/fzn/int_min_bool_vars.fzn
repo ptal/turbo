@@ -1,0 +1,6 @@
+% Must fail: Boolean variables are arguments of `int_min` (former test-must-pass/bug3.fzn).
+% expect: `zmin` expects an argument of sort Int, but argument 1 has sort Bool (use `bool2int` to convert a Boolean into an integer).
+var bool: b1;
+var bool: b2;
+constraint int_min(b1, b2, 1);
+solve satisfy;

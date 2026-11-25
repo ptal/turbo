@@ -1,0 +1,19 @@
+<!-- Must pass: a binary table of supports and an objective with a negative coefficient. Optimum: 2. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 0..3 </var>
+    <var id="y"> 0..3 </var>
+  </variables>
+  <constraints>
+    <extension>
+      <list> x y </list>
+      <supports> (0,1)(1,2)(2,0)(3,3) </supports>
+    </extension>
+  </constraints>
+  <objectives>
+    <maximize type="sum">
+      <list> x y </list>
+      <coeffs> 1 -1 </coeffs>
+    </maximize>
+  </objectives>
+</instance>

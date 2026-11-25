@@ -1,0 +1,5 @@
+% Must fail: an integer constant (`1` instead of `1.0`) is an argument of `float_le`.
+% expect: `rleq` expects an argument of sort Real, but argument 2 has sort Int (use `int2real` to convert an integer into a real number).
+var float: f;
+constraint float_le(f, 1);
+solve satisfy;

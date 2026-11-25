@@ -1,0 +1,15 @@
+<!-- Must pass: an equality between two Boolean expressions. Optimum: 1. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 0..3 </var>
+    <var id="y"> 0..3 </var>
+    <var id="z"> 0..3 </var>
+  </variables>
+  <constraints>
+    <intension> eq(lt(x,y),lt(y,z)) </intension>
+    <intension> lt(x,y) </intension>
+  </constraints>
+  <objectives>
+    <maximize> x </maximize>
+  </objectives>
+</instance>

@@ -1,0 +1,18 @@
+<!-- Must pass: `element` with an index, startIndex 2 and a constant value; the index domain is larger than the list. Optimum: 4. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <array id="x" size="[4]"> 0..3 </array>
+    <var id="i"> 0..7 </var>
+  </variables>
+  <constraints>
+    <intension> ne(x[3],3) </intension>
+    <element>
+      <list startIndex="2"> x[] </list>
+      <index> i </index>
+      <value> 3 </value>
+    </element>
+  </constraints>
+  <objectives>
+    <maximize> i </maximize>
+  </objectives>
+</instance>

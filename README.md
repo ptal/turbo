@@ -20,7 +20,8 @@ The other dependencies will be pulled and compiled automatically by CMake.
 You can first clone this repository, and then `git checkout` the latest released tag to ensure more stability.
 The following command will configure and compile Turbo for GPU for the GPU architecture of your computer (native architecture).
 
-```
+```bash
+git checkout v1.2.8 # main branch is our working branch.
 cmake --workflow --preset gpu-release --fresh
 ./build/gpu-release/turbo -s -v -i -t 20000 benchmarks/example_wordpress7_500.fzn
 ```

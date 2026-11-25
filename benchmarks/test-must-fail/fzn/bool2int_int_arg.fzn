@@ -1,0 +1,6 @@
+% Must fail: the argument of `bool2int` is an integer variable.
+% expect: `bool2int` expects an argument of sort Bool, but argument 1 has sort Int (use `int2bool` to convert an integer into a Boolean).
+var 0..1: x;
+var 0..1: y;
+constraint bool2int(x, y);
+solve satisfy;

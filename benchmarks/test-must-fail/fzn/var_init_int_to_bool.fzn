@@ -1,0 +1,4 @@
+% Must fail: a Boolean variable is initialised with the integer constant 1.
+% expect: `equiv` expects an argument of sort Bool, but argument 2 has sort Int (use `int2bool` to convert an integer into a Boolean).
+var bool: b = 1;
+solve satisfy;

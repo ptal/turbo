@@ -1,0 +1,12 @@
+<!-- Must pass: a maximization whose optimum is negative. Optimum: -3. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> -9..-2 </var>
+  </variables>
+  <constraints>
+    <intension> ne(x,-2) </intension>
+  </constraints>
+  <objectives>
+    <maximize> x </maximize>
+  </objectives>
+</instance>

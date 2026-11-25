@@ -1,0 +1,13 @@
+<!-- Must pass: a sum objective whose list is given without the `list` element. Optimum: 3. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 0..4 </var>
+    <var id="y"> 0..4 </var>
+  </variables>
+  <constraints>
+    <intension> ge(add(x,y),3) </intension>
+  </constraints>
+  <objectives>
+    <minimize type="sum"> x y </minimize>
+  </objectives>
+</instance>

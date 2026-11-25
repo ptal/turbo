@@ -1,0 +1,5 @@
+% Must fail: a variable is declared twice with two different sorts.
+% expect: The variable `x` is declared with the sorts Int and Bool.
+var 0..5: x;
+var bool: x;
+solve satisfy;

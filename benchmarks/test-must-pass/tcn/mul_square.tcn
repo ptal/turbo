@@ -1,0 +1,9 @@
+minimize 3
+4
+-3 2
+-inf inf
+0 0
+-inf inf
+2
+1 0 * 0
+2 1 + 3

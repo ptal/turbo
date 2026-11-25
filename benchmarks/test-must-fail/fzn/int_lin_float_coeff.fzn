@@ -1,0 +1,6 @@
+% Must fail: a coefficient of `int_lin_le` is a real number.
+% expect: `zmul` expects an argument of sort Int, but argument 1 has sort Real (use `floor`, `ceil` or `trunc` to convert a real number into an integer).
+var 0..5: x;
+var 0..5: y;
+constraint int_lin_le([1.5, 2], [x, y], 3);
+solve satisfy;

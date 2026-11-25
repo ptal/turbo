@@ -1,0 +1,18 @@
+<!-- Must pass: a table with negative values. Optimum: 1. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> -5..5 </var>
+    <var id="y"> -5..5 </var>
+  </variables>
+  <constraints>
+    <extension>
+      <list> x y </list>
+      <supports> (-2,3)(-1,-1)(4,-5) </supports>
+    </extension>
+  </constraints>
+  <objectives>
+    <maximize type="sum">
+      <list> x y </list>
+    </maximize>
+  </objectives>
+</instance>

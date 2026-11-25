@@ -1,0 +1,18 @@
+<!-- Must pass: `element` over a list of integers. Optimum: 20. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="i"> 0..2 </var>
+    <var id="v"> 0..50 </var>
+  </variables>
+  <constraints>
+    <element>
+      <list> 10 20 30 </list>
+      <index> i </index>
+      <value> v </value>
+    </element>
+    <intension> lt(i,2) </intension>
+  </constraints>
+  <objectives>
+    <maximize> v </maximize>
+  </objectives>
+</instance>

@@ -1,0 +1,6 @@
+% Must fail: a Boolean variable is an argument of the integer equality `int_eq`.
+% expect: `zeq` expects an argument of sort Int, but argument 1 has sort Bool (use `bool2int` to convert a Boolean into an integer).
+var bool: b;
+var 0..1: x;
+constraint int_eq(b, x);
+solve satisfy;

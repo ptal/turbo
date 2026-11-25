@@ -1,0 +1,12 @@
+<!-- Must pass: a domain mixing a negative range, a single value and a positive range. Optimum: 4. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> -5..-3 0 4..6 </var>
+  </variables>
+  <constraints>
+    <intension> lt(x,5) </intension>
+  </constraints>
+  <objectives>
+    <maximize> x </maximize>
+  </objectives>
+</instance>

@@ -1,0 +1,16 @@
+<!-- Must pass: Booleans (the results of `eq`) added as integers. Optimum: 4. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 0..2 </var>
+    <var id="y"> 0..2 </var>
+    <var id="z"> 0..2 </var>
+  </variables>
+  <constraints>
+    <intension> eq(add(eq(x,1),eq(y,1),eq(z,1)),2) </intension>
+  </constraints>
+  <objectives>
+    <maximize type="sum">
+      <list> x y z </list>
+    </maximize>
+  </objectives>
+</instance>

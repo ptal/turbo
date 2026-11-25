@@ -1,0 +1,16 @@
+<!-- Must pass: `min` with three arguments and an n-ary `add`. Optimum: 2. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 1..5 </var>
+    <var id="y"> 1..5 </var>
+    <var id="z"> 1..5 </var>
+    <var id="w"> 0..5 </var>
+  </variables>
+  <constraints>
+    <intension> eq(min(x,y,z),w) </intension>
+    <intension> lt(add(x,y,z),9) </intension>
+  </constraints>
+  <objectives>
+    <maximize> w </maximize>
+  </objectives>
+</instance>

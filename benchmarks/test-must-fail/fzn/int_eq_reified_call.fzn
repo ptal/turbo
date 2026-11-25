@@ -1,0 +1,6 @@
+% Must fail: the Boolean result of the nested call `int_le` is equated to a Boolean variable with `int_eq` instead of `bool_eq` (former test-must-pass/bug1.fzn).
+% expect: `zeq` expects an argument of sort Int, but argument 1 has sort Bool (use `bool2int` to convert a Boolean into an integer).
+var -10..10: y;
+var bool: b;
+constraint int_eq(b, int_le(0, y));
+solve satisfy;

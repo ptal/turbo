@@ -1,0 +1,16 @@
+<!-- Must pass: a disjunction of conjunctions. Optimum: 5. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 0..3 </var>
+    <var id="y"> 0..3 </var>
+  </variables>
+  <constraints>
+    <intension> or(and(eq(x,1),eq(y,2)),and(eq(x,3),eq(y,0))) </intension>
+  </constraints>
+  <objectives>
+    <maximize type="sum">
+      <list> x y </list>
+      <coeffs> 1 2 </coeffs>
+    </maximize>
+  </objectives>
+</instance>

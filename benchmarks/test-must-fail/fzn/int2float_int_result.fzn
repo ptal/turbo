@@ -1,0 +1,6 @@
+% Must fail: the result of `int2float` is an integer variable.
+% expect: `req` expects an argument of sort Real, but argument 2 has sort Int (use `int2real` to convert an integer into a real number).
+var 0..5: x;
+var 0..5: y;
+constraint int2float(x, y);
+solve satisfy;

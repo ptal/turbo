@@ -1,0 +1,13 @@
+<!-- Must pass: `lt(y,add(x,-2))`, a primitive with a negative constant on the right. Optimum: 3. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 0..6 </var>
+    <var id="y"> -5..10 </var>
+  </variables>
+  <constraints>
+    <intension> lt(y,add(x,-2)) </intension>
+  </constraints>
+  <objectives>
+    <maximize> y </maximize>
+  </objectives>
+</instance>

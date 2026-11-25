@@ -1,0 +1,13 @@
+<!-- Must pass: a variable declared with the domain of another one (`as` attribute). Optimum: 4. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 2 4 6 </var>
+    <var id="y" as="x"/>
+  </variables>
+  <constraints>
+    <intension> gt(y,x) </intension>
+  </constraints>
+  <objectives>
+    <minimize> y </minimize>
+  </objectives>
+</instance>

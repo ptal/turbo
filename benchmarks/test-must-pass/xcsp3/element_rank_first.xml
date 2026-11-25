@@ -1,0 +1,23 @@
+<!-- Must pass: `element` whose index has rank first: the first position holding the value. Optimum: 2. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <array id="x" size="[5]"> 0..2 </array>
+    <var id="i"> 0..4 </var>
+    <var id="v"> 0..2 </var>
+  </variables>
+  <constraints>
+    <intension> eq(x[0],1) </intension>
+    <intension> eq(x[1],2) </intension>
+    <intension> eq(x[2],0) </intension>
+    <intension> eq(x[3],2) </intension>
+    <intension> eq(x[4],2) </intension>
+    <element>
+      <list> x[] </list>
+      <index rank="first"> i </index>
+      <value> v </value>
+    </element>
+  </constraints>
+  <objectives>
+    <maximize> i </maximize>
+  </objectives>
+</instance>

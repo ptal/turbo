@@ -1,0 +1,10 @@
+minimize 4
+5
+-5 -2
+-3 4
+-inf inf
+0 0
+-inf inf
+2
+2 0 I 1
+3 2 + 4

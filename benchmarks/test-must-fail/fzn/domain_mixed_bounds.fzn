@@ -1,0 +1,4 @@
+% Must fail: the domain of a variable is a range whose lower bound is an integer and upper bound a real number.
+% expect: The elements of a set must have the same sort, but we found the sorts Int and Real.
+var 1..2.5: x;
+solve satisfy;

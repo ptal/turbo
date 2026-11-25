@@ -1,0 +1,15 @@
+<!-- Must pass: domains with only negative values. Optimum: -8. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> -10..-4 </var>
+    <var id="y"> -3..-1 </var>
+  </variables>
+  <constraints>
+    <intension> lt(sub(x,y),-5) </intension>
+  </constraints>
+  <objectives>
+    <maximize type="sum">
+      <list> x y </list>
+    </maximize>
+  </objectives>
+</instance>

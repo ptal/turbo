@@ -1,0 +1,12 @@
+<!-- Must pass: `le(x,3)`, recognized as the primitive x <= 3. Optimum: 3. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 0..9 </var>
+  </variables>
+  <constraints>
+    <intension> le(x,3) </intension>
+  </constraints>
+  <objectives>
+    <maximize> x </maximize>
+  </objectives>
+</instance>

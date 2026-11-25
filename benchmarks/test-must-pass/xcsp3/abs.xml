@@ -1,0 +1,12 @@
+<!-- Must pass: `abs` with a negative optimum. Optimum: -4. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> -6..3 </var>
+  </variables>
+  <constraints>
+    <intension> ge(abs(x),4) </intension>
+  </constraints>
+  <objectives>
+    <maximize> x </maximize>
+  </objectives>
+</instance>

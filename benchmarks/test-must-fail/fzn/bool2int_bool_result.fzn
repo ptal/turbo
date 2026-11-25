@@ -1,0 +1,6 @@
+% Must fail: the result of `bool2int` is a Boolean variable instead of an integer.
+% expect: `zeq` expects an argument of sort Int, but argument 2 has sort Bool (use `bool2int` to convert a Boolean into an integer).
+var bool: a;
+var bool: c;
+constraint bool2int(a, c);
+solve satisfy;
