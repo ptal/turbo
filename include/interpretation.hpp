@@ -871,10 +871,13 @@ CUDA NI bool interpret_ask_in(const F& f, const Env& env, ZInterval<VT, Mem>& k,
         "Failed to interpret the decomposition of set membership `x in {[v..v]}` into equality `x == v`.",
         (interpret_ask_in<diagnose>(F::make_binary(f.seq(0), ZEQ, lb), env, k, diagnostics)));
     }
+    // An interval of sets is an interval of the inclusion order.
+    Sig geq_sig = lb.is(F::S) ? SUPSETEQ : instantiate_op(GEQ, lb);
+    Sig leq_sig = ub.is(F::S) ? SUBSETEQ : instantiate_op(LEQ, ub);
     CALL_WITH_ERROR_CONTEXT_WITH_MERGE(
       "Failed to interpret the decomposition of set membership `x in {[l..u]}` into `x >= l /\\ x <= u`.",
-      (interpret_ask_in<diagnose>(F::make_binary(f.seq(0), geq_of_constant(lb), lb), env, itv.lb(), diagnostics) &&
-       interpret_ask_in<diagnose>(F::make_binary(f.seq(0), leq_of_constant(ub), ub), env, itv.ub(), diagnostics)),
+      (interpret_ask_in<diagnose>(F::make_binary(f.seq(0), geq_sig, lb), env, itv.lb(), diagnostics) &&
+       interpret_ask_in<diagnose>(F::make_binary(f.seq(0), leq_sig, ub), env, itv.ub(), diagnostics)),
       (k.meet(itv))
     );
   }
