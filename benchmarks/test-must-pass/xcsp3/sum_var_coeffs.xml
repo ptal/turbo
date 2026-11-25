@@ -1,0 +1,21 @@
+<!-- Must pass: a sum whose coefficients are variables. Optimum: 5. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 0..3 </var>
+    <var id="y"> 0..3 </var>
+    <var id="a"> 1..2 </var>
+    <var id="b"> 1..2 </var>
+  </variables>
+  <constraints>
+    <sum>
+      <list> x y </list>
+      <coeffs> a b </coeffs>
+      <condition> (le,5) </condition>
+    </sum>
+  </constraints>
+  <objectives>
+    <maximize type="sum">
+      <list> x y </list>
+    </maximize>
+  </objectives>
+</instance>

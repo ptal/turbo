@@ -1,0 +1,24 @@
+<!-- Must pass: a group of unary tables of conflicts: the parser receives the tuples only for the first variable. Optimum: 3. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 0..3 </var>
+    <var id="y"> 0..3 </var>
+    <var id="z"> 0..3 </var>
+  </variables>
+  <constraints>
+    <group>
+      <extension>
+        <list> %0 </list>
+        <conflicts> 2 3 </conflicts>
+      </extension>
+      <args> x </args>
+      <args> y </args>
+      <args> z </args>
+    </group>
+  </constraints>
+  <objectives>
+    <maximize type="sum">
+      <list> x y z </list>
+    </maximize>
+  </objectives>
+</instance>

@@ -1,0 +1,23 @@
+<!-- Must pass: `cumulative` with four tasks of different lengths and heights. Optimum: 4. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="s0"> 0..4 </var>
+    <var id="s1"> 0..4 </var>
+    <var id="s2"> 0..4 </var>
+    <var id="s3"> 0..4 </var>
+  </variables>
+  <constraints>
+    <cumulative>
+      <origins> s0 s1 s2 s3 </origins>
+      <lengths> 3 2 2 1 </lengths>
+      <heights> 2 2 1 3 </heights>
+      <condition> (le,4) </condition>
+    </cumulative>
+  </constraints>
+  <objectives>
+    <minimize type="sum">
+      <list> s0 s1 s2 s3 </list>
+      <coeffs> 1 2 3 4 </coeffs>
+    </minimize>
+  </objectives>
+</instance>

@@ -1,0 +1,15 @@
+<!-- Must pass: integers (not only 0/1) used as Booleans: nonzero is true. Optimum: 1. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 0..2 </var>
+    <var id="y"> 0..2 </var>
+  </variables>
+  <constraints>
+    <intension> and(x,sub(y,1)) </intension>
+  </constraints>
+  <objectives>
+    <minimize type="sum">
+      <list> x y </list>
+    </minimize>
+  </objectives>
+</instance>

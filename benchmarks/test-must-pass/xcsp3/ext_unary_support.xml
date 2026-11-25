@@ -1,0 +1,16 @@
+<!-- Must pass: a unary table of supports with a range. Optimum: 6. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 0..10 </var>
+  </variables>
+  <constraints>
+    <extension>
+      <list> x </list>
+      <supports> 1 4 6..8 </supports>
+    </extension>
+    <intension> lt(x,7) </intension>
+  </constraints>
+  <objectives>
+    <maximize> x </maximize>
+  </objectives>
+</instance>

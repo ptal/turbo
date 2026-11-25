@@ -1,0 +1,19 @@
+<!-- Must pass: `element` over a matrix of integers with a row and a column index. Optimum: 5. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="r"> 0..1 </var>
+    <var id="c"> 0..2 </var>
+    <var id="v"> 0..9 </var>
+  </variables>
+  <constraints>
+    <element>
+      <matrix> (1,2,3)(4,5,6) </matrix>
+      <index> r c </index>
+      <value> v </value>
+    </element>
+    <intension> lt(c,2) </intension>
+  </constraints>
+  <objectives>
+    <maximize> v </maximize>
+  </objectives>
+</instance>

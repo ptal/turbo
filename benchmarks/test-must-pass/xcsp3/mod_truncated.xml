@@ -1,0 +1,13 @@
+<!-- Must pass: `mod` of a negative number has the sign of the dividend. Optimum: -2. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> -5..-1 </var>
+    <var id="y"> -5..5 </var>
+  </variables>
+  <constraints>
+    <intension> eq(mod(x,3),y) </intension>
+  </constraints>
+  <objectives>
+    <minimize> y </minimize>
+  </objectives>
+</instance>

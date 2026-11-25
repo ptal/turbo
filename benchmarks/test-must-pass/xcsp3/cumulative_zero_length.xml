@@ -1,0 +1,21 @@
+<!-- Must pass: `cumulative` with a task of length 0, which does not use the resource even if it is higher than the capacity. Optimum: 2. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="s0"> 0..4 </var>
+    <var id="s1"> 0..4 </var>
+    <var id="s2"> 0..4 </var>
+  </variables>
+  <constraints>
+    <cumulative>
+      <origins> s0 s1 s2 </origins>
+      <lengths> 2 0 2 </lengths>
+      <heights> 1 5 1 </heights>
+      <condition> (le,1) </condition>
+    </cumulative>
+  </constraints>
+  <objectives>
+    <minimize type="sum">
+      <list> s0 s1 s2 </list>
+    </minimize>
+  </objectives>
+</instance>

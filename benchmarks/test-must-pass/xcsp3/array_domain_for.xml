@@ -1,0 +1,17 @@
+<!-- Must pass: an array whose elements have different domains (`domain for` and `others`). Optimum: 6. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <array id="x" size="[3]">
+      <domain for="x[0]"> 5..6 </domain>
+      <domain for="others"> 0..2 </domain>
+    </array>
+  </variables>
+  <constraints>
+    <intension> ne(x[1],x[2]) </intension>
+  </constraints>
+  <objectives>
+    <minimize type="sum">
+      <list> x[] </list>
+    </minimize>
+  </objectives>
+</instance>

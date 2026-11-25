@@ -1,0 +1,21 @@
+<!-- Must pass: `element` with an index (startIndex 0). Optimum: 7. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <array id="x" size="[3]"> 0..9 </array>
+    <var id="i"> 0..2 </var>
+    <var id="v"> 0..9 </var>
+  </variables>
+  <constraints>
+    <intension> eq(x[0],3) </intension>
+    <intension> eq(x[1],7) </intension>
+    <intension> eq(x[2],5) </intension>
+    <element>
+      <list startIndex="0"> x[] </list>
+      <index> i </index>
+      <value> v </value>
+    </element>
+  </constraints>
+  <objectives>
+    <maximize> v </maximize>
+  </objectives>
+</instance>

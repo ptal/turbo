@@ -1,0 +1,21 @@
+<!-- Must pass: `element` with a condition (gt) instead of a value, and startIndex 1. Optimum: 2. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <array id="x" size="[4]"> 0..9 </array>
+    <var id="i"> 0..6 </var>
+  </variables>
+  <constraints>
+    <intension> eq(x[0],3) </intension>
+    <intension> eq(x[1],8) </intension>
+    <intension> eq(x[2],5) </intension>
+    <intension> eq(x[3],9) </intension>
+    <element>
+      <list startIndex="1"> x[] </list>
+      <index> i </index>
+      <condition> (gt,6) </condition>
+    </element>
+  </constraints>
+  <objectives>
+    <minimize> i </minimize>
+  </objectives>
+</instance>

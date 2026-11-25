@@ -1,0 +1,13 @@
+<!-- Must pass: `ge(add(x,2),y)`, recognized as the primitive x + 2 >= y. Optimum: 5. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 0..3 </var>
+    <var id="y"> 0..10 </var>
+  </variables>
+  <constraints>
+    <intension> ge(add(x,2),y) </intension>
+  </constraints>
+  <objectives>
+    <maximize> y </maximize>
+  </objectives>
+</instance>

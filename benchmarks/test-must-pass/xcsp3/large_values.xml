@@ -1,0 +1,12 @@
+<!-- Must pass: large domain values. Optimum: 1000001. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 1000000..1000005 </var>
+  </variables>
+  <constraints>
+    <intension> ne(x,1000000) </intension>
+  </constraints>
+  <objectives>
+    <minimize> x </minimize>
+  </objectives>
+</instance>

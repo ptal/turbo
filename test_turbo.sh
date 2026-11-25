@@ -9,7 +9,8 @@ simplify_flag=( "" "-disable_simplify" )
 # architectures=( "cpu" "barebones" )
 architectures=( "barebones" )
 
-CSV="benchmarks/test_list.csv"
+# Instances with their expected bound.
+CSV="benchmarks/test-must-pass.csv"
 
 # global flag / counters
 any_errors=0

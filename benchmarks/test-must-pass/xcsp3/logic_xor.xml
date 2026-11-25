@@ -1,0 +1,15 @@
+<!-- Must pass: `xor` of two comparisons. Optimum: 7. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 0..5 </var>
+    <var id="y"> 0..5 </var>
+  </variables>
+  <constraints>
+    <intension> xor(gt(x,2),gt(y,2)) </intension>
+  </constraints>
+  <objectives>
+    <maximize type="sum">
+      <list> x y </list>
+    </maximize>
+  </objectives>
+</instance>

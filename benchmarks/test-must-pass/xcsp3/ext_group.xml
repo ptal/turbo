@@ -1,0 +1,23 @@
+<!-- Must pass: a group of extension constraints sharing the same table. Optimum: 2. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 0..1 </var>
+    <var id="y"> 0..1 </var>
+    <var id="z"> 0..1 </var>
+  </variables>
+  <constraints>
+    <group>
+      <extension>
+        <list> %0 %1 </list>
+        <supports> (0,1)(1,0) </supports>
+      </extension>
+      <args> x y </args>
+      <args> y z </args>
+    </group>
+  </constraints>
+  <objectives>
+    <maximize type="sum">
+      <list> x y z </list>
+    </maximize>
+  </objectives>
+</instance>

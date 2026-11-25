@@ -1,0 +1,20 @@
+<!-- Must pass: a weighted sum with a negative coefficient. Optimum: 12. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <var id="x"> 0..5 </var>
+    <var id="y"> 0..5 </var>
+    <var id="z"> 0..5 </var>
+  </variables>
+  <constraints>
+    <sum>
+      <list> x y z </list>
+      <coeffs> 2 -3 1 </coeffs>
+      <condition> (eq,4) </condition>
+    </sum>
+  </constraints>
+  <objectives>
+    <maximize type="sum">
+      <list> x y z </list>
+    </maximize>
+  </objectives>
+</instance>

@@ -1,0 +1,15 @@
+<!-- Must pass: a one-dimensional array, the compact list `x[]` and a weighted sum objective. Optimum: 10. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <array id="x" size="[4]"> 0..3 </array>
+  </variables>
+  <constraints>
+    <allDifferent> x[] </allDifferent>
+  </constraints>
+  <objectives>
+    <minimize type="sum">
+      <list> x[] </list>
+      <coeffs> 1 2 3 4 </coeffs>
+    </minimize>
+  </objectives>
+</instance>

@@ -1,0 +1,17 @@
+<!-- Must pass: a slice `x[1..3]` of an array in a sum constraint. Optimum: 7. -->
+<instance format="XCSP3" type="COP">
+  <variables>
+    <array id="x" size="[5]"> 0..3 </array>
+  </variables>
+  <constraints>
+    <sum>
+      <list> x[1..3] </list>
+      <condition> (ge,7) </condition>
+    </sum>
+  </constraints>
+  <objectives>
+    <minimize type="sum">
+      <list> x[] </list>
+    </minimize>
+  </objectives>
+</instance>
