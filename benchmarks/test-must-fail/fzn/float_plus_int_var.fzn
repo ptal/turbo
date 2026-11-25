@@ -1,0 +1,7 @@
+% Must fail: an integer variable is an argument of `float_plus`.
+% expect: `radd` expects an argument of sort Real, but argument 2 has sort Int (use `int2real` to convert an integer into a real number).
+var float: f;
+var float: g;
+var 0..5: x;
+constraint float_plus(f, x, g);
+solve satisfy;

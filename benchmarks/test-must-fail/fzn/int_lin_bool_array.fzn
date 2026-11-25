@@ -1,0 +1,5 @@
+% Must fail: an array of Boolean variables, given by name, is the variable array of `int_lin_le`.
+% expect: `zmul` expects an argument of sort Int, but argument 2 has sort Bool (use `bool2int` to convert a Boolean into an integer).
+array [1..2] of var bool: bs;
+constraint int_lin_le([1, 1], bs, 1);
+solve satisfy;

@@ -1,0 +1,5 @@
+% Must fail: a constraint uses a variable that is never declared.
+% expect: Undeclared variable `y`.
+var 0..5: x;
+constraint int_le(x, y);
+solve satisfy;

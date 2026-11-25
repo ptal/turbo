@@ -1,0 +1,4 @@
+% Must fail: the objective is a Boolean variable.
+% expect: `minimize` expects an argument of sort Int or Real, but the argument has sort Bool.
+var bool: b;
+solve minimize b;

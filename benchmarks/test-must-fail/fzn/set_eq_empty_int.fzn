@@ -1,0 +1,5 @@
+% Must fail: the empty set (compatible with any set sort) is equated to an integer variable.
+% expect: `eq` expects arguments of the same sort, but argument 1 has sort Int and argument 2 has sort Set(?).
+var 1..3: x;
+constraint set_eq(x, {});
+solve satisfy;

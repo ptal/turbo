@@ -1,0 +1,6 @@
+% Must fail: the Boolean constant `true` is an argument of `int_plus`.
+% expect: `zadd` expects an argument of sort Int, but argument 2 has sort Bool (use `bool2int` to convert a Boolean into an integer).
+var 0..5: x;
+var 0..5: y;
+constraint int_plus(x, true, y);
+solve satisfy;

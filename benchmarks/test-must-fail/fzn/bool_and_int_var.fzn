@@ -1,0 +1,7 @@
+% Must fail: a 0/1 integer variable is an argument of `bool_and`.
+% expect: `and` expects an argument of sort Bool, but argument 1 has sort Int (use `int2bool` to convert an integer into a Boolean).
+var 0..1: x;
+var bool: b;
+var bool: r;
+constraint bool_and(x, b, r);
+solve satisfy;

@@ -1,0 +1,6 @@
+% Must fail: an integer variable is an argument of `set_subset`.
+% expect: `subseteq` expects an argument of sort Set, but argument 1 has sort Int.
+var 1..3: x;
+var set of 1..3: s;
+constraint set_subset(x, s);
+solve satisfy;

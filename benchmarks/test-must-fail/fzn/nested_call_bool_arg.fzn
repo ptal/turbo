@@ -1,0 +1,6 @@
+% Must fail: the error is inside a nested function call: a Boolean is an argument of `int_plus`, itself an argument of `int_le`.
+% expect: `zadd` expects an argument of sort Int, but argument 2 has sort Bool (use `bool2int` to convert a Boolean into an integer).
+var 0..5: x;
+var bool: b;
+constraint int_le(int_plus(x, b), 3);
+solve satisfy;

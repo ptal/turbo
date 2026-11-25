@@ -1,0 +1,4 @@
+% Must fail: the objective is a set variable.
+% expect: `maximize` expects an argument of sort Int or Real, but the argument has sort Set(Int).
+var set of 1..3: s;
+solve maximize s;

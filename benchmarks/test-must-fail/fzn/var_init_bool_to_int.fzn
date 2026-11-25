@@ -1,0 +1,5 @@
+% Must fail: an integer variable is initialised with a Boolean variable.
+% expect: `zeq` expects an argument of sort Int, but argument 2 has sort Bool (use `bool2int` to convert a Boolean into an integer).
+var bool: b;
+var int: x = b;
+solve satisfy;

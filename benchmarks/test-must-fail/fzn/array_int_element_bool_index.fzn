@@ -1,0 +1,6 @@
+% Must fail: the index of `array_int_element` is a Boolean variable.
+% expect: `zeq` expects an argument of sort Int, but argument 1 has sort Bool (use `bool2int` to convert a Boolean into an integer).
+var bool: b;
+var 1..2: x;
+constraint array_int_element(b, [1, 2], x);
+solve satisfy;

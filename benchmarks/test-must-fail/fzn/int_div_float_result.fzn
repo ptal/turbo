@@ -1,0 +1,7 @@
+% Must fail: the result of the integer division `int_div` is a float variable.
+% expect: `zeq` expects an argument of sort Int, but argument 2 has sort Real (use `floor`, `ceil` or `trunc` to convert a real number into an integer).
+var 1..5: x;
+var 1..5: y;
+var float: f;
+constraint int_div(x, y, f);
+solve satisfy;

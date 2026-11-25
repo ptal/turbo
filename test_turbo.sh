@@ -11,6 +11,8 @@ architectures=( "barebones" )
 
 # Instances with their expected bound.
 CSV="benchmarks/test-must-pass.csv"
+# Instances that are not well-formed.
+CSV_FAIL="benchmarks/test-must-fail.csv"
 
 # global flag / counters
 any_errors=0
@@ -88,12 +90,34 @@ while read -r line; do
     fi
 done < "$CSV"
 
+# The files listed in `$CSV_FAIL` are not well-formed: turbo must reject them right after parsing.
+# Each file gives the expected diagnostic on a line `% expect: <description>`.
+while read -r line; do
+    problem_path=$(echo "$line" | cut -d ',' -f 1 | xargs)
+    problem_name=$(basename "$problem_path")
+    expected=$(grep -m1 -oP '^% expect: \K.*' "$problem_path" || :)
+    cmd=( ./build/gpu-release-local/turbo -arch barebones -t 10000 "$problem_path" )
+    out=$("${cmd[@]}" < /dev/null 2>&1)
+    if ! grep -qF "% The input formula is not well-formed." <<< "$out"; then
+        echo "✗ [accepted, expected ill-formed] [${problem_name}] (${cmd[@]})"
+        ((failed++))
+        any_errors=1
+    elif [[ -n "$expected" ]] && ! grep -qF -- "$expected" <<< "$out"; then
+        echo "✗ [wrong diagnostic, expected: ${expected}] [${problem_name}] (${cmd[@]})"
+        ((failed++))
+        any_errors=1
+    else
+        echo "✔ [ill-formed] [${problem_name}]"
+        ((passed++))
+    fi
+done < "$CSV_FAIL"
+
 # final summary
 echo "======== Final Report ========"
 echo "  ✔ Passed: $passed"
 echo "  ✗ Failed: $failed"
 if (( any_errors )); then
-    echo "Wrong bounds detected!"
+    echo "Wrong bounds or well-formedness errors detected!"
     exit 1
 else
     echo "No error detected!"

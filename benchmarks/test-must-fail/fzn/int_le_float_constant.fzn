@@ -1,0 +1,5 @@
+% Must fail: a real constant is an argument of `int_le`.
+% expect: `zleq` expects an argument of sort Int, but argument 2 has sort Real (use `floor`, `ceil` or `trunc` to convert a real number into an integer).
+var 0..5: x;
+constraint int_le(x, 2.5);
+solve satisfy;

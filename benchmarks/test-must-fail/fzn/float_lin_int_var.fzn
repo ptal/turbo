@@ -1,0 +1,6 @@
+% Must fail: an integer variable is in the variable array of `float_lin_le`.
+% expect: `rmul` expects an argument of sort Real, but argument 2 has sort Int (use `int2real` to convert an integer into a real number).
+var float: f;
+var 0..5: x;
+constraint float_lin_le([1.0, 2.0], [f, x], 3.0);
+solve satisfy;

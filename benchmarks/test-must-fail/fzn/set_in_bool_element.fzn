@@ -1,0 +1,5 @@
+% Must fail: a Boolean variable is tested for membership in a set of integers.
+% expect: `in` expects an element of sort Int, but the element has sort Bool.
+var bool: b;
+constraint set_in(b, 1..3);
+solve satisfy;

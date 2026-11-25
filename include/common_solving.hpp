@@ -387,6 +387,18 @@ public:
       f->print();
       printf("\n");
     }
+    // The TCN format is a lower-level language (Booleans are integers), hence it is not checked.
+    if(config.input_format() != InputFormat::TCN) {
+      WFDiagnostic<basic_allocator_type> diag;
+      if(!is_wellformed(*f, VarEnv<basic_allocator_type>(), diag)) {
+        printf("%% The input formula is not well-formed.\n");
+        diag.print();
+        exit(EXIT_FAILURE);
+      }
+      if(config.verbose_solving) {
+        printf("%% Input formula is well-formed.\n");
+      }
+    }
     stats.print_stat("parsed_variables", num_quantified_vars(*f));
     stats.print_stat("parsed_constraints", num_constraints(*f));
     *f = eval(*f);

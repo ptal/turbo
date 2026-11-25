@@ -7,6 +7,6 @@ var bool: c1 :: output_var;
 
 constraint bool_and(b_3,b_4,c1);
 constraint bool_and(b_0,b_1,c1);
-constraint int_eq(b_3,int_le(0,y));
-constraint int_eq(b_4,int_le(y,5));
+constraint bool_eq(b_3,int_le(0,y));
+constraint bool_eq(b_4,int_le(y,5));
 solve minimize y;
