@@ -24,8 +24,8 @@ using namespace battery;
 
 using F = TFormula<standard_allocator>;
 
-static LVar<standard_allocator> var_x = "x";
-static LVar<standard_allocator> var_y = "y";
+static SymID var_x = "x";
+static SymID var_y = "y";
 
 inline VarEnv<standard_allocator> env_with(const char* fzn) {
   VarEnv<standard_allocator> env;

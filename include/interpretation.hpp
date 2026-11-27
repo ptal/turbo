@@ -233,12 +233,12 @@ CUDA NI bool interpret_existential_in(const F& f, VarEnv<Alloc>& env, AVar& avar
   const char* name = "VarEnv";
   const auto& vname = battery::get<0>(f.exists());
   if(f.type() == UNTYPED) {
-    RETURN_INTERPRETATION_ERROR("Untyped abstract type: variable `" + vname + "` has no abstract type.");
+    RETURN_INTERPRETATION_ERROR("Untyped abstract type: variable `" + fstring<F>(vname.data()) + "` has no abstract type.");
   }
   auto var = env.variable_of(vname);
   if(var.has_value()) {
     if(var->get().sort != battery::get<1>(f.exists())) {
-      RETURN_INTERPRETATION_ERROR("Invalid redeclaration with different sort: variable `" + vname + "` has already been declared and the sort does not coincide.");
+      RETURN_INTERPRETATION_ERROR("Invalid redeclaration with different sort: variable `" + fstring<F>(vname.data()) + "` has already been declared and the sort does not coincide.");
     }
   }
   avar = env.extends_vars(f.type(), vname, battery::get<1>(f.exists()));
@@ -259,7 +259,7 @@ CUDA NI bool interpret_lv_in(const F& f, const VarEnv<Alloc>& env, AVar& avar, I
         return true;
       }
       else {
-        RETURN_INTERPRETATION_ERROR("Variable `" + vname + "` has not been declared in the abstract domain `" + fstring<F>::from_int(f.type()) + "`.");
+        RETURN_INTERPRETATION_ERROR("Variable `" + fstring<F>(vname.data()) + "` has not been declared in the abstract domain `" + fstring<F>::from_int(f.type()) + "`.");
       }
     }
     else {
@@ -269,7 +269,7 @@ CUDA NI bool interpret_lv_in(const F& f, const VarEnv<Alloc>& env, AVar& avar, I
     }
   }
   else {
-    RETURN_INTERPRETATION_ERROR("Undeclared variable `" + vname + "`.");
+    RETURN_INTERPRETATION_ERROR("Undeclared variable `" + fstring<F>(vname.data()) + "`.");
   }
 }
 
@@ -512,7 +512,7 @@ namespace impl {
         bound.meet(typename B::basic_type(logic::strict(k)));
       }
       else {
-        RETURN_INTERPRETATION_ERROR("The symbol `" + LVar<typename F::allocator_type>(string_of_sig(f.sig())) + "` is not supported in the tell language of this universe.");
+        RETURN_INTERPRETATION_ERROR("The symbol `" + fstring<F>(string_of_sig(f.sig())) + "` is not supported in the tell language of this universe.");
       }
     }
     else {
@@ -523,7 +523,7 @@ namespace impl {
         bound.meet(typename B::basic_type(logic::strict(k)));
       }
       else {
-        RETURN_INTERPRETATION_ERROR("The symbol `" + LVar<typename F::allocator_type>(string_of_sig(f.sig())) + "` is not supported in the ask language of this universe.");
+        RETURN_INTERPRETATION_ERROR("The symbol `" + fstring<F>(string_of_sig(f.sig())) + "` is not supported in the ask language of this universe.");
       }
     }
     return true;
@@ -568,7 +568,7 @@ namespace impl {
     }
     else {
       const auto& vname = battery::get<0>(f.exists());
-      RETURN_INTERPRETATION_ERROR("The type of `" + vname + "` can only be `Int`.")
+      RETURN_INTERPRETATION_ERROR("The type of `" + fstring<F>(vname.data()) + "` can only be `Int`.")
     }
   }
 
@@ -670,7 +670,7 @@ namespace impl {
     }
     else {
       const auto& vname = battery::get<0>(f.exists());
-      RETURN_INTERPRETATION_ERROR(("NBitset only supports variables of type `Int` or `Bool`, but `" + vname + "` has another sort."));
+      RETURN_INTERPRETATION_ERROR(("NBitset only supports variables of type `Int` or `Bool`, but `" + fstring<F>(vname.data()) + "` has another sort."));
     }
   }
 
@@ -1390,9 +1390,9 @@ namespace impl {
   CUDA NI TFormula<Allocator2> deinterpret_bytecode(const Typed<PIR<A, Alloc>>& pir, bytecode_type bytecode, const Env& env, Allocator2 allocator) {
     using F = TFormula<Allocator2>;
     AType sub_aty = pir.types.sub.aty;
-    auto X = F::make_lvar(sub_aty, LVar<Allocator2>(env.name_of(AVar(sub_aty, bytecode.x)), allocator));
-    auto Y = F::make_lvar(sub_aty, LVar<Allocator2>(env.name_of(AVar(sub_aty, bytecode.y)), allocator));
-    auto Z = F::make_lvar(sub_aty, LVar<Allocator2>(env.name_of(AVar(sub_aty, bytecode.z)), allocator));
+    auto X = F::make_lvar(sub_aty, env.name_of(AVar(sub_aty, bytecode.x)));
+    auto Y = F::make_lvar(sub_aty, env.name_of(AVar(sub_aty, bytecode.y)));
+    auto Z = F::make_lvar(sub_aty, env.name_of(AVar(sub_aty, bytecode.z)));
     return F::make_binary(X, ZEQ, F::make_binary(Y, bytecode.op, Z, pir.aty(), allocator), pir.aty(), allocator);
   }
 }
