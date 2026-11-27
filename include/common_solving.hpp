@@ -417,7 +417,7 @@ public:
   void add_minimize_objective_var(F& f, const F::Existential& max_var) {
     if(f.is(F::Seq)) {
       if(f.sig() == Sig::MAXIMIZE && f.seq(0).is_variable()) {
-        LVar<basic_allocator_type> minimize_obj("__MINIMIZE_OBJ");
+        LVar minimize_obj("__MINIMIZE_OBJ");
         f = F::make_binary(f,
           Sig::AND,
           F::make_binary(
